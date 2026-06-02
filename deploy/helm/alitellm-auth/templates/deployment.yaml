@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "alitellm-auth.fullname" . }}
+  labels:
+    {{- include "alitellm-auth.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "alitellm-auth.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "alitellm-auth.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "alitellm-auth.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.repo }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: {{ include "alitellm-auth.secretName" . }}
+          env:
+            - name: APP_BASE_URL
+              value: {{ .Values.config.appBaseUrl | quote }}
+            - name: OAUTH_ISSUER_URL
+              value: {{ .Values.config.oauthIssuerUrl | quote }}
+            - name: OAUTH_CLIENT_ID
+              value: {{ .Values.config.oauthClientId | quote }}
+            - name: LITELLM_URL
+              value: {{ .Values.config.litellmUrl | quote }}
+            - name: API_PUBLIC_URL
+              value: {{ .Values.config.apiPublicUrl | quote }}
+            {{- if .Values.factoryConfig.enabled }}
+            - name: FACTORY_CONFIG_PATH
+              value: {{ printf "%s/factory-config.json" .Values.factoryConfig.mountPath | quote }}
+            {{- end }}
+          {{- if .Values.factoryConfig.enabled }}
+          volumeMounts:
+            - name: factory-config
+              mountPath: {{ .Values.factoryConfig.mountPath }}
+              readOnly: true
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- if .Values.factoryConfig.enabled }}
+      volumes:
+        - name: factory-config
+          configMap:
+            name: {{ include "alitellm-auth.fullname" . }}-factory-config
+            optional: true
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

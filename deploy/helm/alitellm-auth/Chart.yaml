@@ -1,0 +1,13 @@
+apiVersion: v2
+name: alitellm-auth
+version: 0.2.0
+appVersion: v0.2.0
+kubeVersion: ">= 1.27.0-0"
+description: >-
+  OIDC identity + LiteLLM User/VirtualKey provisioning. Authenticates users via
+  an OIDC provider (Dex/Keycloak) and issues a per-user LiteLLM virtual key.
+type: application
+sources:
+  - https://github.com/ackstorm/alitellm-auth
+maintainers:
+  - name: ACKstorm

@@ -1,0 +1,105 @@
+# deploy/helm/alitellm-auth/values.yaml
+#
+# Parameterized surfaces for the alitellm-auth chart. Defaults reproduce the
+# legacy k8s/ manifests so an unparameterized `helm install` renders the same
+# deployment that `kubectl apply -f k8s/` used to.
+
+replicaCount: 1
+
+image:
+  repo: ghcr.io/ackstorm/alitellm-auth
+  # Tag to deploy. Bumped by `make release-bump VERSION=X.Y.Z`. Leave empty to
+  # fall back to .Chart.AppVersion.
+  tag: "v0.2.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Non-secret application config -> plain env vars on the container.
+# These map 1:1 to src/api/app/config.py Settings fields.
+config:
+  appBaseUrl: "https://platform.ackstorm.ai"
+  oauthIssuerUrl: "https://dex.ackstorm.ai/dex"
+  oauthClientId: "platform"
+  litellmUrl: "https://litellm.ackstorm.ai"
+  apiPublicUrl: "https://api.ackstorm.ai"
+
+# Sensitive config (SESSION_SECRET_KEY, OAUTH_CLIENT_SECRET, LITELLM_MASTER_KEY).
+# Recommended: pre-create a Secret and reference it here. The chart injects all
+# of its keys into the container via envFrom.secretRef.
+existingSecret: "alitellm-auth-secret"
+
+# Escape hatch: render the Secret FROM these values instead of using an existing
+# one. Discouraged for production (values are stored in the Helm release). Only
+# used when existingSecret is "" AND secret.create is true.
+secret:
+  create: false
+  sessionSecretKey: ""
+  oauthClientSecret: ""
+  litellmMasterKey: ""
+
+# Factory config: a ConfigMap JSON mounted at FACTORY_CONFIG_PATH that drives the
+# default team/user LiteLLM params applied on virtual-key creation.
+factoryConfig:
+  enabled: true
+  mountPath: /etc/alitellm-auth
+  config:
+    team: {}
+    user:
+      max_parallel_requests: 5
+      rpm_limit: 10
+      tpm_limit: 100
+      max_budget: 10
+      budget_duration: "24h"
+      metadata:
+        rpm_limit_type: best_effort_throughput
+        tpm_limit_type: best_effort_throughput
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    # Remove if cert-manager is not installed.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  host: platform.ackstorm.ai
+  tls:
+    enabled: true
+    secretName: platform-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

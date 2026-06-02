@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: alitellm-auth
-  namespace: test
   labels:
     app: alitellm-auth
 spec:
@@ -17,15 +16,17 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/ackstorm/alitellm-auth:latest   # release-bump rewrites the tag
-          imagePullPolicy: Always
+          # Tag is pinned by the overlay's images transformer (bumped by `make release-bump`).
+          image: ghcr.io/ackstorm/alitellm-auth:latest
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8080
+            - name: http
+              containerPort: 8080
           envFrom:
             - secretRef:
                 name: alitellm-auth-secret   # SESSION_SECRET_KEY, OAUTH_CLIENT_SECRET, LITELLM_MASTER_KEY
           env:
-            # Non-sensitive config — update these to match your environment
+            # Non-sensitive config — patch per environment in the overlay.
             - name: APP_BASE_URL
               value: "https://platform.ackstorm.ai"
             - name: OAUTH_ISSUER_URL
@@ -52,13 +53,13 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: http
             initialDelaySeconds: 30
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: http
             initialDelaySeconds: 60
             periodSeconds: 20
             failureThreshold: 3

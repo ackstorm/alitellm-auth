@@ -25,7 +25,7 @@ documentation:
 kubernetes:
   - changed-files:
     - any-glob-to-any-file:
-      - 'k8s/**'
+      - 'deploy/**'
 
 dependencies:
   - changed-files:

@@ -107,7 +107,12 @@ release-bump: ## Bump version everywhere (VERSION=X.Y.Z)
 	@test -n "$(VERSION)" || { echo "VERSION required"; exit 1; }
 	sed -i -E 's/^version = ".*"/version = "$(VERSION)"/' $(APP_DIR)/pyproject.toml
 	sed -i -E 's/(version=")[^"]*(")/\1$(VERSION)\2/' $(APP_DIR)/app/main.py
-	sed -i -E 's#(ghcr.io/$(OWNER)/alitellm-auth:)[^"[:space:]]*#\1$(VERSION)#' k8s/deployment.yaml
+	@# Helm chart: SemVer version (bare), appVersion + image tag (v-prefixed, matches the image)
+	sed -i -E 's/^version: .*/version: $(VERSION)/' deploy/helm/alitellm-auth/Chart.yaml
+	sed -i -E 's/^appVersion: .*/appVersion: v$(VERSION)/' deploy/helm/alitellm-auth/Chart.yaml
+	sed -i -E 's/^  tag: .*/  tag: "v$(VERSION)"/' deploy/helm/alitellm-auth/values.yaml
+	@# Kustomize example overlay: pinned image tag (v-prefixed, matches the image)
+	sed -i -E 's/(newTag: ).*/\1v$(VERSION)/' deploy/kustomize/overlays/example/kustomization.yaml
 	@# Promote the [unreleased] CHANGELOG section to this version (CR-02) so release.yml
 	@# can extract version-specific notes. Leaves a fresh empty [unreleased] on top.
 	today=$$(date +%F); \
@@ -121,3 +126,20 @@ release-cut: ## Tag-trigger a release (VERSION=X.Y.Z) -- empty commit on main
 	git commit --allow-empty -m "chore(release): v$(VERSION)"
 	./scripts/pre-push-check.sh
 	git push origin main
+
+##@ Deploy (host helm/kustomize)
+.PHONY: helm-lint
+helm-lint: ## helm lint the chart
+	helm lint deploy/helm/alitellm-auth
+
+.PHONY: helm-template
+helm-template: ## render the chart to stdout
+	helm template alitellm-auth deploy/helm/alitellm-auth
+
+.PHONY: helm-package
+helm-package: ## package the chart into dist/
+	helm package deploy/helm/alitellm-auth -d dist/
+
+.PHONY: kustomize-build
+kustomize-build: ## render the example kustomize overlay
+	kubectl kustomize deploy/kustomize/overlays/example

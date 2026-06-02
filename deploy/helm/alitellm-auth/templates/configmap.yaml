@@ -1,0 +1,11 @@
+{{- if .Values.factoryConfig.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "alitellm-auth.fullname" . }}-factory-config
+  labels:
+    {{- include "alitellm-auth.labels" . | nindent 4 }}
+data:
+  factory-config.json: |-
+{{ .Values.factoryConfig.config | toPrettyJson | indent 4 }}
+{{- end }}

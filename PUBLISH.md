@@ -184,8 +184,11 @@ For every release after the initial push:
    make release-bump VERSION=X.Y.Z
    ```
    This rewrites: `src/api/pyproject.toml` version field, `src/api/app/main.py` version,
-   and the image tag in `k8s/deployment.yaml`.
-3. **Commit the bumped files:** `git add src/api/pyproject.toml src/api/app/main.py k8s/deployment.yaml CHANGELOG.md && git commit -m "chore: bump to vX.Y.Z"`
+   the Helm chart (`deploy/helm/alitellm-auth/Chart.yaml` version + appVersion and
+   `values.yaml` image tag), the Kustomize example overlay image tag
+   (`deploy/kustomize/overlays/example/kustomization.yaml`), and promotes the CHANGELOG
+   `[unreleased]` section to `[X.Y.Z]`.
+3. **Commit the bumped files:** `git add src/api/pyproject.toml src/api/app/main.py deploy/ CHANGELOG.md && git commit -m "chore: bump to vX.Y.Z"`
 4. **Trigger the release pipeline:**
    ```bash
    make release-cut VERSION=X.Y.Z
@@ -194,4 +197,5 @@ For every release after the initial push:
    and pushes to `origin main`. The push fires `release.yml` which:
    - Builds the multi-arch image (`linux/amd64` + `linux/arm64`) with `docker buildx`.
    - Pushes to `ghcr.io/ackstorm/alitellm-auth:vX.Y.Z` and `:latest`.
+   - Packages + pushes the Helm chart to `oci://ghcr.io/ackstorm/charts/alitellm-auth:X.Y.Z`.
    - Creates a GitHub Release with notes extracted from `CHANGELOG.md`.

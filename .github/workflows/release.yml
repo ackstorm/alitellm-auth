@@ -49,6 +49,16 @@ jobs:
             ghcr.io/${{ steps.owner.outputs.lc }}/alitellm-auth:v${{ steps.ver.outputs.v }}
             ghcr.io/${{ steps.owner.outputs.lc }}/alitellm-auth:latest
 
+      # Package and push the Helm chart as an OCI artifact, lockstep with the image.
+      # Chart version is bare SemVer (X.Y.Z); appVersion is the v-prefixed image tag.
+      - uses: azure/setup-helm@v4
+      - name: Package and push Helm chart (OCI)
+        run: |
+          V="${{ steps.ver.outputs.v }}"
+          helm registry login ghcr.io -u "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}"
+          helm package deploy/helm/alitellm-auth --version "$V" --app-version "v$V"
+          helm push "alitellm-auth-$V.tgz" "oci://ghcr.io/${{ steps.owner.outputs.lc }}/charts"
+
       # Idempotent tag push (WR-03). A pre-existing tag is fine (re-run of the same
       # release commit); any other failure must fail the job — no '|| true' masking.
       - run: |

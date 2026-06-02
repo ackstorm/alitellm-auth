@@ -28,6 +28,6 @@ paths = [
   '''\.planning/''',                 # planning artifacts — documentation examples only
   '''docs/plans/''',                 # plan docs — documentation examples only
   '''src/api/tests/''',              # test suite — all synthetic sk- fixtures live here
-  '''k8s/secret\.yaml\.example''',   # deploy template (sk-admin-change-me placeholder)
+  '''deploy/kustomize/base/secret\.example\.yaml''',   # deploy template (sk-admin-change-me placeholder)
   '''CLAUDE\.md''',                  # project doc (sk-admin-... example in kubectl snippet)
 ]

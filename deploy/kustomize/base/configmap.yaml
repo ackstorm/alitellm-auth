@@ -2,7 +2,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: alitellm-auth-factory-config
-  namespace: test
+  labels:
+    app: alitellm-auth
 data:
   factory-config.json: |
     {

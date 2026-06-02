@@ -1,0 +1,30 @@
+alitellm-auth {{ .Chart.AppVersion }} installed in namespace {{ .Release.Namespace }}.
+
+Image: {{ .Values.image.repo }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+
+1. Secret
+{{- if .Values.existingSecret }}
+   Using existing Secret "{{ .Values.existingSecret }}". It MUST contain
+   SESSION_SECRET_KEY, OAUTH_CLIENT_SECRET, and LITELLM_MASTER_KEY:
+
+     kubectl create secret generic {{ .Values.existingSecret }} -n {{ .Release.Namespace }} \
+       --from-literal=SESSION_SECRET_KEY=$(openssl rand -hex 32) \
+       --from-literal=OAUTH_CLIENT_SECRET=<oidc-client-secret> \
+       --from-literal=LITELLM_MASTER_KEY=sk-admin-...
+{{- else if .Values.secret.create }}
+   A Secret was rendered from chart values (secret.create=true).
+{{- else }}
+   WARNING: existingSecret is "" and secret.create=false — the Deployment has no
+   secret source. Set existingSecret or secret.create=true.
+{{- end }}
+
+2. Reach the login flow
+{{- if .Values.ingress.enabled }}
+   https://{{ .Values.ingress.host }}/api/oauth/login
+{{- else }}
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "alitellm-auth.fullname" . }} 8080:{{ .Values.service.port }}
+   then open http://localhost:8080/api/oauth/login
+{{- end }}
+
+3. Verify the rollout
+   kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "alitellm-auth.fullname" . }}

@@ -53,7 +53,7 @@ GET /api/users (+ /{email}, DELETE /{email})
 | `src/api/app/admin.py` | GET/DELETE `/api/users` CRUD, master-key authz |
 | `src/api/app/main.py` | `create_app()` factory + SessionMiddleware |
 | `src/api/app/templates/` | `success.html`, `error.html` (dark terminal card) |
-| `k8s/` | deployment, service, ingress, secret example |
+| `deploy/helm/`, `deploy/kustomize/` | Helm chart + Kustomize base/overlays (deployment, service, ingress, configmap, secret example) |
 
 ---
 
