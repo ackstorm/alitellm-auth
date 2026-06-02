@@ -31,6 +31,11 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
             mike deploy --push --update-aliases "$V" stable
+            mike set-default --push stable
           else
             mike deploy --push --update-aliases dev latest
+            # Point the site root at a version (mike omits a root index.html otherwise).
+            # Pre-release: default to latest (dev). Once a stable release exists, keep
+            # root on stable across main merges instead of flipping it back to dev.
+            mike list 2>/dev/null | grep -q '\[stable\]' || mike set-default --push latest
           fi
