@@ -62,6 +62,8 @@ jobs:
       # Idempotent tag push (WR-03). A pre-existing tag is fine (re-run of the same
       # release commit); any other failure must fail the job — no '|| true' masking.
       - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           V="${{ steps.ver.outputs.v }}"
           if git rev-parse "v$V" >/dev/null 2>&1; then
             echo "tag v$V already exists, skipping"
