@@ -1,0 +1,33 @@
+[extend]
+useDefault = true
+
+# Allowlist — exempts ONLY synthetic test fixtures and documented placeholders.
+#
+# CR-01: we deliberately do NOT use broad `sk-<prefix>` regexes. A pattern like
+# `sk-(...|k|key2?)[-a-z0-9]*` with regexTarget="match" suppresses any line whose
+# secret merely *starts* with an allowed prefix — including real LiteLLM virtual
+# keys (e.g. `sk-k9f8...`), repo-wide. Instead, synthetic `sk-` fixtures are scoped
+# by path to the test suite, and the two documented master-key placeholders are
+# matched with anchored, exact regexes. Real `sk-` keys committed anywhere in
+# application code are still scanned and flagged.
+[allowlist]
+description = "Synthetic test fixtures and documented placeholders"
+regexTarget = "match"
+regexes = [
+  # Documented master-key placeholders (anchored + exact — cannot match a real key).
+  '''^sk-admin-change-me$''',
+  '''^sk-admin-\.\.\.$''',
+  # Session-secret test fixture (only ever appears in tests; harmless if global).
+  '''^test-secret-32-chars-padding-xxxx$''',
+]
+# Path exemptions. Test fixtures (synthetic sk- keys) live only under
+# src/api/tests/; deploy/doc templates carry placeholder values; vendored deps and
+# planning docs are not source.
+paths = [
+  '''\.devdeps/''',                  # vendored/installed Python deps (visible in --no-git scans)
+  '''\.planning/''',                 # planning artifacts — documentation examples only
+  '''docs/plans/''',                 # plan docs — documentation examples only
+  '''src/api/tests/''',              # test suite — all synthetic sk- fixtures live here
+  '''k8s/secret\.yaml\.example''',   # deploy template (sk-admin-change-me placeholder)
+  '''CLAUDE\.md''',                  # project doc (sk-admin-... example in kubectl snippet)
+]

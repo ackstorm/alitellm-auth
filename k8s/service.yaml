@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: alitellm-auth
+  namespace: test
+  labels:
+    app: alitellm-auth
+spec:
+  selector:
+    app: alitellm-auth
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

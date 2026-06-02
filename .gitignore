@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+src/api/.venv/
+*.egg-info/
+dist/
+.pytest_cache/
+.devdeps/
+.coverage
+htmlcov/
+site/
+
+
+.planning/
+docs/plans/
+.claude/

@@ -1,0 +1,10 @@
+model_list:
+  - model_name: test-model
+    litellm_params:
+      model: openai/test-model
+      api_base: http://fake-backend
+      api_key: sk-fake
+
+general_settings:
+  master_key: sk-test-master-key
+  database_url: postgresql://litellm:litellm@postgres:5432/litellm

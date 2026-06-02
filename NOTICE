@@ -1,0 +1,24 @@
+alitellm-auth
+Copyright 2026 ACKstorm
+
+This product is licensed under the Apache License, Version 2.0.
+
+The CI workflows, community files, and release scaffolding in this repository
+are adapted from ackstorm/alitellm-operator (https://github.com/ackstorm/alitellm-operator),
+which is Copyright 2026 ACKstorm, licensed under the Apache License, Version 2.0.
+
+Portions of ackstorm/alitellm-operator were in turn adapted from
+bbdsoftware/litellm-operator (https://github.com/bbdsoftware/litellm-operator)
+under the Apache License, Version 2.0:
+
+   Copyright 2024-2026 BBD Software Pty Ltd
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+The LiteLLM project (https://github.com/BerriAI/litellm) is Copyright 2023-2026 BerriAI Inc.,
+licensed under MIT. This product calls LiteLLM's HTTP API at runtime but does not
+incorporate LiteLLM source code.

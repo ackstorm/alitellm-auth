@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alitellm-auth-factory-config
+  namespace: test
+data:
+  factory-config.json: |
+    {
+      "team": {},
+      "user": {
+        "max_parallel_requests": 5,
+        "rpm_limit": 10,
+        "tpm_limit": 100,
+        "max_budget": 10,
+        "budget_duration": "24h",
+        "metadata": {
+          "rpm_limit_type": "best_effort_throughput",
+          "tpm_limit_type": "best_effort_throughput"
+        }
+      }
+    }

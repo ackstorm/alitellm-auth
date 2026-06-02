@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alitellm-auth
+  namespace: test
+  labels:
+    app: alitellm-auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alitellm-auth
+  template:
+    metadata:
+      labels:
+        app: alitellm-auth
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/ackstorm/alitellm-auth:latest   # release-bump rewrites the tag
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: alitellm-auth-secret   # SESSION_SECRET_KEY, OAUTH_CLIENT_SECRET, LITELLM_MASTER_KEY
+          env:
+            # Non-sensitive config — update these to match your environment
+            - name: APP_BASE_URL
+              value: "https://platform.ackstorm.ai"
+            - name: OAUTH_ISSUER_URL
+              value: "https://dex.ackstorm.ai/dex"
+            - name: OAUTH_CLIENT_ID
+              value: "platform"
+            - name: LITELLM_URL
+              value: "https://litellm.ackstorm.ai"
+            - name: API_PUBLIC_URL
+              value: "https://api.ackstorm.ai"
+            - name: FACTORY_CONFIG_PATH
+              value: "/etc/alitellm-auth/factory-config.json"
+          volumeMounts:
+            - name: factory-config
+              mountPath: /etc/alitellm-auth
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 3
+      volumes:
+        - name: factory-config
+          configMap:
+            name: alitellm-auth-factory-config
+            optional: true

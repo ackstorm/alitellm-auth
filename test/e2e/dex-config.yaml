@@ -1,0 +1,23 @@
+issuer: http://dex:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: alitellm-auth-test
+    secret: dev-secret-not-for-prod
+    name: 'alitellm-auth (e2e test)'
+    redirectURIs:
+      - http://app:8080/api/oauth/callback
+      - http://localhost:8080/api/oauth/callback
+
+connectors:
+  - type: mockCallback
+    id: mock
+    name: Example

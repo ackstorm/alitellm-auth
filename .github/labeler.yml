@@ -1,0 +1,33 @@
+python:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.py'
+      - 'src/api/pyproject.toml'
+
+docker:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Dockerfile*'
+      - '.dockerignore'
+
+github_actions:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**'
+      - 'mkdocs.yml'
+
+kubernetes:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'k8s/**'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/api/pyproject.toml'

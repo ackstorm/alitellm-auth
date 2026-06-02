@@ -1,0 +1,49 @@
+name: ci
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.planning/**'
+      - 'LICENSE'
+      - 'NOTICE'
+      - 'CODEOWNERS'
+      - '.gitignore'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-devtools
+      - run: ./scripts/dev.sh make _lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-devtools
+      - run: ./scripts/dev.sh make _test
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: src/api/coverage.xml
+          if-no-files-found: warn
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:latest detect --source=/repo --redact --no-banner --config=/repo/.gitleaks.toml

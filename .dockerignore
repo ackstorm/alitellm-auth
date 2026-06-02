@@ -1,0 +1,10 @@
+.git
+.github
+docs
+k8s
+tests
+**/__pycache__
+**/.venv
+*.md
+.planning
+.claude

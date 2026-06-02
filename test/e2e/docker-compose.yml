@@ -1,0 +1,89 @@
+# E2E test stack: app (source mount + uvicorn) + LiteLLM (v1.83.10-stable + Postgres) + Dex (mockCallback OIDC)
+#
+# SECURITY NOTE: All credentials in this file are test-only values (sk-test-master-key,
+# dev-secret-not-for-prod, test-session-key-32chars-padding1). These MUST NEVER be reused
+# in k8s/production secrets. This stack is for local development and CI only.
+#
+# Usage:
+#   docker compose -f test/e2e/docker-compose.yml up --wait   # bring up all services, block until healthy
+#   docker compose -f test/e2e/docker-compose.yml down -v     # tear down + wipe volumes
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: litellm
+      POSTGRES_DB: litellm
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  litellm:
+    image: ghcr.io/berriai/litellm-database:v1.83.10-stable
+    environment:
+      DATABASE_URL: postgresql://litellm:litellm@postgres:5432/litellm
+      LITELLM_MASTER_KEY: sk-test-master-key
+      LITELLM_LOG: DEBUG
+      STORE_MODEL_IN_DB: "True"
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:4000/health/readiness'); sys.exit(0)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "4000:4000"
+
+  dex:
+    image: ghcr.io/dexidp/dex:v2.41.1
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    volumes:
+      - ./dex-config.yaml:/etc/dex/config.yaml:ro
+    ports:
+      - "5556:5556"
+    # WR-05: the Dex image is alpine-based (busybox sh), which has no bash and no
+    # /dev/tcp. Use busybox wget against the OIDC discovery doc instead — proves
+    # Dex is actually serving, not just that a port is open.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:5556/dex/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    image: python:3.12-slim
+    volumes:
+      - ../../src/api:/app
+    working_dir: /app
+    command: ["sh", "-c", "pip install -q --no-cache-dir uv && uv pip install --system --no-cache-dir -e '.[dev]' && uvicorn app.main:app --host 0.0.0.0 --port 8080"]
+    environment:
+      SESSION_SECRET_KEY: test-session-key-32chars-padding1
+      OAUTH_ISSUER_URL: http://dex:5556/dex
+      OAUTH_CLIENT_ID: alitellm-auth-test
+      OAUTH_CLIENT_SECRET: dev-secret-not-for-prod
+      LITELLM_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: sk-test-master-key
+      # APP_BASE_URL uses compose-internal URL so redirect_uri in the OIDC flow
+      # is resolvable inside the compose network during headless login (see D-08).
+      APP_BASE_URL: http://app:8080
+    depends_on:
+      litellm:
+        condition: service_healthy
+      dex:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8080/health'); sys.exit(0)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "8080:8080"

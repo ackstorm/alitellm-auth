@@ -1,0 +1,17 @@
+site_name: alitellm-auth
+site_description: OIDC identity + LiteLLM User/VirtualKey provisioning
+repo_url: https://github.com/ackstorm/alitellm-auth
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: black
+nav:
+  - Home: index.md
+  - Dex / OIDC integration: dex-integration.md
+exclude_docs: |
+  plans/
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - tables

@@ -1,0 +1,21 @@
+# CODEOWNERS file for alitellm-auth
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global ownership
+* @ackstorm/alitellm-auth-maintainers
+
+# Python service
+/src/api/ @ackstorm/alitellm-auth-maintainers
+
+# CI/CD and GitHub workflows
+/.github/ @ackstorm/alitellm-auth-maintainers
+
+# Container images
+/Dockerfile* @ackstorm/alitellm-auth-maintainers
+
+# Build system
+/Makefile @ackstorm/alitellm-auth-maintainers
+
+# Documentation
+/README.md @ackstorm/alitellm-auth-maintainers
+*.md @ackstorm/alitellm-auth-maintainers

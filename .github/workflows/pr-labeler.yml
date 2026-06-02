@@ -1,0 +1,17 @@
+name: "Pull Request Labeler"
+on:
+  pull_request_target
+
+jobs:
+  labeler:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      # SECURITY (WR-01): this job runs on pull_request_target with the base repo's
+      # write-capable token, including for fork PRs. NEVER add an actions/checkout of
+      # the PR head ref here, and never run PR-controlled code — that would execute
+      # attacker-controlled code with `pull-requests: write`. The action is pinned to a
+      # full commit SHA (not the moving @v6 tag) so a compromised v6.x cannot auto-adopt.
+      - uses: actions/labeler@f27b608878404679385c85cfa523b85ccb86e213 # v6
