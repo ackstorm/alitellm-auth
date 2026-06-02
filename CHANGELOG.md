@@ -1,6 +1,8 @@
 # Changelog
 
-## [unreleased] - 2026-06-02
+## [unreleased]
+
+## [0.2.0] - 2026-06-02
 - BREAKING: rename GET /api/oauth/me → GET /api/oauth/whoami; old path now returns 404
 - BREAKING: API header renamed x-ackstorm-api-key → x-alitellm-auth-api-key for /whoami and /api/oauth/tokens/{id}
 - feat: create a LiteLLM User (user_id=email) on every login via /user/new before key generation; keys scoped to user_id
@@ -9,6 +11,7 @@
 - fix: treat "already exists" 400/409 on /user/new as idempotent success (mirrors team-creation behavior)
 - chore: rename package platform-api → alitellm-auth (version 0.2.0); k8s resources, secret name, configmap name updated accordingly
 - docs: Dex/Keycloak OIDC integration guide (docs/dex-integration.md); README rewrite; CLAUDE.md corrected (removed false _email_to_team_id pattern, added real shared-team + User model, v1.83 quirks)
+- feat: deploy/ — Helm chart + Kustomize base/overlays (replaces k8s/); chart published as an OCI artifact to ghcr.io/ackstorm/charts/alitellm-auth alongside the image
 
 ## [0a57794] - 2026-04-23
 - Format pydantic ValidationError startup failures as a friendly list of missing env vars (no traceback) with a hint pointing at the k8s secret
