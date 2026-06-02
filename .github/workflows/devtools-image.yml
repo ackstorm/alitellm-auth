@@ -44,7 +44,7 @@ jobs:
           echo "latest=ghcr.io/$OWNER/alitellm-auth-devtools:latest" >> "$GITHUB_OUTPUT"
           echo "buildcache=ghcr.io/$OWNER/alitellm-auth-devtools:buildcache" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.devtools
