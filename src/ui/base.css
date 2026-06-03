@@ -1,0 +1,156 @@
+/*
+ * base.css — dark-terminal design tokens + shell primitives for the alitellm-auth SPA.
+ *
+ * Token source of truth (copied verbatim):
+ *   - Accent / surface / text tokens: src/api/app/templates/success.html :root (lines 12-25)
+ *   - Destructive tokens:             src/api/app/templates/error.html  :root (lines 19-22)
+ * Reusable animations copied verbatim: @keyframes slideUp, @keyframes pulse + .pulse-dot.
+ *
+ * Component CSS uses only var(--*) — never raw hex (UI-SPEC §Color).
+ * Typography is limited to four sizes: 11px / 12px / 14px / 24px (UI-SPEC §Typography);
+ * caption-role text is standardized to 11px (the legacy section-label size is NOT reintroduced).
+ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Surfaces */
+  --bg:      #000000;   /* page background */
+  --surface: #0b101e;   /* card / panel / header background */
+  --border:  #1e2233;   /* 1px borders */
+
+  /* Text */
+  --dim:     #4a5173;   /* muted labels, hints */
+  --text:    #c4cbe3;   /* body text */
+  --bright:  #e8ecf7;   /* headings, key values */
+
+  /* Accent — success / active */
+  --accent:  #22c55e;   /* primary accent (green) */
+  --accent2: #4ade80;   /* lighter accent (hover, highlights) */
+  --glow:    rgba(34, 197, 94, 0.08);   /* accent surface tint */
+  --glow2:   rgba(34, 197, 94, 0.15);   /* accent gradient */
+
+  /* Destructive */
+  --destructive:  #ef4444;                  /* delete / error accent */
+  --destructive2: #f87171;                  /* lighter destructive */
+  --glow-err:     rgba(239, 68, 68, 0.08);  /* destructive surface tint */
+  --glow2-err:    rgba(239, 68, 68, 0.15);  /* destructive gradient */
+
+  /* Typography */
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Outfit', system-ui, sans-serif;
+
+  /* Spacing scale (multiples of 4) */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+}
+
+/* ── Animations (copied verbatim from success.html) ─────────────────────────── */
+
+/* Card entrance — 0.5s ease-out (success.html:51-54) */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Session-connected dot pulse — 2s infinite (success.html:71-74) */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .4; }
+}
+
+/* ── Base layout ────────────────────────────────────────────────────────────── */
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── App-shell header (UI-SPEC §App-Shell Layout) ───────────────────────────── */
+
+/* 48px tall, surface background, 1px bottom border. */
+.header {
+  height: 48px;
+  flex: 0 0 auto;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0 var(--space-xl);
+}
+
+.header .brand {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bright);
+}
+.header .brand span { color: var(--accent2); }
+
+/* Session-connected indicator dot (UI-SPEC §Color reserved accent use). */
+.pulse-dot {
+  width: 10px; height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--accent);
+}
+
+/* ── Main content column (UI-SPEC §App-Shell Layout) ────────────────────────── */
+
+/* Centered, max-width 720px, horizontal padding 32px, vertical padding-top 32px. */
+.main {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-xl) 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Card primitive (success.html:41-49) ────────────────────────────────────── */
+
+.card {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  animation: slideUp .5s ease-out;
+  box-shadow: 0 0 80px -20px rgba(34, 197, 94, 0.06);
+}
+
+/* ── Caption-role labels (UI-SPEC §Typography — 11px, ALL CAPS) ─────────────── */
+
+/* Status indicator label — mono 11px 600, letter-spacing 2px (success.html:76-81). */
+.status-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+
+/* Section label — standardized to 11px (UI-SPEC note: legacy smaller size dropped),
+   mono 600, letter-spacing 2.5px. */
+.section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  color: var(--dim);
+  margin-bottom: 12px;
+}
