@@ -97,12 +97,16 @@ def test_require_session_user_401(client):
 
 def test_ui_unauth_302(client):
     """No session → GET /ui returns 302 to OIDC login (D-03/D-07)."""
+    from starlette.responses import RedirectResponse as StarletteRedirectResponse
+
     with patch("app.session.oauth") as mock_oauth:
         mock_oauth.oidc.authorize_redirect = AsyncMock(
-            return_value=httpx.Response(302, headers={"location": "http://dex.test/auth"})
+            return_value=StarletteRedirectResponse(
+                url="http://dex.test/auth", status_code=302
+            )
         )
         response = client.get("/ui", follow_redirects=False)
-    # oauth.oidc.authorize_redirect was called (or would redirect to OIDC)
+    # oauth.oidc.authorize_redirect was called → 302 redirect to OIDC
     assert response.status_code in (302, 303)
 
 

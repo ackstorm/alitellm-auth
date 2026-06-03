@@ -12,6 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.admin import router as admin_router
 from app.auth import configure_auth, router as auth_router
 from app.config import Settings, get_settings
+from app.session import router as session_router, ui_router
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         SessionMiddleware,
         secret_key=settings.session_secret_key,
         same_site="lax",
-        https_only=False,  # Set True in production (HTTPS)
+        https_only=settings.session_https_only,  # env-gated (D-18): True in prod, False for local dev
     )
 
     # Store settings on app.state for access in route handlers
@@ -41,6 +42,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Mount auth routes
     app.include_router(auth_router)
     app.include_router(admin_router)
+    # Mount session API router (/api/session/*) and UI router (/ui)
+    app.include_router(session_router)
+    app.include_router(ui_router)
 
     @app.get("/health")
     async def health() -> dict:
