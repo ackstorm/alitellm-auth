@@ -8,6 +8,7 @@ import respx
 import httpx
 from app.litellm_client import (
     generate_litellm_key,
+    ensure_team_and_user,
     LiteLLMUserNotFound,
     ensure_litellm_user,
     get_litellm_user,
@@ -507,5 +508,113 @@ async def test_budget_rewiring():
         assert "budget_duration" not in key_body, "key/generate must NOT carry budget_duration"
         assert "tpm_limit" not in key_body, "key/generate must NOT carry tpm_limit"
         assert "rpm_limit" not in key_body, "key/generate must NOT carry rpm_limit"
+    finally:
+        os.unlink(factory_path)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_generate_key_duration():
+    """D-10: generate_litellm_key accepts optional duration kwarg.
+
+    - When duration="90d" is passed, /key/generate body carries "duration": "90d"
+    - When duration is not passed (default None), /key/generate body has NO "duration" key
+    """
+    factory_path = _make_factory_config(None)
+    try:
+        settings = make_settings(factory_config_path=factory_path)
+
+        def _setup_mocks():
+            respx.post("http://litellm.test/team/new").mock(
+                return_value=httpx.Response(200, json={"team_id": "team-platform"})
+            )
+            respx.post("http://litellm.test/v1/access_group").mock(
+                return_value=httpx.Response(200, json={"access_group_id": "group-1"})
+            )
+            respx.post("http://litellm.test/user/new").mock(
+                return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+            )
+
+        # Test: with duration="90d"
+        _setup_mocks()
+        key_route_with = respx.post("http://litellm.test/key/generate").mock(
+            return_value=httpx.Response(200, json={"key": "sk-dur", "key_id": "k1"})
+        )
+        await generate_litellm_key("alice@example.com", settings, duration="90d")
+        key_body = _json_body(key_route_with)
+        assert key_body.get("duration") == "90d", "duration kwarg must be threaded into /key/generate"
+
+        # Test: without duration (default None)
+        _setup_mocks()
+        key_route_without = respx.post("http://litellm.test/key/generate").mock(
+            return_value=httpx.Response(200, json={"key": "sk-nodur", "key_id": "k2"})
+        )
+        await generate_litellm_key("alice@example.com", settings)
+        key_body_no = _json_body(key_route_without)
+        assert "duration" not in key_body_no, "/key/generate must NOT carry duration when not passed"
+    finally:
+        os.unlink(factory_path)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_lazy_backfill():
+    """D-16: when a user already exists (409/400), backfill only null/missing budget fields.
+
+    - /user/new returns 400 "already exists"
+    - /user/info returns user with max_budget=None
+    - /user/update is called with ONLY the missing factory fields (max_budget etc.)
+    - /user/update is NOT called with fields the user already has set (e.g. tpm_limit if it were set)
+    """
+    factory_path = _make_factory_config(None)
+    try:
+        settings = make_settings(factory_config_path=factory_path)
+
+        # Team + access group setup
+        respx.post("http://litellm.test/team/new").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+        respx.post("http://litellm.test/v1/access_group").mock(
+            return_value=httpx.Response(200, json={"access_group_id": "group-1"})
+        )
+        # User already exists
+        respx.post("http://litellm.test/user/new").mock(
+            return_value=httpx.Response(
+                400, json={"error": {"message": "User already exists"}}
+            )
+        )
+        # User info: has tpm_limit set but max_budget=None (only max_budget needs backfill)
+        respx.get("http://litellm.test/user/info").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_info": {
+                        "user_id": "alice@example.com",
+                        "user_email": "alice@example.com",
+                        "max_budget": None,
+                        "budget_duration": None,
+                        "tpm_limit": 100,  # already set — must NOT be overwritten
+                        "rpm_limit": None,
+                        "max_parallel_requests": None,
+                    }
+                },
+            )
+        )
+        update_route = respx.post("http://litellm.test/user/update").mock(
+            return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+        )
+
+        await ensure_team_and_user("alice@example.com", settings, name="Alice")
+
+        # /user/update must be called
+        assert update_route.called, "/user/update must be called for the lazy backfill"
+        update_body = _json_body(update_route)
+
+        # Must carry missing fields: max_budget, budget_duration, rpm_limit, max_parallel_requests
+        assert "max_budget" in update_body, "backfill must include max_budget (it was None)"
+        assert update_body["max_budget"] == 10
+
+        # Must NOT carry tpm_limit (user already has 100 set)
+        assert "tpm_limit" not in update_body, "backfill must NOT overwrite tpm_limit (already set)"
     finally:
         os.unlink(factory_path)
