@@ -113,10 +113,16 @@ export function CreateKeyModal({ open, onClose, onCreated }) {
         return;
       }
       if (status === 422) {
-        // Map a server-side validation rejection back to the field messages.
-        // The backend validates alias before duration; surface both defensively.
-        setAliasError(validateAlias(aliasValue) || ALIAS_ERROR);
-        setDurationError(validateDuration(durationValue));
+        // The backend returns ONE field rejection at a time with a specific
+        // `detail` ("alias ..." or "duration ..."). Route that message to the
+        // matching field; fall back to a form-level error if it can't be
+        // attributed. Do NOT recompute the OTHER field's validation here — the
+        // values already passed client validation, so doing so wrongly forced
+        // the alias message on every 422 and blanked the duration error (WR-03).
+        const detail = (data && data.detail) || "";
+        if (detail.includes("alias")) setAliasError(detail);
+        else if (detail.includes("duration")) setDurationError(detail);
+        else setFormError(detail || CREATE_502_ERROR);
         return;
       }
       // 502 (or any other non-200): in-form error, form stays open.
