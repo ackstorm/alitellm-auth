@@ -92,11 +92,14 @@ function BudgetBar({ limits, spend }) {
     `;
   }
 
-  // Budget present. Clamp the under-budget fill to [0, 100]; if over budget, the
-  // overflow segment fills the remainder of the track in --destructive.
+  // Budget present. Render a SINGLE fill clamped to [0, 100]% of the track and
+  // color-switch it to --destructive once spend exceeds the budget. Summing two
+  // unshrunk flex children misrepresented the magnitude (a 2x overspend read as a
+  // 50/50 split — WR-01); the fill width is the spend ratio and the over-budget
+  // state is signalled by color, with the figure text carrying the exact amount.
   const ratio = maxBudget > 0 ? current / maxBudget : 1;
-  const underPct = Math.max(0, Math.min(1, ratio)) * 100;
-  const overPct = ratio > 1 ? Math.min(1, ratio - 1) * 100 : 0;
+  const fillPct = Math.max(0, Math.min(1, ratio)) * 100;
+  const over = ratio > 1;
 
   return html`
     <div class="budget-bar">
@@ -105,10 +108,10 @@ function BudgetBar({ limits, spend }) {
         <span class="budget-figure">${formatCurrency(current)} of ${formatCurrency(maxBudget)}</span>
       </div>
       <div class="budget-track">
-        <div class="budget-fill" style=${`width:${underPct}%`}></div>
-        ${overPct > 0
-          ? html`<div class="budget-fill budget-fill--over" style=${`width:${overPct}%`}></div>`
-          : null}
+        <div
+          class="budget-fill ${over ? "budget-fill--over" : ""}"
+          style=${`width:${fillPct}%`}
+        ></div>
       </div>
     </div>
   `;
@@ -305,7 +308,7 @@ export const DASHBOARD_CSS = `
   display: flex; height: 8px; border-radius: 999px; overflow: hidden;
   background: var(--bg); border: 1px solid var(--border);
 }
-.budget-bar .budget-fill { height: 100%; background: var(--accent); }
+.budget-bar .budget-fill { height: 100%; background: var(--accent); flex-shrink: 0; transition: width .25s; }
 .budget-bar .budget-fill--over { background: var(--destructive); }
 .budget-bar .budget-none { font-family: var(--sans); font-size: 14px; color: var(--dim); }
 
