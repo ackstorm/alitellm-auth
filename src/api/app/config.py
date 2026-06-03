@@ -2,6 +2,7 @@
 """Application settings loaded from environment variables."""
 
 from __future__ import annotations
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -28,6 +29,23 @@ class Settings(BaseSettings):
     # Security baseline (D-18) — Secure cookie flag; True in prod, False for local HTTP dev.
     # Env var: SESSION_HTTPS_ONLY
     session_https_only: bool = False
+
+    @model_validator(mode="after")
+    def _require_secure_cookie_on_https(self) -> "Settings":
+        """D-06 startup guard: refuse a https-served deploy that ships a non-Secure cookie.
+
+        If app_base_url is https:// but session_https_only is False, raise so a
+        misconfigured prod crashloops loudly instead of silently shipping a
+        non-Secure session cookie. Local http://localhost dev is unaffected (the
+        https:// gate is False there). The env var is named explicitly so pod logs
+        point straight at the fix.
+        """
+        if self.app_base_url.startswith("https://") and not self.session_https_only:
+            raise ValueError(
+                "https APP_BASE_URL requires SESSION_HTTPS_ONLY=true "
+                "(refusing to ship a non-Secure session cookie in prod)"
+            )
+        return self
 
 
 def get_settings() -> Settings:
