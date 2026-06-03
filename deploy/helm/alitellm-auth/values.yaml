@@ -51,7 +51,13 @@ factoryConfig:
   enabled: true
   mountPath: /etc/alitellm-auth
   config:
-    team: {}
+    # Team budget is a SHARED pool: max_budget caps the combined spend of all
+    # users in the team, not per-user. Spread into POST /team/new.
+    team:
+      max_budget: 500
+      budget_duration: 30d
+      tpm_limit: 5000000
+      rpm_limit: 500
     user:
       max_parallel_requests: 5
       rpm_limit: 10
