@@ -5,10 +5,8 @@ from __future__ import annotations
 
 import base64
 import json as _json
-from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 from itsdangerous import TimestampSigner
@@ -91,30 +89,27 @@ def test_require_session_user_401(client):
 
 
 # ---------------------------------------------------------------------------
-# SAPI-06 — /ui page route (unauth → 302)
+# D-03 — /ui serves the SPA shell via StaticFiles (200 text/html, even unauth)
 # ---------------------------------------------------------------------------
 
 
-def test_ui_unauth_302(client):
-    """No session → GET /ui returns 302 to OIDC login (D-03/D-07)."""
-    from starlette.responses import RedirectResponse as StarletteRedirectResponse
+def test_ui_serves_spa_shell(tmp_path, monkeypatch):
+    """A built ui/dist/index.html → GET /ui returns 200 text/html, no auth needed.
 
-    with patch("app.session.oauth") as mock_oauth:
-        mock_oauth.oidc.authorize_redirect = AsyncMock(
-            return_value=StarletteRedirectResponse(
-                url="http://dex.test/auth", status_code=302
-            )
-        )
-        response = client.get("/ui", follow_redirects=False)
-    # oauth.oidc.authorize_redirect was called → 302 redirect to OIDC
-    assert response.status_code in (302, 303)
+    StaticFiles resolves "ui/dist" against the process cwd, so we chdir into a
+    tmp dir that contains a minimal built shell, then build the app there.
+    """
+    dist = tmp_path / "ui" / "dist"
+    dist.mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>alitellm</title>")
 
+    monkeypatch.chdir(tmp_path)
+    app = create_app(settings=make_test_settings())
+    local_client = TestClient(app, raise_server_exceptions=False)
 
-def test_ui_authed_returns_placeholder(client):
-    """Valid session → GET /ui returns 200 with placeholder content (D-07)."""
-    response = client.get("/ui", cookies=_authed_cookie())
+    response = local_client.get("/ui/", follow_redirects=False)
     assert response.status_code == 200
-    assert "placeholder" in response.text.lower() or "coming soon" in response.text.lower()
+    assert response.headers["content-type"].startswith("text/html")
 
 
 # ---------------------------------------------------------------------------

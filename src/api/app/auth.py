@@ -113,10 +113,19 @@ async def whoami(
 
 
 @router.get("/api/oauth/login")
-async def login(request: Request) -> HTMLResponse:
-    """Redirect user to Dex for authentication (creates a new key on return)."""
+async def login(request: Request, action: str = "login") -> HTMLResponse:
+    """Redirect user to Dex for authentication.
+
+    ``?action`` selects the post-callback behavior (D-02/D-13):
+    - ``"login"`` (default) → the callback mints a new LiteLLM key.
+    - ``"ui"``              → the callback eager-creates the LiteLLM user WITHOUT
+                              minting a key (the SPA sign-in CTA navigates here).
+
+    T-09-04: the param is whitelisted before being written to the session — an
+    arbitrary value can never enter ``oauth_action`` (falls back to ``"login"``).
+    """
     settings: Settings = request.app.state.settings
-    request.session["oauth_action"] = "login"
+    request.session["oauth_action"] = action if action in {"login", "ui"} else "login"
     callback_url = f"{settings.app_base_url}/api/oauth/callback"
     return await oauth.oidc.authorize_redirect(request, callback_url)
 
