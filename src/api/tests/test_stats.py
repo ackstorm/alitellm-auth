@@ -1,0 +1,267 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Pure-unit tests for app/stats.py aggregation (no HTTP / no respx).
+
+Asserts against the verbatim v1.85.1 fixtures captured in Plan 01. The captured
+daily-activity fixtures are single-day windows; to prove the per-model/per-key
+"sum across days" fold, the multi-day cases build a synthetic two-day input by
+reusing the real single-day result block (same v1.85.1 shape, twice).
+"""
+
+import copy
+import json
+from pathlib import Path
+
+from app.stats import aggregate_window, build_stats_contract, compute_deltas
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _load(name: str) -> dict:
+    return json.loads((_FIXTURES / name).read_text())
+
+
+# ---------------------------------------------------------------------------
+# aggregate_window
+# ---------------------------------------------------------------------------
+
+
+def test_aggregate_window_totals_from_metadata():
+    data = _load("daily_activity_current.json")
+    agg = aggregate_window(data)
+
+    assert agg["requests"] == 11
+    assert agg["tokens"] == 10018
+    assert agg["spend"] == 0.023427
+
+
+def test_aggregate_window_series_one_entry_per_day():
+    data = _load("daily_activity_current.json")
+    agg = aggregate_window(data)
+
+    assert len(agg["series"]) == len(data["results"])
+    entry = agg["series"][0]
+    assert entry["date"] == "2026-04-01"
+    assert entry["spend"] == 0.023427
+    assert entry["requests"] == 11
+
+
+def test_aggregate_window_models_summed_across_days():
+    """A model appearing on 2 days has its metrics ADDED (the core fold)."""
+    data = _load("daily_activity_current.json")
+    two_day = {
+        "results": [data["results"][0], copy.deepcopy(data["results"][0])],
+        "metadata": data["metadata"],
+    }
+    two_day["results"][1]["date"] = "2026-04-02"
+
+    agg = aggregate_window(two_day)
+    models = {m["model"]: m for m in agg["models"]}
+
+    # flash-lite was 1 request / 68 tokens / spend 8e-06 on one day → doubled.
+    lite = models["gemini/gemini-flash-lite-latest"]
+    assert lite["requests"] == 2
+    assert lite["total_tokens"] == 136
+    assert lite["input_tokens"] == 128  # prompt_tokens 64 * 2
+    assert lite["output_tokens"] == 8  # completion_tokens 4 * 2
+    assert lite["spend"] == 8e-06 * 2
+
+    # series reflects both days.
+    assert len(agg["series"]) == 2
+
+
+def test_aggregate_window_keys_summed_and_present():
+    data = _load("daily_activity_current.json")
+    agg = aggregate_window(data)
+
+    keys = {k["id"]: k for k in agg["keys"]}
+    h = "195b8b1f2c4e46945209387ec13e08ea7d74714fd088cd118b928630a03f2317"
+    assert h in keys
+    assert keys[h]["requests"] == 11
+    assert keys[h]["spend"] == 0.023427
+
+
+def test_aggregate_window_real_zero_tokens_kept():
+    """prompt/completion 0 that are real zeros stay 0 (D-08), not None."""
+    data = _load("daily_activity_prior.json")
+    agg = aggregate_window(data)
+
+    models = {m["model"]: m for m in agg["models"]}
+    veo = models["veo-3.1-generate-preview"]
+    assert veo["input_tokens"] == 0
+    assert veo["output_tokens"] == 0
+    assert veo["spend"] == 3.2
+
+
+def test_aggregate_window_empty_is_real_zero_not_null():
+    data = _load("daily_activity_empty.json")
+    agg = aggregate_window(data)
+
+    assert agg["requests"] == 0
+    assert agg["tokens"] == 0
+    assert agg["spend"] == 0
+    assert agg["series"] == []
+    assert agg["models"] == []
+    assert agg["keys"] == []
+
+
+# ---------------------------------------------------------------------------
+# compute_deltas
+# ---------------------------------------------------------------------------
+
+
+def test_compute_deltas_nonzero_prior():
+    cur = {"requests": 110, "tokens": 2000, "spend": 12.0}
+    prev = {"requests": 100, "tokens": 1000, "spend": 10.0}
+    deltas = compute_deltas(cur, prev)
+
+    assert deltas["requests_pct"] == 0.1  # (110-100)/100
+    assert deltas["tokens_pct"] == 1.0  # (2000-1000)/1000
+    assert deltas["spend_pct"] == 0.2  # (12-10)/10
+
+
+def test_compute_deltas_zero_prior_is_null():
+    """Div-by-zero guard: a 0 prior yields None, not a crash and not +inf."""
+    cur = {"requests": 10, "tokens": 5, "spend": 1.0}
+    prev = {"requests": 0, "tokens": 0, "spend": 0.0}
+    deltas = compute_deltas(cur, prev)
+
+    assert deltas["requests_pct"] is None
+    assert deltas["tokens_pct"] is None
+    assert deltas["spend_pct"] is None
+    assert deltas["avg_cost_per_1k_req_pct"] is None
+
+
+# ---------------------------------------------------------------------------
+# build_stats_contract
+# ---------------------------------------------------------------------------
+
+_CAPABILITIES = {
+    "token_split": True,
+    "per_model_last_used": True,
+    "per_key_spend": True,
+    "deltas": True,
+}
+
+_RANGE = {
+    "start": "2026-04-01",
+    "end": "2026-04-30",
+    "days": 30,
+    "compare": {"start": "2026-03-02", "end": "2026-03-31"},
+}
+
+
+def test_build_stats_contract_shape_and_capabilities():
+    cur = aggregate_window(_load("daily_activity_current.json"))
+    prev = aggregate_window(_load("daily_activity_prior.json"))
+    budget = {"current": 0.0, "max_budget": 500.0, "source": "user"}
+
+    contract = build_stats_contract(
+        cur, prev, budget, {}, dict(_CAPABILITIES), _RANGE
+    )
+
+    assert set(contract.keys()) == {
+        "range",
+        "totals",
+        "series",
+        "models",
+        "keys",
+        "budget",
+        "capabilities",
+    }
+    assert contract["capabilities"]["per_key_spend"] is True
+    assert contract["range"]["days"] == 30
+    # avg_cost_per_1k_req = spend / requests * 1000, guarded.
+    assert contract["totals"]["avg_cost_per_1k_req"] is not None
+    assert "deltas" in contract["totals"]
+
+
+def test_build_stats_contract_keys_ranked_by_spend_desc():
+    data = _load("daily_activity_prior.json")
+    cur = aggregate_window(data)
+    contract = build_stats_contract(
+        cur, cur, {"current": 0, "max_budget": None}, {}, dict(_CAPABILITIES), _RANGE
+    )
+
+    spends = [k["spend"] for k in contract["keys"]]
+    assert spends == sorted(spends, reverse=True)
+
+
+def test_build_stats_contract_models_spend_pct_guarded():
+    cur = aggregate_window(_load("daily_activity_current.json"))
+    contract = build_stats_contract(
+        cur, cur, {"current": 0, "max_budget": None}, {}, dict(_CAPABILITIES), _RANGE
+    )
+
+    total = sum(m["spend"] for m in contract["models"])
+    for m in contract["models"]:
+        if total:
+            assert abs(m["spend_pct"] - m["spend"] / total) < 1e-9
+        else:
+            assert m["spend_pct"] is None
+
+
+def test_build_stats_contract_last_used_null_flips_capability():
+    """No last_used map → models[].last_used == null + capability false."""
+    cur = aggregate_window(_load("daily_activity_current.json"))
+    caps = dict(_CAPABILITIES)
+    contract = build_stats_contract(
+        cur, cur, {"current": 0, "max_budget": None}, {}, caps, _RANGE
+    )
+
+    assert contract["capabilities"]["per_model_last_used"] is False
+    for m in contract["models"]:
+        assert m["last_used"] is None
+
+
+def test_build_stats_contract_last_used_present_keeps_capability():
+    cur = aggregate_window(_load("daily_activity_current.json"))
+    last_used = {"gemini/gemini-flash-latest": "2026-04-01T09:49:44.420000Z"}
+    contract = build_stats_contract(
+        cur, cur, {"current": 0, "max_budget": None}, last_used, dict(_CAPABILITIES), _RANGE
+    )
+
+    assert contract["capabilities"]["per_model_last_used"] is True
+    by_model = {m["model"]: m for m in contract["models"]}
+    assert by_model["gemini/gemini-flash-latest"]["last_used"] == "2026-04-01T09:49:44.420000Z"
+    # A model without a last_used entry stays null.
+    assert by_model["gemini/gemini-3-pro-preview"]["last_used"] is None
+
+
+def test_build_stats_contract_budget_with_max():
+    cur = aggregate_window(_load("daily_activity_empty.json"))
+    budget = {"current": 4.2, "max_budget": 10.0, "source": "user"}
+    contract = build_stats_contract(
+        cur, cur, budget, {}, dict(_CAPABILITIES), _RANGE
+    )
+
+    b = contract["budget"]
+    assert b["has_budget"] is True
+    assert b["pct"] == 0.42
+    assert b["max_budget"] == 10.0
+
+
+def test_build_stats_contract_null_budget_pct_none():
+    """null max_budget → pct None + has_budget False (D-08)."""
+    cur = aggregate_window(_load("daily_activity_empty.json"))
+    budget = {"current": 0.0, "max_budget": None, "source": "unknown"}
+    contract = build_stats_contract(
+        cur, cur, budget, {}, dict(_CAPABILITIES), _RANGE
+    )
+
+    b = contract["budget"]
+    assert b["has_budget"] is False
+    assert b["pct"] is None
+
+
+def test_build_stats_contract_empty_totals_are_zero_not_null():
+    cur = aggregate_window(_load("daily_activity_empty.json"))
+    contract = build_stats_contract(
+        cur, cur, {"current": 0, "max_budget": None}, {}, dict(_CAPABILITIES), _RANGE
+    )
+
+    t = contract["totals"]
+    assert t["requests"] == 0
+    assert t["tokens"] == 0
+    assert t["spend"] == 0
+    # avg_cost guarded for 0 requests → None (unavailable, not 0).
+    assert t["avg_cost_per_1k_req"] is None
