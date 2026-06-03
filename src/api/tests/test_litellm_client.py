@@ -773,6 +773,107 @@ async def test_list_session_keys_fallback():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_ensure_team_member_budget_idempotent():
+    """D-14/RQ-1 spike result: max_budget_in_team via /team/member_add enforces; user-level does not.
+
+    Spec (D-14, adopts max_budget_in_team per the spike decision):
+    - POST /team/member_add with nested body: {"team_id":..., "member":{"user_id":email,"role":"user"},
+      "max_budget_in_team": N}
+    - If the member is already added (400/409 with "already" in body), treat as no-op and fall through
+    - POST /team/member_update with top-level body: {"team_id":..., "user_id":email, "max_budget_in_team": N}
+    - Running twice reaches the same end state (idempotent)
+    """
+    from app.litellm_client import ensure_team_member_budget
+
+    settings = make_settings()
+    email = "alice@example.com"
+    team_id = "team-platform"
+    max_budget = 10.0
+
+    # Scenario: member already exists (400 "already a member") → fall through to member_update
+    add_route = respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(400, json={"error": {"message": "User is already a member of this team"}})
+    )
+    update_route = respx.post("http://litellm.test/team/member_update").mock(
+        return_value=httpx.Response(200, json={"team_id": team_id})
+    )
+
+    await ensure_team_member_budget(email, team_id, max_budget, settings)
+
+    # member_add was called with nested body
+    assert add_route.called, "/team/member_add must be called"
+    add_body = _json_body(add_route)
+    assert add_body["team_id"] == team_id
+    assert add_body["member"] == {"user_id": email, "role": "user"}, (
+        "member_add body must use nested 'member' object (not top-level user_id)"
+    )
+    assert add_body["max_budget_in_team"] == max_budget
+
+    # member_update was called as follow-through (top-level body, not nested)
+    assert update_route.called, "/team/member_update must be called after 'already a member' response"
+    update_body = _json_body(update_route)
+    assert update_body["team_id"] == team_id
+    assert update_body["user_id"] == email, "member_update body must use top-level user_id"
+    assert update_body["max_budget_in_team"] == max_budget
+    assert "member" not in update_body, "member_update body must NOT use nested 'member' object"
+
+    # Second invocation — same outcome (idempotent): both routes will be called again
+    add_route2 = respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(409, json={"error": "User already a team member"})
+    )
+    update_route2 = respx.post("http://litellm.test/team/member_update").mock(
+        return_value=httpx.Response(200, json={"team_id": team_id})
+    )
+
+    await ensure_team_member_budget(email, team_id, max_budget, settings)
+
+    assert add_route2.called, "second call: /team/member_add must be called"
+    assert update_route2.called, "second call: /team/member_update must be called"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_team_member_budget_wired_into_ensure_team_and_user():
+    """D-14: ensure_team_member_budget is wired into ensure_team_and_user.
+
+    When the factory config carries max_budget in the user block,
+    ensure_team_and_user must call /team/member_add (and, on 'already a member',
+    /team/member_update) to set max_budget_in_team (H3: only when budget exists).
+    """
+    factory_path = _make_factory_config(None)
+    try:
+        settings = make_settings(factory_config_path=factory_path)
+
+        respx.post("http://litellm.test/team/new").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+        respx.post("http://litellm.test/v1/access_group").mock(
+            return_value=httpx.Response(200, json={"access_group_id": "group-1"})
+        )
+        respx.post("http://litellm.test/user/new").mock(
+            return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+        )
+        # member_add succeeds on first call (new member)
+        member_add_route = respx.post("http://litellm.test/team/member_add").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+        # member_update called as part of the idempotent flow (always called after add)
+        member_update_route = respx.post("http://litellm.test/team/member_update").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+
+        await ensure_team_and_user("alice@example.com", settings, name="Alice")
+
+        assert member_add_route.called, (
+            "ensure_team_and_user must call /team/member_add when factory has max_budget (D-14)"
+        )
+    finally:
+        import os
+        os.unlink(factory_path)
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_user_daily_activity():
     """D-09b: user_daily_activity fetches /user/daily/activity and returns the breakdown."""
     from app.litellm_client import user_daily_activity
