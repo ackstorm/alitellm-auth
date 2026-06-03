@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import logging
@@ -328,7 +327,7 @@ async def generate_litellm_key(
             non-unique alias would collide ids and break DELETE/list ownership.
 
     Returns:
-        {"key": "sk-...", "team_id": "..."}
+        {"key": "sk-...", "id": "...", "team_id": "..."}
     """
     headers = _admin_headers(settings)
     factory = _load_factory_config(settings.factory_config_path)
@@ -345,7 +344,8 @@ async def generate_litellm_key(
         # D-15: keys carry NO budget fields (budget is at the user level).
         # D-10: caller-supplied alias wins; default is readable AND second-unique
         # so sha256(key_alias) ids stay distinct (no DELETE/list collision).
-        key_alias = alias or f"key-{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H%M%S')}"
+        now = datetime.now(timezone.utc)
+        key_alias = alias or f"key-{now.strftime('%Y-%m-%d-%H%M%S')}"
         key_payload: dict = {
             "models": ["all-team-models"],  # default — configmap can override
             "allowed_routes": ["llm_api_routes"],  # default — configmap can override
@@ -357,7 +357,7 @@ async def generate_litellm_key(
                 "email": email,
                 "name": name or email,
                 "source": "token-factory",
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": now.isoformat(),
                 "key_alias": key_alias,
                 **user_meta_extra,
             },
@@ -386,6 +386,33 @@ async def generate_litellm_key(
     }
 
 
+def _project_session_key(k: dict, md: dict) -> dict:
+    """Project one raw /key/list item to the SAPI-03 metadata shape.
+
+    D-17: 'budget' is always None (inherited from user/team; reported by /me).
+    'token' is the LiteLLM key hash — the server-side delete id; the session
+    router strips it (and any sk-) before returning to the browser.
+    """
+    return {
+        "id": _get_key_id(k, metadata=md),
+        "token": k.get("token"),
+        "key_alias": k.get("key_alias"),
+        "spend": k.get("spend", 0.0),
+        "budget": None,
+        "tpm_limit": k.get("tpm_limit"),
+        "rpm_limit": k.get("rpm_limit"),
+        "models": k.get("models"),
+        "created_at": md.get("created_at") or k.get("created_at"),
+        "expires": k.get("expires"),
+    }
+
+
+_EMPTY_SESSION_KEY = {
+    "id": None, "token": None, "key_alias": None, "spend": 0.0, "budget": None,
+    "tpm_limit": None, "rpm_limit": None, "models": None, "created_at": None, "expires": None,
+}
+
+
 async def _list_session_keys_fallback(email: str, settings: Settings) -> list[dict]:
     """Fallback: hydrate keys via list_litellm_keys + get_key_info when /key/list returns strings."""
     raw_keys = await list_litellm_keys(email, settings)
@@ -393,21 +420,10 @@ async def _list_session_keys_fallback(email: str, settings: Settings) -> list[di
     # Project each key to the SAPI-03 shape.
     out = []
     for k in raw_keys:
-        md = _parse_metadata(k.get("metadata") if isinstance(k, dict) else {})
-        out.append(
-            {
-                "id": _get_key_id(k, metadata=md) if isinstance(k, dict) else None,
-                "token": k.get("token") if isinstance(k, dict) else None,  # delete id; stripped before browser
-                "key_alias": k.get("key_alias") if isinstance(k, dict) else None,
-                "spend": k.get("spend", 0.0) if isinstance(k, dict) else 0.0,
-                "budget": None,  # D-17: inherited from user/team
-                "tpm_limit": k.get("tpm_limit") if isinstance(k, dict) else None,
-                "rpm_limit": k.get("rpm_limit") if isinstance(k, dict) else None,
-                "models": k.get("models") if isinstance(k, dict) else None,
-                "created_at": (md.get("created_at") or (k.get("created_at") if isinstance(k, dict) else None)),
-                "expires": k.get("expires") if isinstance(k, dict) else None,
-            }
-        )
+        if not isinstance(k, dict):
+            out.append(dict(_EMPTY_SESSION_KEY))
+            continue
+        out.append(_project_session_key(k, _parse_metadata(k.get("metadata"))))
     out.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return out
 
@@ -455,21 +471,7 @@ async def list_session_keys(email: str, settings: Settings) -> list[dict]:
                 type(k),
             )
             continue
-        md = _parse_metadata(k.get("metadata"))
-        out.append(
-            {
-                "id": _get_key_id(k, metadata=md),
-                "token": k.get("token"),  # LiteLLM key hash — server-side delete id; stripped before browser
-                "key_alias": k.get("key_alias"),
-                "spend": k.get("spend", 0.0),
-                "budget": None,  # D-17: budget inherited from user/team; never per-key
-                "tpm_limit": k.get("tpm_limit"),
-                "rpm_limit": k.get("rpm_limit"),
-                "models": k.get("models"),
-                "created_at": md.get("created_at") or k.get("created_at"),
-                "expires": k.get("expires"),
-            }
-        )
+        out.append(_project_session_key(k, _parse_metadata(k.get("metadata"))))
 
     out.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return out
@@ -598,7 +600,7 @@ async def delete_litellm_key(token: str, settings: Settings) -> None:
     if not resp.is_success:
         msg = _extract_litellm_error(resp)
         raise httpx.HTTPStatusError(
-            f"LiteLLM /key/list failed ({resp.status_code}): {msg}",
+            f"LiteLLM /key/delete failed ({resp.status_code}): {msg}",
             request=resp.request,
             response=resp,
         )
