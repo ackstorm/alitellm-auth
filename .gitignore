@@ -7,6 +7,7 @@ src/api/.venv/
 dist/
 src/ui/dist/
 src/ui/node_modules/
+.npm-cache/
 .pytest_cache/
 .devdeps/
 .coverage
