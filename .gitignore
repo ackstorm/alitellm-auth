@@ -5,6 +5,8 @@ __pycache__/
 src/api/.venv/
 *.egg-info/
 dist/
+src/ui/dist/
+src/ui/node_modules/
 .pytest_cache/
 .devdeps/
 .coverage
