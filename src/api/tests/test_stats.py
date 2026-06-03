@@ -11,6 +11,8 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
+
 from app.stats import aggregate_window, build_stats_contract, compute_deltas
 
 _FIXTURES = Path(__file__).parent / "fixtures"
@@ -236,7 +238,7 @@ def test_build_stats_contract_budget_with_max():
 
     b = contract["budget"]
     assert b["has_budget"] is True
-    assert b["pct"] == 0.42
+    assert b["pct"] == pytest.approx(0.42)
     assert b["max_budget"] == 10.0
 
 
