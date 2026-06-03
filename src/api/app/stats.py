@@ -62,8 +62,13 @@ class StatsContract(TypedDict):
 
 
 def _num(value: Any, default: float = 0) -> float:
-    """Coerce a metric to a number, treating None/garbage as the (real-zero) default."""
-    if value is None:
+    """Coerce a metric to a number, treating None/garbage as the (real-zero) default.
+
+    WR-05: bool is a subclass of int, so True/False would otherwise pass through the
+    int/float check unchanged and serialize as JSON booleans in the contract. Reject
+    bool explicitly at the defensive coercion boundary.
+    """
+    if value is None or isinstance(value, bool):
         return default
     try:
         return value if isinstance(value, (int, float)) else float(value)
