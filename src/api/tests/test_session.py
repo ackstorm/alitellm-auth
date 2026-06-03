@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 from itsdangerous import TimestampSigner
+from pydantic import ValidationError
 
 from app.config import Settings
 from app.litellm_client import LiteLLMUserNotFound
@@ -558,3 +559,44 @@ def test_ui_action_ensures_user_no_key(client):
     mock_key.assert_not_called()
     # ensure_team_and_user must have been called (eager create)
     mock_ensure.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Phase 11 / D-06 — startup guard: https app_base_url requires SESSION_HTTPS_ONLY
+# ---------------------------------------------------------------------------
+
+
+def test_https_requires_secure_cookie():
+    """A https app_base_url with session_https_only=False crashes at construction,
+    and the raised message names the offending env var SESSION_HTTPS_ONLY (D-06)."""
+    base = make_test_settings().model_dump()
+    with pytest.raises((ValidationError, ValueError)) as excinfo:
+        Settings(
+            **{
+                **base,
+                "app_base_url": "https://platform.ackstorm.ai",
+                "session_https_only": False,
+            }
+        )
+    assert "SESSION_HTTPS_ONLY" in str(excinfo.value)
+
+
+def test_https_with_secure_cookie_ok():
+    """https + session_https_only=True constructs without error (D-06)."""
+    base = make_test_settings().model_dump()
+    settings = Settings(
+        **{
+            **base,
+            "app_base_url": "https://platform.ackstorm.ai",
+            "session_https_only": True,
+        }
+    )
+    assert settings.app_base_url == "https://platform.ackstorm.ai"
+    assert settings.session_https_only is True
+
+
+def test_default_http_dev_settings_construct():
+    """The default make_test_settings() (http + False) is unaffected by the guard (D-06)."""
+    settings = make_test_settings()
+    assert settings.app_base_url == "http://localhost:8080"
+    assert settings.session_https_only is False
