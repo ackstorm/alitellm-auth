@@ -479,7 +479,7 @@ async def test_budget_rewiring():
     try:
         settings = make_settings(factory_config_path=factory_path)
 
-        team_route = respx.post("http://litellm.test/team/new").mock(
+        respx.post("http://litellm.test/team/new").mock(
             return_value=httpx.Response(200, json={"team_id": "team-platform"})
         )
         respx.post("http://litellm.test/v1/access_group").mock(
@@ -888,7 +888,7 @@ async def test_ensure_team_member_budget_wired_into_ensure_team_and_user():
             return_value=httpx.Response(200, json={"team_id": "team-platform"})
         )
         # member_update called as part of the idempotent flow (always called after add)
-        member_update_route = respx.post("http://litellm.test/team/member_update").mock(
+        respx.post("http://litellm.test/team/member_update").mock(
             return_value=httpx.Response(200, json={"team_id": "team-platform"})
         )
 
