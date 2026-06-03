@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
 from app.litellm_client import (
@@ -271,17 +271,18 @@ async def session_create_key(
     email = user["email"]
     name = user["name"]
 
-    # Parse optional body — no body is valid (returns CreateKeyBody with all defaults)
+    # Parse optional body. WR-03: distinguish "no body" (valid → defaults) from a
+    # "malformed body" (non-empty payload that fails schema coercion → 422). The
+    # prior bare `except Exception: pass` silently dropped a client's requested
+    # alias/duration when JSON coercion failed, minting a defaults key without error.
     body = CreateKeyBody()
-    try:
-        raw_body = await request.body()
-        if raw_body and raw_body.strip() and raw_body.strip() != b"{}":
-            parsed = CreateKeyBody.model_validate_json(raw_body)
-            body = parsed
-        elif raw_body and raw_body.strip() == b"{}":
-            pass  # empty object — use defaults
-    except Exception:
-        pass  # parsing failure → use defaults (no body is valid)
+    raw_body = await request.body()
+    stripped = raw_body.strip() if raw_body else b""
+    if stripped and stripped != b"{}":
+        try:
+            body = CreateKeyBody.model_validate_json(raw_body)
+        except ValidationError:
+            raise HTTPException(status_code=422, detail="invalid request body")
 
     # Validate alias (safe chars + length bound) if provided
     alias: str | None = body.alias
