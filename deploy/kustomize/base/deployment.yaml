@@ -39,6 +39,9 @@ spec:
               value: "https://api.ackstorm.ai"
             - name: FACTORY_CONFIG_PATH
               value: "/etc/alitellm-auth/factory-config.json"
+            # D-18: Secure cookie flag. True in prod overlays, False for local HTTP dev.
+            - name: SESSION_HTTPS_ONLY
+              value: "true"
           volumeMounts:
             - name: factory-config
               mountPath: /etc/alitellm-auth

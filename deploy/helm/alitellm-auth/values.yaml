@@ -30,6 +30,8 @@ config:
   oauthClientId: "platform"
   litellmUrl: "https://litellm.ackstorm.ai"
   apiPublicUrl: "https://api.ackstorm.ai"
+  # D-18: Secure cookie flag. True in prod (HTTPS), False for local HTTP dev.
+  sessionHttpsOnly: "true"
 
 # Sensitive config (SESSION_SECRET_KEY, OAUTH_CLIENT_SECRET, LITELLM_MASTER_KEY).
 # Recommended: pre-create a Secret and reference it here. The chart injects all
