@@ -970,3 +970,136 @@ async def test_user_daily_activity():
     assert params.get("user_id") == "alice@example.com"
     assert params.get("start_date") == "2026-06-01"
     assert params.get("end_date") == "2026-06-30"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_two_page_daily_activity():
+    """Plan 12-02: a multi-page has_more response is concatenated across pages.
+
+    The spike could not reproduce has_more=true on low-traffic prod, so this is a
+    SYNTHETIC two-page test: page 1 has_more=true, page 2 has_more=false. The
+    bounded loop must accumulate results[] across both pages.
+    """
+    from app.litellm_client import user_daily_activity
+
+    settings = make_settings()
+
+    page1 = {
+        "results": [
+            {"date": "2026-06-01", "metrics": {"spend": 0.1, "api_requests": 1}},
+            {"date": "2026-06-02", "metrics": {"spend": 0.2, "api_requests": 2}},
+        ],
+        "metadata": {
+            "total_spend": 0.6,
+            "total_api_requests": 6,
+            "page": 1,
+            "total_pages": 2,
+            "has_more": True,
+        },
+    }
+    page2 = {
+        "results": [
+            {"date": "2026-06-03", "metrics": {"spend": 0.3, "api_requests": 3}},
+        ],
+        "metadata": {
+            "total_spend": 0.6,
+            "total_api_requests": 6,
+            "page": 2,
+            "total_pages": 2,
+            "has_more": False,
+        },
+    }
+
+    def _responder(request: httpx.Request) -> httpx.Response:
+        page = request.url.params.get("page")
+        if page in (None, "1"):
+            return httpx.Response(200, json=page1)
+        return httpx.Response(200, json=page2)
+
+    route = respx.get("http://litellm.test/user/daily/activity").mock(side_effect=_responder)
+
+    result = await user_daily_activity("alice@example.com", settings, "2026-06-01", "2026-06-03")
+
+    assert route.call_count == 2
+    # Page 1 (2 results) + page 2 (1 result) concatenated.
+    assert len(result["results"]) == 3
+    assert [r["date"] for r in result["results"]] == ["2026-06-01", "2026-06-02", "2026-06-03"]
+    # Window totals taken from metadata (LiteLLM pre-aggregates across the range).
+    assert result["metadata"]["total_spend"] == 0.6
+    # H6: page param passed via params={}, not f-string.
+    params = dict(route.calls.last.request.url.params)
+    assert params.get("user_id") == "alice@example.com"
+    assert "page" in params
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_spend_logs_last_used_max_per_model():
+    """Plan 12-02: spend_logs_last_used returns {model: max(startTime)} per model."""
+    from app.litellm_client import spend_logs_last_used
+
+    settings = make_settings()
+
+    rows = [
+        {"model": "gemini/flash", "startTime": "2026-04-01T09:48:21.000000Z"},
+        {"model": "gemini/flash", "startTime": "2026-04-01T09:49:44.420000Z"},  # newest flash
+        {"model": "gemini/pro", "startTime": "2026-04-01T09:49:44.384000Z"},
+        # endTime-only row exercises the defensive fallback.
+        {"model": "gemini/lite", "endTime": "2026-04-01T07:00:00.000000Z"},
+    ]
+
+    route = respx.get("http://litellm.test/spend/logs").mock(
+        return_value=httpx.Response(200, json=rows)
+    )
+
+    result = await spend_logs_last_used(
+        "alice@example.com", settings, "2026-04-01", "2026-04-02"
+    )
+
+    assert route.called
+    assert result["gemini/flash"] == "2026-04-01T09:49:44.420000Z"
+    assert result["gemini/pro"] == "2026-04-01T09:49:44.384000Z"
+    assert result["gemini/lite"] == "2026-04-01T07:00:00.000000Z"
+    # H6 + summarize=false (raw rows).
+    params = dict(route.calls.last.request.url.params)
+    assert params.get("user_id") == "alice@example.com"
+    assert params.get("summarize") == "false"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_spend_logs_last_used_degrades_on_5xx():
+    """Plan 12-02: last-used degrades to {} on a 5xx — it never raises into a 502."""
+    from app.litellm_client import spend_logs_last_used
+
+    settings = make_settings()
+
+    respx.get("http://litellm.test/spend/logs").mock(
+        return_value=httpx.Response(503, text="upstream down")
+    )
+
+    result = await spend_logs_last_used(
+        "alice@example.com", settings, "2026-04-01", "2026-04-02"
+    )
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_spend_logs_last_used_empty_rows():
+    """Plan 12-02: an empty /spend/logs window returns {} (exercised live in prod)."""
+    from app.litellm_client import spend_logs_last_used
+
+    settings = make_settings()
+
+    respx.get("http://litellm.test/spend/logs").mock(
+        return_value=httpx.Response(200, json=[])
+    )
+
+    result = await spend_logs_last_used(
+        "alice@example.com", settings, "2026-04-01", "2026-04-02"
+    )
+
+    assert result == {}
