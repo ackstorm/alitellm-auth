@@ -431,6 +431,141 @@ def test_usage_removed(client):
     assert response.status_code == 404
 
 
+def test_stats_scoped_to_cookie_email(client):
+    """Per-user scoping: user_daily_activity is called with the COOKIE email only.
+
+    There is no route query param a client could use to request another user's data;
+    the email is sourced from require_session_user (the verified cookie).
+    """
+    activity, last, budget = _stats_mocks()
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget),
+    ):
+        # An attacker-supplied user_id/email query param must be ignored.
+        response = client.get(
+            "/api/session/stats?user_id=victim@example.com&email=victim@example.com",
+            cookies=_authed_cookie(email="alice@example.com"),
+        )
+    assert response.status_code == 200
+    # Both daily-activity calls (current + prior) used the cookie email, never the param.
+    for call in activity.await_args_list:
+        assert call.args[0] == "alice@example.com"
+    budget.assert_awaited()
+    assert budget.await_args.args[0] == "alice@example.com"
+
+
+def test_stats_last_used_degrades(client):
+    """Last-used unavailable → every models[].last_used == null + capability false, 200."""
+    activity, _, budget = _stats_mocks()
+    # spend_logs_last_used degrades to {} (its D-09 contract).
+    last_empty = AsyncMock(return_value={})
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last_empty),
+        patch("app.session.get_litellm_user", budget),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["capabilities"]["per_model_last_used"] is False
+    assert all(m["last_used"] is None for m in data["models"])
+
+
+def test_stats_budget_degrades(client):
+    """Budget fetch raising → budget block degraded, still 200 (mirrors /me)."""
+    activity, last, _ = _stats_mocks()
+    budget_fail = AsyncMock(side_effect=LiteLLMUserNotFound("alice@example.com"))
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget_fail),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["budget"]["max_budget"] is None
+    assert data["budget"]["has_budget"] is False
+    assert data["budget"]["current"] == 0
+
+
+def test_stats_prior_window_degrades(client):
+    """Prior-window fetch raising → capabilities.deltas false, still 200."""
+    request = httpx.Request("GET", "http://litellm.test/user/daily/activity")
+    current = _load_fixture("daily_activity_current.json")
+    activity = AsyncMock(
+        side_effect=[current, httpx.RequestError("boom", request=request)]
+    )
+    last = AsyncMock(return_value={})
+    budget = AsyncMock(return_value={"user_id": "alice@example.com", "max_budget": None, "spend": 0.0})
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 200
+    assert response.json()["capabilities"]["deltas"] is False
+
+
+def test_stats_current_window_502(client):
+    """Current-window fetch raising an httpx error → 502 (the one indispensable figure)."""
+    request = httpx.Request("GET", "http://litellm.test/user/daily/activity")
+    response_503 = httpx.Response(503, request=request)
+    activity = AsyncMock(
+        side_effect=httpx.HTTPStatusError("backend down", request=request, response=response_503)
+    )
+    last = AsyncMock(return_value={})
+    budget = AsyncMock(return_value={"user_id": "alice@example.com", "max_budget": None})
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 502
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "start_date=not-a-date",
+        "end_date=2026-13-99",
+        "start_date=2026-06-10&end_date=2026-06-01",  # start > end
+        "start_date=2020-01-01&end_date=2026-06-03",  # span over the 366d cap
+    ],
+)
+def test_stats_invalid_range_422(client, query):
+    """Malformed dates, start>end, and over-cap spans → 422 (not 500)."""
+    response = client.get(f"/api/session/stats?{query}", cookies=_authed_cookie())
+    assert response.status_code == 422
+
+
+def test_stats_empty_window_zero_not_null(client):
+    """D-08: an empty window → totals 0 (real zero), while an unavailable figure is null."""
+    empty = _load_fixture("daily_activity_empty.json")
+    activity = AsyncMock(side_effect=[empty, empty])
+    # last-used unavailable → null + capability false (the "flagged-unavailable" figure).
+    last = AsyncMock(return_value={})
+    budget = AsyncMock(return_value={"user_id": "alice@example.com", "max_budget": None, "spend": 0.0})
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 200
+    data = response.json()
+    # Real zero, NOT null.
+    assert data["totals"]["requests"] == 0
+    assert data["totals"]["spend"] == 0
+    assert data["totals"]["tokens"] == 0
+    # An unavailable figure is null + flagged.
+    assert data["capabilities"]["per_model_last_used"] is False
+    assert data["models"] == []
+
+
 # ---------------------------------------------------------------------------
 # D-18 — Origin / Referer guard (assert_same_origin)
 # ---------------------------------------------------------------------------
