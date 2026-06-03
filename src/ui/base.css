@@ -168,6 +168,34 @@ body {
 /* Active-route indicator on the topbar nav uses --accent (UI-SPEC §Color). */
 .topbar-nav a.active { color: var(--accent); }
 
+/* ── Two-column sign-in landing layout (UI-SPEC §C — re-spec'd login) ──────────
+ *
+ * Structural primitives for the cold-load two-column login (login.js renders
+ * <TwoColumnLogin/> into this layout; its value-prop / overview-sample DETAIL
+ * styles live with the component in login.js's LOGIN_CSS). These are the
+ * structural bits: the centered two-column flex with the newly-activated 2xl
+ * (48px) column gap, the LEFT sign-in card 480px constraint, and the < 768px
+ * stacking media query (card on top, value props below). Only var(--*) tokens. */
+.login {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xl);
+  padding: var(--space-3xl) var(--space-xl);
+}
+/* LEFT — sign-in card constrained to max-width 480px (layout, not a token). */
+.login-card { width: 100%; max-width: 480px; flex: 0 0 auto; }
+/* RIGHT — value-props column. */
+.value-props { width: 100%; max-width: 460px; flex: 0 1 auto; }
+
+/* Sign-in landing < 768px: the two columns stack (card on top, props below). */
+@media (max-width: 768px) {
+  .login { flex-direction: column; align-items: stretch; gap: var(--space-xl); padding: var(--space-xl); }
+  .login-card { max-width: none; }
+  .value-props { max-width: none; }
+}
+
 /* ── Card primitive (success.html:41-49) ────────────────────────────────────── */
 
 .card {
