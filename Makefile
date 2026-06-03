@@ -25,7 +25,7 @@ help: ## Show this help
 
 ##@ Setup
 .PHONY: hooks
-hooks: ## Install git pre-commit + pre-push hooks
+hooks: ## Install git pre-push hook
 	./scripts/install-hooks.sh
 
 .PHONY: devtools-image
