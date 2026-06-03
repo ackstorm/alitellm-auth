@@ -64,14 +64,19 @@ function KeyRow({ item: k, fresh, onDelete }) {
 
   // What `copy` writes, and what the inline key chip displays:
   //   fresh        -> full sk- (copy), masked-or-revealed chip
-  //   pre-existing -> key_id   (copy), masked sk-…last4 chip
+  //   pre-existing -> key_id   (copy), the key_id verbatim chip
+  // The key id is a PUBLIC identifier (key-...), not a secret, so it is shown
+  // as-is rather than masked through maskKey() — masking it would discard the
+  // real `key-` prefix and misrepresent a public id as a masked secret (WR-02).
   const copyValue = fresh !== undefined ? fresh : id;
   const chipDisplay =
     fresh !== undefined
       ? revealed
         ? fresh
         : MASKED_FRESH
-      : maskKey(id);
+      : id == null
+        ? EM_DASH
+        : id;
 
   return html`
     <tr class="key-row" data-revoked=${revoked}>
