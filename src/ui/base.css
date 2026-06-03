@@ -108,7 +108,9 @@ body {
 
 /* ── Main content column (UI-SPEC §App-Shell Layout) ────────────────────────── */
 
-/* Centered, max-width 720px, horizontal padding 32px, vertical padding-top 32px. */
+/* Centered, max-width 720px, horizontal padding 32px, vertical padding-top 32px.
+ * Used by the loading / sign-in / error shell cards (.shell-page wraps these).
+ * The AUTHENTICATED shell uses the wide multi-panel layout below, NOT this. */
 .main {
   flex: 1 1 auto;
   width: 100%;
@@ -118,6 +120,53 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* ── Wide authenticated layout primitives (UI-SPEC §B re-spec — 2xl/3xl active) ─
+ *
+ * The detailed authenticated-shell chrome (topbar nav, panel actions, stats
+ * placeholder, responsive stacking) lives in app.js's injected SHELL_CSS with
+ * the component that renders it; these are the structural layout primitives:
+ * a 56px topbar, a centered 1200px content region with the newly-activated
+ * 2xl/3xl gaps, a fixed 320px right sidebar, and the 16px-radius panel shape.
+ * (Additive — the 48px .header and 720px .main above are NOT removed.) */
+
+/* TOPBAR — 56px tall, surface bg, 1px bottom border, lg horizontal padding. */
+.topbar {
+  height: 56px;
+  flex: 0 0 auto;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: 0 var(--space-lg);
+}
+
+/* WIDE CONTENT REGION — centered 1200px, padding xl, top padding 3xl, 2xl gap. */
+.content {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-3xl) var(--space-xl) 0;
+  display: flex;
+  gap: var(--space-2xl);
+}
+.main-region { flex: 1 1 auto; min-width: 0; }
+
+/* RIGHT SIDEBAR — fixed 320px column. */
+.sidebar { width: 320px; flex: 0 0 320px; }
+
+/* Panel shape — reuse the 16px card radius (UI-SPEC §Spacing exceptions). */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: var(--space-lg);
+}
+
+/* Active-route indicator on the topbar nav uses --accent (UI-SPEC §Color). */
+.topbar-nav a.active { color: var(--accent); }
 
 /* ── Card primitive (success.html:41-49) ────────────────────────────────────── */
 
