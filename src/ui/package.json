@@ -6,13 +6,15 @@
   "description": "Preact + htm SPA shell for alitellm-auth, served at /ui by FastAPI",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "test": "vitest run"
   },
   "dependencies": {
     "htm": "3.1.1",
     "preact": "10.29.2"
   },
   "devDependencies": {
-    "vite": "8.0.16"
+    "vite": "8.0.16",
+    "vitest": "4.1.8"
   }
 }
