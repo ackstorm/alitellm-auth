@@ -22,7 +22,7 @@
 //   • T-10-16 (info disclosure, endpoint Copy): the Copy button writes only
 //     me.endpoint (a public base URL), on an explicit user click, via clipboard.js.
 import { h } from "preact";
-import { useState, useEffect, useCallback } from "preact/hooks";
+import { useState, useEffect, useCallback, useRef } from "preact/hooks";
 import htm from "htm";
 import { getJson } from "./api.js";
 import { useCopyFeedback } from "./clipboard.js";
@@ -141,11 +141,21 @@ export function Dashboard({ me, registerCreateOpener }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [keyToDelete, setKeyToDelete] = useState(null);
 
+  // Monotonic sequence token so only the LATEST loadKeys may write state. A
+  // rapid create-then-delete fires two overlapping loadKeys awaits; without
+  // sequencing an earlier fetch could resolve last and clobber `keys` with
+  // stale data (WR-05). Each call captures its seq and bails on resolve if a
+  // newer call has since started.
+  const loadSeq = useRef(0);
+
   // Load /keys (loading -> branch on status, App.loadSession shape). Re-runs
   // after a create or delete to reconcile the table with the server.
   const loadKeys = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setKeysStatus("loading");
     const { status, data } = await getJson("/api/session/keys");
+    // A newer load started while this one was in flight — discard this result.
+    if (seq !== loadSeq.current) return;
     if (status === 200 && data && Array.isArray(data.keys)) {
       setKeys(data.keys);
       setKeysStatus("ok");
@@ -173,9 +183,21 @@ export function Dashboard({ me, registerCreateOpener }) {
     loadKeys();
   }, [loadKeys]);
 
-  // Delete success: clear the target and re-fetch /keys.
-  const onDeleted = useCallback(() => {
+  // Delete success: clear the target, DROP the deleted id's fresh `sk-` from the
+  // in-memory map (so a deleted key's secret-bearing state does not linger past
+  // the row's lifetime — WR-05), and re-fetch /keys. DeleteModal passes
+  // onDeleted(keyToDelete.id); the id was previously dropped (IN-01) which
+  // blocked this pruning.
+  const onDeleted = useCallback((id) => {
     setKeyToDelete(null);
+    if (id) {
+      setFreshKeys((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
     loadKeys();
   }, [loadKeys]);
 
