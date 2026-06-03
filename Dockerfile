@@ -1,5 +1,5 @@
 # ── Builder stage ────────────────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 WORKDIR /app
 
 RUN pip install --no-cache-dir uv
@@ -12,7 +12,7 @@ COPY src/api/app ./app
 RUN uv pip install --system --no-cache-dir --target=/app/deps .
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
-FROM python:3.12-slim
+FROM python:3.14-slim
 WORKDIR /app
 
 # PYTHONPATH points at the install target so deps are version-agnostic:
