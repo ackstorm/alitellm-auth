@@ -303,6 +303,132 @@ async def generate_litellm_key(
     }
 
 
+async def _list_session_keys_fallback(email: str, settings: Settings) -> list[dict]:
+    """Fallback: hydrate keys via list_litellm_keys + get_key_info when /key/list returns strings."""
+    raw_keys = await list_litellm_keys(email, settings)
+    # list_litellm_keys already handles string-item hydration + email filtering.
+    # Project each key to the SAPI-03 shape.
+    out = []
+    for k in raw_keys:
+        md = _parse_metadata(k.get("metadata") if isinstance(k, dict) else {})
+        out.append(
+            {
+                "id": _get_key_id(k, metadata=md) if isinstance(k, dict) else None,
+                "key_alias": k.get("key_alias") if isinstance(k, dict) else None,
+                "spend": k.get("spend", 0.0) if isinstance(k, dict) else 0.0,
+                "budget": None,  # D-17: inherited from user/team
+                "tpm_limit": k.get("tpm_limit") if isinstance(k, dict) else None,
+                "rpm_limit": k.get("rpm_limit") if isinstance(k, dict) else None,
+                "models": k.get("models") if isinstance(k, dict) else None,
+                "created_at": (md.get("created_at") or (k.get("created_at") if isinstance(k, dict) else None)),
+                "expires": k.get("expires") if isinstance(k, dict) else None,
+            }
+        )
+    out.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return out
+
+
+async def list_session_keys(email: str, settings: Settings) -> list[dict]:
+    """List all virtual keys for a user as SAPI-03 metadata objects.
+
+    Uses the one-call /key/list?return_full_object=true&size=100 path (RQ-2/D-08).
+    Falls back to the list_litellm_keys + get_key_info hydration path when the
+    proxy returns string items (i.e. return_full_object was ignored).
+
+    Pitfall 3: uses 'size' (not 'page_size') on /key/list — they are different params.
+    D-17: 'budget' is always None (inherited from user/team; reported by /me).
+    """
+    headers = _admin_headers(settings)
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+        resp = await client.get(
+            "/key/list",
+            headers=headers,
+            params={"user_id": email, "return_full_object": True, "size": 100},
+        )
+
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM /key/list failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+
+    rows = resp.json().get("keys", [])
+    if not isinstance(rows, list):
+        logger.warning("LiteLLM /key/list returned non-list 'keys': %r", rows)
+        return []
+
+    out = []
+    for k in rows:
+        # If the proxy returned a string, return_full_object was ignored → trigger fallback.
+        if isinstance(k, str):
+            return await _list_session_keys_fallback(email, settings)
+        if not isinstance(k, dict):
+            logger.warning(
+                "LiteLLM /key/list returned unexpected type (not str/dict): %r type=%s",
+                k,
+                type(k),
+            )
+            continue
+        md = _parse_metadata(k.get("metadata"))
+        out.append(
+            {
+                "id": _get_key_id(k, metadata=md),
+                "key_alias": k.get("key_alias"),
+                "spend": k.get("spend", 0.0),
+                "budget": None,  # D-17: budget inherited from user/team; never per-key
+                "tpm_limit": k.get("tpm_limit"),
+                "rpm_limit": k.get("rpm_limit"),
+                "models": k.get("models"),
+                "created_at": md.get("created_at") or k.get("created_at"),
+                "expires": k.get("expires"),
+            }
+        )
+
+    out.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return out
+
+
+async def user_daily_activity(
+    email: str,
+    settings: Settings,
+    start_date: str,
+    end_date: str,
+) -> dict:
+    """Fetch the daily activity breakdown for a user from LiteLLM.
+
+    Calls GET /user/daily/activity with params (H6: always params={}, never f-string).
+    Returns the SpendAnalyticsPaginatedResponse shape:
+        {results: [{date, metrics:{spend,total_tokens,...}, breakdown:{...}}],
+         metadata: {total_spend, total_tokens, ..., has_more, page, total_pages}}
+
+    Used by GET /api/session/usage (D-09b).
+
+    Args:
+        email: User identifier (user_id=email convention).
+        settings: Application settings.
+        start_date: ISO date string, e.g. "2026-05-01".
+        end_date: ISO date string, e.g. "2026-05-31".
+    """
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
+        resp = await client.get(
+            "/user/daily/activity",
+            headers=_admin_headers(settings),
+            params={"user_id": email, "start_date": start_date, "end_date": end_date},
+        )
+
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM /user/daily/activity failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+
+    return resp.json()
+
+
 async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:
     """List all virtual keys for a specific user email."""
     headers = _admin_headers(settings)
