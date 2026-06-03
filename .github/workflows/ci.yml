@@ -26,6 +26,13 @@ jobs:
       - uses: ./.github/actions/setup-devtools
       - run: ./scripts/dev.sh make _lint
 
+  build-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-devtools
+      - run: ./scripts/dev.sh make _build-ui
+
   test:
     runs-on: ubuntu-latest
     steps:

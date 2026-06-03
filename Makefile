@@ -6,6 +6,7 @@ SHELL := /usr/bin/env bash
 OWNER ?= ackstorm
 IMG   ?= ghcr.io/$(OWNER)/alitellm-auth
 APP_DIR := src/api
+UI_DIR := src/ui
 
 IN_DEVTOOLS ?=
 define container_target
@@ -68,6 +69,31 @@ test-fast: ## pytest quiet (inner loop / hooks)
 	$(call container_target,_test-fast)
 _test-fast: _deps
 	cd $(APP_DIR) && $(PYTEST_ENV) pytest tests/ -q
+
+##@ UI (containerized)
+# npm runs ONLY inside the devtools container (BUILD-01) — no host node. Both
+# targets reuse the container_target macro like deps/lint/test do. `_build-ui`
+# is non-interactive and needs no published port, so it runs under the default
+# scripts/dev.sh invocation. `dev-ui` runs the Vite HMR server and DOES need the
+# host to reach :5173 and the container to reach the host FastAPI on :8080, so it
+# sets DEV_NET=host (see scripts/dev.sh) to share the host network.
+
+# The devtools container runs as the host UID/GID (dev.sh `-u`), which has no
+# home dir, so npm's default cache (/.npm) is unwritable. Pin it to a repo-local,
+# host-writable, gitignored path so npm ci works under the arbitrary UID.
+NPM_CACHE := /app/.npm-cache
+
+.PHONY: build-ui _build-ui
+build-ui: ## Build the SPA to src/ui/dist (containerized)
+	$(call container_target,_build-ui)
+_build-ui:
+	cd $(UI_DIR) && npm_config_cache=$(NPM_CACHE) npm ci && npm run build
+
+.PHONY: dev-ui _dev-ui
+dev-ui: ## Vite dev server on :5173, proxies /api -> :8080 (containerized, host net)
+	DEV_NET=host $(call container_target,_dev-ui)
+_dev-ui:
+	cd $(UI_DIR) && npm_config_cache=$(NPM_CACHE) npm ci && npm run dev -- --host 0.0.0.0
 
 ##@ Security (host docker — secret scanning)
 .PHONY: secrets
