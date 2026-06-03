@@ -273,7 +273,10 @@ def build_stats_contract(
         )
 
     # last_used capability flips to False when no source data was supplied (D-09).
-    capabilities["per_model_last_used"] = bool(last_used)
+    # WR-06: only flip to False on an empty map — never force True back on, so a
+    # caller that deliberately disabled the flag is respected.
+    if not last_used:
+        capabilities["per_model_last_used"] = False
 
     # Per-key: spend_pct guarded; ranked by spend desc.
     raw_keys = cur_agg.get("keys") or []
