@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json as _json
+import os
+import tempfile
 
 import pytest
 import respx
@@ -433,3 +435,77 @@ async def test_list_litellm_keys_hydrates_string_keys_on_success():
     keys = await list_litellm_keys("alice@example.com", settings)
     assert len(keys) == 1
     assert keys[0]["email"] == "alice@example.com"
+
+
+# ── Phase 8 Plan 01 tests ────────────────────────────────────────────────────
+
+
+def _make_factory_config(tmp_path_factory) -> str:
+    """Write a temporary factory-config.json matching the live ConfigMap values."""
+    config = {
+        "team": {},
+        "user": {
+            "max_parallel_requests": 5,
+            "rpm_limit": 10,
+            "tpm_limit": 100,
+            "max_budget": 10,
+            "budget_duration": "24h",
+            "metadata": {
+                "rpm_limit_type": "best_effort_throughput",
+                "tpm_limit_type": "best_effort_throughput",
+            },
+        },
+    }
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", delete=False, prefix="factory_config_"
+    )
+    tmp.write(_json.dumps(config))
+    tmp.close()
+    return tmp.name
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_budget_rewiring():
+    """D-15: /user/new payload carries budget from factory; /key/generate does NOT.
+
+    Assert:
+    - /user/new body contains max_budget (from factory config)
+    - /key/generate body does NOT contain max_budget, budget_duration,
+      tpm_limit, or rpm_limit
+    """
+    factory_path = _make_factory_config(None)
+    try:
+        settings = make_settings(factory_config_path=factory_path)
+
+        team_route = respx.post("http://litellm.test/team/new").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+        respx.post("http://litellm.test/v1/access_group").mock(
+            return_value=httpx.Response(200, json={"access_group_id": "group-1"})
+        )
+        user_route = respx.post("http://litellm.test/user/new").mock(
+            return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+        )
+        key_route = respx.post("http://litellm.test/key/generate").mock(
+            return_value=httpx.Response(200, json={"key": "sk-test", "key_id": "k1"})
+        )
+
+        result = await generate_litellm_key("alice@example.com", settings)
+        assert result["key"] == "sk-test"
+
+        # D-15: /user/new must carry the factory user budget block
+        user_body = _json_body(user_route)
+        assert user_body.get("max_budget") == 10, "user/new must carry max_budget from factory"
+        assert user_body.get("budget_duration") == "24h", "user/new must carry budget_duration"
+        assert user_body.get("tpm_limit") == 100, "user/new must carry tpm_limit"
+        assert user_body.get("rpm_limit") == 10, "user/new must carry rpm_limit"
+
+        # D-15: /key/generate must NOT carry any budget fields
+        key_body = _json_body(key_route)
+        assert "max_budget" not in key_body, "key/generate must NOT carry max_budget (D-15)"
+        assert "budget_duration" not in key_body, "key/generate must NOT carry budget_duration"
+        assert "tpm_limit" not in key_body, "key/generate must NOT carry tpm_limit"
+        assert "rpm_limit" not in key_body, "key/generate must NOT carry rpm_limit"
+    finally:
+        os.unlink(factory_path)
