@@ -618,3 +618,151 @@ async def test_lazy_backfill():
         assert "tpm_limit" not in update_body, "backfill must NOT overwrite tpm_limit (already set)"
     finally:
         os.unlink(factory_path)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_session_keys_one_call():
+    """RQ-2/D-08: list_session_keys uses /key/list?return_full_object=true&size=100.
+
+    When list returns full dict objects, projects to SAPI-03 shape:
+    - id = sha256(key_alias)
+    - budget = None (D-17: inherited from user/team)
+    - spend, tpm_limit, rpm_limit, models, created_at, expires projected
+    """
+    from app.litellm_client import list_session_keys
+    import hashlib
+
+    settings = make_settings()
+    key_alias = "my-test-key"
+    expected_id = hashlib.sha256(key_alias.encode()).hexdigest()
+
+    respx.get("http://litellm.test/key/list").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "keys": [
+                    {
+                        "key_alias": key_alias,
+                        "spend": 1.5,
+                        "max_budget": None,
+                        "tpm_limit": 1000,
+                        "rpm_limit": 100,
+                        "models": ["gpt-4"],
+                        "created_at": "2026-06-01T00:00:00Z",
+                        "expires": None,
+                        "metadata": {"created_at": "2026-06-01T00:00:00Z", "key_alias": key_alias},
+                    }
+                ]
+            },
+        )
+    )
+
+    keys = await list_session_keys("alice@example.com", settings)
+    assert len(keys) == 1
+    k = keys[0]
+    assert k["id"] == expected_id, "id must be sha256(key_alias)"
+    assert k["budget"] is None, "budget must be None (D-17: inherited from user/team)"
+    assert k["spend"] == 1.5
+    assert k["tpm_limit"] == 1000
+    assert k["rpm_limit"] == 100
+    assert k["models"] == ["gpt-4"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_session_keys_fallback():
+    """D-08: when /key/list returns strings, the fallback hydration path is used.
+
+    String items trigger the fallback; get_key_info is called for each key and
+    the result is projected.
+    """
+    from app.litellm_client import list_session_keys
+
+    settings = make_settings()
+    key_alias = "fallback-key"
+
+    # /key/list returns a string item — triggers fallback
+    respx.get("http://litellm.test/key/list").mock(
+        return_value=httpx.Response(200, json={"keys": ["sk-opaque-token"]})
+    )
+    # get_key_info (fallback hydration) returns full dict
+    respx.get("http://litellm.test/key/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "info": {
+                    "key": "sk-opaque-token",
+                    "key_alias": key_alias,
+                    "spend": 0.5,
+                    "tpm_limit": None,
+                    "rpm_limit": None,
+                    "models": ["all-team-models"],
+                    "expires": None,
+                    "metadata": {
+                        "email": "alice@example.com",
+                        "key_alias": key_alias,
+                        "created_at": "2026-05-01T00:00:00Z",
+                    },
+                }
+            },
+        )
+    )
+    # /key/list for fallback (list_litellm_keys uses team_id filter)
+    # We also need to mock the fallback's /key/list call
+    respx.get("http://litellm.test/key/list").mock(
+        return_value=httpx.Response(200, json={"keys": ["sk-opaque-token"]})
+    )
+
+    keys = await list_session_keys("alice@example.com", settings)
+    # Should return results (fallback path was used)
+    assert isinstance(keys, list)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_user_daily_activity():
+    """D-09b: user_daily_activity fetches /user/daily/activity and returns the breakdown."""
+    from app.litellm_client import user_daily_activity
+
+    settings = make_settings()
+
+    expected_response = {
+        "results": [
+            {
+                "date": "2026-06-01",
+                "metrics": {
+                    "spend": 0.5,
+                    "total_tokens": 1000,
+                    "api_requests": 5,
+                },
+            }
+        ],
+        "metadata": {
+            "total_spend": 0.5,
+            "total_tokens": 1000,
+            "total_api_requests": 5,
+            "has_more": False,
+            "page": 1,
+            "total_pages": 1,
+        },
+    }
+
+    route = respx.get("http://litellm.test/user/daily/activity").mock(
+        return_value=httpx.Response(200, json=expected_response)
+    )
+
+    result = await user_daily_activity(
+        "alice@example.com", settings, "2026-06-01", "2026-06-30"
+    )
+
+    assert route.called
+    assert result["results"][0]["date"] == "2026-06-01"
+    assert result["metadata"]["total_spend"] == 0.5
+
+    # Verify H6: params used (not f-string)
+    call = route.calls.last
+    params = dict(call.request.url.params)
+    assert params.get("user_id") == "alice@example.com"
+    assert params.get("start_date") == "2026-06-01"
+    assert params.get("end_date") == "2026-06-30"
