@@ -130,6 +130,27 @@ async def login(request: Request, action: str = "login") -> HTMLResponse:
     return await oauth.oidc.authorize_redirect(request, callback_url)
 
 
+@router.get("/api/oauth/logout")
+async def logout(request: Request) -> RedirectResponse:
+    """Clear the local session and return to the /ui sign-in landing.
+
+    The SPA "sign out" link (app.js) navigates here. This is an app-LOCAL logout:
+    ``session.clear()`` empties the signed session, so Starlette's SessionMiddleware
+    emits a cookie-clearing ``Set-Cookie`` on this response and the SPA cold-loads
+    straight into the sign-in card (a /me 401 on a fresh page = "signin", not the
+    silent "expired" re-login).
+
+    The OIDC provider's SSO session is intentionally left intact — RP-initiated
+    end-session (Dex ``end_session_endpoint``) is out of scope, so a fresh sign-in
+    may silently re-authenticate via the IdP. Trailing slash on /ui/ avoids the
+    StaticFiles slash-redirect hop (which emits a cleartext http:// Location behind
+    the TLS-terminating gateway).
+    """
+    settings: Settings = request.app.state.settings
+    request.session.clear()
+    return RedirectResponse(f"{settings.app_base_url}/ui/", status_code=302)
+
+
 @router.get("/api/oauth/callback", name="auth_callback", response_model=None)
 async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
     """Handle Dex callback for all OIDC flows.

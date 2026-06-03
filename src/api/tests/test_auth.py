@@ -640,3 +640,29 @@ def test_callback_action_tokens_list_failure_does_not_leak_backend_text(client):
     assert response.status_code == 500
     assert "backend resp.text leak" not in response.text
     assert "Could not retrieve your tokens" in response.text
+
+
+# ---------------------------------------------------------------------------
+# GET /api/oauth/logout — app-local logout (SPA "sign out" link)
+# ---------------------------------------------------------------------------
+
+
+def test_logout_redirects_to_ui_and_clears_session(client):
+    """A seeded session → /api/oauth/logout 302s to /ui/ and clears the cookie."""
+    cookie = _make_session_cookie(_TEST_SESSION_SECRET, {"email": "alice@example.com"})
+    response = client.get("/api/oauth/logout", cookies={"session": cookie}, follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "http://localhost:8080/ui/"
+    # Starlette emits a clearing Set-Cookie once the session is emptied.
+    set_cookie = response.headers.get("set-cookie", "")
+    assert "session=" in set_cookie
+    assert "Max-Age=0" in set_cookie or "max-age=0" in set_cookie or "01 Jan 1970" in set_cookie
+
+
+def test_logout_without_session_still_redirects(client):
+    """No session cookie → logout is still a clean 302 to /ui/ (no 404, no error)."""
+    response = client.get("/api/oauth/logout", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "http://localhost:8080/ui/"
