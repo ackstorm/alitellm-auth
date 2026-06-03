@@ -160,9 +160,13 @@ def _derive_spend(user: dict[str, Any]) -> dict[str, Any]:
         return {"current": float(team_member_spend or 0), "source": "team_member"}
     if team_spend is not None or team_max_budget is not None:
         return {"current": float(team_spend or 0), "source": "team"}
-    if user_budget is not None or user_spend is not None:
+    # `spend` defaults to 0.0 in _normalize_user even when absent, so it is NOT a
+    # reliable "user has budget data" signal on its own. Gate the user branch on a
+    # configured budget OR a genuinely non-zero spend; otherwise report "unknown"
+    # so "no budget configured" users are not mislabeled as source="user" (WR-01).
+    if user_budget is not None or user_spend:
         return {"current": float(user_spend or 0), "source": "user"}
-    return {"current": 0, "source": _SPEND_SOURCE_UNKNOWN}
+    return {"current": 0.0, "source": _SPEND_SOURCE_UNKNOWN}
 
 
 def _build_limits(user: dict[str, Any]) -> dict[str, Any] | None:
