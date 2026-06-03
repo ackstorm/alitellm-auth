@@ -489,14 +489,21 @@ async def user_daily_activity(
     start_date: str,
     end_date: str,
 ) -> dict:
-    """Fetch the daily activity breakdown for a user from LiteLLM.
+    """Fetch the daily activity breakdown for a user from LiteLLM (paginated).
 
     Calls GET /user/daily/activity with params (H6: always params={}, never f-string).
     Returns the SpendAnalyticsPaginatedResponse shape:
         {results: [{date, metrics:{spend,total_tokens,...}, breakdown:{...}}],
          metadata: {total_spend, total_tokens, ..., has_more, page, total_pages}}
 
-    Used by GET /api/session/usage (D-09b).
+    Follows pagination with a bounded page loop (mirrors list_litellm_users): a
+    max-range window (RESEARCH §4: up to 366 days) must not be silently truncated
+    when LiteLLM returns metadata.has_more=true. results[] are concatenated across
+    pages; the returned metadata is the LAST page's block — LiteLLM already
+    aggregates window totals (total_spend/total_tokens/total_api_requests) across
+    the full range, so the totals are correct regardless of the page count.
+
+    Used by GET /api/session/stats.
 
     Args:
         email: User identifier (user_id=email convention).
@@ -504,22 +511,127 @@ async def user_daily_activity(
         start_date: ISO date string, e.g. "2026-05-01".
         end_date: ISO date string, e.g. "2026-05-31".
     """
+    headers = _admin_headers(settings)
+    max_pages = 12  # covers the 366-day max range (RESEARCH §4); never unbounded
+    page = 1
+    accumulated: list = []
+    last_metadata: dict = {}
+
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
-        resp = await client.get(
-            "/user/daily/activity",
-            headers=_admin_headers(settings),
-            params={"user_id": email, "start_date": start_date, "end_date": end_date},
-        )
+        while True:
+            resp = await client.get(
+                "/user/daily/activity",
+                headers=headers,
+                params={
+                    "user_id": email,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "page": page,
+                },
+            )
+            if not resp.is_success:
+                msg = _extract_litellm_error(resp)
+                raise httpx.HTTPStatusError(
+                    f"LiteLLM /user/daily/activity failed ({resp.status_code}): {msg}",
+                    request=resp.request,
+                    response=resp,
+                )
+            data = resp.json()
+            results = data.get("results", []) if isinstance(data, dict) else []
+            if isinstance(results, list):
+                accumulated.extend(results)
+            metadata = data.get("metadata", {}) if isinstance(data, dict) else {}
+            if isinstance(metadata, dict):
+                last_metadata = metadata
 
-    if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /user/daily/activity failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+            if not last_metadata.get("has_more"):
+                break
+            page += 1
+            if page > max_pages:
+                logger.warning(
+                    "user_daily_activity: reached max_pages cap (%d) for %s; "
+                    "pagination truncated at ~%d day-rows",
+                    max_pages,
+                    email,
+                    len(accumulated),
+                )
+                break
 
-    return resp.json()
+    return {"results": accumulated, "metadata": last_metadata}
+
+
+async def spend_logs_last_used(
+    email: str,
+    settings: Settings,
+    start_date: str,
+    end_date: str,
+) -> dict[str, str]:
+    """Compute the per-model last-used timestamp from /spend/logs (gap-fill helper).
+
+    LiteLLM's /user/daily/activity does NOT carry a per-model last-used timestamp,
+    so it is sourced from GET /spend/logs?summarize=false (the spike confirmed this
+    is sourceable per-user — capabilities.per_model_last_used=true). That endpoint
+    returns an UNTYPED JSON array of row objects; the spike recorded the row's model
+    field as `model` and the timestamp field as `startTime` (camelCase, ISO-8601 Z),
+    with `endTime`/`completionStartTime` also present. We read those names
+    DEFENSIVELY (startTime first, then start_time/endTime) and return
+    {model: max_timestamp_iso} grouped by model.
+
+    summarize defaults to true (aggregated rollup) — we MUST pass summarize=false to
+    get raw rows. H6: all params via params={}, never f-string concat.
+
+    Degradation (D-09): on any error (5xx / unreachable) or empty result this returns
+    {} — last-used is the one allowed degrade. It NEVER raises into a 502.
+
+    Args:
+        email: User identifier (user_id=email convention).
+        settings: Application settings.
+        start_date: ISO date string.
+        end_date: ISO date string.
+    """
+    try:
+        async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
+            resp = await client.get(
+                "/spend/logs",
+                headers=_admin_headers(settings),
+                params={
+                    "user_id": email,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "summarize": "false",
+                },
+            )
+        if not resp.is_success:
+            logger.warning(
+                "spend_logs_last_used: /spend/logs returned %s for %s; degrading to {}",
+                resp.status_code,
+                email,
+            )
+            return {}
+        rows = resp.json()
+    except (httpx.HTTPStatusError, httpx.RequestError, ValueError) as exc:
+        logger.warning("spend_logs_last_used: degrading to {} for %s: %s", email, exc)
+        return {}
+
+    if not isinstance(rows, list):
+        return {}
+
+    last_used: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        model = row.get("model")
+        if not model:
+            continue
+        # Defensive timestamp read: spike-confirmed startTime first, then alternates.
+        ts = row.get("startTime") or row.get("start_time") or row.get("endTime")
+        if not isinstance(ts, str) or not ts:
+            continue
+        existing = last_used.get(model)
+        if existing is None or ts > existing:
+            last_used[model] = ts
+
+    return last_used
 
 
 async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:
