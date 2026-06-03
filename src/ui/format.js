@@ -93,11 +93,14 @@ export function formatDate(iso) {
   return `${month} ${day}, ${year}`;
 }
 
-// maskKey(s) -> "sk-…last4" (e.g. "sk-abcd1234wxyz" -> "sk-…wxyz");
-// null/undefined -> "—". Never throws (short strings are still masked safely).
+// maskKey(s) -> "<prefix>…last4", preserving the value's REAL prefix
+// (e.g. "sk-abcd1234wxyz" -> "sk-…wxyz", "key-abc123" -> "key…c123").
+// null/undefined -> "—"; a value too short to mask meaningfully (<= 4 chars)
+// is returned verbatim rather than fabricating an "sk-…" prefix (WR-02).
+// Never throws.
 export function maskKey(s) {
   if (s === null || s === undefined) return EM_DASH;
   const str = String(s);
-  const last4 = str.slice(-4);
-  return `sk-${ELLIPSIS}${last4}`;
+  if (str.length <= 4) return str; // too short to mask — show as-is, no fake prefix
+  return `${str.slice(0, 3)}${ELLIPSIS}${str.slice(-4)}`;
 }
