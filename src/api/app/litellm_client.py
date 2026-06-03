@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -130,14 +131,20 @@ def _admin_headers(settings: Settings) -> dict:
     }
 
 
-async def generate_litellm_key(email: str, settings: Settings, name: str | None = None) -> dict:
-    """
-    Ensure the shared org team exists (idempotent) and generate a virtual key for the user.
+async def ensure_team_and_user(
+    email: str,
+    settings: Settings,
+    name: str | None = None,
+) -> str:
+    """Idempotently ensure the shared team, access group, and LiteLLM user exist.
 
-    Team is shared across all users — named after OAUTH_CLIENT_ID (e.g. "platform").
+    Performs Steps A (team), B (access group), and A2 (user) in that order.
+    This is a shared prerequisite for both key minting (generate_litellm_key)
+    and the eager /ui login path (D-13). Returns the team_id.
 
-    Returns:
-        {"key": "sk-...", "team_id": "..."}
+    D-16 lazy backfill: if the user already existed (409/400), fetches the
+    current user and patches only null/missing factory budget fields via
+    /user/update. Never overwrites a manually-set value; never sends null (H3).
     """
     team_id = f"team-{settings.oauth_client_id}"
     headers = _admin_headers(settings)
@@ -145,23 +152,20 @@ async def generate_litellm_key(email: str, settings: Settings, name: str | None 
     factory = _load_factory_config(settings.factory_config_path)
     team_extra = {k: v for k, v in factory.get("team", {}).items() if k != "metadata"}
     team_meta_extra = factory.get("team", {}).get("metadata", {})
-    user_meta_extra = factory.get("user", {}).get("metadata", {})
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
-        # Step A: Create shared team — 409 means it already exists, treat as success
+        # Step A: Create shared team — 409 means it already exists, treat as success.
+        # Lowercase the body before matching so "Team Already Exists" (WR-04) is handled.
         team_resp = await client.post(
             "/team/new",
             headers=headers,
             json={
-                **team_extra,  # configmap overrides (budget, guardrails, …)
+                **team_extra,  # configmap overrides (D-20: team:{} so no team budget)
                 "team_id": team_id,  # always wins — not overridable
                 "team_alias": settings.oauth_client_id,
                 "metadata": {"source": "token-factory", **team_meta_extra},
             },
         )
-        # 200 = created, 409 = already exists (older LiteLLM), 400 + "already exists" = newer LiteLLM.
-        # Lowercase the body before matching so a capitalized "Team Already Exists" (WR-04)
-        # is still treated as idempotent success rather than a hard failure.
         team_exists = team_resp.status_code == 409 or (
             team_resp.status_code == 400 and "already exists" in team_resp.text.lower()
         )
@@ -173,18 +177,93 @@ async def generate_litellm_key(email: str, settings: Settings, name: str | None 
                 response=team_resp,
             )
 
-        # Step B: Ensure shared access group exists (same name as team/client_id)
+        # Step B: Ensure shared access group exists (same name as team/client_id).
+        await _ensure_access_group(client, headers, settings.oauth_client_id)
+
+        # Step A2: Ensure user exists with D-15 factory user budget block.
+        user_result = await ensure_litellm_user(
+            email, settings, name=name, team_id=team_id, apply_budget=True
+        )
+
+        # D-16 lazy backfill: if user already existed, patch only null/missing budget fields.
+        if user_result.get("existed"):
+            try:
+                existing_user = await get_litellm_user(email, settings)
+                factory_user = {
+                    k: v
+                    for k, v in factory.get("user", {}).items()
+                    if k != "metadata" and v is not None
+                }
+                # Find fields that are None or missing on the existing user
+                missing = {
+                    k: v
+                    for k, v in factory_user.items()
+                    if existing_user.get(k) is None
+                }
+                if missing:
+                    resp = await client.post(
+                        "/user/update",
+                        headers=headers,
+                        json={"user_id": email, **missing},
+                    )
+                    if not resp.is_success:
+                        msg = _extract_litellm_error(resp)
+                        raise httpx.HTTPStatusError(
+                            f"LiteLLM /user/update (backfill) failed: {msg}",
+                            request=resp.request,
+                            response=resp,
+                        )
+                    logger.info(
+                        "D-16 lazy backfill: updated %s with fields %s",
+                        email,
+                        list(missing.keys()),
+                    )
+            except LiteLLMUserNotFound:
+                logger.warning("D-16 backfill: user %s not found after existed=True; skipping", email)
+            except httpx.HTTPStatusError as exc:
+                logger.error("D-16 backfill failed for %s: %s", email, exc)
+                raise
+
+    return team_id
+
+
+async def generate_litellm_key(
+    email: str,
+    settings: Settings,
+    name: str | None = None,
+    duration: str | None = None,
+) -> dict:
+    """
+    Ensure the shared org team/user exist (idempotent) and generate a virtual key.
+
+    Team is shared across all users — named after OAUTH_CLIENT_ID (e.g. "platform").
+
+    Args:
+        email: User's email address (used as user_id).
+        settings: Application settings.
+        name: Optional display name for the user/key.
+        duration: Optional LiteLLM duration string (e.g. "90d"). When not None,
+            the /key/generate payload carries this value. When None (default),
+            no expiry is set and the "duration" key is omitted entirely (D-10).
+
+    Returns:
+        {"key": "sk-...", "team_id": "..."}
+    """
+    headers = _admin_headers(settings)
+    factory = _load_factory_config(settings.factory_config_path)
+    user_meta_extra = factory.get("user", {}).get("metadata", {})
+
+    # Steps A, B, A2: ensure team → access group → user (shared prerequisite, D-13).
+    team_id = await ensure_team_and_user(email, settings, name=name)
+
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
+        # Re-resolve access_group_id for the key payload (needed for access_group_ids field).
         access_group_id = await _ensure_access_group(client, headers, settings.oauth_client_id)
 
-        # Step A2: Ensure LiteLLM user exists for this email (idempotent; D-04: hard-fail on 5xx)
-        # D-15: apply_budget=True so /user/new carries the factory user budget block.
-        await ensure_litellm_user(email, settings, name=name, team_id=team_id, apply_budget=True)
-
-        # Step C: Generate virtual key scoped to the shared team, with full model access
-        # Alias includes timestamp so each login produces a unique key (no collision, no rotation)
-        # D-15: keys carry NO budget fields (budget is at the user level to kill the N×budget bug).
+        # Step C: Generate virtual key scoped to the shared team, with full model access.
+        # D-15: keys carry NO budget fields (budget is at the user level).
         key_alias = f"tf-{int(time.time())}-{email}"
-        key_payload = {
+        key_payload: dict = {
             "models": ["all-team-models"],  # default — configmap can override
             "allowed_routes": ["llm_api_routes"],  # default — configmap can override
             "team_id": team_id,  # always wins — not overridable
@@ -200,6 +279,10 @@ async def generate_litellm_key(email: str, settings: Settings, name: str | None 
                 **user_meta_extra,
             },
         }
+        # D-10: include duration only when not None — never send "duration": null.
+        if duration is not None:
+            key_payload["duration"] = duration
+
         key_resp = await client.post("/key/generate", headers=headers, json=key_payload)
 
         if not key_resp.is_success:
@@ -410,8 +493,9 @@ def _normalize_user(info: dict, fallback_id: str | None = None) -> dict:
 
     Field default convention (IN-03): mirrors get_key_info — ``spend`` is
     zero-defaulted (``0.0``) since "no recorded spend" is unambiguously zero,
-    while ``max_budget`` and ``budget_duration`` stay ``None`` when absent
-    because ``None`` means "no limit configured" (distinct from a ``0`` limit).
+    while ``max_budget``, ``budget_duration``, ``tpm_limit``, ``rpm_limit``, and
+    ``max_parallel_requests`` stay ``None`` when absent because ``None`` means
+    "no limit configured" (distinct from a ``0`` limit).
     """
     metadata = _parse_metadata(info.get("metadata"))
     return {
@@ -422,6 +506,9 @@ def _normalize_user(info: dict, fallback_id: str | None = None) -> dict:
         "spend": info.get("spend", 0.0),
         "max_budget": info.get("max_budget"),
         "budget_duration": info.get("budget_duration"),
+        "tpm_limit": info.get("tpm_limit"),
+        "rpm_limit": info.get("rpm_limit"),
+        "max_parallel_requests": info.get("max_parallel_requests"),
         "models": info.get("models"),
         "teams": _normalize_teams(info.get("teams")),
         "created_at": info.get("created_at"),
