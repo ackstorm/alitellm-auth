@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import base64
 import json as _json
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from itsdangerous import TimestampSigner
@@ -351,53 +353,82 @@ def test_delete_foreign_key_403(client):
 
 
 # ---------------------------------------------------------------------------
-# D-09b — GET /api/session/usage
+# STATS-01 — GET /api/session/stats (Plan 12-03)
 # ---------------------------------------------------------------------------
 
-_USAGE_RESPONSE = {
-    "results": [
-        {
-            "date": "2026-05-04",
-            "metrics": {
-                "spend": 0.5,
-                "total_tokens": 1000,
-                "api_requests": 5,
-            },
-            "breakdown": {},
-        }
-    ],
-    "metadata": {
-        "total_spend": 0.5,
-        "total_tokens": 1000,
-        "total_api_requests": 5,
-        "has_more": False,
-        "page": 1,
-        "total_pages": 1,
-    },
-}
+_FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def test_usage_window(client):
-    """GET /usage?window=30d returns daily breakdown (D-09b)."""
-    with patch("app.session.user_daily_activity", new_callable=AsyncMock) as mock_activity:
-        mock_activity.return_value = _USAGE_RESPONSE
-        response = client.get(
-            "/api/session/usage?window=30d",
-            cookies=_authed_cookie(),
-        )
+def _load_fixture(name: str) -> dict:
+    return _json.loads((_FIXTURES / name).read_text())
+
+
+def _stats_mocks(
+    current: dict | None = None,
+    prior: dict | None = None,
+    last_used: dict | None = None,
+    budget_user: dict | None = None,
+):
+    """Build the three patched session-module dependencies for a /stats call.
+
+    user_daily_activity is a two-call AsyncMock (current first, prior second —
+    matches the asyncio.gather order in the handler).
+    """
+    current = current if current is not None else _load_fixture("daily_activity_current.json")
+    prior = prior if prior is not None else _load_fixture("daily_activity_prior.json")
+    last_used = last_used if last_used is not None else {
+        "gemini/gemini-flash-latest": "2026-04-01T09:49:44.420000Z",
+    }
+    budget_user = budget_user if budget_user is not None else {
+        "user_id": "alice@example.com",
+        "email": "alice@example.com",
+        "max_budget": 500.0,
+        "spend": 4.2,
+    }
+    activity = AsyncMock(side_effect=[current, prior])
+    last = AsyncMock(return_value=last_used)
+    budget = AsyncMock(return_value=budget_user)
+    return activity, last, budget
+
+
+def test_stats_unauth_401(client):
+    """GET /api/session/stats with no cookie → 401 JSON (consistent with /me, /keys)."""
+    response = client.get("/api/session/stats")
+    assert response.status_code == 401
+    assert response.json().get("detail") == "Not authenticated"
+
+
+def test_stats_happy_path(client):
+    """Authed /stats → 200 with the full {range,totals,series,models,keys,budget,capabilities}."""
+    activity, last, budget = _stats_mocks()
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
     assert response.status_code == 200
     data = response.json()
-    assert "results" in data
-    assert "metadata" in data
+    for key in ("range", "totals", "series", "models", "keys", "budget", "capabilities"):
+        assert key in data, f"missing top-level contract key: {key}"
+    # range spans the default 30-day window
+    assert data["range"]["days"] == 30
+    assert "compare" in data["range"]
+    # series length == day span of the CURRENT window's results
+    assert isinstance(data["series"], list)
+    # models summed across days; keys sorted by spend desc
+    assert isinstance(data["models"], list) and len(data["models"]) >= 1
+    spends = [k["spend"] for k in data["keys"]]
+    assert spends == sorted(spends, reverse=True)
+    # totals + deltas present
+    assert "deltas" in data["totals"]
+    assert data["capabilities"]["deltas"] is True
 
 
-def test_usage_invalid_window(client):
-    """GET /usage?window=999d → 422 or 400 (invalid window)."""
-    response = client.get(
-        "/api/session/usage?window=999d",
-        cookies=_authed_cookie(),
-    )
-    assert response.status_code in (400, 422)
+def test_usage_removed(client):
+    """Regression (D-02): the old GET /api/session/usage route is gone → 404."""
+    response = client.get("/api/session/usage", cookies=_authed_cookie())
+    assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------
