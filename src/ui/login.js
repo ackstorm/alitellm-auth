@@ -39,19 +39,18 @@ const SSO_LOGIN_URL = "/api/oauth/login?action=ui";
 // two-column scaffolding + value-prop / overview-sample styles live below. Uses
 // only var(--*) tokens; caption-role text stays 11px (no 10px).
 export const LOGIN_CSS = `
-/* Two-column login grid — centered, 2xl (48px) column gap (UI-SPEC §C). */
+/* The two-column .login grid (centered flex, 2xl column gap), the 480px
+ * .login-card constraint, the .value-props column, and the < 768px stacking
+ * media query are the STRUCTURAL primitives — they live in base.css. The rules
+ * below are the login-specific DETAIL: the accent background glow and the
+ * value-prop / overview-sample component styles. Only var(--*) tokens. */
+
+/* Login-specific accent background glow (matches the shell-page gradient). */
 .login {
-  flex: 1 1 auto;
-  display: flex; align-items: center; justify-content: center;
-  gap: var(--space-2xl);
-  padding: var(--space-3xl) var(--space-xl);
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -20%, var(--glow2), transparent),
     radial-gradient(circle at 80% 80%, rgba(74,222,128,0.03), transparent);
 }
-
-/* LEFT — sign-in card constrained to 480px (UI-SPEC §C / §Spacing exceptions). */
-.login-card { width: 100%; max-width: 480px; flex: 0 0 auto; }
 
 /* Small illustrative provider marks below the meta-grid (NOT live auth state). */
 .provider-marks { display: flex; align-items: center; gap: var(--space-md); margin-top: var(--space-md); }
@@ -59,8 +58,8 @@ export const LOGIN_CSS = `
 .provider-marks .mark-google { fill: var(--text); stroke: none; }
 .provider-marks .mark-line { fill: none; stroke: var(--dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-/* RIGHT — value props + illustrative overview. */
-.value-props { width: 100%; max-width: 460px; flex: 0 1 auto; }
+/* RIGHT — value props + illustrative overview (the .value-props column sizing
+ * is in base.css; these are the heading / item / teaser detail styles). */
 .value-props .vp-heading {
   font-family: var(--sans); font-size: 14px; color: var(--text);
   margin-bottom: var(--space-lg);
@@ -95,13 +94,6 @@ export const LOGIN_CSS = `
 .sample-row { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border); }
 .sample-row .row-key { font-family: var(--mono); font-size: 12px; color: var(--dim); }
 .sample-row .row-pill { font-family: var(--mono); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); }
-
-/* < 768px — the two columns stack: sign-in card on top, value props below. */
-@media (max-width: 768px) {
-  .login { flex-direction: column; align-items: stretch; gap: var(--space-xl); padding: var(--space-xl); }
-  .login-card { max-width: none; }
-  .value-props { max-width: none; }
-}
 `;
 
 // ── TwoColumnLogin ─────────────────────────────────────────────────────────────

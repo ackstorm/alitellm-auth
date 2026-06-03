@@ -20,6 +20,7 @@ import { resolveState } from "./state.js";
 import { apiFetch, getHasLoaded, setHasLoaded } from "./api.js";
 import { useHashRoute } from "./router.js";
 import { RightSidebar } from "./sidebar.js";
+import { TwoColumnLogin, LOGIN_CSS } from "./login.js";
 
 const html = htm.bind(h);
 
@@ -173,10 +174,8 @@ const SHELL_CSS = `
 }
 `;
 
-// The OIDC sign-in entrypoint. The ?action=ui param (added server-side in Plan
-// 03) makes the callback eager-create the LiteLLM user WITHOUT minting a key
-// (D-13). The cold-load CTA is the ONLY thing that triggers this redirect.
-const SSO_LOGIN_URL = "/api/oauth/login?action=ui";
+// The cold-load sign-in CTA (?action=ui, the ONLY OIDC redirect trigger) now
+// lives in login.js's TwoColumnLogin — app.js no longer owns that literal.
 // Mid-session expiry redirects to the bare login (no landing card, UI-SPEC).
 const EXPIRED_REDIRECT_URL = "/api/oauth/login";
 
@@ -202,47 +201,9 @@ function LoadingCard() {
   `;
 }
 
-function SignInLanding({ endpoint }) {
-  const onSignIn = useCallback((e) => {
-    e.preventDefault();
-    window.location.href = SSO_LOGIN_URL;
-  }, []);
-  return html`
-    <div class="shell-page" data-state="signin">
-      <main class="card shell-card">
-        <div class="card-header">
-          <div class="status-row">
-            <div class="pulse-dot"></div>
-            <div class="status-label">READY</div>
-          </div>
-          <div class="brand-lockup">
-            <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 4.5 3.4 7.3 8 10 4.6-2.7 8-5.5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
-            <div class="name">alitellm<span>-auth</span></div>
-          </div>
-          <div class="sub">Self-service LLM virtual keys. Sign in to view, create, and revoke your keys.</div>
-        </div>
-        <div class="card-body">
-          <a class="btn" href=${SSO_LOGIN_URL} onClick=${onSignIn}>
-            <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
-            sign in with sso
-          </a>
-          <div class="meta-grid">
-            <div class="label">provider</div><div class="value accent">dex · oidc</div>
-            <div class="label">endpoint</div><div class="value">${endpoint || ""}</div>
-            <div class="label">scope</div><div class="value">openid email profile</div>
-          </div>
-        </div>
-        <div class="card-footer">
-          <div class="lock-icon">
-            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-            no password stored here
-          </div>
-          <div class="provider">redirects to <b>dex</b></div>
-        </div>
-      </main>
-    </div>
-  `;
-}
+// The cold-load sign-in landing is the two-column <TwoColumnLogin/> (UI-SPEC §C),
+// implemented in login.js. The old single-column SignInLanding was removed in
+// 09-06; there is now ONE sign-in implementation.
 
 function ErrorCard({ onRetry }) {
   return html`
@@ -352,7 +313,7 @@ export function App() {
     return html`<${AuthedShell} email=${(me && me.email) || ""} />`;
   }
   if (view === "signin") {
-    return html`<${SignInLanding} endpoint=${me && me.endpoint} />`;
+    return html`<${TwoColumnLogin} endpoint=${me && me.endpoint} />`;
   }
   if (view === "error") {
     return html`<${ErrorCard} onRetry=${loadSession} />`;
@@ -368,7 +329,9 @@ export function injectShellStyles(doc) {
   if (d.getElementById("shell-styles")) return;
   const style = d.createElement("style");
   style.id = "shell-styles";
-  style.textContent = SHELL_CSS;
+  // SHELL_CSS owns the shell-state cards + wide authed layout; LOGIN_CSS owns
+  // the two-column sign-in landing (login.js). Both use only var(--*) tokens.
+  style.textContent = SHELL_CSS + LOGIN_CSS;
   d.head.appendChild(style);
 }
 
