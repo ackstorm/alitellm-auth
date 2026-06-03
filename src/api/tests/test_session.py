@@ -292,9 +292,14 @@ def test_create_key(client):
 
 
 def test_delete_own_key(client):
-    """DELETE /keys/{id} with owned key → 200 (SAPI-05)."""
+    """DELETE /keys/{id} with owned key → 200 (SAPI-05).
+
+    Mock shape mirrors the REAL list_session_keys output: it carries the LiteLLM
+    hashed "token" (the delete id) and NO plaintext "key" (the proxy /key/list never
+    returns sk-). The handler must resolve the token to call /key/delete.
+    """
     owned_keys = [
-        {"id": "my-key-id", "key": "sk-mykey", "key_alias": "my-alias"}
+        {"id": "my-key-id", "token": "ltoken-myhash", "key_alias": "my-alias"}
     ]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
@@ -314,6 +319,8 @@ def test_delete_own_key(client):
     data = response.json()
     assert data["status"] == "deleted"
     assert data["id"] == "my-key-id"
+    # delete must be driven by the resolved hashed token, not the (absent) sk- plaintext
+    assert mock_delete.await_args.args[0] == "ltoken-myhash"
 
 
 def test_delete_foreign_key_403(client):
@@ -321,7 +328,7 @@ def test_delete_foreign_key_403(client):
 
     The response body and status MUST be identical for both foreign and nonexistent ids.
     """
-    owned_keys = [{"id": "my-key-id", "key": "sk-mykey", "key_alias": "my-alias"}]
+    owned_keys = [{"id": "my-key-id", "token": "ltoken-myhash", "key_alias": "my-alias"}]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.delete_litellm_key", new_callable=AsyncMock),

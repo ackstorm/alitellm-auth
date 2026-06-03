@@ -222,8 +222,8 @@ async def session_list_keys(
         raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
-    # D-17: never include the raw sk- in the API response (already absent from list_session_keys)
-    safe_keys = [{k: v for k, v in kd.items() if k != "key"} for kd in keys]
+    # D-17: never expose the raw sk- ("key") nor the server-side delete hash ("token") to the browser.
+    safe_keys = [{k: v for k, v in kd.items() if k not in ("key", "token")} for kd in keys]
     return JSONResponse({"keys": safe_keys})
 
 
@@ -336,7 +336,8 @@ async def session_delete_key(
     target_token: str | None = None
     for k in user_keys:
         if k.get("id") == key_id:
-            target_token = k.get("key")
+            # /key/list returns the hashed "token" (not the sk- plaintext); /key/delete accepts it.
+            target_token = k.get("token")
             break
 
     if target_token is None:

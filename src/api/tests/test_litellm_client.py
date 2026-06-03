@@ -723,6 +723,7 @@ async def test_list_session_keys_one_call():
             json={
                 "keys": [
                     {
+                        "token": "ltoken-abc123",
                         "key_alias": key_alias,
                         "spend": 1.5,
                         "max_budget": None,
@@ -742,6 +743,7 @@ async def test_list_session_keys_one_call():
     assert len(keys) == 1
     k = keys[0]
     assert k["id"] == expected_id, "id must be sha256(key_alias)"
+    assert k["token"] == "ltoken-abc123", "token (delete hash) must be surfaced for SAPI-05 DELETE"
     assert k["budget"] is None, "budget must be None (D-17: inherited from user/team)"
     assert k["spend"] == 1.5
     assert k["tpm_limit"] == 1000

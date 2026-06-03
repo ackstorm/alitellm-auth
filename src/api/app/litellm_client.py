@@ -397,6 +397,7 @@ async def _list_session_keys_fallback(email: str, settings: Settings) -> list[di
         out.append(
             {
                 "id": _get_key_id(k, metadata=md) if isinstance(k, dict) else None,
+                "token": k.get("token") if isinstance(k, dict) else None,  # delete id; stripped before browser
                 "key_alias": k.get("key_alias") if isinstance(k, dict) else None,
                 "spend": k.get("spend", 0.0) if isinstance(k, dict) else 0.0,
                 "budget": None,  # D-17: inherited from user/team
@@ -458,6 +459,7 @@ async def list_session_keys(email: str, settings: Settings) -> list[dict]:
         out.append(
             {
                 "id": _get_key_id(k, metadata=md),
+                "token": k.get("token"),  # LiteLLM key hash — server-side delete id; stripped before browser
                 "key_alias": k.get("key_alias"),
                 "spend": k.get("spend", 0.0),
                 "budget": None,  # D-17: budget inherited from user/team; never per-key
