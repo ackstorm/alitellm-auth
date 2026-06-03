@@ -15,10 +15,11 @@ RUN uv pip install --system --no-cache-dir --target=/app/deps .
 FROM python:3.12-slim
 WORKDIR /app
 
-ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+# PYTHONPATH points at the install target so deps are version-agnostic:
+# a python base bump (e.g. 3.12 -> 3.14) needs no path edit here.
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app/deps
 
-COPY --from=builder /app/deps /usr/local/lib/python3.12/site-packages
-COPY --from=builder /app/deps/bin /usr/local/bin
+COPY --from=builder /app/deps /app/deps
 COPY src/api/app ./app
 
 EXPOSE 8080
@@ -27,4 +28,5 @@ EXPOSE 8080
 RUN useradd -u 10001 -m appuser
 USER 10001
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# invoke via `python -m` so we don't depend on console-script shebangs or PATH
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
