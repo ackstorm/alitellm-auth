@@ -512,7 +512,13 @@ async def user_daily_activity(
         end_date: ISO date string, e.g. "2026-05-31".
     """
     headers = _admin_headers(settings)
-    max_pages = 12  # covers the 366-day max range (RESEARCH §4); never unbounded
+    # WR-02: results[] are per-DAY rows. Pin an explicit page_size so the 366-day
+    # max range (RESEARCH §4) deterministically fits inside the page budget:
+    # page_size=100 * max_pages=12 = 1200 day-rows >> 366, leaving large headroom
+    # so series/per-model/per-key breakdowns are never silently truncated for any
+    # in-range window (the prior implicit page size could truncate past page 12).
+    page_size = 100
+    max_pages = 12
     page = 1
     accumulated: list = []
     last_metadata: dict = {}
@@ -527,6 +533,7 @@ async def user_daily_activity(
                     "start_date": start_date,
                     "end_date": end_date,
                     "page": page,
+                    "page_size": page_size,
                 },
             )
             if not resp.is_success:
