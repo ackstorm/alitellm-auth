@@ -269,9 +269,7 @@ async def session_create_key(
     if alias is not None:
         alias = alias.strip()
         if not alias or len(alias) > 128:
-            raise HTTPException(
-                status_code=422, detail="alias must be 1-128 characters"
-            )
+            raise HTTPException(status_code=422, detail="alias must be 1-128 characters")
         # Only allow alphanumeric, dash, underscore, dot
         if not all(c.isalnum() or c in "-_." for c in alias):
             raise HTTPException(
@@ -288,6 +286,7 @@ async def session_create_key(
         else:
             # Basic format check: number + d/h/m (e.g. "90d", "24h", "30m")
             import re
+
             if not re.match(r"^\d+[dhms]$", duration):
                 raise HTTPException(
                     status_code=422,
