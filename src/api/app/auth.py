@@ -5,17 +5,19 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import Settings
 from app.litellm_client import (
     delete_litellm_key,
+    ensure_team_and_user,
     generate_litellm_key,
     get_key_info,
     get_litellm_user,
@@ -154,7 +156,25 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
 
     settings: Settings = request.app.state.settings
 
+    # D-02: stamp the session for ALL actions (login, reveal, tokens, ui).
+    # The session cookie is signed but NOT encrypted — store only non-sensitive identity.
+    # D-01: NEVER store the access_token / id_token / any sk- here (signed, not encrypted).
+    request.session["sub"] = user_info.get("sub")
+    request.session["email"] = email
+    request.session["name"] = name
+    request.session["authenticated_at"] = datetime.now(timezone.utc).isoformat()
+
     # 3. Dispatch based on action
+    if action == "ui":
+        # D-13: eager-create the LiteLLM user on first /ui login (no key minted).
+        # Dashboard entry makes the user exist immediately so /me is coherent.
+        try:
+            await ensure_team_and_user(email, settings, name=name)
+        except Exception as exc:
+            # D-09 graceful degrade — still redirect; /me handles the transient no-user case.
+            logger.error("ui: ensure_team_and_user failed for %s: %s", email, exc)
+        return RedirectResponse(f"{settings.app_base_url}/ui", status_code=302)
+
     if action == "reveal":
         try:
             keys = await list_litellm_keys(email, settings)
