@@ -45,11 +45,7 @@ def _make_session_cookie(secret: str, data: dict) -> str:
 
 
 def _authed_cookie(email: str = "alice@example.com", name: str = "Alice") -> dict:
-    return {
-        "session": _make_session_cookie(
-            _TEST_SESSION_SECRET, {"email": email, "name": name}
-        )
-    }
+    return {"session": _make_session_cookie(_TEST_SESSION_SECRET, {"email": email, "name": name})}
 
 
 @pytest.fixture()
@@ -75,9 +71,7 @@ def test_require_session_user_resolves(client):
             "rpm_limit": 100,
             "spend": 0.0,
         }
-        response = client.get(
-            "/api/session/me", cookies=_authed_cookie()
-        )
+        response = client.get("/api/session/me", cookies=_authed_cookie())
     assert response.status_code == 200
 
 
@@ -153,9 +147,7 @@ def test_me_degrades(client):
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == "alice@example.com"
-    assert data["limits"] is None or all(
-        v is None for v in (data.get("limits") or {}).values()
-    )
+    assert data["limits"] is None or all(v is None for v in (data.get("limits") or {}).values())
     assert data["spend"]["current"] == 0
     assert data["spend"]["source"] == "unknown"
 
@@ -251,7 +243,11 @@ def test_create_key(client):
 
     # (b) Custom alias → key_alias in captured call
     with patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen:
-        mock_gen.return_value = {"key": "sk-aliased", "id": "alias-id", "team_id": "team-test-client"}
+        mock_gen.return_value = {
+            "key": "sk-aliased",
+            "id": "alias-id",
+            "team_id": "team-test-client",
+        }
         response = client.post(
             "/api/session/keys",
             headers={
@@ -294,9 +290,7 @@ def test_delete_own_key(client):
     hashed "token" (the delete id) and NO plaintext "key" (the proxy /key/list never
     returns sk-). The handler must resolve the token to call /key/delete.
     """
-    owned_keys = [
-        {"id": "my-key-id", "token": "ltoken-myhash", "key_alias": "my-alias"}
-    ]
+    owned_keys = [{"id": "my-key-id", "token": "ltoken-myhash", "key_alias": "my-alias"}]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.delete_litellm_key", new_callable=AsyncMock) as mock_delete,
@@ -496,9 +490,7 @@ def test_origin_same_host_passes_guard():
     """Regression: the exact app_base_url origin passes the guard and reaches the
     handler (200 with generate_litellm_key mocked) — guard is not over-tight (D-02)."""
     client = _https_app()
-    with patch(
-        "app.session.generate_litellm_key", new_callable=AsyncMock
-    ) as mock_key:
+    with patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_key:
         mock_key.return_value = {
             "key": "sk-new",
             "id": "k1",
@@ -561,9 +553,9 @@ def test_cookie_httponly_present(client):
     assert response.status_code == 200
     raw_set_cookie = response.headers.get("set-cookie", "")
     assert "session=" in raw_set_cookie, f"no session Set-Cookie: {raw_set_cookie!r}"
-    assert "httponly" in raw_set_cookie.lower(), (
-        f"HttpOnly missing from Set-Cookie: {raw_set_cookie!r}"
-    )
+    assert (
+        "httponly" in raw_set_cookie.lower()
+    ), f"HttpOnly missing from Set-Cookie: {raw_set_cookie!r}"
 
 
 # ---------------------------------------------------------------------------

@@ -556,7 +556,9 @@ async def test_generate_key_duration():
         )
         await generate_litellm_key("alice@example.com", settings, duration="90d")
         key_body = _json_body(key_route_with)
-        assert key_body.get("duration") == "90d", "duration kwarg must be threaded into /key/generate"
+        assert (
+            key_body.get("duration") == "90d"
+        ), "duration kwarg must be threaded into /key/generate"
 
         # Test: without duration (default None)
         _setup_mocks()
@@ -565,7 +567,9 @@ async def test_generate_key_duration():
         )
         await generate_litellm_key("alice@example.com", settings)
         key_body_no = _json_body(key_route_without)
-        assert "duration" not in key_body_no, "/key/generate must NOT carry duration when not passed"
+        assert (
+            "duration" not in key_body_no
+        ), "/key/generate must NOT carry duration when not passed"
     finally:
         os.unlink(factory_path)
 
@@ -609,7 +613,9 @@ async def test_generate_key_alias():
         )
         await generate_litellm_key("alice@example.com", settings, alias="my-key")
         body_with = _json_body(route_with)
-        assert body_with.get("key_alias") == "my-key", "explicit alias must be threaded into /key/generate"
+        assert (
+            body_with.get("key_alias") == "my-key"
+        ), "explicit alias must be threaded into /key/generate"
 
         # Test: default alias is readable + second-unique, not the debug tf- form.
         _setup_mocks()
@@ -618,13 +624,26 @@ async def test_generate_key_alias():
         )
         await generate_litellm_key("alice@example.com", settings)
         default_alias = _json_body(route_default)["key_alias"]
-        assert default_alias.startswith("key-"), f"default alias must start with 'key-', got {default_alias!r}"
-        assert not default_alias.startswith("tf-"), "default alias must NOT be the old tf- debug form (D-10)"
+        assert default_alias.startswith(
+            "key-"
+        ), f"default alias must start with 'key-', got {default_alias!r}"
+        assert not default_alias.startswith(
+            "tf-"
+        ), "default alias must NOT be the old tf- debug form (D-10)"
         # key-YYYY-MM-DD-HHMMSS → ["key", "YYYY", "MM", "DD", "HHMMSS"], all-digit date parts
         parts = default_alias.split("-")
-        assert len(parts) == 5 and parts[0] == "key", f"unexpected default alias shape: {default_alias!r}"
-        assert [len(p) for p in parts[1:]] == [4, 2, 2, 6], f"alias not YYYY-MM-DD-HHMMSS: {default_alias!r}"
-        assert default_alias[len("key-"):].replace("-", "").isdigit(), "alias date parts must be numeric"
+        assert (
+            len(parts) == 5 and parts[0] == "key"
+        ), f"unexpected default alias shape: {default_alias!r}"
+        assert [len(p) for p in parts[1:]] == [
+            4,
+            2,
+            2,
+            6,
+        ], f"alias not YYYY-MM-DD-HHMMSS: {default_alias!r}"
+        assert (
+            default_alias[len("key-") :].replace("-", "").isdigit()
+        ), "alias date parts must be numeric"
     finally:
         os.unlink(factory_path)
 
@@ -652,9 +671,7 @@ async def test_lazy_backfill():
         )
         # User already exists
         respx.post("http://litellm.test/user/new").mock(
-            return_value=httpx.Response(
-                400, json={"error": {"message": "User already exists"}}
-            )
+            return_value=httpx.Response(400, json={"error": {"message": "User already exists"}})
         )
         # User info: has tpm_limit set but max_budget=None (only max_budget needs backfill)
         respx.get("http://litellm.test/user/info").mock(
@@ -822,7 +839,9 @@ async def test_ensure_team_member_budget_idempotent():
 
     # Scenario: member already exists (400 "already a member") → fall through to member_update
     add_route = respx.post("http://litellm.test/team/member_add").mock(
-        return_value=httpx.Response(400, json={"error": {"message": "User is already a member of this team"}})
+        return_value=httpx.Response(
+            400, json={"error": {"message": "User is already a member of this team"}}
+        )
     )
     update_route = respx.post("http://litellm.test/team/member_update").mock(
         return_value=httpx.Response(200, json={"team_id": team_id})
@@ -834,13 +853,16 @@ async def test_ensure_team_member_budget_idempotent():
     assert add_route.called, "/team/member_add must be called"
     add_body = _json_body(add_route)
     assert add_body["team_id"] == team_id
-    assert add_body["member"] == {"user_id": email, "role": "user"}, (
-        "member_add body must use nested 'member' object (not top-level user_id)"
-    )
+    assert add_body["member"] == {
+        "user_id": email,
+        "role": "user",
+    }, "member_add body must use nested 'member' object (not top-level user_id)"
     assert add_body["max_budget_in_team"] == max_budget
 
     # member_update was called as follow-through (top-level body, not nested)
-    assert update_route.called, "/team/member_update must be called after 'already a member' response"
+    assert (
+        update_route.called
+    ), "/team/member_update must be called after 'already a member' response"
     update_body = _json_body(update_route)
     assert update_body["team_id"] == team_id
     assert update_body["user_id"] == email, "member_update body must use top-level user_id"
@@ -894,11 +916,12 @@ async def test_ensure_team_member_budget_wired_into_ensure_team_and_user():
 
         await ensure_team_and_user("alice@example.com", settings, name="Alice")
 
-        assert member_add_route.called, (
-            "ensure_team_and_user must call /team/member_add when factory has max_budget (D-14)"
-        )
+        assert (
+            member_add_route.called
+        ), "ensure_team_and_user must call /team/member_add when factory has max_budget (D-14)"
     finally:
         import os
+
         os.unlink(factory_path)
 
 
@@ -935,9 +958,7 @@ async def test_user_daily_activity():
         return_value=httpx.Response(200, json=expected_response)
     )
 
-    result = await user_daily_activity(
-        "alice@example.com", settings, "2026-06-01", "2026-06-30"
-    )
+    result = await user_daily_activity("alice@example.com", settings, "2026-06-01", "2026-06-30")
 
     assert route.called
     assert result["results"][0]["date"] == "2026-06-01"

@@ -262,11 +262,7 @@ async def ensure_team_and_user(
                     if k != "metadata" and v is not None
                 }
                 # Find fields that are None or missing on the existing user
-                missing = {
-                    k: v
-                    for k, v in factory_user.items()
-                    if existing_user.get(k) is None
-                }
+                missing = {k: v for k, v in factory_user.items() if existing_user.get(k) is None}
                 if missing:
                     resp = await client.post(
                         "/user/update",
@@ -286,7 +282,9 @@ async def ensure_team_and_user(
                         list(missing.keys()),
                     )
             except LiteLLMUserNotFound:
-                logger.warning("D-16 backfill: user %s not found after existed=True; skipping", email)
+                logger.warning(
+                    "D-16 backfill: user %s not found after existed=True; skipping", email
+                )
             except httpx.HTTPStatusError as exc:
                 logger.error("D-16 backfill failed for %s: %s", email, exc)
                 raise
@@ -408,8 +406,16 @@ def _project_session_key(k: dict, md: dict) -> dict:
 
 
 _EMPTY_SESSION_KEY = {
-    "id": None, "token": None, "key_alias": None, "spend": 0.0, "budget": None,
-    "tpm_limit": None, "rpm_limit": None, "models": None, "created_at": None, "expires": None,
+    "id": None,
+    "token": None,
+    "key_alias": None,
+    "spend": 0.0,
+    "budget": None,
+    "tpm_limit": None,
+    "rpm_limit": None,
+    "models": None,
+    "created_at": None,
+    "expires": None,
 }
 
 
@@ -760,9 +766,7 @@ async def ensure_litellm_user(
     if apply_budget:
         factory = _load_factory_config(settings.factory_config_path)
         user_budget = {
-            k: v
-            for k, v in factory.get("user", {}).items()
-            if k != "metadata" and v is not None
+            k: v for k, v in factory.get("user", {}).items() if k != "metadata" and v is not None
         }
         payload.update(user_budget)
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:

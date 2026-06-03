@@ -589,9 +589,7 @@ def test_login_action_junk_falls_back_to_login(client):
 
     with patch("app.auth.oauth") as mock_oauth:
         mock_oauth.oidc.authorize_redirect = AsyncMock(side_effect=_capture_redirect)
-        response = client.get(
-            "/api/oauth/login?action=../../etc/passwd", follow_redirects=False
-        )
+        response = client.get("/api/oauth/login?action=../../etc/passwd", follow_redirects=False)
 
     assert response.status_code in (302, 303)
     assert captured["oauth_action"] == "login"
