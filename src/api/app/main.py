@@ -30,8 +30,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.session_secret_key,
-        same_site="lax",
-        https_only=settings.session_https_only,  # env-gated (D-18): True in prod, False for local dev
+        same_site="lax",  # D-03: Strict breaks the OIDC callback's cross-site top-level GET
+        https_only=settings.session_https_only,  # env-gated (D-18/D-06): True in prod, False for local dev
+        max_age=28800,  # D-05: 8h sliding idle timeout (Starlette re-sets per response)
     )
 
     # Store settings on app.state for access in route handlers

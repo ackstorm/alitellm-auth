@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -81,9 +82,19 @@ def assert_same_origin(request: Request, settings: Settings) -> None:
     D-18: this is a baseline, not a complete CSRF defense. A formal CSRF token
     and session-lifetime hardening are deferred to Phase 11 (SEC-01).
     """
-    origin = request.headers.get("origin") or request.headers.get("referer") or ""
-    allowed = settings.app_base_url.rstrip("/")
-    if not origin.startswith(allowed):
+    # D-02 (CR-01 fix): exact-origin compare, fail-closed when both headers absent.
+    # Compare (scheme, hostname, port) tuples — hostname/port (NOT netloc) defeats
+    # userinfo-spoof (...ai@evil) and the platform.ackstorm.ai.evil.com prefix attack.
+    raw = request.headers.get("origin") or request.headers.get("referer")
+    if not raw:
+        raise HTTPException(status_code=403, detail="Missing Origin/Referer")
+    allowed = urlparse(settings.app_base_url)
+    got = urlparse(raw)
+    if (got.scheme, got.hostname, got.port) != (
+        allowed.scheme,
+        allowed.hostname,
+        allowed.port,
+    ):
         raise HTTPException(status_code=403, detail="Cross-origin request rejected")
     content_type = request.headers.get("content-type", "").split(";")[0].strip()
     if content_type != "application/json":
