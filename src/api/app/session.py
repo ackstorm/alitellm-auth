@@ -5,7 +5,7 @@ Provides:
   - require_session_user: FastAPI dependency that resolves the current user
     from the signed session cookie or raises 401 (D-05/D-06).
   - assert_same_origin: Origin/Referer write-guard for POST/DELETE (D-18).
-  - router (/api/session/*): /me, /keys GET/POST/DELETE, /usage.
+  - router (/api/session/*): /me, /keys GET/POST/DELETE, /stats.
 
 The /ui route is served by a StaticFiles mount in main.py (D-03) — not here.
 
@@ -18,8 +18,9 @@ Security baseline (D-18):
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -35,8 +36,10 @@ from app.litellm_client import (
     generate_litellm_key,
     get_litellm_user,
     list_session_keys,
+    spend_logs_last_used,
     user_daily_activity,
 )
+from app.stats import aggregate_window, build_stats_contract
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +51,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/session", tags=["session"])
 
 # ---------------------------------------------------------------------------
-# Window constants (D-09b)
+# Stats range bounds (D-04 / RESEARCH §4)
 # ---------------------------------------------------------------------------
 
-_ALLOWED_WINDOWS = {"7d", "30d", "90d"}
-_DEFAULT_WINDOW = "30d"
+# Default window: 30 days ending today (UTC), matching the removed /usage default.
+_DEFAULT_RANGE_DAYS = 30
+# Max custom range (RESEARCH §4): 366 days covers a full year; bounds abuse/cost
+# (the prior window doubles the fetch to ~732 days across two calls — acceptable).
+_MAX_RANGE_DAYS = 366
+
+# Capability defaults baked from 12-SPIKE-FINDINGS.md (all true on prod v1.85.1).
+# build_stats_contract flips per_model_last_used to false when last_used is empty.
+_CAPABILITY_DEFAULTS = {
+    "token_split": True,
+    "per_model_last_used": True,
+    "deltas": True,
+    "per_key_spend": True,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -362,37 +377,127 @@ async def session_delete_key(
     return JSONResponse({"status": "deleted", "id": key_id})
 
 
-@router.get("/usage", response_model=None)
-async def session_usage(
+def _parse_stats_range(
+    start_date: str | None, end_date: str | None
+) -> tuple[date, date]:
+    """Parse + bound the /stats date window (D-04). Raises HTTPException(422) on error.
+
+    YYYY-MM-DD via date.fromisoformat (malformed -> 422). Defaults to a 30-day
+    window ending today (UTC). Rejects start > end and any span over the max cap.
+    All "today"/boundary math is UTC for determinism (RESEARCH §4 / RQ-C).
+    """
+    today = datetime.now(timezone.utc).date()
+    try:
+        end = date.fromisoformat(end_date) if end_date else today
+        start = (
+            date.fromisoformat(start_date)
+            if start_date
+            else end - timedelta(days=_DEFAULT_RANGE_DAYS - 1)
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=422, detail="start_date/end_date must be YYYY-MM-DD"
+        )
+
+    if start > end:
+        raise HTTPException(status_code=422, detail="start_date must not be after end_date")
+
+    span = (end - start).days + 1
+    if span > _MAX_RANGE_DAYS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"date range too large (max {_MAX_RANGE_DAYS} days, got {span})",
+        )
+
+    return start, end
+
+
+@router.get("/stats", response_model=None)
+async def session_stats(
     request: Request,
     user: dict = Depends(require_session_user),
-    window: str = _DEFAULT_WINDOW,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> JSONResponse:
-    """Return the daily activity breakdown for the session user (D-09b).
+    """Return the session user's aggregated usage/spend for a bounded window (STATS-01).
 
-    ?window=7d|30d|90d (default 30d). Returns SpendAnalyticsPaginatedResponse shape.
+    Read-only GET (no assert_same_origin, D-13). The email is taken ONLY from the
+    verified session cookie (require_session_user) — there is NO client-supplied
+    user/email param, so a caller can never request another user's data.
+
+    Fetches the current + prior equal-length windows concurrently (asyncio.gather,
+    D-05 period-over-period deltas) plus the budget cap, folds them via app/stats.py
+    into the page-ready {range, totals, series, models, keys, budget, capabilities}
+    contract, and returns JSONResponse (response_model=None preserves D-08 null-vs-0).
+
+    Degradation (D-06/D-09): only a CURRENT-window fetch failure 502s the request
+    (that figure is indispensable). A PRIOR-window failure degrades deltas
+    (capabilities.deltas=false, prior=None); a BUDGET failure degrades the budget
+    block (mirrors /me); an unavailable last_used degrades to null + the
+    per_model_last_used flag. A secondary failure never 502s the request.
     """
     settings: Settings = request.app.state.settings
     email = user["email"]
 
-    if window not in _ALLOWED_WINDOWS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid window '{window}'. Allowed: {', '.join(sorted(_ALLOWED_WINDOWS))}",
-        )
+    start, end = _parse_stats_range(start_date, end_date)
+    span = (end - start).days + 1
+    prev_end = start - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=span - 1)
 
-    days = int(window[:-1])  # strip trailing 'd'
-    end = date.today()
-    start = end - timedelta(days=days)
-    start_date = start.strftime("%Y-%m-%d")
-    end_date = end.strftime("%Y-%m-%d")
+    # Fetch all figures concurrently; degrade each independently (D-06).
+    cur_res, prev_res, budget_res, last_used_res = await asyncio.gather(
+        user_daily_activity(email, settings, start.isoformat(), end.isoformat()),
+        user_daily_activity(email, settings, prev_start.isoformat(), prev_end.isoformat()),
+        get_litellm_user(email, settings),
+        spend_logs_last_used(email, settings, start.isoformat(), end.isoformat()),
+        return_exceptions=True,
+    )
 
-    try:
-        data = await user_daily_activity(email, settings, start_date, end_date)
-    except httpx.HTTPStatusError as exc:
-        logger.error("session_usage: activity fetch failed for %s: %s", email, exc)
-        raise HTTPException(status_code=502, detail="Usage data unavailable")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    capabilities = dict(_CAPABILITY_DEFAULTS)
 
-    return JSONResponse(data)
+    # CURRENT window is indispensable — a failure here is the one 502 (RESEARCH §6).
+    if isinstance(cur_res, BaseException):
+        logger.error("session_stats: current-window fetch failed for %s: %s", email, cur_res)
+        if isinstance(cur_res, (httpx.HTTPStatusError, httpx.RequestError)):
+            raise HTTPException(status_code=502, detail="Usage data unavailable")
+        raise cur_res
+    cur_agg = aggregate_window(cur_res)
+
+    # PRIOR window failure → degrade deltas, do NOT 502 (RESEARCH §6 landmine 7).
+    if isinstance(prev_res, BaseException):
+        logger.warning("session_stats: prior-window fetch failed for %s: %s", email, prev_res)
+        prev_agg: dict[str, Any] = {}
+        capabilities["deltas"] = False
+    else:
+        prev_agg = aggregate_window(prev_res)
+
+    # BUDGET failure → degrade the budget block (mirrors session_me), do NOT 502.
+    budget: dict[str, Any] = {"current": 0, "max_budget": None, "source": _SPEND_SOURCE_UNKNOWN}
+    if isinstance(budget_res, BaseException):
+        logger.warning("session_stats: budget fetch failed for %s: %s", email, budget_res)
+    else:
+        spend = _derive_spend(budget_res)
+        budget = {
+            "current": spend["current"],
+            "max_budget": budget_res.get("max_budget"),
+            "source": spend["source"],
+        }
+
+    # LAST-USED failure → degrade to {} (null per model + flag flips in build_stats_contract).
+    last_used: dict[str, str] = {}
+    if isinstance(last_used_res, BaseException):
+        logger.warning("session_stats: last-used fetch failed for %s: %s", email, last_used_res)
+    elif isinstance(last_used_res, dict):
+        last_used = last_used_res
+
+    range_meta = {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "days": span,
+        "compare": {"start": prev_start.isoformat(), "end": prev_end.isoformat()},
+    }
+
+    contract = build_stats_contract(
+        cur_agg, prev_agg, budget, last_used, capabilities, range_meta
+    )
+    return JSONResponse(contract)
