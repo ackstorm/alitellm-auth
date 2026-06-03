@@ -6,8 +6,8 @@ Provides:
     from the signed session cookie or raises 401 (D-05/D-06).
   - assert_same_origin: Origin/Referer write-guard for POST/DELETE (D-18).
   - router (/api/session/*): /me, /keys GET/POST/DELETE, /usage.
-  - ui_router (/ui): placeholder page route with 302-to-OIDC for unauthenticated
-    requests and a stub HTML response for authenticated users (D-03/D-07).
+
+The /ui route is served by a StaticFiles mount in main.py (D-03) — not here.
 
 Security baseline (D-18):
   - Cookie auth via Starlette SessionMiddleware (signed, NOT encrypted — D-01).
@@ -24,10 +24,9 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app.auth import oauth
 from app.config import Settings
 from app.litellm_client import (
     LiteLLMUserNotFound,
@@ -46,9 +45,6 @@ logger = logging.getLogger(__name__)
 
 # /api/session/* — JSON API for the SPA (401 on unauthenticated, D-05)
 router = APIRouter(prefix="/api/session", tags=["session"])
-
-# /ui — HTML page route (302 to OIDC on unauthenticated, D-03/D-05)
-ui_router = APIRouter(tags=["ui"])
 
 # ---------------------------------------------------------------------------
 # Window constants (D-09b)
@@ -390,30 +386,3 @@ async def session_usage(
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
     return JSONResponse(data)
-
-
-# ---------------------------------------------------------------------------
-# /ui page route (D-03/D-07)
-# ---------------------------------------------------------------------------
-
-
-@ui_router.get("/ui", response_model=None)
-async def ui_page(request: Request) -> HTMLResponse | RedirectResponse:
-    """Dashboard entry route (D-03/D-07).
-
-    Valid session → serve placeholder HTML (Phase 9 replaces with the real SPA).
-    No session → 302 to OIDC login with action="ui" so the callback eager-creates
-    the LiteLLM user without minting a key (D-13).
-
-    D-05: /ui returns 302, NOT 401. Do NOT use require_session_user here.
-    Failure Mode #6: always build redirect URL from settings.app_base_url (https),
-    never request.url_for() (would return http:// behind TLS ingress).
-    """
-    settings: Settings = request.app.state.settings
-    if not request.session.get("email"):
-        # Set action so the callback branch knows to eager-create and not mint a key
-        request.session["oauth_action"] = "ui"
-        callback_url = f"{settings.app_base_url}/api/oauth/callback"
-        return await oauth.oidc.authorize_redirect(request, callback_url)
-    # D-07: placeholder — Phase 9 replaces this with the real SPA shell
-    return HTMLResponse("<placeholder ui — coming soon>")

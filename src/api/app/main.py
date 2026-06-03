@@ -6,13 +6,14 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.admin import router as admin_router
 from app.auth import configure_auth, router as auth_router
 from app.config import Settings, get_settings
-from app.session import router as session_router, ui_router
+from app.session import router as session_router
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +43,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Mount auth routes
     app.include_router(auth_router)
     app.include_router(admin_router)
-    # Mount session API router (/api/session/*) and UI router (/ui)
+    # Mount session API router (/api/session/*)
     app.include_router(session_router)
-    app.include_router(ui_router)
 
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
+
+    # Serve the SPA shell at /ui same-origin (D-03). Mounted AFTER all API routers so
+    # it never shadows /api/* (T-09-06). check_dir=False so create_app() (and the whole
+    # test suite + the module-level import guard) does not crash when src/ui/dist is
+    # absent — the Dockerfile builder stage (Plan 04) populates /app/ui/dist at image
+    # build time. /ui returns 200 text/html even unauthenticated; auth is gated
+    # client-side by the SPA (Plan 02).
+    app.mount("/ui", StaticFiles(directory="ui/dist", html=True, check_dir=False), name="ui")
 
     return app
 
