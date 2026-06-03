@@ -10,17 +10,21 @@
 // Cold-load 401 -> sign-in landing (NO auto-redirect; the CTA is the only
 // redirect trigger). Mid-session 401 (after a 200 render set hasLoaded) ->
 // silent redirect to /api/oauth/login. All copy is LOCKED per UI-SPEC
-// §Copywriting Contract. The authenticated content slot is intentionally EMPTY
-// this phase — Phase 10 fills it with the DASH-* panels (Phase 10 boundary,
-// threat T-09-03: no key material rendered here).
+// §Copywriting Contract. The authenticated content slot at #/ now mounts the
+// Phase 10 Dashboard (DASH-01..06, dashboard.js), which owns the keys data,
+// the in-memory fresh-key map, and the create/delete modals.
 import { h, render } from "preact";
-import { useState, useEffect, useCallback } from "preact/hooks";
+import { useState, useEffect, useCallback, useRef } from "preact/hooks";
 import htm from "htm";
 import { resolveState } from "./state.js";
 import { apiFetch, getHasLoaded, setHasLoaded } from "./api.js";
 import { useHashRoute } from "./router.js";
 import { RightSidebar } from "./sidebar.js";
 import { TwoColumnLogin, LOGIN_CSS } from "./login.js";
+import { Dashboard, DASHBOARD_CSS } from "./dashboard.js";
+import { KEYS_TABLE_CSS } from "./keys-table.js";
+import { CREATE_KEY_CSS } from "./create-key.js";
+import { DELETE_MODAL_CSS } from "./delete-modal.js";
 
 const html = htm.bind(h);
 
@@ -232,13 +236,24 @@ function ErrorCard({ onRetry }) {
 // a 56px topbar (brand + Stats/Status nav + connected pulse-dot + {email} +
 // sign out), a centered 1200px-max content region, and a fixed 320px right
 // sidebar. A client-side hash router (useHashRoute) drives the main content
-// slot: #/ -> the EMPTY dashboard slot (Phase 10 fills it), #/stats -> a
-// reserved "Coming soon" placeholder (Phase 12, D-10).
+// slot: #/ -> the Dashboard (DASH-01..06, dashboard.js), #/stats -> a reserved
+// "Coming soon" placeholder (Phase 12, D-10).
 //
-// The main content slot is LEFT EMPTY at #/: Phase 10 fills it with the DASH-*
-// panels. Do NOT render key material here (T-09-15: no sk- values / key table).
-function AuthedShell({ email }) {
+// The Dashboard OWNS the create-modal open-state; it hands its opener up via
+// `registerCreateOpener` so the sidebar `Create key` shortcut opens the SAME
+// modal as the main `+ New Key` CTA. The opener is held in a ref so it does not
+// re-trigger renders, and the sidebar calls it without ever touching a /keys
+// endpoint itself (threat T-09-15).
+function AuthedShell({ me }) {
   const route = useHashRoute();
+  const email = (me && me.email) || "";
+  const createOpenerRef = useRef(null);
+  const registerCreateOpener = useCallback((opener) => {
+    createOpenerRef.current = opener;
+  }, []);
+  const onCreateKey = useCallback(() => {
+    if (createOpenerRef.current) createOpenerRef.current();
+  }, []);
   const onStats = useCallback((e) => {
     e.preventDefault();
     window.location.hash = "#/stats";
@@ -270,9 +285,11 @@ function AuthedShell({ email }) {
               <div class="heading">Coming soon</div>
               <div class="sub">Usage analytics arrive in a later release.</div>
             </div>`
-          : html`<div class="main-slot"><!-- Phase 10 fills the dashboard slot at #/ --></div>`}
+          : html`<div class="main-slot">
+              <${Dashboard} me=${me} registerCreateOpener=${registerCreateOpener} />
+            </div>`}
       </main>
-      <${RightSidebar} />
+      <${RightSidebar} onCreateKey=${onCreateKey} />
     </div>
   `;
 }
@@ -310,7 +327,7 @@ export function App() {
   }, [view]);
 
   if (view === "authed") {
-    return html`<${AuthedShell} email=${(me && me.email) || ""} />`;
+    return html`<${AuthedShell} me=${me} />`;
   }
   if (view === "signin") {
     return html`<${TwoColumnLogin} endpoint=${me && me.endpoint} />`;
@@ -330,8 +347,11 @@ export function injectShellStyles(doc) {
   const style = d.createElement("style");
   style.id = "shell-styles";
   // SHELL_CSS owns the shell-state cards + wide authed layout; LOGIN_CSS owns
-  // the two-column sign-in landing (login.js). Both use only var(--*) tokens.
-  style.textContent = SHELL_CSS + LOGIN_CSS;
+  // the two-column sign-in landing (login.js); the four DASH-* strings own the
+  // dashboard container, keys table, and the create/delete modals (Phase 10).
+  // All use only var(--*) tokens.
+  style.textContent =
+    SHELL_CSS + LOGIN_CSS + DASHBOARD_CSS + KEYS_TABLE_CSS + CREATE_KEY_CSS + DELETE_MODAL_CSS;
   d.head.appendChild(style);
 }
 

@@ -2,8 +2,9 @@
 //
 // Three panels per 09-UI-SPEC §B "Right sidebar panels (D-08 scope)" + §E
 // "Sidebar" locked copy:
-//   • QUICK ACTIONS (PRIMARY) — a `Create key` shortcut (Phase-9 NO-OP stub;
-//     Phase 10 wires it to the create form/modal — it calls NO /keys endpoint
+//   • QUICK ACTIONS (PRIMARY) — a `Create key` shortcut (Phase 10 wires it via
+//     the `onCreateKey` prop to open the Dashboard-owned create modal — the
+//     SAME modal the main `+ New Key` CTA opens. It calls NO /keys endpoint
 //     here, threat T-09-15) and a `View stats` shortcut that sets the hash to
 //     #/stats (the reserved Phase-12 Stats route).
 //   • SECURITY (MINIMAL) — static reassurance copy, no interactive controls.
@@ -16,13 +17,6 @@ import htm from "htm";
 
 const html = htm.bind(h);
 
-// Create key: Phase-9 stub. Phase 10 wires this to the create form/modal.
-// Intentionally a documented no-op — it must NOT call any /keys endpoint this
-// phase (Phase 10 boundary; threat T-09-15: no key material here).
-function onCreateKey() {
-  // TODO(Phase 10): open the create-key form/modal (+ New Key flow).
-}
-
 // View stats: navigate to the reserved Stats route via the hash router.
 // Setting location.hash fires "hashchange" -> useHashRoute re-renders; no full
 // page load, no server hit.
@@ -30,7 +24,10 @@ function onViewStats() {
   window.location.hash = "#/stats";
 }
 
-export function RightSidebar() {
+// Props: { onCreateKey } — the Dashboard-owned opener (threaded through app.js's
+// AuthedShell). `Create key` calls it to open the create modal; the sidebar
+// itself calls NO /keys endpoint (threat T-09-15: no key material here).
+export function RightSidebar({ onCreateKey }) {
   return html`
     <aside class="sidebar">
       <div class="panel panel-primary">
