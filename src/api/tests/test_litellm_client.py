@@ -558,6 +558,58 @@ async def test_generate_key_duration():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_generate_key_alias():
+    """D-10: generate_litellm_key accepts an optional alias kwarg.
+
+    - When alias="my-key" is passed, /key/generate body carries key_alias="my-key".
+    - When alias is not passed, the default is a readable, second-unique
+      "key-YYYY-MM-DD-HHMMSS" (NOT the old "tf-{timestamp}-{email}") so that
+      the sha256(key_alias) id stays distinct across same-day keys.
+    """
+    factory_path = _make_factory_config(None)
+    try:
+        settings = make_settings(factory_config_path=factory_path)
+
+        def _setup_mocks():
+            respx.post("http://litellm.test/team/new").mock(
+                return_value=httpx.Response(200, json={"team_id": "team-platform"})
+            )
+            respx.post("http://litellm.test/v1/access_group").mock(
+                return_value=httpx.Response(200, json={"access_group_id": "group-1"})
+            )
+            respx.post("http://litellm.test/user/new").mock(
+                return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+            )
+
+        # Test: explicit alias is threaded through verbatim.
+        _setup_mocks()
+        route_with = respx.post("http://litellm.test/key/generate").mock(
+            return_value=httpx.Response(200, json={"key": "sk-a", "key_id": "k1"})
+        )
+        await generate_litellm_key("alice@example.com", settings, alias="my-key")
+        body_with = _json_body(route_with)
+        assert body_with.get("key_alias") == "my-key", "explicit alias must be threaded into /key/generate"
+
+        # Test: default alias is readable + second-unique, not the debug tf- form.
+        _setup_mocks()
+        route_default = respx.post("http://litellm.test/key/generate").mock(
+            return_value=httpx.Response(200, json={"key": "sk-b", "key_id": "k2"})
+        )
+        await generate_litellm_key("alice@example.com", settings)
+        default_alias = _json_body(route_default)["key_alias"]
+        assert default_alias.startswith("key-"), f"default alias must start with 'key-', got {default_alias!r}"
+        assert not default_alias.startswith("tf-"), "default alias must NOT be the old tf- debug form (D-10)"
+        # key-YYYY-MM-DD-HHMMSS → ["key", "YYYY", "MM", "DD", "HHMMSS"], all-digit date parts
+        parts = default_alias.split("-")
+        assert len(parts) == 5 and parts[0] == "key", f"unexpected default alias shape: {default_alias!r}"
+        assert [len(p) for p in parts[1:]] == [4, 2, 2, 6], f"alias not YYYY-MM-DD-HHMMSS: {default_alias!r}"
+        assert default_alias[len("key-"):].replace("-", "").isdigit(), "alias date parts must be numeric"
+    finally:
+        os.unlink(factory_path)
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_lazy_backfill():
     """D-16: when a user already exists (409/400), backfill only null/missing budget fields.
 

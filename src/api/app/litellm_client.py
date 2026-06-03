@@ -7,7 +7,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -232,6 +231,7 @@ async def generate_litellm_key(
     settings: Settings,
     name: str | None = None,
     duration: str | None = None,
+    alias: str | None = None,
 ) -> dict:
     """
     Ensure the shared org team/user exist (idempotent) and generate a virtual key.
@@ -245,6 +245,10 @@ async def generate_litellm_key(
         duration: Optional LiteLLM duration string (e.g. "90d"). When not None,
             the /key/generate payload carries this value. When None (default),
             no expiry is set and the "duration" key is omitted entirely (D-10).
+        alias: Optional human-readable key_alias (D-10). When None (default),
+            a readable, second-unique alias "key-YYYY-MM-DD-HHMMSS" is generated.
+            Uniqueness matters because the returned id is sha256(key_alias) — a
+            non-unique alias would collide ids and break DELETE/list ownership.
 
     Returns:
         {"key": "sk-...", "team_id": "..."}
@@ -262,7 +266,9 @@ async def generate_litellm_key(
 
         # Step C: Generate virtual key scoped to the shared team, with full model access.
         # D-15: keys carry NO budget fields (budget is at the user level).
-        key_alias = f"tf-{int(time.time())}-{email}"
+        # D-10: caller-supplied alias wins; default is readable AND second-unique
+        # so sha256(key_alias) ids stay distinct (no DELETE/list collision).
+        key_alias = alias or f"key-{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H%M%S')}"
         key_payload: dict = {
             "models": ["all-team-models"],  # default — configmap can override
             "allowed_routes": ["llm_api_routes"],  # default — configmap can override
