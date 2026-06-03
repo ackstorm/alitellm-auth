@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # Factory config — path to mounted ConfigMap JSON with team/user LiteLLM params
     factory_config_path: str | None = None
 
+    # Security baseline (D-18) — Secure cookie flag; True in prod, False for local HTTP dev.
+    # Env var: SESSION_HTTPS_ONLY
+    session_https_only: bool = False
+
 
 def get_settings() -> Settings:
     return Settings()

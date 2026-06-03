@@ -144,7 +144,6 @@ async def generate_litellm_key(email: str, settings: Settings, name: str | None 
 
     factory = _load_factory_config(settings.factory_config_path)
     team_extra = {k: v for k, v in factory.get("team", {}).items() if k != "metadata"}
-    user_extra = {k: v for k, v in factory.get("user", {}).items() if k != "metadata"}
     team_meta_extra = factory.get("team", {}).get("metadata", {})
     user_meta_extra = factory.get("user", {}).get("metadata", {})
 
@@ -178,15 +177,16 @@ async def generate_litellm_key(email: str, settings: Settings, name: str | None 
         access_group_id = await _ensure_access_group(client, headers, settings.oauth_client_id)
 
         # Step A2: Ensure LiteLLM user exists for this email (idempotent; D-04: hard-fail on 5xx)
-        await ensure_litellm_user(email, settings, name=name, team_id=team_id)
+        # D-15: apply_budget=True so /user/new carries the factory user budget block.
+        await ensure_litellm_user(email, settings, name=name, team_id=team_id, apply_budget=True)
 
         # Step C: Generate virtual key scoped to the shared team, with full model access
         # Alias includes timestamp so each login produces a unique key (no collision, no rotation)
+        # D-15: keys carry NO budget fields (budget is at the user level to kill the N×budget bug).
         key_alias = f"tf-{int(time.time())}-{email}"
         key_payload = {
             "models": ["all-team-models"],  # default — configmap can override
             "allowed_routes": ["llm_api_routes"],  # default — configmap can override
-            **user_extra,  # configmap overrides (budget, rate limits, …)
             "team_id": team_id,  # always wins — not overridable
             "user_id": email,  # scope key to LiteLLM user (USER-02)
             "access_group_ids": [access_group_id] if access_group_id else [],
@@ -433,6 +433,7 @@ async def ensure_litellm_user(
     settings: Settings,
     name: str | None = None,
     team_id: str | None = None,
+    apply_budget: bool = False,
 ) -> dict:
     """Idempotently create a LiteLLM internal user keyed by email (user_id=email).
 
@@ -440,8 +441,11 @@ async def ensure_litellm_user(
     is treated as success. We never auto-create a key here — keys are minted
     separately by generate_litellm_key().
 
-    H3: max_budget is intentionally absent from the payload — budgets stay at
-    the key level via factory config; never send null which can overwrite defaults.
+    D-15: budgets are now at the user level. When apply_budget=True, the factory
+    user block (max_budget, budget_duration, tpm_limit, rpm_limit,
+    max_parallel_requests) is merged into the /user/new payload.
+    H3: only include fields when the factory provides a non-None value — never
+    send max_budget: null which can overwrite LiteLLM defaults.
     """
     headers = _admin_headers(settings)
     payload: dict = {
@@ -453,6 +457,14 @@ async def ensure_litellm_user(
     }
     if team_id:
         payload["teams"] = [team_id]
+    if apply_budget:
+        factory = _load_factory_config(settings.factory_config_path)
+        user_budget = {
+            k: v
+            for k, v in factory.get("user", {}).items()
+            if k != "metadata" and v is not None
+        }
+        payload.update(user_budget)
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
         resp = await client.post("/user/new", headers=headers, json=payload)
     exists = resp.status_code == 409 or (
