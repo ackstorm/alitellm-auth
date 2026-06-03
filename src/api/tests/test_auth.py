@@ -559,6 +559,69 @@ def test_callback_action_reveal_list_failure_does_not_leak_backend_text(client):
     assert "Could not retrieve your tokens" in response.text
 
 
+def test_login_action_ui_stamps_oauth_action_ui(client):
+    """GET /api/oauth/login?action=ui stamps session['oauth_action']='ui' (D-13)."""
+    from starlette.responses import RedirectResponse as StarletteRedirectResponse
+
+    captured = {}
+
+    async def _capture_redirect(request, callback_url, **kwargs):
+        captured["oauth_action"] = request.session.get("oauth_action")
+        return StarletteRedirectResponse(url="http://dex.test/auth", status_code=302)
+
+    with patch("app.auth.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(side_effect=_capture_redirect)
+        response = client.get("/api/oauth/login?action=ui", follow_redirects=False)
+
+    assert response.status_code in (302, 303)
+    assert captured["oauth_action"] == "ui"
+
+
+def test_login_action_junk_falls_back_to_login(client):
+    """A non-whitelisted ?action= value is never written to the session (T-09-04)."""
+    from starlette.responses import RedirectResponse as StarletteRedirectResponse
+
+    captured = {}
+
+    async def _capture_redirect(request, callback_url, **kwargs):
+        captured["oauth_action"] = request.session.get("oauth_action")
+        return StarletteRedirectResponse(url="http://dex.test/auth", status_code=302)
+
+    with patch("app.auth.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(side_effect=_capture_redirect)
+        response = client.get(
+            "/api/oauth/login?action=../../etc/passwd", follow_redirects=False
+        )
+
+    assert response.status_code in (302, 303)
+    assert captured["oauth_action"] == "login"
+
+
+def test_callback_action_ui_eager_creates_without_minting(client):
+    """action=ui → ensure_team_and_user IS called, generate_litellm_key is NOT (D-13)."""
+    mock_token = {
+        "userinfo": {"email": "alice@example.com", "name": "Alice Example"},
+    }
+
+    with (
+        patch("app.auth.oauth") as mock_oauth,
+        patch("app.auth.ensure_team_and_user", new_callable=AsyncMock) as mock_ensure,
+        patch("app.auth.generate_litellm_key", new_callable=AsyncMock) as mock_key,
+    ):
+        mock_oauth.oidc.authorize_access_token = AsyncMock(return_value=mock_token)
+        mock_ensure.return_value = None
+
+        cookie = _make_session_cookie(_TEST_SESSION_SECRET, {"oauth_action": "ui"})
+        response = client.get(
+            "/api/oauth/callback", cookies={"session": cookie}, follow_redirects=False
+        )
+
+    assert response.status_code == 302
+    assert response.headers["location"].endswith("/ui")
+    mock_ensure.assert_awaited_once()
+    mock_key.assert_not_called()
+
+
 def test_callback_action_tokens_list_failure_does_not_leak_backend_text(client):
     """WR-A: a list_litellm_keys failure on tokens renders a generic page, no raw leak."""
     mock_token = {
