@@ -94,6 +94,26 @@ def test_aggregate_window_real_zero_tokens_kept():
     assert veo["spend"] == 3.2
 
 
+def test_aggregate_window_failed_requests_diverge_from_model_breakdown():
+    """WR-04: headline totals (metadata) intentionally diverge from summed models.
+
+    The prior fixture has 4 total requests (1 success + 3 failed). The single
+    success is attributed to veo-3.1-generate-preview; the 3 failed requests have
+    no `models` entry but DO appear under `api_keys`. So sum(models[].requests)
+    under-reports the headline while sum(keys[].requests) tracks it. This is by
+    design (totals = metadata source of truth); the test pins it so the divergence
+    is never mistaken for a regression.
+    """
+    data = _load("daily_activity_prior.json")
+    agg = aggregate_window(data)
+
+    assert agg["requests"] == 4  # metadata.total_api_requests (incl. failed)
+    # Per-model breakdown omits the 3 model-less failed requests → diverges low.
+    assert sum(m["requests"] for m in agg["models"]) == 1
+    # Per-key breakdown captures the failed requests → reconciles with the total.
+    assert sum(k["requests"] for k in agg["keys"]) == 4
+
+
 def test_aggregate_window_empty_is_real_zero_not_null():
     data = _load("daily_activity_empty.json")
     agg = aggregate_window(data)

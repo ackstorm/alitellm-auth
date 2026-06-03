@@ -89,6 +89,19 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     ``results[].breakdown.api_keys`` (the breakdowns are per-day; the window total
     is the sum). Models/keys absent in-window are simply absent (no fabricated
     0-rows, RESEARCH §4 / D-08). Real ``0`` token splits stay ``0``.
+
+    WR-04 — headline totals vs summed breakdown rows MAY DIVERGE by design. The
+    ``requests``/``tokens``/``spend`` window totals come from LiteLLM's pre-aggregated
+    ``metadata.total_*``, which counts EVERY request (including failed and model-less
+    ones). The per-model breakdown only carries requests LiteLLM could attribute to a
+    model, so ``sum(models[].requests)`` can be LESS than ``totals.requests`` for any
+    window containing failed/model-less requests (e.g. the prior fixture: 4 total
+    requests, 1 success attributed to ``veo-3.1-generate-preview``, 3 failed under
+    ``api_keys`` with no ``models`` entry). The per-key breakdown DOES capture the
+    failed requests, so ``sum(keys[].requests)`` tracks the total more closely. This
+    is intentional: ``totals`` is the source of truth; the per-model table is an
+    attribution view, not a reconciliation of the headline. ``test_stats.py``
+    asserts this for the failed-request case so it is not mistaken for a regression.
     """
     metadata = data.get("metadata") or {}
     results = data.get("results") or []
