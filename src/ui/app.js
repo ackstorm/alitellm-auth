@@ -18,6 +18,8 @@ import { useState, useEffect, useCallback } from "preact/hooks";
 import htm from "htm";
 import { resolveState } from "./state.js";
 import { apiFetch, getHasLoaded, setHasLoaded } from "./api.js";
+import { useHashRoute } from "./router.js";
+import { RightSidebar } from "./sidebar.js";
 
 const html = htm.bind(h);
 
@@ -97,6 +99,78 @@ const SHELL_CSS = `
 .shell-header-meta .signout { color: var(--dim); text-decoration: none; }
 .shell-header-meta .signout:hover { color: var(--text); }
 .shell-header-meta .connected { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+
+/* ── Wide authenticated shell (UI-SPEC §B — re-spec'd multi-panel layout) ──────── */
+/* The structural primitives (.topbar 56px, .content 1200px + 2xl gap, .sidebar
+ * 320px, .panel 16px) live in base.css; the component-detail styles below
+ * (nav, panel actions, stats placeholder, responsive stacking) live here with
+ * the AuthedShell that renders them. */
+
+.topbar .brand {
+  display: inline-flex; align-items: center; gap: var(--space-sm);
+  font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--bright);
+}
+.topbar .brand span { color: var(--accent2); }
+.topbar .brand svg { width: 18px; height: 18px; stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Topbar nav — caption-role 11px mono labels; the active route is marked with --accent. */
+.topbar-nav { display: flex; align-items: center; gap: var(--space-lg); }
+.topbar-nav a {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1px; color: var(--dim);
+  text-decoration: none; padding: 4px 0; border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.topbar-nav a:hover { color: var(--text); }
+.topbar-nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.topbar-meta { margin-left: auto; display: flex; align-items: center; gap: var(--space-md); font-family: var(--mono); font-size: 11px; }
+.topbar-meta .connected { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+.topbar-meta .email { color: var(--text); }
+.topbar-meta .signout { color: var(--dim); text-decoration: none; }
+.topbar-meta .signout:hover { color: var(--text); }
+
+/* The empty #/ dashboard slot keeps the card entrance animation. */
+.main-slot { animation: slideUp .5s ease-out; }
+
+/* .sidebar (320px) is declared in base.css; stack its panels vertically here. */
+.sidebar { display: flex; flex-direction: column; gap: var(--space-lg); }
+
+/* .panel shape (16px radius, surface, lg padding) is declared in base.css. */
+.panel-label {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 2px; color: var(--dim);
+  margin-bottom: var(--space-md);
+}
+.panel-primary { box-shadow: 0 0 40px -24px var(--accent); }
+.panel-action {
+  display: block; width: 100%; text-align: left;
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  color: var(--text); background: transparent;
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px var(--space-md); margin-top: var(--space-sm); cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.panel-action:first-of-type { margin-top: 0; }
+.panel-action:hover { border-color: var(--accent); color: var(--bright); }
+.panel-action-primary { color: var(--accent); border-color: var(--accent); }
+.panel-action-primary:hover { background: var(--glow); }
+/* Security / Need-help: visually subordinate (smaller, dimmer) to Quick actions. */
+.panel-minimal .panel-body { font-family: var(--sans); font-size: 12px; color: var(--dim); line-height: 1.5; }
+
+/* Reserved Stats route placeholder (Phase 12, D-10). */
+.stats-placeholder {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  padding: var(--space-3xl) var(--space-xl); text-align: center; animation: slideUp .5s ease-out;
+}
+.stats-placeholder .heading { font-size: 24px; font-weight: 600; color: var(--bright); }
+.stats-placeholder .sub { margin-top: var(--space-sm); font-size: 14px; color: var(--dim); }
+
+/* Responsive: below 1024px the sidebar stacks below the main content. */
+@media (max-width: 1024px) {
+  .content { flex-direction: column; padding: var(--space-xl) var(--space-lg) 0; }
+  .sidebar { width: 100%; flex: 1 1 auto; }
+}
 `;
 
 // The OIDC sign-in entrypoint. The ?action=ui param (added server-side in Plan
@@ -193,23 +267,52 @@ function ErrorCard({ onRetry }) {
   `;
 }
 
-// Authenticated shell — header shows the email + a sign-out link + the
-// "Connected" pulse indicator. The main content slot is LEFT EMPTY: Phase 10
-// fills it with the DASH-* panels. Do NOT render key material here (T-09-03).
+// Authenticated shell — the WIDE multi-panel layout (UI-SPEC §B, re-spec'd):
+// a 56px topbar (brand + Stats/Status nav + connected pulse-dot + {email} +
+// sign out), a centered 1200px-max content region, and a fixed 320px right
+// sidebar. A client-side hash router (useHashRoute) drives the main content
+// slot: #/ -> the EMPTY dashboard slot (Phase 10 fills it), #/stats -> a
+// reserved "Coming soon" placeholder (Phase 12, D-10).
+//
+// The main content slot is LEFT EMPTY at #/: Phase 10 fills it with the DASH-*
+// panels. Do NOT render key material here (T-09-15: no sk- values / key table).
 function AuthedShell({ email }) {
+  const route = useHashRoute();
+  const onStats = useCallback((e) => {
+    e.preventDefault();
+    window.location.hash = "#/stats";
+  }, []);
   return html`
-    <header class="header">
-      <div class="pulse-dot"></div>
-      <div class="brand">alitellm<span>-auth</span></div>
-      <div class="shell-header-meta">
-        <span class="connected">connected</span>
-        <span class="email">${email}</span>
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 4.5 3.4 7.3 8 10 4.6-2.7 8-5.5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+        alitellm<span>-auth</span>
+      </div>
+      <nav class="topbar-nav">
+        <a
+          href="#/stats"
+          class=${route === "stats" ? "active" : ""}
+          onClick=${onStats}
+        >Stats</a>
+        <span class="connected"><span class="pulse-dot"></span>Status</span>
+      </nav>
+      <div class="topbar-meta">
+        <span class="email">${email} ▾</span>
         <a class="signout" href="/api/oauth/logout">sign out</a>
       </div>
     </header>
-    <main class="main">
-      <!-- Phase 10 fills this content slot with the dashboard panels. -->
-    </main>
+    <div class="content">
+      <main class="main-region">
+        ${route === "stats"
+          ? html`
+            <div class="stats-placeholder">
+              <div class="heading">Coming soon</div>
+              <div class="sub">Usage analytics arrive in a later release.</div>
+            </div>`
+          : html`<div class="main-slot"><!-- Phase 10 fills the dashboard slot at #/ --></div>`}
+      </main>
+      <${RightSidebar} />
+    </div>
   `;
 }
 
