@@ -44,3 +44,27 @@ export async function apiFetch(url, options) {
     return { status: 0, data: null };
   }
 }
+
+// Thin convenience wrappers over apiFetch (they REUSE it, never bypass it) so
+// the dashboard read/write paths share the single never-throw { status, data }
+// contract. Writes always carry `content-type: application/json` because the
+// backend write-guard (session.py assert_same_origin) returns 415 otherwise.
+
+export function getJson(url) {
+  return apiFetch(url);
+}
+
+export function postJson(url, body) {
+  return apiFetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function del(url) {
+  return apiFetch(url, {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+  });
+}
