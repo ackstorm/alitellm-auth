@@ -23,8 +23,8 @@ COPY src/api/app ./app
 
 EXPOSE 8080
 
-# non-root: uid 10001
+# non-root: uid 10001 (numeric USER so kubelet runAsNonRoot can verify without /etc/passwd)
 RUN useradd -u 10001 -m appuser
-USER appuser
+USER 10001
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
