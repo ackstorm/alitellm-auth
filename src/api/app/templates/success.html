@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Factory — Authorized</title>
+<title>alitellm-auth — Authorized</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -80,6 +80,10 @@
     color: var(--accent);
   }
 
+  .brand-lockup { margin-bottom: 12px; }
+  .brand-lockup .name { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--bright); letter-spacing: -.2px; }
+  .brand-lockup .name span { color: var(--accent2); }
+
   .greeting { font-size: 24px; font-weight: 600; color: var(--bright); line-height: 1.3; }
   .greeting span { color: var(--accent2); }
   .sub { margin-top: 6px; font-size: 14px; color: var(--dim); }
@@ -88,7 +92,7 @@
 
   .section-label {
     font-family: var(--mono);
-    font-size: 10px; font-weight: 700;
+    font-size: 11px; font-weight: 600;
     text-transform: uppercase; letter-spacing: 2.5px;
     color: var(--dim); margin-bottom: 12px;
   }
@@ -131,7 +135,7 @@
   .lock-icon svg { width: 12px; height: 12px; fill: none; stroke: var(--dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
   .copy-btn {
-    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
     text-transform: uppercase; letter-spacing: 1.5px;
     color: var(--dim); background: transparent;
     border: 1px solid rgba(74,81,115,0.5); border-radius: 3px;
@@ -148,6 +152,7 @@
         <div class="pulse-dot"></div>
         <div class="status-label">Authorized</div>
       </div>
+      <div class="brand-lockup"><div class="name">alitellm<span>-auth</span></div></div>
       <div class="greeting">Hey <span>{{ name }}</span>, you&rsquo;re all set</div>
       <div class="sub">Google OAuth flow completed &mdash; your LLM key is ready.</div>
     </div>
