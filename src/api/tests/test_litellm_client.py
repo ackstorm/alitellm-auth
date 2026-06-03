@@ -488,6 +488,13 @@ async def test_budget_rewiring():
         user_route = respx.post("http://litellm.test/user/new").mock(
             return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
         )
+        # D-14: ensure_team_and_user now calls /team/member_add + /team/member_update (Step A3)
+        respx.post("http://litellm.test/team/member_add").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+        respx.post("http://litellm.test/team/member_update").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
         key_route = respx.post("http://litellm.test/key/generate").mock(
             return_value=httpx.Response(200, json={"key": "sk-test", "key_id": "k1"})
         )
@@ -534,6 +541,13 @@ async def test_generate_key_duration():
             respx.post("http://litellm.test/user/new").mock(
                 return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
             )
+            # D-14: ensure_team_and_user Step A3 calls member_add + member_update
+            respx.post("http://litellm.test/team/member_add").mock(
+                return_value=httpx.Response(200, json={"team_id": "team-platform"})
+            )
+            respx.post("http://litellm.test/team/member_update").mock(
+                return_value=httpx.Response(200, json={"team_id": "team-platform"})
+            )
 
         # Test: with duration="90d"
         _setup_mocks()
@@ -579,6 +593,13 @@ async def test_generate_key_alias():
             )
             respx.post("http://litellm.test/user/new").mock(
                 return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+            )
+            # D-14: ensure_team_and_user Step A3 calls member_add + member_update
+            respx.post("http://litellm.test/team/member_add").mock(
+                return_value=httpx.Response(200, json={"team_id": "team-platform"})
+            )
+            respx.post("http://litellm.test/team/member_update").mock(
+                return_value=httpx.Response(200, json={"team_id": "team-platform"})
             )
 
         # Test: explicit alias is threaded through verbatim.
@@ -654,6 +675,13 @@ async def test_lazy_backfill():
         )
         update_route = respx.post("http://litellm.test/user/update").mock(
             return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+        )
+        # D-14: ensure_team_and_user Step A3 calls member_add + member_update
+        respx.post("http://litellm.test/team/member_add").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+        respx.post("http://litellm.test/team/member_update").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
         )
 
         await ensure_team_and_user("alice@example.com", settings, name="Alice")

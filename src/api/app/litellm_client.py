@@ -130,6 +130,69 @@ def _admin_headers(settings: Settings) -> dict:
     }
 
 
+async def ensure_team_member_budget(
+    email: str,
+    team_id: str,
+    max_budget_in_team: float,
+    settings: Settings,
+) -> None:
+    """Idempotently set the per-member budget cap for a team member.
+
+    Adopts /team/member_add per the D-14 spike result (USER-V2-01 re-scoped from a
+    Phase-2 greenfield exclusion): KEY_A (user-level max_budget) did NOT enforce for
+    team-scoped keys on LiteLLM v1.85.1; KEY_B (max_budget_in_team) enforced.
+
+    Flow (idempotent — running twice yields the same end state):
+    1. POST /team/member_add with nested member body + max_budget_in_team.
+       Treats 400/409 with "already" in the body as a no-op (member exists).
+    2. POST /team/member_update with top-level user_id + max_budget_in_team
+       to set/update the per-member cap (always called, even after member_add
+       succeeds, so the cap is applied regardless of whether the add was new
+       or a no-op).
+
+    H3: caller must guard — only call when max_budget_in_team is not None/0.
+    """
+    headers = _admin_headers(settings)
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
+        # Step 1: Add member (nested body per TeamMemberAddRequest — v1.85.1 openapi.json).
+        add_resp = await client.post(
+            "/team/member_add",
+            headers=headers,
+            json={
+                "team_id": team_id,
+                "member": {"user_id": email, "role": "user"},  # nested, NOT top-level user_id
+                "max_budget_in_team": max_budget_in_team,
+            },
+        )
+        already_member = add_resp.status_code in (400, 409) and "already" in add_resp.text.lower()
+        if not add_resp.is_success and not already_member:
+            msg = _extract_litellm_error(add_resp)
+            raise httpx.HTTPStatusError(
+                f"LiteLLM /team/member_add failed: {msg}",
+                request=add_resp.request,
+                response=add_resp,
+            )
+
+        # Step 2: Update the per-member cap (top-level body per TeamMemberUpdateRequest).
+        # Always called: sets/refreshes the cap whether the member was just added or already existed.
+        update_resp = await client.post(
+            "/team/member_update",
+            headers=headers,
+            json={
+                "team_id": team_id,
+                "user_id": email,  # top-level, NOT nested member object
+                "max_budget_in_team": max_budget_in_team,
+            },
+        )
+        if not update_resp.is_success:
+            msg = _extract_litellm_error(update_resp)
+            raise httpx.HTTPStatusError(
+                f"LiteLLM /team/member_update failed: {msg}",
+                request=update_resp.request,
+                response=update_resp,
+            )
+
+
 async def ensure_team_and_user(
     email: str,
     settings: Settings,
@@ -137,13 +200,19 @@ async def ensure_team_and_user(
 ) -> str:
     """Idempotently ensure the shared team, access group, and LiteLLM user exist.
 
-    Performs Steps A (team), B (access group), and A2 (user) in that order.
-    This is a shared prerequisite for both key minting (generate_litellm_key)
-    and the eager /ui login path (D-13). Returns the team_id.
+    Performs Steps A (team), B (access group), A2 (user), and A3 (member budget)
+    in that order. This is a shared prerequisite for both key minting
+    (generate_litellm_key) and the eager /ui login path (D-13). Returns the team_id.
 
     D-16 lazy backfill: if the user already existed (409/400), fetches the
     current user and patches only null/missing factory budget fields via
     /user/update. Never overwrites a manually-set value; never sends null (H3).
+
+    D-14 (USER-V2-01 re-scoped): Step A3 calls ensure_team_member_budget using
+    the factory user max_budget as max_budget_in_team. The RQ-1 spike proved that
+    user-level max_budget does NOT enforce for team-scoped keys on LiteLLM v1.85.1;
+    max_budget_in_team via /team/member_add does enforce. H3: only called when a
+    budget value exists (never send null/None).
     """
     team_id = f"team-{settings.oauth_client_id}"
     headers = _admin_headers(settings)
@@ -222,6 +291,14 @@ async def ensure_team_and_user(
             except httpx.HTTPStatusError as exc:
                 logger.error("D-16 backfill failed for %s: %s", email, exc)
                 raise
+
+    # Step A3 (D-14 USER-V2-01 re-scope): set per-member budget cap via /team/member_add.
+    # Adopts max_budget_in_team because the RQ-1 spike proved user-level max_budget does
+    # NOT enforce for team-scoped keys on LiteLLM v1.85.1 (KEY_A=200 beyond cap; KEY_B=429).
+    # H3: only call when the factory provides a non-None, non-zero max_budget value.
+    factory_user_budget = factory.get("user", {}).get("max_budget")
+    if factory_user_budget is not None and factory_user_budget > 0:
+        await ensure_team_member_budget(email, team_id, factory_user_budget, settings)
 
     return team_id
 
