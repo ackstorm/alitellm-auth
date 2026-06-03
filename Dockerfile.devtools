@@ -7,9 +7,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_SYSTEM_PYTHON=1 \
     UV_LINK_MODE=copy
 
-# OS tools: make (target runner inside container), git (version/changelog ops)
+# OS tools: make (target runner inside container), git (version/changelog ops).
+# Node 22 LTS from NodeSource so `make build-ui`/`dev-ui` run in-container (BUILD-01),
+# aligned with the Dockerfile `ui-builder` stage (node:22-slim). curl is needed for
+# the NodeSource setup script and is removed afterward to keep the image lean.
 RUN apt-get update -qq \
- && apt-get install -y --no-install-recommends make git ca-certificates \
+ && apt-get install -y --no-install-recommends make git ca-certificates curl \
+ && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && npm --version \
+ && apt-get purge -y curl \
+ && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
 # uv first, then the Python toolchain (lint, test, docs)

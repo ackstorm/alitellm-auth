@@ -1,3 +1,18 @@
+# ── UI builder stage ───────────────────────────────────────────────────────────
+# Node lives ONLY here; the stage is discarded so node never lands in runtime.
+# Aligned with Dockerfile.devtools (NodeSource Node 22 LTS).
+FROM node:22-slim AS ui-builder
+WORKDIR /src/ui
+# Explicit COPY paths only — NEVER `COPY . .` (CLAUDE.md). Copy the lockfile pair
+# first so `npm ci` caches independently of source edits; the lockfile is exact
+# (T-09-09: npm ci fails on lockfile drift, no floating npm install).
+COPY src/ui/package.json src/ui/package-lock.json ./
+RUN npm ci
+# Copy the SPA source AFTER npm ci so a stale host node_modules/dist is irrelevant
+# (npm ci regenerated deps from the lockfile). Explicit src/ui/ path — not `COPY . .`.
+COPY src/ui/ ./
+RUN npm run build      # emits /src/ui/dist (base: /ui/, hash-router shell)
+
 # ── Builder stage ────────────────────────────────────────────────────────────
 FROM python:3.14-slim AS builder
 WORKDIR /app
@@ -21,6 +36,11 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app/deps
 
 COPY --from=builder /app/deps /app/deps
 COPY src/api/app ./app
+
+# Bake the built SPA in from the discarded ui-builder stage (D-01): `docker build`
+# alone produces a serving image — no host `make build-ui` precondition. Placed
+# before the USER switch so root owns the copy; FastAPI serves it at /ui.
+COPY --from=ui-builder /src/ui/dist /app/ui/dist
 
 EXPOSE 8080
 
