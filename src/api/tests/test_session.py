@@ -450,6 +450,143 @@ def test_origin_guard(client):
 
 
 # ---------------------------------------------------------------------------
+# Phase 11 / D-02 — exact-origin guard: prefix-attack + missing-headers fail-closed
+# ---------------------------------------------------------------------------
+
+
+def _https_app() -> TestClient:
+    """Dedicated app whose app_base_url is https://platform.ackstorm.ai (D-06 needs
+    session_https_only=True alongside the https URL)."""
+    settings_https = Settings(
+        **{
+            **make_test_settings().model_dump(),
+            "app_base_url": "https://platform.ackstorm.ai",
+            "session_https_only": True,
+        }
+    )
+    app = create_app(settings=settings_https)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_origin_prefix_attack_403():
+    """CR-01: an origin whose host begins with but != app_base_url host is rejected
+    (POST and DELETE) — platform.ackstorm.ai.evil.com → 403 (D-02)."""
+    client = _https_app()
+    attack_origin = "https://platform.ackstorm.ai.evil.com"
+
+    # POST variant — must 403 before reaching the handler (no LiteLLM mock needed)
+    response = client.post(
+        "/api/session/keys",
+        headers={"content-type": "application/json", "origin": attack_origin},
+        cookies=_authed_cookie(),
+        content="{}",
+    )
+    assert response.status_code == 403
+
+    # DELETE variant
+    response = client.delete(
+        "/api/session/keys/some-id",
+        headers={"content-type": "application/json", "origin": attack_origin},
+        cookies=_authed_cookie(),
+    )
+    assert response.status_code == 403
+
+
+def test_origin_same_host_passes_guard():
+    """Regression: the exact app_base_url origin passes the guard and reaches the
+    handler (200 with generate_litellm_key mocked) — guard is not over-tight (D-02)."""
+    client = _https_app()
+    with patch(
+        "app.session.generate_litellm_key", new_callable=AsyncMock
+    ) as mock_key:
+        mock_key.return_value = {
+            "key": "sk-new",
+            "id": "k1",
+            "team_id": "team-test-client",
+        }
+        response = client.post(
+            "/api/session/keys",
+            headers={
+                "content-type": "application/json",
+                "origin": "https://platform.ackstorm.ai",
+            },
+            cookies=_authed_cookie(),
+            content="{}",
+        )
+    assert response.status_code == 200
+
+
+def test_origin_missing_headers_403():
+    """Fail-closed: a POST with content-type application/json but NO Origin and NO
+    Referer is rejected with 403 (D-02). Satisfies SEC-01 #2 (curl w/o headers)."""
+    client = _https_app()
+    response = client.post(
+        "/api/session/keys",
+        headers={"content-type": "application/json"},
+        cookies=_authed_cookie(),
+        content="{}",
+    )
+    assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Phase 11 / D-04 — HttpOnly present on the session Set-Cookie
+# ---------------------------------------------------------------------------
+
+
+def test_cookie_httponly_present(client):
+    """The session Set-Cookie carries HttpOnly (D-04, Starlette hardcodes it)."""
+    mock_token = {
+        "userinfo": {
+            "sub": "user-sub-123",
+            "email": "alice@example.com",
+            "name": "Alice",
+        }
+    }
+
+    with (
+        patch("app.auth.oauth") as mock_oauth,
+        patch("app.auth.generate_litellm_key", new_callable=AsyncMock) as mock_key,
+    ):
+        mock_oauth.oidc.authorize_access_token = AsyncMock(return_value=mock_token)
+        mock_key.return_value = {
+            "key": "sk-new",
+            "id": "k1",
+            "team_id": "team-test-client",
+        }
+
+        cookie = _make_session_cookie(_TEST_SESSION_SECRET, {"oauth_action": "login"})
+        response = client.get("/api/oauth/callback", cookies={"session": cookie})
+
+    assert response.status_code == 200
+    raw_set_cookie = response.headers.get("set-cookie", "")
+    assert "session=" in raw_set_cookie, f"no session Set-Cookie: {raw_set_cookie!r}"
+    assert "httponly" in raw_set_cookie.lower(), (
+        f"HttpOnly missing from Set-Cookie: {raw_set_cookie!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 11 / D-03+D-05 — SessionMiddleware max_age + same_site wired
+# ---------------------------------------------------------------------------
+
+
+def test_session_max_age_wired():
+    """SessionMiddleware carries max_age=28800 (8h, D-05) and same_site=lax (D-03)."""
+    app = create_app(settings=make_test_settings())
+    mw_found = False
+    for mw in app.user_middleware:
+        cls = getattr(mw, "cls", None)
+        kwargs = getattr(mw, "kwargs", {})
+        if cls is not None and "SessionMiddleware" in str(cls):
+            mw_found = True
+            assert kwargs.get("max_age") == 28800
+            assert kwargs.get("same_site") == "lax"
+            break
+    assert mw_found, "SessionMiddleware not found in middleware stack"
+
+
+# ---------------------------------------------------------------------------
 # D-18 — session_https_only wired (D-18 config assertion test)
 # ---------------------------------------------------------------------------
 
