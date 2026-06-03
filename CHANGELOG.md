@@ -2,6 +2,15 @@
 
 ## [unreleased]
 
+## [0.3.0] - 2026-06-03
+
+- feat: self-service dashboard SPA (Preact + htm + Vite) served same-origin by FastAPI at `/ui` — view identity + account budget, list keys with metadata/usage, reveal + copy a key, create a key, delete a key (with a confirm step); dark-terminal design system, `success.html`/`error.html` restyled to match
+- feat: session-authenticated JSON API `/api/session/*` (`GET /me`, `GET/POST/DELETE /keys`, `GET /usage`) that reads the logged-in user from the OIDC session cookie — the browser never handles a master key or `sk-`; key ownership enforced server-side on delete
+- feat: per-user budget enforcement via `/team/member_add` `max_budget_in_team`; budget applied at the user level on `/user/new`; key-level budget fields removed (never sends `max_budget: null`)
+- security: session cookie hardened — `HttpOnly`, `Secure` (env-gated by `SESSION_HTTPS_ONLY`), `SameSite=Lax`, 8h `max_age`; state-changing `/api/session/keys` writes protected by an exact-origin fail-closed CSRF guard (no token needed for a same-origin SPA); startup guard crashloops an `https` deploy shipping a non-Secure cookie
+- build: SPA baked into the runtime image via a Dockerfile `ui-builder` stage (runtime stays non-root, no node); `make build-ui`/`dev-ui`; CI `build-ui` gate
+- chore: idempotent one-time budget backfill CLI (`scripts/backfill_user_budgets.py`, dry-run default, `--apply` to write)
+
 ## [0.2.0] - 2026-06-02
 - BREAKING: rename GET /api/oauth/me → GET /api/oauth/whoami; old path now returns 404
 - BREAKING: API header renamed x-ackstorm-api-key → x-alitellm-auth-api-key for /whoami and /api/oauth/tokens/{id}
