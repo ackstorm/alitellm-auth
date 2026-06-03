@@ -20,6 +20,11 @@ curl -s https://<your-app>/api/oauth/whoami \
 # "Bearer sk-XXXX" is also accepted.
 ```
 
+Status codes:
+
+- `GET /api/oauth/whoami` — `200` (valid key; unenriched `200` when the key has no email), `401` (missing header / invalid key), `404` (valid key, email present, but no matching LiteLLM user), `502` (LiteLLM unreachable / 5xx).
+- `DELETE /api/oauth/tokens/{id}` — `200` (deleted), `401` (missing/invalid key), `403` (key has no associated user), `404` (token not owned by the caller), `502` (LiteLLM failure).
+
 ### Admin Endpoints (master-key only)
 
 - `GET /api/users` — List all LiteLLM users. Header: `x-alitellm-auth-api-key: <master-key>`
@@ -30,6 +35,20 @@ curl -s https://<your-app>/api/oauth/whoami \
 curl -s https://<your-app>/api/users \
   -H "x-alitellm-auth-api-key: <master-key>" | jq .
 ```
+
+### Session Endpoints (browser, OIDC session cookie)
+
+Same-origin JSON API for the SPA dashboard. Authentication is the OIDC **session cookie** set
+at login — the browser never pastes a master key or `sk-`. All routes require a valid session
+(HTML requests redirect to OIDC login; JSON requests return `401`). State-changing routes also
+enforce a same-origin `Origin`/`Referer` guard (`403` cross-origin).
+
+- `GET /api/session/me` — current user identity + account limits + spend.
+- `GET /api/session/keys` — the user's keys with metadata (no `sk-` or hash leaked to the browser).
+- `POST /api/session/keys` — mint a key (optional `{alias, duration}`); returns the `sk-` once.
+- `DELETE /api/session/keys/{id}` — delete an owned key (`200`); `403` for any id not in the user's list.
+- `GET /api/session/usage?window=30d` — daily usage breakdown.
+- `GET /ui` — dashboard placeholder for a valid session; `302` to OIDC otherwise.
 
 ## OIDC Integration
 
@@ -61,5 +80,27 @@ cd src/api && uvicorn app.main:app --reload --port 8080
 | `LITELLM_URL` | yes | Internal LiteLLM base URL (server-side admin calls) |
 | `LITELLM_MASTER_KEY` | yes | LiteLLM admin key; also the credential for admin endpoints |
 | `APP_BASE_URL` | no | Public URL of this service (default `http://localhost:8080`) |
-| `API_PUBLIC_URL` | no | Public LiteLLM API URL shown to users |
-| `FACTORY_CONFIG_PATH` | no | Path to a mounted ConfigMap JSON with team/user LiteLLM params |
+| `API_PUBLIC_URL` | no | Public LiteLLM API URL shown to users (default `https://api.ackstorm.ai` — override per deployment) |
+| `SESSION_HTTPS_ONLY` | no | Mark the session cookie `Secure` (default `false`). Set `true` in production behind HTTPS. |
+| `FACTORY_CONFIG_PATH` | no | Path to a mounted ConfigMap JSON (`{"team": {...}, "user": {...}}`) with default LiteLLM team/user params |
+
+## Deployment
+
+A Helm chart (`deploy/helm/alitellm-auth/`) and a Kustomize base (`deploy/kustomize/base/`) are
+provided. See [deploy/README.md](deploy/README.md) for details.
+
+```bash
+# Helm
+helm install alitellm-auth deploy/helm/alitellm-auth -n test
+
+# Kustomize
+kubectl apply -k deploy/kustomize/base -n test
+```
+
+Both inject `SESSION_HTTPS_ONLY` (prod default `true`) and mount the factory-config ConfigMap.
+`GET /health` is the liveness/readiness probe target.
+
+## Contributing & License
+
+Apache-2.0 (see [LICENSE](LICENSE)). See [CONTRIBUTING.md](CONTRIBUTING.md),
+[SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
