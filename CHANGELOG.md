@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.4.2] - 2026-06-04
+
 - change: refined the login sign-in card — a richer description (view / mint / revoke; "no password is handled here, sign-in is delegated to your SSO provider"), a decorative `$ sign-in --sso --provider=openid` terminal command line, and the READY status indicator moved from the card top to the bottom status strip (replacing "redirects to dex")
 - change: the inner pages (dashboard, stats, how-to) now carry the same subtle green radial gradient as the login screen, for a consistent backdrop
 
