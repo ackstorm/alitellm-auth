@@ -30,6 +30,23 @@ class Settings(BaseSettings):
     # Env var: SESSION_HTTPS_ONLY
     session_https_only: bool = False
 
+    # Presentation config (D-01) — served by the public GET /api/config endpoint so a
+    # deployment can re-brand without a rebuild. ONLY non-secret presentation values.
+    # Defaults stay alitellm-auth-neutral so OSS forks render unchanged.
+    brand: str = "alitellm-auth"
+    brand_short: str = "LiteLLM"
+    tagline: str = ""
+    accent_segment: str = "-auth"  # wordmark segment rendered in --accent2; empty → no accent span
+    provider_label: str = "dex"
+
+    # Real-links-only targets (D-02/D-03) — None/empty means the link is OMITTED from
+    # the SPA (no dead anchor). NEVER add a secret-bearing field to this set.
+    link_docs: str | None = None
+    link_status: str | None = None
+    link_support: str | None = None
+    link_privacy: str | None = None
+    link_terms: str | None = None
+
     @model_validator(mode="after")
     def _require_secure_cookie_on_https(self) -> "Settings":
         """D-06 startup guard: refuse a https-served deploy that ships a non-Secure cookie.
