@@ -89,6 +89,12 @@ build-ui: ## Build the SPA to src/ui/dist (containerized)
 _build-ui:
 	cd $(UI_DIR) && npm_config_cache=$(NPM_CACHE) npm ci && npm run build
 
+.PHONY: test-ui _test-ui
+test-ui: ## Run the UI vitest suite (containerized)
+	$(call container_target,_test-ui)
+_test-ui:
+	cd $(UI_DIR) && npm_config_cache=$(NPM_CACHE) npm ci && npm test
+
 .PHONY: dev-ui _dev-ui
 dev-ui: ## Vite dev server on :5173, proxies /api -> :8080 (containerized, host net)
 	DEV_NET=host $(call container_target,_dev-ui)

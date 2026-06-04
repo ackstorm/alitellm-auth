@@ -4,7 +4,9 @@ FastAPI service that authenticates users via an OIDC provider (Dex/Keycloak) and
 
 Companion to alitellm-operator (Go), which owns model/team discovery but not Users or VirtualKeys — Users and VirtualKeys are exclusively managed by this service.
 
-**Stack**: Python 3.12, FastAPI, Authlib (OIDC), httpx (LiteLLM), Jinja2, Starlette SessionMiddleware, uv, Docker/Kubernetes.
+**Stack (API)**: Python 3.12, FastAPI, Authlib (OIDC), httpx (LiteLLM), Jinja2, Starlette SessionMiddleware, uv, Docker/Kubernetes.
+
+**Stack (UI console)**: React 19 + Vite 6 + TypeScript (strict) + Tailwind CSS 4 + shadcn/ui (Radix) + TanStack Query 5 + Zustand 5 + react-router 7 (hash) + Recharts + Vitest. A single-page app in `src/ui/` (rebuilt from the prior Preact SPA, 2026-06), built to `src/ui/dist` (`base: '/ui/'`) and served by FastAPI at `/ui` via the Dockerfile `ui-builder` stage. npm runs ONLY inside the devtools container: `make build-ui` (build → dist), `make test-ui` (vitest), `make dev-ui` (Vite HMR on :5173). Full live dev stack (UI + API + mock OIDC + mock LiteLLM): `docker-compose -f docker-compose.dev.yml up` → http://localhost:5173/ui/.
 
 ---
 
