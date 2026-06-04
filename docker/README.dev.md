@@ -25,19 +25,19 @@ authenticated React console renders end-to-end against canned-but-realistic data
 
 | Service        | Image / build                              | Port (host) | Role |
 |----------------|--------------------------------------------|-------------|------|
-| `ui`           | `node:22-slim` + `vite dev` (HMR)          | `5173`*     | Serves `src/ui-next` at `/ui/`; proxies `/api`→auth |
+| `ui`           | `node:22-slim` + `vite dev` (HMR)          | `5173`*     | Serves `src/ui` at `/ui/`; proxies `/api`→auth |
 | `auth`         | `docker/auth-dev.Dockerfile` (the REAL app)| `8080`,`5173`| FastAPI `uvicorn app.main:app --reload` |
 | `mock-oidc`    | `ghcr.io/navikt/mock-oauth2-server`        | `8081`      | Non-interactive OIDC issuer (`interactiveLogin:false`) |
 | `mock-litellm` | `docker/mock-litellm` (tiny FastAPI stub)  | `4000`      | Serves the repo's LiteLLM response fixtures |
 
 \* The `ui` service shares the `auth` container's network namespace
 (`network_mode: service:auth`), so vite's hardcoded proxy target `localhost:8080`
-(in `src/ui-next/vite.config.ts`) reaches the auth uvicorn **with no frontend
+(in `src/ui/vite.config.ts`) reaches the auth uvicorn **with no frontend
 edit**. Because of that, port `5173` is published on the `auth` service, not `ui`.
 
 The backend and frontend source under `src/` are **never modified** — `auth`
 bind-mounts `src/api/app` (so `uvicorn --reload` hot-reloads Python edits) and `ui`
-bind-mounts `src/ui-next` (so vite HMR hot-reloads React edits).
+bind-mounts `src/ui` (so vite HMR hot-reloads React edits).
 
 ---
 

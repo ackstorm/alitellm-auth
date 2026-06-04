@@ -5,7 +5,7 @@
 #   open http://localhost:5173/ui/
 #
 # Services (one user network):
-#   ui            vite dev server (HMR) for src/ui-next      → http://localhost:5173/ui/
+#   ui            vite dev server (HMR) for src/ui      → http://localhost:5173/ui/
 #   auth          the REAL FastAPI (uvicorn --reload)        → :8080 (proxied via vite /api)
 #   mock-oidc     navikt/mock-oauth2-server (non-interactive) → http://localhost:8081
 #   mock-litellm  tiny FastAPI stub serving repo fixtures     → :4000 (internal)
@@ -19,7 +19,7 @@
 # (see docker/README.dev.md).
 #
 # The `ui` service uses network_mode: service:auth so vite's hardcoded proxy target
-# (localhost:8080 in src/ui-next/vite.config.ts) reaches the auth uvicorn unchanged —
+# (localhost:8080 in src/ui/vite.config.ts) reaches the auth uvicorn unchanged —
 # no frontend edit needed. Consequently the ui port 5173 is published on `auth`.
 
 services:
@@ -62,7 +62,7 @@ services:
     # (localhost:8080) hits the auth uvicorn, with zero changes to vite.config.ts.
     network_mode: "service:auth"
     volumes:
-      - ./src/ui-next:/app
+      - ./src/ui:/app
       # Anonymous volume keeps the container's installed node_modules from being
       # clobbered by the host bind-mount.
       - /app/node_modules
