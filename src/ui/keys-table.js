@@ -56,17 +56,29 @@ const COLUMNS = [
 // A key is "Revoked" when an explicit revoked/blocked flag is truthy. The
 // projected /keys shape carries no positive "active" field, so absence == active
 // (UI-SPEC §C4 "Active … when not revoked").
-function isRevoked(key) {
+export function isRevoked(key) {
   return Boolean(key && (key.revoked || key.blocked));
 }
 
 // D-08: a key is "Expired" when its expiry is in the past — computed from the
 // projected `expires` field — and only when it is NOT already revoked. Revoked
 // takes precedence (a revoked key reads `Revoked`, never `Expired`).
-function isExpired(key) {
+export function isExpired(key) {
   if (!key || key.expires == null) return false;
   const ts = Date.parse(key.expires);
   return Number.isFinite(ts) && ts < Date.now();
+}
+
+// FID-04 (D-15) guard — the PURE row-selection gate KeysTable uses to decide
+// whether to render populated rows or the empty/loading/error state. The
+// dashboard's loadKeys accepts `/keys` only when `status===200 && Array.isArray
+// (data.keys)`, and KeysTable renders populated rows only when this returns a
+// non-empty array. Triage conclusion: the data path is CORRECT end-to-end — a
+// well-formed `{keys:[...]}` payload yields its rows; only a genuinely empty
+// list (the expected-empty case on the new instance) yields the empty state.
+// Exported so the regression suite can assert this without a DOM (no jsdom dep).
+export function selectKeyRows(keys) {
+  return Array.isArray(keys) ? keys : [];
 }
 
 // ── Inline-SVG icon glyphs (reuse the login.js `.vp-icon` --accent idiom) ──────
@@ -190,7 +202,7 @@ function KeyRow({ item: k, fresh, onDelete }) {
 //               owns the confirm modal + the actual DELETE).
 export function KeysTable({ keys, freshKeys, status, onDelete }) {
   const fresh = freshKeys || {};
-  const rows = Array.isArray(keys) ? keys : [];
+  const rows = selectKeyRows(keys);
 
   // D-07 client-side pagination over the already-loaded rows. NO fetch — we slice
   // the loaded array. `page` is clamped so a delete that shrinks the list below
