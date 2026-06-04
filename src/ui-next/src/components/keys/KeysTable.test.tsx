@@ -185,16 +185,18 @@ describe('KeysTable — fresh vs pre-existing key behavior', () => {
     expect(writeText).toHaveBeenCalledWith(SK);
   });
 
-  it('a NON-fresh row has no reveal button and copies the public id', async () => {
+  it('a NON-fresh row has no reveal button, shows the MASKED id, and copies the FULL id', async () => {
     const writeText = stubClipboard();
     setRows([makeRow({ id: 'key-public', key_alias: 'old-key' })]);
 
     render(<KeysTable onDelete={vi.fn()} />);
 
     expect(screen.queryByRole('button', { name: 'Reveal' })).not.toBeInTheDocument();
-    // The public id is shown verbatim (not masked).
-    expect(screen.getByText('key-public')).toBeInTheDocument();
+    // The id chip is MASKED to prefix…last4 — the full id is NOT shown in the cell…
+    expect(screen.getByText(maskKey('key-public'))).toBeInTheDocument();
+    expect(screen.queryByText('key-public')).not.toBeInTheDocument();
 
+    // …but Copy still writes the FULL public id.
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
     expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
     expect(writeText).toHaveBeenCalledWith('key-public');

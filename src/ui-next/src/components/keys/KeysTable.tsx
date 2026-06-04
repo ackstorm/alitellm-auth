@@ -133,7 +133,12 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       key: 'keyid',
       header: 'Key ID',
       headerClassName: 'whitespace-nowrap',
-      className: 'whitespace-nowrap',
+      // align-top (the cell is a two-line stack). The pre-existing key id is
+      // shown MASKED to a short prefix…last4 (maskKey) — the full 64-char hash
+      // would force the table wider than the ~800px main column and scroll
+      // Status + the row actions off the right edge under overflow-x-auto. The
+      // FULL public id stays available via the Copy action.
+      className: 'align-top',
       cell: (row) => {
         const id = row.id;
         const fresh = id != null ? freshKeys[id] : undefined;
@@ -142,27 +147,36 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         const name = row.key_alias || maskKey(id);
         // What the inline chip displays:
         //   fresh        -> masked bullets, or the full sk- when revealed
-        //   pre-existing -> the PUBLIC key id verbatim (NOT masked; em-dash if null)
+        //   pre-existing -> the PUBLIC key id MASKED to prefix…last4 (compact;
+        //                   maskKey returns the em-dash for a null id). The full
+        //                   id is still copyable via the Copy action below.
         const chip = isFresh
           ? revealed
             ? fresh
             : MASKED_FRESH
-          : id == null
-            ? EM_DASH
-            : id;
+          : maskKey(id);
+        // The chip repeats the masked id beneath the name. Skip it for a
+        // non-fresh key with NO alias — the name already IS the masked id, so
+        // the two lines would otherwise be identical. Fresh keys always show it
+        // (it carries the masked/revealed sk-).
+        const showChip = isFresh || Boolean(row.key_alias);
         return (
-          <div className="flex flex-col gap-0.5">
-            <span className="text-foreground text-sm font-semibold">{name}</span>
-            <span
-              data-slot="key-chip"
-              data-revealed={isFresh && revealed ? '' : undefined}
-              className={cn(
-                'font-mono text-xs break-all',
-                isFresh && revealed ? 'text-primary' : 'text-muted-foreground'
-              )}
-            >
-              {chip}
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-foreground truncate text-sm font-semibold">
+              {name}
             </span>
+            {showChip ? (
+              <span
+                data-slot="key-chip"
+                data-revealed={isFresh && revealed ? '' : undefined}
+                className={cn(
+                  'font-mono text-xs break-all',
+                  isFresh && revealed ? 'text-primary' : 'text-muted-foreground'
+                )}
+              >
+                {chip}
+              </span>
+            ) : null}
           </div>
         );
       },
