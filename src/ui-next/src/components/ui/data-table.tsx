@@ -28,7 +28,7 @@ export type DataTableProps<T> = {
   caption?: React.ReactNode;
   /** Wrapper className. */
   className?: string;
-};
+} & Omit<React.ComponentProps<'div'>, 'children'>;
 
 export function DataTable<T>({
   columns,
@@ -38,6 +38,7 @@ export function DataTable<T>({
   rowActions,
   caption,
   className,
+  ...rest
 }: DataTableProps<T>): React.ReactElement {
   const hasActions = rowActions !== undefined;
   const colSpan = columns.length + (hasActions ? 1 : 0);
@@ -49,6 +50,7 @@ export function DataTable<T>({
         'bg-card text-card-foreground overflow-x-auto rounded-xl border',
         className
       )}
+      {...rest}
     >
       <table data-slot="data-table-table" className="w-full border-collapse">
         <thead data-slot="data-table-header">
@@ -56,6 +58,7 @@ export function DataTable<T>({
             {columns.map((column) => (
               <th
                 key={column.key}
+                scope="col"
                 data-col={column.key}
                 className={cn(
                   'text-muted-foreground px-4 py-3 text-left text-xs font-semibold tracking-wider uppercase',
@@ -67,9 +70,12 @@ export function DataTable<T>({
             ))}
             {hasActions ? (
               <th
+                scope="col"
                 data-col="__actions"
                 className="text-muted-foreground px-4 py-3 text-right text-xs font-semibold tracking-wider uppercase"
-              />
+              >
+                <span className="sr-only">Actions</span>
+              </th>
             ) : null}
           </tr>
         </thead>
