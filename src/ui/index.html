@@ -1,22 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>alitellm-auth</title>
-  <!--
-    Trimmed Google-Fonts @import (UI-SPEC §Design System): JetBrains Mono 400/600
-    and Outfit 400/600 only — JetBrains 700 and Outfit 500/700 are intentionally dropped.
-  -->
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;600&display=swap');
-  </style>
-  <link rel="stylesheet" href="./base.css">
-</head>
-<body>
-  <!-- Single mount root; the Plan 02 shell renders into this element. -->
-  <div id="app"></div>
-  <!-- Shell entry created in Plan 02 (state machine + apiFetch wrapper live there). -->
-  <script type="module" src="./main.js"></script>
-</body>
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>aLiteLLM Console</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
