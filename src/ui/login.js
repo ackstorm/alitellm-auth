@@ -29,6 +29,7 @@
 import { h } from "preact";
 import { useCallback } from "preact/hooks";
 import htm from "htm";
+import { SiteFooter } from "./footer.js";
 
 const html = htm.bind(h);
 
@@ -152,13 +153,38 @@ export const LOGIN_CSS = `
   text-transform: uppercase; letter-spacing: 2px; color: var(--dim);
   margin-bottom: var(--space-md);
 }
-.sample-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); }
+/* The 3 illustrative metric tiles use a responsive 3-column grid (drops to a
+ * single column under 360px) — reuses the .sample-tile shape. */
+.sample-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-sm); }
 .sample-tile { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: var(--space-sm) var(--space-md); }
 .sample-tile .tile-label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
 .sample-tile .tile-value { font-family: var(--sans); font-size: 24px; font-weight: 600; color: var(--bright); line-height: 1.3; }
-.sample-row { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border); }
-.sample-row .row-key { font-family: var(--mono); font-size: 12px; color: var(--dim); }
-.sample-row .row-pill { font-family: var(--mono); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); }
+@media (max-width: 360px) { .sample-tiles { grid-template-columns: 1fr; } }
+
+/* Recent API keys mini-table — a small caption label + static illustrative rows
+ * (masked key label + a status pill). Reuses the canonical .status-pill idiom
+ * from keys-table.js; adds the neutral Expired variant (D-08, NOT destructive:
+ * --dim text on a --surface/--border tint). */
+.recent-keys { margin-top: var(--space-lg); padding-top: var(--space-md); border-top: 1px solid var(--border); }
+.recent-keys .recent-label {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1px; color: var(--dim);
+  margin-bottom: var(--space-sm);
+}
+.recent-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-xs) 0; }
+.recent-row .row-key { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+.recent-row .status-pill {
+  display: inline-block;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1px;
+  border-radius: 999px; padding: var(--space-xs) var(--space-sm);
+}
+.recent-row .status-pill.is-active {
+  color: var(--accent); background: var(--glow); border: 1px solid rgba(34,197,94,0.2);
+}
+.recent-row .status-pill.is-expired {
+  color: var(--dim); background: var(--surface); border: 1px solid var(--border);
+}
 `;
 
 // ── TwoColumnLogin ─────────────────────────────────────────────────────────────
@@ -295,16 +321,30 @@ export function TwoColumnLogin({ endpoint, config }) {
           <div class="overview-sample" aria-hidden="true">
             <div class="sample-label">OVERVIEW · sample</div>
             <div class="sample-tiles">
-              <div class="sample-tile"><div class="tile-label">Active keys</div><div class="tile-value">3</div></div>
-              <div class="sample-tile"><div class="tile-label">Spend MTD</div><div class="tile-value">$12</div></div>
+              <div class="sample-tile"><div class="tile-label">Active keys</div><div class="tile-value">12</div></div>
+              <div class="sample-tile"><div class="tile-label">Monthly Requests</div><div class="tile-value">2.45M</div></div>
+              <div class="sample-tile"><div class="tile-label">Spend MTD</div><div class="tile-value">$1,240.50</div></div>
             </div>
-            <div class="sample-row">
-              <span class="row-key">key-•••• sample</span>
-              <span class="row-pill">Active</span>
+            <div class="recent-keys">
+              <div class="recent-label">Recent API keys</div>
+              <div class="recent-row">
+                <span class="row-key">key-•••• 7f3a</span>
+                <span class="status-pill is-active">Active</span>
+              </div>
+              <div class="recent-row">
+                <span class="row-key">key-•••• c1d8</span>
+                <span class="status-pill is-active">Active</span>
+              </div>
+              <div class="recent-row">
+                <span class="row-key">key-•••• 90b2</span>
+                <span class="status-pill is-expired">Expired</span>
+              </div>
             </div>
           </div>
         </section>
       </div>
+
+      <${SiteFooter} config=${cfg} />
     </div>
   `;
 }
