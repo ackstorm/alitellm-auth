@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+# Local dev stack: the WHOLE app live with a mock user and realistic data.
+#
+#   docker-compose -f docker-compose.dev.yml up --build
+#   open http://localhost:5173/ui/
+#
+# Services (one user network):
+#   ui            vite dev server (HMR) for src/ui-next      → http://localhost:5173/ui/
+#   auth          the REAL FastAPI (uvicorn --reload)        → :8080 (proxied via vite /api)
+#   mock-oidc     navikt/mock-oauth2-server (non-interactive) → http://localhost:8081
+#   mock-litellm  tiny FastAPI stub serving repo fixtures     → :4000 (internal)
+#
+# OIDC dual-addressability: the issuer http://oidc.localtest.me:8081/default must
+# resolve to the SAME host:port from BOTH the browser and the auth container.
+#   - *.localtest.me → 127.0.0.1 via public DNS (browser/host reach published 8081)
+#   - the auth container maps oidc.localtest.me → host-gateway (extra_hosts) so it
+#     reaches the host's published 8081 too → discovery + token `iss` stay consistent.
+# If localtest.me DNS is unavailable, add to /etc/hosts: `127.0.0.1 oidc.localtest.me`
+# (see docker/README.dev.md).
+#
+# The `ui` service uses network_mode: service:auth so vite's hardcoded proxy target
+# (localhost:8080 in src/ui-next/vite.config.ts) reaches the auth uvicorn unchanged —
+# no frontend edit needed. Consequently the ui port 5173 is published on `auth`.
+
+services:
+  auth:
+    build:
+      context: ./src/api
+      dockerfile: ../../docker/auth-dev.Dockerfile
+    volumes:
+      # Hot-reload: host app/ edits are picked up by uvicorn --reload.
+      - ./src/api/app:/src/app
+    environment:
+      APP_BASE_URL: http://localhost:5173
+      API_PUBLIC_URL: http://localhost:5173
+      OAUTH_ISSUER_URL: http://oidc.localtest.me:8081/default
+      OAUTH_CLIENT_ID: platform
+      OAUTH_CLIENT_SECRET: dev-secret
+      LITELLM_URL: http://mock-litellm:4000
+      LITELLM_MASTER_KEY: sk-mock-master
+      SESSION_SECRET_KEY: dev-session-secret-change-me-0123456789abcdef
+      SESSION_HTTPS_ONLY: "false"
+    extra_hosts:
+      # Make oidc.localtest.me resolve to the host inside the container so the
+      # server-side discovery/token fetch hits the same published mock-oidc the
+      # browser does (identical iss).
+      - "oidc.localtest.me:host-gateway"
+    ports:
+      - "8080:8080"
+      # 5173 is published HERE because `ui` shares this container's net namespace.
+      - "5173:5173"
+    depends_on:
+      mock-oidc:
+        condition: service_started
+      mock-litellm:
+        condition: service_started
+
+  ui:
+    image: node:22-slim
+    working_dir: /app
+    # Share the auth container's network namespace so vite's proxy target
+    # (localhost:8080) hits the auth uvicorn, with zero changes to vite.config.ts.
+    network_mode: "service:auth"
+    volumes:
+      - ./src/ui-next:/app
+      # Anonymous volume keeps the container's installed node_modules from being
+      # clobbered by the host bind-mount.
+      - /app/node_modules
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - auth
+
+  mock-oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./docker/mock-oidc/config.json:/app/config.json:ro
+    environment:
+      JSON_CONFIG_PATH: /app/config.json
+
+  mock-litellm:
+    build:
+      context: ./docker/mock-litellm
+      dockerfile: Dockerfile
+    volumes:
+      # Reuse the repo's LiteLLM response fixtures as canned data (read-only).
+      - ./src/api/tests/fixtures:/app/repo-fixtures:ro
+    ports:
+      - "4000:4000"

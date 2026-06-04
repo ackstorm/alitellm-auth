@@ -1,0 +1,86 @@
+[
+  {
+    "token": "hash-key-prod-pipeline-2c4e46945209387ec13e08ea7d74714f",
+    "key_alias": "prod-pipeline",
+    "user_id": "alice@example.com",
+    "team_id": "team-platform",
+    "spend": 12.4831,
+    "tpm_limit": 1000000,
+    "rpm_limit": 100,
+    "max_budget": null,
+    "budget_duration": null,
+    "models": ["all-team-models"],
+    "expires": null,
+    "created_at": "2026-04-01T09:12:44.000000Z",
+    "metadata": {
+      "email": "alice@example.com",
+      "name": "Mock User",
+      "source": "token-factory",
+      "created_at": "2026-04-01T09:12:44.000000Z",
+      "key_alias": "prod-pipeline"
+    }
+  },
+  {
+    "token": "hash-key-staging-bot-7d088cd118b928630a03f2317195b8b1f",
+    "key_alias": "staging-bot",
+    "user_id": "alice@example.com",
+    "team_id": "team-platform",
+    "spend": 3.0102,
+    "tpm_limit": 500000,
+    "rpm_limit": 60,
+    "max_budget": null,
+    "budget_duration": null,
+    "models": ["all-team-models"],
+    "expires": "2026-12-31T23:59:59.000000Z",
+    "created_at": "2026-04-18T14:30:10.000000Z",
+    "metadata": {
+      "email": "alice@example.com",
+      "name": "Mock User",
+      "source": "token-factory",
+      "created_at": "2026-04-18T14:30:10.000000Z",
+      "key_alias": "staging-bot"
+    }
+  },
+  {
+    "token": "hash-key-local-dev-c2886fd87f99b135e41dd879b467954e",
+    "key_alias": "local-dev",
+    "user_id": "alice@example.com",
+    "team_id": "team-platform",
+    "spend": 0.4417,
+    "tpm_limit": 100000,
+    "rpm_limit": 30,
+    "max_budget": null,
+    "budget_duration": null,
+    "models": ["all-team-models"],
+    "expires": null,
+    "created_at": "2026-05-22T08:05:55.000000Z",
+    "metadata": {
+      "email": "alice@example.com",
+      "name": "Mock User",
+      "source": "token-factory",
+      "created_at": "2026-05-22T08:05:55.000000Z",
+      "key_alias": "local-dev"
+    }
+  },
+  {
+    "token": "hash-key-notebook-036f24a2ac987e55dadfa77400ce2546",
+    "key_alias": "notebook-scratch",
+    "user_id": "alice@example.com",
+    "team_id": "team-platform",
+    "spend": 0.0,
+    "tpm_limit": 100000,
+    "rpm_limit": 30,
+    "max_budget": null,
+    "budget_duration": null,
+    "models": ["all-team-models"],
+    "expires": null,
+    "created_at": "2026-06-01T17:44:02.000000Z",
+    "metadata": {
+      "email": "alice@example.com",
+      "name": "Mock User",
+      "source": "token-factory",
+      "created_at": "2026-06-01T17:44:02.000000Z",
+      "key_alias": "notebook-scratch"
+    }
+  }
+]

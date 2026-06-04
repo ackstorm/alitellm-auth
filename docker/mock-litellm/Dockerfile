@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# Mock LiteLLM admin API for the local dev stack (DEV TOOLING ONLY).
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+COPY fixtures/ ./fixtures/
+
+# /app/repo-fixtures is bind-mounted read-only from src/api/tests/fixtures at runtime.
+EXPOSE 4000
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "4000"]
