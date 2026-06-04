@@ -25,8 +25,12 @@ import { DeleteKeyModal } from '@/components/keys/DeleteKeyModal';
 import { KeysTable } from '@/components/keys/KeysTable';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useKeys } from '@/hooks/use-keys';
-import type { SessionMe, SessionLimits, SessionSpend } from '@/lib/api-types';
-import type { KeyRow } from '@/lib/api-types';
+import type {
+  KeyRow,
+  SessionLimits,
+  SessionMe,
+  SessionSpend,
+} from '@/lib/api-types';
 import { formatCurrency, formatInt } from '@/lib/format';
 import { isRevoked, selectKeyRows } from '@/lib/keys';
 import { useCreateKeyModalStore } from '@/stores/create-key-modal';
@@ -179,8 +183,8 @@ export function Dashboard({ me }: DashboardProps) {
   const teamValue = me.team_id || EM_DASH;
 
   return (
-    <div className="flex flex-col gap-10">
-      {/* DASH-01: greeting + endpoint chip */}
+    <div className="flex flex-col gap-8">
+      {/* DASH-01: greeting + endpoint chip (full width) */}
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="font-sans text-2xl font-semibold leading-snug text-text-primary">
           Welcome back, <span className="text-primary">{me.name || EM_DASH}</span>
@@ -199,8 +203,8 @@ export function Dashboard({ me }: DashboardProps) {
       {/* DASH-06: account budget bar */}
       <BudgetBar limits={me.limits} spend={me.spend} />
 
-      {/* DASH-02: API KEYS section */}
-      <div className="flex flex-col gap-5">
+      {/* DASH-02: API KEYS section — full width (the dashboard has no sidebar) */}
+      <div className="flex min-w-0 flex-col gap-5">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
             <div className="font-mono text-[11px] font-semibold uppercase tracking-widest text-text-secondary">
