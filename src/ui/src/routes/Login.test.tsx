@@ -1,4 +1,4 @@
-// Login.test.tsx — the full two-column sign-in landing (Task 2.5).
+// Login.test.tsx — the single, centered sign-in landing (Task 2.5).
 //
 // Asserts the load-bearing contract ported from src/ui/login.js:
 //   • the SSO CTA is a real link to the FIXED /api/oauth/login?action=ui literal

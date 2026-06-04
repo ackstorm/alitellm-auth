@@ -109,14 +109,18 @@ describe('formatDate — MMM DD, YYYY', () => {
   });
 });
 
-describe('maskKey — <prefix>…last4', () => {
-  it('masks an sk- key preserving the sk- prefix', () => {
-    expect(maskKey('sk-abcd1234wxyz')).toBe('sk-…wxyz');
+describe('maskKey — first4…last4', () => {
+  it('masks an sk- key as first4…last4', () => {
+    expect(maskKey('sk-abcd1234wxyz')).toBe('sk-a…wxyz');
   });
 
-  it('preserves the REAL prefix instead of fabricating sk- (WR-02)', () => {
-    // A key-... id must keep its own prefix, never be shown as a fake sk-secret.
-    expect(maskKey('key-abc123')).toBe('key…c123');
+  it('keeps the REAL prefix (first 4 chars) instead of fabricating sk- (WR-02)', () => {
+    // A key-... id keeps its own first 4 chars, never shown as a fake sk-secret.
+    expect(maskKey('key-abc123')).toBe('key-…c123');
+  });
+
+  it('masks a hash id as first4…last4', () => {
+    expect(maskKey('088s12340000004fe6')).toBe('088s…4fe6');
   });
 
   it('returns the em-dash for null/undefined', () => {
@@ -124,10 +128,11 @@ describe('maskKey — <prefix>…last4', () => {
     expect(maskKey(undefined)).toBe(EM_DASH);
   });
 
-  it('returns short (<= 4 char) values verbatim, with no fake sk- prefix', () => {
+  it('returns short (<= 8 char) values verbatim, with no fabricated ellipsis', () => {
     expect(maskKey('')).toBe('');
     expect(maskKey('ab')).toBe('ab');
     expect(maskKey('abcd')).toBe('abcd');
+    expect(maskKey('abcd1234')).toBe('abcd1234');
   });
 
   it('does not throw on a short string', () => {

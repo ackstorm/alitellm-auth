@@ -13,14 +13,41 @@ export function isRevoked(key: KeyRow | null | undefined): boolean {
   return Boolean(key && (key.revoked || key.blocked));
 }
 
+// Parse a LiteLLM `expires` value to an epoch-ms instant, or null when it
+// carries no usable expiry. LiteLLM has shipped this field in several shapes
+// across versions: an offset-bearing ISO string ("…+00:00" / "…Z"), a NAIVE ISO
+// string with no timezone ("2026-06-04T08:30:00", possibly with microseconds), a
+// space-separated timestamp, or (rarely) an epoch number. `Date.parse` alone
+// silently returns NaN for some of these — which made an EXPIRED key fall through
+// to "Active" (the bug this guards). We normalize first, and treat a naive
+// timestamp as UTC (LiteLLM persists UTC) so the comparison is correct.
+function parseExpiryMs(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null;
+    // Heuristic: < 1e12 is epoch SECONDS, otherwise already milliseconds.
+    return value < 1e12 ? value * 1000 : value;
+  }
+  if (typeof value !== 'string') return null;
+  let s = value.trim();
+  if (!s) return null;
+  // "YYYY-MM-DD HH:MM:SS" -> ISO "T" separator.
+  s = s.replace(' ', 'T');
+  // A time component with NO timezone designator is pinned to UTC.
+  const hasTz = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(s);
+  if (s.includes('T') && !hasTz) s += 'Z';
+  const ts = Date.parse(s);
+  return Number.isFinite(ts) ? ts : null;
+}
+
 // D-08: a key is "Expired" when its expiry is in the past — computed from the
 // projected `expires` field. This does NOT consider revoked; revoked-precedence
 // (a revoked key reads `Revoked`, never `Expired`) is the CALLER's concern via
 // `!isRevoked(k) && isExpired(k)`.
 export function isExpired(key: KeyRow | null | undefined): boolean {
-  if (!key || key.expires == null) return false;
-  const ts = Date.parse(key.expires);
-  return Number.isFinite(ts) && ts < Date.now();
+  if (!key) return false;
+  const ts = parseExpiryMs(key.expires);
+  return ts !== null && ts < Date.now();
 }
 
 // FID-04 (D-15) guard — the PURE row-selection gate the keys table uses to

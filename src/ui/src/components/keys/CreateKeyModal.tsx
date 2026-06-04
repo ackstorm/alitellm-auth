@@ -39,6 +39,7 @@ import {
   validateAlias,
   validateDuration,
 } from '@/lib/key-validation';
+import { cn } from '@/lib/utils';
 import { useCreateKeyModalStore } from '@/stores/create-key-modal';
 
 /** The shown-once create response held in local state (id + full sk- `key`). */
@@ -147,7 +148,13 @@ export function CreateKeyModal() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="self-start"
+                className={cn(
+                  'self-start',
+                  // Same feedback as the EndpointChip copy: filled green while
+                  // "copied!" is showing, reverting after the 2s timeout.
+                  copied &&
+                    'border-primary bg-primary/15 text-primary hover:bg-primary/15 hover:text-primary'
+                )}
                 onClick={() => void copy(result.key)}
               >
                 {copied ? 'copied!' : 'copy'}

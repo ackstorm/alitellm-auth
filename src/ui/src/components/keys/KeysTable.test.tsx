@@ -2,12 +2,11 @@
 //
 // The data hook (useKeys) is fully mocked so NO real fetch happens; each test
 // programs its return to drive the loading/error/empty/populated branches. The
-// in-memory fresh-keys store is reset and selectively seeded so the
-// fresh-vs-pre-existing reveal/copy behavior is asserted in isolation. The
-// clipboard is stubbed so copy writes can be observed without a real platform
-// clipboard.
+// table renders no secret material and no reveal/copy actions (those were
+// removed — the sk- is shown once, at mint time, in the create-key modal); the
+// only per-row action is Revoke.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 
@@ -22,7 +21,6 @@ vi.mock('@/hooks/use-keys', () => ({
 import { useKeys } from '@/hooks/use-keys';
 import { KeysTable } from './KeysTable';
 import { maskKey } from '@/lib/format';
-import { initialFreshKeysState, useFreshKeysStore } from '@/stores/fresh-keys';
 
 const useKeysMock = vi.mocked(useKeys);
 
@@ -51,26 +49,8 @@ function setRows(rows: KeyRow[]): void {
   } as unknown as UseQueryResult<KeyRow[]>);
 }
 
-/** Install a navigator.clipboard.writeText stub, returning the spy. */
-function stubClipboard(): ReturnType<typeof vi.fn> {
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, 'clipboard', {
-    value: { writeText },
-    configurable: true,
-    writable: true,
-  });
-  return writeText;
-}
-
-beforeEach(() => {
-  // Reset the fresh-keys store to empty before each test.
-  const { setFresh, dropFresh } = useFreshKeysStore.getState();
-  useFreshKeysStore.setState({ ...initialFreshKeysState, setFresh, dropFresh }, true);
-});
-
 afterEach(() => {
   vi.clearAllMocks();
-  Reflect.deleteProperty(navigator, 'clipboard');
 });
 
 describe('KeysTable — state branches', () => {
@@ -132,6 +112,15 @@ describe('KeysTable — populated table', () => {
     expect(screen.getByText(maskKey('key-abc123'))).toBeInTheDocument();
   });
 
+  it('shows the masked id beneath the alias, prefixed with "id:"', () => {
+    setRows([makeRow({ key_alias: 'production-key', id: 'key-0123456789abcdef' })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    // The chip reads "id:<first4…last4>" (no space; maskKey -> 'key-…cdef').
+    expect(
+      screen.getByText(`id:${maskKey('key-0123456789abcdef')}`),
+    ).toBeInTheDocument();
+  });
+
   it('status pill honors Revoked > Expired > Active precedence', () => {
     const past = '2000-01-01T00:00:00+00:00';
     setRows([
@@ -158,48 +147,22 @@ describe('KeysTable — populated table', () => {
   });
 });
 
-describe('KeysTable — fresh vs pre-existing key behavior', () => {
-  const SK = 'sk-abcd1234wxyzfreshsecret';
-
-  it('a FRESH row shows the masked chip, reveals the full sk-, and copies the full sk-', async () => {
-    const writeText = stubClipboard();
-    const row = makeRow({ id: 'key-fresh', key_alias: 'fresh-key' });
-    useFreshKeysStore.getState().setFresh('key-fresh', SK);
-    setRows([row]);
-
-    render(<KeysTable onDelete={vi.fn()} />);
-
-    // Masked until revealed; the full secret is NOT in the DOM yet.
-    expect(screen.getByText('sk-••••••••••••••••••••')).toBeInTheDocument();
-    expect(screen.queryByText(SK)).not.toBeInTheDocument();
-
-    // Reveal -> the full sk- appears.
-    fireEvent.click(screen.getByRole('button', { name: 'Reveal' }));
-    expect(screen.getByText(SK)).toBeInTheDocument();
-
-    // Copy writes the full sk- to the clipboard stub; the button settles to
-    // "Copied" once the async writeText + state update resolves (this also
-    // wraps the post-await setState in act()).
-    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
-    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
-    expect(writeText).toHaveBeenCalledWith(SK);
-  });
-
-  it('a NON-fresh row has no reveal button, shows the MASKED id, and copies the FULL id', async () => {
-    const writeText = stubClipboard();
+describe('KeysTable — no secret material, no reveal/copy actions', () => {
+  it('renders neither a Reveal nor a Copy action — Revoke is the only per-row button', () => {
     setRows([makeRow({ id: 'key-public', key_alias: 'old-key' })]);
-
     render(<KeysTable onDelete={vi.fn()} />);
 
     expect(screen.queryByRole('button', { name: 'Reveal' })).not.toBeInTheDocument();
-    // The id chip is MASKED to prefix…last4 — the full id is NOT shown in the cell…
-    expect(screen.getByText(maskKey('key-public'))).toBeInTheDocument();
-    expect(screen.queryByText('key-public')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeInTheDocument();
+  });
 
-    // …but Copy still writes the FULL public id.
-    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
-    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
-    expect(writeText).toHaveBeenCalledWith('key-public');
+  it('shows the id MASKED to prefix…last4 — never the full id', () => {
+    setRows([makeRow({ id: 'key-0123456789abcdef', key_alias: null })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+
+    expect(screen.getByText(maskKey('key-0123456789abcdef'))).toBeInTheDocument();
+    expect(screen.queryByText('key-0123456789abcdef')).not.toBeInTheDocument();
   });
 });
 

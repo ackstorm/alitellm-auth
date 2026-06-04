@@ -2,6 +2,14 @@
 
 ## [unreleased]
 
+- feat: primary nav reworked to a KEYS · STATS · HOW-TO segmented-pill menu (KEYS returns to the dashboard); new placeholder `#/howto` guide page; the service-status indicator moved out of the topbar into the footer (with an "All systems operational" tooltip — still static, no live health check)
+- feat: the login "BACKED BY" chips now render the real Google and Dex brand glyphs (matched by provider label), with the green shield as the fallback for other providers (e.g. OIDC)
+- change: login is a single centered sign-in card (the right value-props/overview column was removed); its header and footer are now full-width bars matching the inner pages, and the footer © aligns with the brand margin
+- change: the keys table exposes only a Revoke action — the per-row copy and reveal controls were removed (the `sk-` is shown once, at creation); the key id renders masked as `id:first4…last4` and the actions column has a visible "ACTION" header
+- fix: an expired key never renders as "Active" — expiry parsing now handles naive/space-separated ISO timestamps and epoch values, not just offset-bearing ISO (it previously fell through to Active for those shapes)
+- fix: the revoke-confirm dialog names the key by alias (or masked id) and no longer overflows the dialog with the full key hash
+- fix: copy buttons show a filled-green "copied!" state for 2s, and all interactive buttons now use a pointer cursor
+
 ## [0.4.0] - 2026-06-04
 
 - change: rebuilt the `/ui` console from Preact + htm to React 19 (Vite, TypeScript, Tailwind CSS 4, shadcn/ui, TanStack Query, Zustand, hash router, Recharts) at full feature parity — OIDC login, key management (create with one-time `sk-` reveal, copy, revoke), and the Usage & Spend stats page; the `/ui` static mount and the `/api/session/*` JSON API are unchanged (no backend changes)

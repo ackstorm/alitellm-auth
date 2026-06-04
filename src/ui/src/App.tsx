@@ -29,6 +29,7 @@ import { ErrorCard } from '@/components/layout/ErrorCard';
 import { Login } from '@/routes/Login';
 import { Dashboard } from '@/routes/Dashboard';
 import { Stats } from '@/routes/Stats';
+import { HowTo } from '@/routes/HowTo';
 
 // Mid-session expiry redirects to the BARE login (no landing card) — FIXED
 // literal, never built from a prop/query/hash. Parity with app.js.
@@ -45,6 +46,7 @@ function makeRouter(me: SessionMe, config: AppConfig) {
       children: [
         { index: true, element: <Dashboard me={me} /> },
         { path: 'stats', element: <Stats /> },
+        { path: 'howto', element: <HowTo /> },
       ],
     },
     // Any unknown hash falls back to the dashboard (allow-list parity with the

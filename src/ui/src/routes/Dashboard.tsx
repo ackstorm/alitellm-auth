@@ -33,6 +33,7 @@ import type {
 } from '@/lib/api-types';
 import { formatCurrency, formatInt } from '@/lib/format';
 import { isRevoked, selectKeyRows } from '@/lib/keys';
+import { cn } from '@/lib/utils';
 import { useCreateKeyModalStore } from '@/stores/create-key-modal';
 
 // The em-dash placeholder (matches format.ts EM_DASH, U+2014). The two
@@ -61,7 +62,15 @@ function EndpointChip({ endpoint }: { endpoint: string }) {
       <button
         type="button"
         onClick={() => endpoint && void copy(endpoint)}
-        className="rounded-lg border border-border px-2 py-1 font-mono text-[11px] font-semibold lowercase tracking-wide text-text-tertiary transition-colors hover:border-primary hover:text-primary"
+        className={cn(
+          'cursor-pointer rounded-lg border px-2 py-1 font-mono text-[11px] font-semibold lowercase tracking-wide transition-colors',
+          copied
+            ? // While "copied!" is showing: FILLED green background + green border/text.
+              'border-primary bg-primary/15 text-primary'
+            : // Idle: neutral, with the green hover affordance returning once the
+              // 2s feedback expires.
+              'border-border text-text-tertiary hover:border-primary hover:text-primary'
+        )}
       >
         {copied ? 'copied!' : 'Copy'}
       </button>
@@ -217,7 +226,7 @@ export function Dashboard({ me }: DashboardProps) {
           <button
             type="button"
             onClick={openModal}
-            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
           >
             + New Key
           </button>

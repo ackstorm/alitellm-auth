@@ -35,6 +35,7 @@ import { Button } from '@/components/ui/button';
 import { useDeleteKey } from '@/hooks/use-keys';
 import { useToast } from '@/hooks/use-toast';
 import type { KeyRow } from '@/lib/api-types';
+import { maskKey } from '@/lib/format';
 
 /** Locked in-modal error copy — lifted VERBATIM from delete-modal.js (note em-dash). */
 export const DELETE_ERROR =
@@ -60,6 +61,11 @@ export function DeleteKeyModal({ keyToDelete, onClose }: DeleteKeyModalProps) {
   // Open only when a key WITH an id is targeted. A key object missing an id is
   // treated as not-open (defensive, mirrors the onConfirm guard, WR-03).
   const open = Boolean(keyToDelete?.id);
+
+  // What the body names: the human alias when set, else the id MASKED to
+  // prefix…last4 (same convention as the keys table). The raw 64-char id would
+  // overflow the dialog box (see ref screenshot); this is short + bounded.
+  const revokeLabel = keyToDelete?.key_alias || maskKey(keyToDelete?.id);
 
   // Reset the transient error then bubble the dismiss up to the parent.
   const handleClose = useCallback(() => {
@@ -94,8 +100,15 @@ export function DeleteKeyModal({ keyToDelete, onClose }: DeleteKeyModalProps) {
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle>Revoke Key</AlertDialogTitle>
-          <AlertDialogDescription className="break-words leading-relaxed">
-            This will permanently revoke {keyToDelete?.id}. This cannot be undone.
+          <AlertDialogDescription className="leading-relaxed">
+            This will permanently revoke{' '}
+            <span
+              className="text-foreground inline-block max-w-full truncate align-bottom font-medium"
+              title={revokeLabel}
+            >
+              {revokeLabel}
+            </span>
+            . This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}

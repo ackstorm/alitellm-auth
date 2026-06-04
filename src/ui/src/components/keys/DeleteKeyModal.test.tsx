@@ -78,16 +78,36 @@ describe('DeleteKeyModal — closed states', () => {
 });
 
 describe('DeleteKeyModal — open', () => {
-  it('shows "Revoke Key" title and the body with the id + "This cannot be undone."', () => {
+  it('shows "Revoke Key" title and the body with the alias (name) + "This cannot be undone."', () => {
     setMutation(vi.fn());
     render(
-      <DeleteKeyModal keyToDelete={makeKey({ id: 'key-abc' })} onClose={vi.fn()} />,
+      <DeleteKeyModal
+        keyToDelete={makeKey({ id: 'key-abc', key_alias: 'production-key' })}
+        onClose={vi.fn()}
+      />,
     );
 
     expect(screen.getByText('Revoke Key')).toBeInTheDocument();
     const body = screen.getByText(/This will permanently revoke/);
-    expect(body).toHaveTextContent('key-abc');
+    // The human alias is named — NOT the raw id (which would overflow the box).
+    expect(body).toHaveTextContent('production-key');
+    expect(body).not.toHaveTextContent('key-abc');
     expect(body).toHaveTextContent('This cannot be undone.');
+  });
+
+  it('falls back to the MASKED id (prefix…last4) when the key has no alias', () => {
+    setMutation(vi.fn());
+    render(
+      <DeleteKeyModal
+        keyToDelete={makeKey({ id: 'key-0123456789abcdef', key_alias: null })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const body = screen.getByText(/This will permanently revoke/);
+    // maskKey('key-0123456789abcdef') -> 'key-…cdef' — bounded, never the full hash.
+    expect(body).toHaveTextContent('key-…cdef');
+    expect(body).not.toHaveTextContent('key-0123456789abcdef');
   });
 });
 

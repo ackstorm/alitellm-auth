@@ -24,6 +24,12 @@ export type DataTableProps<T> = {
   empty?: React.ReactNode;
   /** Optional trailing right-aligned actions cell. */
   rowActions?: (row: T) => React.ReactNode;
+  /**
+   * Header label for the trailing actions column. When omitted the header is
+   * visually hidden (sr-only "Actions"); pass a node to show a real label (e.g.
+   * "Action"). The actions column always hugs its content width.
+   */
+  actionsHeader?: React.ReactNode;
   /** Optional footer/caption region rendered below the table. */
   caption?: React.ReactNode;
   /** Wrapper className. */
@@ -36,6 +42,7 @@ export function DataTable<T>({
   getRowId,
   empty,
   rowActions,
+  actionsHeader,
   caption,
   className,
   ...rest
@@ -72,9 +79,9 @@ export function DataTable<T>({
               <th
                 scope="col"
                 data-col="__actions"
-                className="text-muted-foreground px-4 py-3 text-right text-xs font-semibold tracking-wider uppercase"
+                className="text-muted-foreground w-px px-4 py-3 text-right text-xs font-semibold tracking-wider whitespace-nowrap uppercase"
               >
-                <span className="sr-only">Actions</span>
+                {actionsHeader ?? <span className="sr-only">Actions</span>}
               </th>
             ) : null}
           </tr>
@@ -103,7 +110,10 @@ export function DataTable<T>({
                   </td>
                 ))}
                 {hasActions ? (
-                  <td data-col="__actions" className="px-4 py-3 text-right text-sm">
+                  <td
+                    data-col="__actions"
+                    className="w-px px-4 py-3 text-right text-sm whitespace-nowrap"
+                  >
                     {rowActions(row)}
                   </td>
                 ) : null}

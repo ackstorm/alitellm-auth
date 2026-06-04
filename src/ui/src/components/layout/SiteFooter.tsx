@@ -9,25 +9,38 @@
 // never user input (threat T-09-17). All copy renders as React text children
 // (auto-escaped — never raw HTML, threat T-10-14).
 
+import type { ReactNode } from 'react';
+
 import type { AppConfig } from '@/lib/api-types';
 
 export interface SiteFooterProps {
   config: AppConfig;
+  /**
+   * Optional node rendered on the footer's right side (e.g. the authed shell's
+   * service-status indicator). Sits after any Privacy/Terms links. Omitted on
+   * the unauthenticated login screen.
+   */
+  rightSlot?: ReactNode;
 }
 
-export function SiteFooter({ config }: SiteFooterProps) {
+export function SiteFooter({ config, rightSlot }: SiteFooterProps) {
   const brand = config.brand || 'alitellm-auth';
   const links = config.links ?? {};
   const year = new Date().getFullYear();
   const privacy = links.privacy || null;
   const terms = links.terms || null;
 
+  // A FULL-WIDTH bar that mirrors the topbar EXACTLY: one element, border-t +
+  // bg-surface spanning edge-to-edge, with the SAME px-6 horizontal padding as
+  // the header. The © line therefore sits at the same left margin as the
+  // top-left brand lockup, and the links sit at the same right margin as the
+  // topbar nav — NOT constrained to the centered content column.
   return (
-    <footer className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4 font-sans text-sm text-text-secondary">
+    <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface px-6 py-4 font-sans text-sm text-text-secondary">
       <span className="text-text-secondary">
         © {year} {brand}. All rights reserved.
       </span>
-      {privacy || terms ? (
+      {privacy || terms || rightSlot ? (
         <span className="ml-auto inline-flex items-center gap-4">
           {privacy ? (
             <a
@@ -49,6 +62,7 @@ export function SiteFooter({ config }: SiteFooterProps) {
               Terms of Service
             </a>
           ) : null}
+          {rightSlot}
         </span>
       ) : null}
     </footer>

@@ -18,6 +18,7 @@ import { Outlet, NavLink } from 'react-router';
 import type { AppConfig, SessionMe } from '@/lib/api-types';
 import { CreateKeyModal } from '@/components/keys/CreateKeyModal';
 import { Toaster } from '@/components/ui/toast';
+import { cn } from '@/lib/utils';
 import { BrandLockup } from './BrandLockup';
 import { SiteFooter } from './SiteFooter';
 
@@ -32,48 +33,62 @@ export function AppShell({ me, config }: AppShellProps) {
   // copy table). Rendered as a text child only — never raw HTML (T-10-14).
   const menuLabel = me.name || me.email;
 
+  // Shared NavLink class: a tight segmented-pill menu. `leading-none` pins the
+  // text box to the glyph height so the UPPERCASE labels optically center next
+  // to the lowercase brand (the old line-height left them riding high). Compact
+  // padding + a small gap make it read as one menu group, not three buttons.
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      'rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors',
+      isActive
+        ? 'bg-primary/10 text-primary'
+        : 'text-text-secondary hover:bg-primary/5 hover:text-text-primary'
+    );
+
+  // Service-status indicator (D-02/D-03). An external link when config.links.status
+  // is set, else a connected pulse-dot "operational" label. Moved OUT of the
+  // topbar nav and into the footer's (otherwise empty) right side.
+  const statusIndicator = links.status ? (
+    <a
+      href={links.status}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary transition-colors hover:text-text-primary"
+    >
+      Status
+    </a>
+  ) : (
+    <span
+      role="status"
+      aria-label="All systems operational"
+      title="All systems operational"
+      className="inline-flex cursor-default items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-primary"
+    >
+      <span
+        aria-hidden="true"
+        className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
+      />
+      Status
+    </span>
+  );
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="flex h-14 shrink-0 items-center gap-6 border-b border-border bg-surface px-6">
         <BrandLockup config={config} className="text-sm" />
 
-        <nav aria-label="Primary" className="flex items-center gap-6">
-          <NavLink
-            to="/stats"
-            className={({ isActive }) =>
-              [
-                'border-b-2 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider transition-colors',
-                isActive
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-text-secondary hover:text-text-primary',
-              ].join(' ')
-            }
-          >
+        <nav aria-label="Primary" className="flex items-center gap-0.5">
+          {/* KEYS returns to the dashboard (`end` so it is active ONLY on the
+              exact "/" route, not for every nested path). */}
+          <NavLink to="/" end className={navLinkClass}>
+            Keys
+          </NavLink>
+          <NavLink to="/stats" className={navLinkClass}>
             Stats
           </NavLink>
-
-          {links.status ? (
-            <a
-              href={links.status}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="border-b-2 border-transparent py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary transition-colors hover:text-text-primary"
-            >
-              Status
-            </a>
-          ) : (
-            <span
-              role="status"
-              aria-label="Service status: operational"
-              className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-primary"
-            >
-              <span
-                aria-hidden="true"
-                className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
-              />
-              Status
-            </span>
-          )}
+          <NavLink to="/howto" className={navLinkClass}>
+            How-to
+          </NavLink>
         </nav>
 
         <div className="ml-auto flex items-center gap-4 font-mono text-[11px]">
@@ -94,10 +109,12 @@ export function AppShell({ me, config }: AppShellProps) {
         <main className="min-w-0 flex-1 animate-content-in">
           <Outlet />
         </main>
-
-        {/* Shared footer, on every authed route. */}
-        <SiteFooter config={config} />
       </div>
+
+      {/* Shared footer, on every authed route. Full-width transversal bar that
+          mirrors the topbar. The service-status indicator (moved out of the
+          topbar nav) rides in the footer's right slot. */}
+      <SiteFooter config={config} rightSlot={statusIndicator} />
 
       {/* Store-driven / queue-driven overlays mounted at the authed shell root.
           The CreateKeyModal is mounted HERE (not in the dashboard) so both the

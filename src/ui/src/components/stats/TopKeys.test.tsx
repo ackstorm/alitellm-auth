@@ -41,8 +41,8 @@ describe('TopKeys', () => {
 
   it('masks the key id when there is no alias (maskKey fallback)', () => {
     const { getByText } = render(<TopKeys keys={KEYS} capabilities={CAPS} />);
-    // maskKey("key-zzz999yyy888") -> "key…y888"
-    expect(getByText('key…y888')).toBeInTheDocument();
+    // maskKey("key-zzz999yyy888") -> "key-…y888" (first4…last4)
+    expect(getByText('key-…y888')).toBeInTheDocument();
   });
 
   it('renders the empty copy for no rows', () => {

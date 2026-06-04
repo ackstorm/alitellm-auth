@@ -170,7 +170,7 @@ function CalendarPopover({
             type="button"
             onClick={prevMonth}
             aria-label="Previous month"
-            className="flex size-8 items-center justify-center rounded-md border border-border font-mono text-text-secondary transition-colors hover:border-primary hover:text-primary"
+            className="flex size-8 cursor-pointer items-center justify-center rounded-md border border-border font-mono text-text-secondary transition-colors hover:border-primary hover:text-primary"
           >
             ‹
           </button>
@@ -181,7 +181,7 @@ function CalendarPopover({
             type="button"
             onClick={nextMonth}
             aria-label="Next month"
-            className="flex size-8 items-center justify-center rounded-md border border-border font-mono text-text-secondary transition-colors hover:border-primary hover:text-primary"
+            className="flex size-8 cursor-pointer items-center justify-center rounded-md border border-border font-mono text-text-secondary transition-colors hover:border-primary hover:text-primary"
           >
             ›
           </button>
@@ -211,7 +211,7 @@ function CalendarPopover({
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-border bg-transparent px-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-text-secondary transition-colors hover:border-text-tertiary hover:text-text-primary sm:min-h-8"
+            className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border border-border bg-transparent px-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-text-secondary transition-colors hover:border-text-tertiary hover:text-text-primary sm:min-h-8"
           >
             {CANCEL_LABEL}
           </button>
@@ -219,7 +219,7 @@ function CalendarPopover({
             type="button"
             disabled={!canApply}
             onClick={apply}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-primary bg-primary px-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-8"
+            className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border border-primary bg-primary px-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-8"
           >
             {APPLY_LABEL}
           </button>
@@ -273,7 +273,7 @@ export function DateRange({
 
   // The shared pill base for preset + compare buttons. var(--*) tokens only.
   const pillBase =
-    'inline-flex min-h-[44px] items-center justify-center rounded-lg border bg-transparent px-3 font-mono text-[11px] font-semibold uppercase tracking-wide transition-colors sm:min-h-8';
+    'inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border bg-transparent px-3 font-mono text-[11px] font-semibold uppercase tracking-wide transition-colors sm:min-h-8';
   const pillIdle = 'border-border text-text-secondary hover:border-text-tertiary hover:text-text-primary';
   const pillActive = 'border-primary bg-primary/10 text-primary';
 

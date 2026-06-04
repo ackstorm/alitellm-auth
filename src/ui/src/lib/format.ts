@@ -9,7 +9,7 @@
 //   formatInt(1000000)                           -> "1,000,000"
 //   abbreviate(2450000)                          -> "2.45M"
 //   formatDate("2026-03-01T10:00:00+00:00")      -> "Mar 01, 2026"
-//   maskKey("sk-abcd1234wxyz")                    -> "sk-…wxyz"
+//   maskKey("sk-abcd1234wxyz")                    -> "sk-a…wxyz"  (first4…last4)
 //
 // EVERY formatter returns the em-dash "—" (U+2014) for null/undefined (and any
 // otherwise-unformattable input) and NEVER throws — null cells render as a
@@ -93,14 +93,15 @@ export function formatDate(iso: string | null | undefined): string {
   return `${month} ${day}, ${year}`;
 }
 
-// maskKey(s) -> "<prefix>…last4", preserving the value's REAL prefix
-// (e.g. "sk-abcd1234wxyz" -> "sk-…wxyz", "key-abc123" -> "key…c123").
-// null/undefined -> "—"; a value too short to mask meaningfully (<= 4 chars)
-// is returned verbatim rather than fabricating an "sk-…" prefix (WR-02).
+// maskKey(s) -> "first4…last4" — the value's first 4 and last 4 characters
+// around an ellipsis (e.g. "sk-abcd1234wxyz" -> "sk-a…wxyz",
+// "key-abc123" -> "key-…c123", a "088s…4fe6"-style hash id). null/undefined ->
+// "—"; a value too short to mask meaningfully (<= 8 chars, where first4+last4
+// would meet/overlap) is returned verbatim rather than fabricating an ellipsis.
 // Never throws.
 export function maskKey(s: string | null | undefined): string {
   if (s === null || s === undefined) return EM_DASH;
   const str = String(s);
-  if (str.length <= 4) return str; // too short to mask — show as-is, no fake prefix
-  return `${str.slice(0, 3)}${ELLIPSIS}${str.slice(-4)}`;
+  if (str.length <= 8) return str; // too short to mask — first4…last4 would overlap
+  return `${str.slice(0, 4)}${ELLIPSIS}${str.slice(-4)}`;
 }

@@ -151,7 +151,7 @@ export function Stats() {
           <button
             type="button"
             onClick={() => void query.refetch()}
-            className="inline-flex items-center justify-center rounded-lg border border-destructive px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-destructive transition-colors hover:bg-destructive/10"
+            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-destructive px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-destructive transition-colors hover:bg-destructive/10"
           >
             retry
           </button>

@@ -79,6 +79,29 @@ describe('FID-04 / D-08 — status computation against representative rows', () 
     expect(isExpired(future)).toBe(false);
   });
 
+  it('detects a past expiry across LiteLLM date shapes (regression: expired must not read Active)', () => {
+    // A NAIVE ISO string (no timezone) — Date.parse treats this as local time,
+    // but we pin it to UTC; either way a year-2000 instant is firmly in the past.
+    expect(isExpired({ id: 'a', expires: '2000-01-01T00:00:00' } as KeyRow)).toBe(true);
+    // Microsecond precision, naive.
+    expect(
+      isExpired({ id: 'b', expires: '2000-01-01T00:00:00.123456' } as KeyRow),
+    ).toBe(true);
+    // Space-separated timestamp (no "T").
+    expect(isExpired({ id: 'c', expires: '2000-01-01 00:00:00' } as KeyRow)).toBe(true);
+    // Epoch SECONDS (2000-01-01) — coerced to ms before comparing.
+    expect(
+      isExpired({ id: 'd', expires: 946684800 as unknown as string } as KeyRow),
+    ).toBe(true);
+    // A FUTURE naive timestamp is NOT expired.
+    expect(isExpired({ id: 'e', expires: '2099-01-01T00:00:00' } as KeyRow)).toBe(false);
+  });
+
+  it('an unparseable / empty expiry is treated as no-expiry (never throws, not expired)', () => {
+    expect(isExpired({ id: 'f', expires: 'not-a-date' } as KeyRow)).toBe(false);
+    expect(isExpired({ id: 'g', expires: '' } as KeyRow)).toBe(false);
+  });
+
   it('Revoked takes precedence — a revoked row is never reported as expired here', () => {
     const revokedAndPast = {
       id: 'k3',
