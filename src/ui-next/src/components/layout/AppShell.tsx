@@ -2,8 +2,10 @@
 //
 // A ~56px topbar (two-tone brand lockup + Stats/Status nav + connected pulse-dot
 // + {name|email} + sign out), a centered ~1200px content region holding the
-// matched route via <Outlet/>, and a 320px right-sidebar slot. The sidebar is
-// HIDDEN on the #/stats route (parity with app.js `route !== "stats"`).
+// matched route via <Outlet/>, and the shared footer. AppShell is just the
+// chrome: each ROUTE owns its own content layout (the dashboard composes its own
+// right sidebar next to a full-width keys table; /stats renders full width), so
+// there is no shell-level sidebar slot to toggle per route.
 //
 // Real-links-only (D-02/D-03): the Status nav item renders an external anchor
 // ONLY when config.links.status is set; otherwise it renders a connected
@@ -12,12 +14,11 @@
 // `me` is GUARANTEED non-null here (App.tsx falls through to ErrorCard when
 // me === null — carry-forward C2), so the shell never renders against a null me.
 
-import { Outlet, NavLink, useLocation } from 'react-router';
+import { Outlet, NavLink } from 'react-router';
 import type { AppConfig, SessionMe } from '@/lib/api-types';
 import { CreateKeyModal } from '@/components/keys/CreateKeyModal';
 import { Toaster } from '@/components/ui/toast';
 import { BrandLockup } from './BrandLockup';
-import { RightSidebar } from './RightSidebar';
 import { SiteFooter } from './SiteFooter';
 
 export interface AppShellProps {
@@ -26,8 +27,6 @@ export interface AppShellProps {
 }
 
 export function AppShell({ me, config }: AppShellProps) {
-  const location = useLocation();
-  const onStats = location.pathname === '/stats';
   const links = config.links ?? {};
   // User-menu label prefers the display name, falling back to email (UI-SPEC
   // copy table). Rendered as a text child only — never raw HTML (T-10-14).
@@ -89,17 +88,14 @@ export function AppShell({ me, config }: AppShellProps) {
       </header>
 
       <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-6 py-8">
-        <div className="flex flex-1 gap-8 max-[1024px]:flex-col">
-          <main className="min-w-0 flex-1 animate-[slide-up_0.5s_ease-out]">
-            <Outlet />
-          </main>
+        {/* Routes own their own content layout: the dashboard composes its own
+            right sidebar alongside a full-width keys table; /stats renders full
+            width. AppShell is just the chrome (topbar + footer + overlays). */}
+        <main className="min-w-0 flex-1 animate-content-in">
+          <Outlet />
+        </main>
 
-          {/* RightSidebar IS the <aside>. Hidden on /stats (parity with the old
-              shell), so the Stats route renders full width. */}
-          {!onStats && <RightSidebar config={config} />}
-        </div>
-
-        {/* The shared footer spans under both columns, on every authed route. */}
+        {/* Shared footer, on every authed route. */}
         <SiteFooter config={config} />
       </div>
 
