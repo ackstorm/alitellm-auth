@@ -30,7 +30,7 @@ import { del } from "./api.js";
 const html = htm.bind(h);
 
 const DELETE_ERROR =
-  "Couldn't delete that key. It may already be gone — refresh and try again.";
+  "Couldn't revoke that key. It may already be gone — refresh and try again.";
 
 // ── DeleteModal ───────────────────────────────────────────────────────────────
 // Props:
@@ -69,10 +69,10 @@ export function DeleteModal({ keyToDelete, onClose, onDeleted }) {
   if (!keyToDelete) return null;
 
   return html`
-    <div class="dm-overlay" role="dialog" aria-modal="true" aria-label="Delete key">
+    <div class="dm-overlay" role="dialog" aria-modal="true" aria-label="Revoke key">
       <div class="dm-modal">
         <div class="dm-header">
-          <div class="dm-title">Delete Key</div>
+          <div class="dm-title">Revoke Key</div>
         </div>
         <div class="dm-body">
           <div class="dm-text">
@@ -95,7 +95,7 @@ export function DeleteModal({ keyToDelete, onClose, onDeleted }) {
             onClick=${onConfirm}
             disabled=${deleting}
           >
-            Confirm Delete
+            Confirm Revoke
           </button>
         </div>
       </div>
