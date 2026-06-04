@@ -177,7 +177,11 @@ export function Dashboard({ me, registerCreateOpener }) {
   // after a create or delete to reconcile the table with the server.
   const loadKeys = useCallback(async () => {
     const seq = ++loadSeq.current;
-    setKeysStatus("loading");
+    // Keep the populated table during a background re-fetch (post-create/delete
+    // reconcile): only collapse to the loading placeholder when there is no
+    // prior data (initial load). Avoids a visible flash on every mutation while
+    // the monotonic loadSeq guard still prevents a stale write (WR-01/WR-05).
+    setKeysStatus((s) => (s === "ok" ? s : "loading"));
     const { status, data } = await getJson("/api/session/keys");
     // A newer load started while this one was in flight — discard this result.
     if (seq !== loadSeq.current) return;
