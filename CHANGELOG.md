@@ -2,6 +2,13 @@
 
 ## [unreleased]
 
+## [0.4.0] - 2026-06-04
+
+- change: rebuilt the `/ui` console from Preact + htm to React 19 (Vite, TypeScript, Tailwind CSS 4, shadcn/ui, TanStack Query, Zustand, hash router, Recharts) at full feature parity — OIDC login, key management (create with one-time `sk-` reveal, copy, revoke), and the Usage & Spend stats page; the `/ui` static mount and the `/api/session/*` JSON API are unchanged (no backend changes)
+- change: the dashboard is now full-width (the right quick-actions sidebar was removed); the keys table shows the key id masked to `prefix…last4` (the full id is still copyable)
+- change: the Usage & Spend page renders full-width (no left icon rail, no placeholder "Insights" panel); the spend/requests charts and the per-model usage donut were ported from uPlot to Recharts, themed to the green token set
+- build: the SPA test suite (Vitest) is wired into CI as a `test-ui` job (`make test-ui`); the `ui-builder` Docker stage + the FastAPI `/ui` mount contract are unchanged across the rewrite
+
 ## [0.3.1] - 2026-06-04
 
 - feat: read-only "Usage & Spend" page at `#/stats` — per-user requests, tokens, models, and spend with period-over-period KPI deltas, spend charts, a Model Breakdown table, a Top API Keys table, and a date-range filter; conflicting v2 extras (Export/PDF/Insights, real Team/Environment filters) render as non-functional "coming soon" placeholders
