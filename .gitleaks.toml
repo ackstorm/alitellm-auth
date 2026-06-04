@@ -19,11 +19,13 @@ regexes = [
   '''^sk-admin-\.\.\.$''',
   # Session-secret test fixture (only ever appears in tests; harmless if global).
   '''^test-secret-32-chars-padding-xxxx$''',
-  # SPA KPI metric identifier (stats-kpis.js `metricKey: "avg_cost_per_1k_req"`) —
+  # SPA KPI metric identifier (KpiRow.tsx `metricKey: 'avg_cost_per_1k_req'`) —
   # generic-api-key false-positives on the long snake_case value. regexTarget is
   # "match", so anchor the full match (not just the secret group). Exact + anchored
-  # so it can never match a real key; src/ui/ stays fully scanned otherwise.
-  '''^metricKey: "avg_cost_per_1k_req"$''',
+  # so it can never match a real key; src/ui/ stays fully scanned otherwise. The
+  # React rewrite uses single quotes; history (the Preact ui-next path) used
+  # double — accept either so the gate passes across the whole commit range.
+  '''^metricKey: ['"]avg_cost_per_1k_req['"]$''',
 ]
 # Path exemptions. Test fixtures (synthetic sk- keys) live only under
 # src/api/tests/; deploy/doc templates carry placeholder values; vendored deps and
