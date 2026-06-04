@@ -118,6 +118,17 @@ describe('useCreateKey', () => {
     expect(useFreshKeysStore.getState().freshKeys).toEqual({ 'key-1': 'sk-abc' });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: KEYS_QUERY_KEY });
   });
+
+  it('non-200 (502) -> rejects AND does not stash a fresh key', async () => {
+    postJsonMock.mockResolvedValue({ status: 502, data: null });
+
+    const { result } = renderHook(() => useCreateKey(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await expect(result.current.mutateAsync({})).rejects.toThrow();
+    expect(useFreshKeysStore.getState().freshKeys).toEqual({});
+  });
 });
 
 describe('useDeleteKey', () => {
@@ -141,5 +152,15 @@ describe('useDeleteKey', () => {
 
     expect(useFreshKeysStore.getState().freshKeys).toEqual({});
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: KEYS_QUERY_KEY });
+  });
+
+  it('non-200 (403) -> rejects', async () => {
+    delMock.mockResolvedValue({ status: 403, data: null });
+
+    const { result } = renderHook(() => useDeleteKey(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await expect(result.current.mutateAsync('key-x')).rejects.toThrow();
   });
 });
