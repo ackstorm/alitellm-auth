@@ -267,7 +267,11 @@ export function TwoColumnLogin({ endpoint, config }) {
             </a>
             <div class="reassurance">Secure, seamless access powered by your identity provider.</div>
             <div class="backed-by">BACKED BY</div>
-            <div class="backed-by-row" aria-hidden="true">
+            <!-- No aria-hidden: the provider chips are static, non-redundant text
+                 naming the identity providers (Google / Dex / OIDC) that back the
+                 SSO button — the only on-screen indication of which IdPs are wired.
+                 The T-09-18 concern is about *live* data; these are not (WR-04). -->
+            <div class="backed-by-row">
               ${providers.map(
                 (p) => html`
                   <span class="backed-chip">
