@@ -129,6 +129,35 @@ describe('useCreateKey', () => {
     await expect(result.current.mutateAsync({})).rejects.toThrow();
     expect(useFreshKeysStore.getState().freshKeys).toEqual({});
   });
+
+  it('a 502 rejection carries status=502 + detail=null on the thrown error', async () => {
+    postJsonMock.mockResolvedValue({ status: 502, data: null });
+
+    const { result } = renderHook(() => useCreateKey(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await expect(result.current.mutateAsync({})).rejects.toMatchObject({
+      status: 502,
+      detail: null,
+    });
+  });
+
+  it('a 422 rejection carries status=422 + the backend detail string', async () => {
+    postJsonMock.mockResolvedValue({
+      status: 422,
+      data: { detail: 'alias must be 1-128 characters' },
+    });
+
+    const { result } = renderHook(() => useCreateKey(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await expect(result.current.mutateAsync({})).rejects.toMatchObject({
+      status: 422,
+      detail: 'alias must be 1-128 characters',
+    });
+  });
 });
 
 describe('useDeleteKey', () => {

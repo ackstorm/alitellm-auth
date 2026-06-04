@@ -39,6 +39,35 @@ import { useFreshKeysStore } from '@/stores/fresh-keys';
 export const KEYS_QUERY_KEY = ['session', 'keys'] as const;
 
 /**
+ * An Error carrying the backend HTTP `status` + parsed `detail`. The create-key
+ * modal needs both to route a 422 field-rejection (`{ detail }`) to the matching
+ * field; a 502 has no body so `detail` is null and the modal falls back to its
+ * generic copy.
+ */
+export interface ApiCallError extends Error {
+  status: number;
+  detail: string | null;
+}
+
+/**
+ * Build an ApiCallError from a parsed (never-throw api wrapper) response. Reads
+ * `data.detail` defensively — only a string `detail` is carried, anything else
+ * (or a null body, e.g. a 502) yields `detail: null`. The localized `data as ...`
+ * narrowing is confined here so the response types stay un-weakened at the
+ * call sites.
+ */
+function apiCallError(message: string, status: number, data: unknown): ApiCallError {
+  const detail =
+    data &&
+    typeof data === 'object' &&
+    'detail' in data &&
+    typeof (data as { detail: unknown }).detail === 'string'
+      ? (data as { detail: string }).detail
+      : null;
+  return Object.assign(new Error(message), { status, detail });
+}
+
+/**
  * GET /api/session/keys. Throws on a non-200 / malformed response so the query
  * lands in `isError`; a 200 with a `keys` array resolves to `KeyRow[]` (an empty
  * array is the empty state, not an error). The `{ signal }` makes cancellation
@@ -74,7 +103,11 @@ export function useCreateKey() {
         '/api/session/keys',
         body,
       );
-      if (status !== 200 || !data) throw new Error('create-key-failed');
+      // On a 422 the parsed body is `{ detail }` (truthy) so the `status !== 200`
+      // branch throws and carries the detail; on a 502 `data` is null so detail
+      // is null. The create-key modal reads `.status` + `.detail` to route a
+      // field-rejection to the matching field.
+      if (status !== 200 || !data) throw apiCallError('create-key-failed', status, data);
       return data;
     },
     onSuccess: (data) => {
@@ -98,7 +131,7 @@ export function useDeleteKey() {
       const { status, data } = await del<DeleteKeyResponse>(
         `/api/session/keys/${encodeURIComponent(id)}`,
       );
-      if (status !== 200 || !data) throw new Error('delete-key-failed');
+      if (status !== 200 || !data) throw apiCallError('delete-key-failed', status, data);
       return data;
     },
     onSuccess: (_data, id) => {
