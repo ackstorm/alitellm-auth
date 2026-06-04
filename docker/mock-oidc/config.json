@@ -1,0 +1,22 @@
+{
+  "interactiveLogin": false,
+  "httpServer": "NettyWrapper",
+  "tokenCallbacks": [
+    {
+      "issuerId": "default",
+      "tokenExpiry": 3600,
+      "requestMappings": [
+        {
+          "requestParam": "grant_type",
+          "match": "authorization_code",
+          "claims": {
+            "sub": "alice@example.com",
+            "email": "alice@example.com",
+            "email_verified": true,
+            "name": "Mock User"
+          }
+        }
+      ]
+    }
+  ]
+}
