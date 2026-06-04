@@ -31,4 +31,17 @@ describe('apiFetch never-throw contract', () => {
 
     expect(result).toEqual({ status: 401, data: null });
   });
+
+  test('an AbortError is re-thrown (cancellation, not a fake network error)', async () => {
+    // A TanStack-Query cancellation aborts the fetch; apiFetch must surface that
+    // as a rejection so Query treats it as a cancellation, NOT flip the
+    // never-throw contract into a fake { status: 0 } network error.
+    const abortErr =
+      typeof DOMException !== 'undefined'
+        ? new DOMException('The operation was aborted.', 'AbortError')
+        : Object.assign(new Error('aborted'), { name: 'AbortError' });
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortErr));
+
+    await expect(apiFetch('/api/session/keys')).rejects.toThrow();
+  });
 });
