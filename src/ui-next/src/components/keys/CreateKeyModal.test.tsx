@@ -7,7 +7,7 @@
 // modal is rendered with the store already opened.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 // Mock the create-key mutation hook — each test sets mutateAsync + isPending.
 vi.mock('@/hooks/use-keys', () => ({
@@ -175,5 +175,43 @@ describe('CreateKeyModal — server error routing', () => {
     expect(
       await screen.findByText("Couldn't create the key. Try again in a moment."),
     ).toBeInTheDocument();
+  });
+});
+
+describe('CreateKeyModal — reopen clears the shown-once key', () => {
+  it('reopening after a successful create shows a fresh form, not the previous key', async () => {
+    stubClipboard();
+    const mutateAsync = vi
+      .fn()
+      .mockResolvedValue({ id: 'key-1', key: 'sk-PREVIOUS-SECRET' });
+    setMutation(mutateAsync);
+    // Mount ONCE — the component owns `result` state, so reopen must toggle the
+    // store (not remount) to prove handleClose actually cleared the secret.
+    render(<CreateKeyModal />);
+
+    // Submit the empty (valid) form and reach the shown-once result view.
+    fireEvent.click(screen.getByRole('button', { name: 'Create Key' }));
+    expect(await screen.findByText('Key created')).toBeInTheDocument();
+    expect(screen.getByText('sk-PREVIOUS-SECRET')).toBeInTheDocument();
+
+    // Close via the result view's `done` button (calls handleClose -> resets
+    // `result` + closeModal()).
+    fireEvent.click(screen.getByRole('button', { name: 'done' }));
+    await waitFor(() =>
+      expect(screen.queryByText('Key created')).not.toBeInTheDocument(),
+    );
+
+    // Reopen via the store, the same mechanism the CTA/shortcut use.
+    act(() => {
+      useCreateKeyModalStore.getState().openModal();
+    });
+
+    // The FORM view is back — and the previous sk- is gone from the document.
+    expect(
+      await screen.findByRole('button', { name: 'Create Key' }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('name')).toBeInTheDocument();
+    expect(screen.queryByText('Key created')).not.toBeInTheDocument();
+    expect(screen.queryByText('sk-PREVIOUS-SECRET')).not.toBeInTheDocument();
   });
 });
