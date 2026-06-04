@@ -17,5 +17,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "tsconfig.node.json"]
 }
