@@ -75,7 +75,7 @@ describe('App driver — signin', () => {
   it('cold-load 401 -> Login with CTA pointing at /api/oauth/login?action=ui', () => {
     useSessionStore.setState({ status: 401, hasLoaded: false, me: null });
     render(<App />);
-    const cta = screen.getByRole('link', { name: 'Sign in' });
+    const cta = screen.getByRole('link', { name: 'Continue with SSO' });
     expect(cta).toHaveAttribute('href', '/api/oauth/login?action=ui');
   });
 });
