@@ -20,6 +20,7 @@ import { resolveState } from "./state.js";
 import { apiFetch, getJson, getHasLoaded, setHasLoaded } from "./api.js";
 import { useHashRoute } from "./router.js";
 import { RightSidebar } from "./sidebar.js";
+import { SiteFooter, FOOTER_CSS } from "./footer.js";
 import { TwoColumnLogin, LOGIN_CSS } from "./login.js";
 import { Dashboard, DASHBOARD_CSS } from "./dashboard.js";
 import { KEYS_TABLE_CSS } from "./keys-table.js";
@@ -322,6 +323,7 @@ function AuthedShell({ me, config }) {
           ? html`<${StatsView} me=${me} />`
           : html`<div class="main-slot">
               <${Dashboard} me=${me} registerCreateOpener=${registerCreateOpener} />
+              <${SiteFooter} config=${cfg} />
             </div>`}
       </main>
       ${route !== "stats"
@@ -412,7 +414,8 @@ export function injectShellStyles(doc) {
   style.textContent =
     SHELL_CSS + LOGIN_CSS + DASHBOARD_CSS + KEYS_TABLE_CSS + CREATE_KEY_CSS + DELETE_MODAL_CSS +
     STATS_CSS + SKELETON_CSS + TOAST_CSS + CHARTS_CSS + STATS_KPIS_CSS + STATS_DONUT_CSS +
-    STATS_BUDGET_CSS + STATS_MODEL_TABLE_CSS + STATS_TOP_KEYS_CSS + STATS_RAIL_CSS + DATE_RANGE_CSS;
+    STATS_BUDGET_CSS + STATS_MODEL_TABLE_CSS + STATS_TOP_KEYS_CSS + STATS_RAIL_CSS + DATE_RANGE_CSS +
+    FOOTER_CSS;
   d.head.appendChild(style);
 }
 
