@@ -12,7 +12,7 @@
 // `me` is GUARANTEED non-null here (App.tsx falls through to ErrorCard when
 // me === null — carry-forward C2), so the shell never renders against a null me.
 
-import { Outlet, Link, NavLink, useLocation } from 'react-router';
+import { Outlet, NavLink, useLocation } from 'react-router';
 import type { AppConfig, SessionMe } from '@/lib/api-types';
 import { BrandLockup } from './BrandLockup';
 
@@ -34,7 +34,7 @@ export function AppShell({ me, config }: AppShellProps) {
       <header className="flex h-14 shrink-0 items-center gap-6 border-b border-border bg-surface px-6">
         <BrandLockup config={config} className="text-sm" />
 
-        <nav className="flex items-center gap-6">
+        <nav aria-label="Primary" className="flex items-center gap-6">
           <NavLink
             to="/stats"
             className={({ isActive }) =>
@@ -59,8 +59,15 @@ export function AppShell({ me, config }: AppShellProps) {
               Status
             </a>
           ) : (
-            <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-              <span className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+            <span
+              role="status"
+              aria-label="Service status: operational"
+              className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-primary"
+            >
+              <span
+                aria-hidden="true"
+                className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
+              />
               Status
             </span>
           )}
@@ -85,13 +92,12 @@ export function AppShell({ me, config }: AppShellProps) {
         {!onStats && (
           <aside className="w-[320px] shrink-0 max-[1024px]:w-full">
             {/* Right-sidebar slot — panels arrive in Phase 3 (quick actions,
-                security, need-help). Linked anchors here will be real-links-only. */}
-            <Link
-              to="/"
-              className="block rounded-xl border border-border bg-surface p-5 font-mono text-[11px] font-semibold uppercase tracking-widest text-text-secondary"
-            >
+                security, need-help). M5: rendered as a plain non-interactive
+                placeholder card; the old <Link to="/"> advertised an interactive
+                element to AT that navigated nowhere. Real links land in Phase 3. */}
+            <div className="block rounded-xl border border-border bg-surface p-5 font-mono text-[11px] font-semibold uppercase tracking-widest text-text-secondary">
               Quick actions — coming soon
-            </Link>
+            </div>
           </aside>
         )}
       </div>
