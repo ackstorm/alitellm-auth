@@ -21,7 +21,15 @@ vi.mock('@/hooks/use-keys', () => ({
   KEYS_QUERY_KEY: ['session', 'keys'],
 }));
 
+// useStats backs the "Requests (MTD)" tile — mocked so no real fetch fires (the
+// dashboard test renders without a QueryClientProvider). Defaults to a benign
+// non-success state in beforeEach (tile shows EM_DASH).
+vi.mock('@/hooks/use-stats', () => ({
+  useStats: vi.fn(),
+}));
+
 import { useDeleteKey, useKeys } from '@/hooks/use-keys';
+import { useStats } from '@/hooks/use-stats';
 import { Dashboard } from './Dashboard';
 import { formatCurrency } from '@/lib/format';
 import {
@@ -36,6 +44,7 @@ import { initialToastState, useToastStore } from '@/hooks/use-toast';
 
 const useKeysMock = vi.mocked(useKeys);
 const useDeleteKeyMock = vi.mocked(useDeleteKey);
+const useStatsMock = vi.mocked(useStats);
 
 // Build a valid SessionMe fixture with overrides.
 function makeMe(overrides: Partial<SessionMe> = {}): SessionMe {
@@ -104,6 +113,13 @@ beforeEach(() => {
     mutateAsync: vi.fn().mockResolvedValue({ status: 'deleted', id: 'key-abc123' }),
     isPending: false,
   } as unknown as ReturnType<typeof useDeleteKey>);
+  // Default stats to a non-success state — the Requests (MTD) tile shows EM_DASH.
+  useStatsMock.mockReturnValue({
+    data: undefined,
+    isSuccess: false,
+    isPending: true,
+    isError: false,
+  } as unknown as ReturnType<typeof useStats>);
 });
 
 afterEach(() => {
@@ -130,6 +146,30 @@ describe('Dashboard — top row + tiles', () => {
     setKeysSuccess([]);
     render(<Dashboard me={makeMe({ spend: { current: 1249.5, source: 'user' } })} />);
     expect(screen.getByText(formatCurrency(1249.5))).toBeInTheDocument();
+  });
+
+  it('Requests (MTD) tile shows abbreviated requests + tokens when stats load', () => {
+    setKeysSuccess([]);
+    useStatsMock.mockReturnValue({
+      data: { totals: { requests: 4600, tokens: 8_200_000, spend: 15.94 } },
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useStats>);
+    render(<Dashboard me={makeMe()} />);
+    expect(screen.getByText('Requests (MTD)')).toBeInTheDocument();
+    // abbreviate(4600)='4.6K', abbreviate(8_200_000)='8.2M' — rendered in one
+    // composite span ("4.6K / 8.2M" with de-emphasized units).
+    const tileValue = screen.getByText(/4\.6K/);
+    expect(tileValue).toHaveTextContent('4.6K');
+    expect(tileValue).toHaveTextContent('8.2M');
+  });
+
+  it('Requests (MTD) tile shows the em-dash while stats are unavailable', () => {
+    setKeysSuccess([]);
+    // useStats defaults (beforeEach) to non-success -> EM_DASH.
+    render(<Dashboard me={makeMe()} />);
+    expect(screen.getByText('Requests (MTD)')).toBeInTheDocument();
   });
 });
 

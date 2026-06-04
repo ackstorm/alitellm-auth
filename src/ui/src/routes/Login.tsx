@@ -23,6 +23,7 @@ import type { AppConfig } from '@/lib/api-types';
 import { Button } from '@/components/ui/button';
 import { BrandLockup } from '@/components/layout/BrandLockup';
 import { SiteFooter } from '@/components/layout/SiteFooter';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { ProviderChips } from '@/components/auth/ProviderChips';
 
 // The SOLE redirect trigger (T-09-17). FIXED literal — the ?action=ui param makes
@@ -95,6 +96,8 @@ export function Login({ config }: LoginProps) {
             </a>
           ) : null}
         </nav>
+
+        <ThemeToggle />
       </header>
 
       {/* ── Body — a single, centered Sign-in card ─────────────────────────────── */}
@@ -172,7 +175,12 @@ export function Login({ config }: LoginProps) {
               </svg>
               no password stored here
             </span>
-            <span className="ml-auto inline-flex items-center gap-2 text-primary">
+            <span
+              role="status"
+              aria-label="All systems operational"
+              title="All systems operational"
+              className="ml-auto inline-flex cursor-default items-center gap-2 text-primary"
+            >
               <span
                 aria-hidden="true"
                 className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"

@@ -12,7 +12,7 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { CHART_HEIGHT } from '@/components/stats/chart-common';
-import type { StatsResponse } from '@/lib/api-types';
+import type { KeyRow, StatsResponse } from '@/lib/api-types';
 
 // Inject a fixed size into ResponsiveContainer's single child so the populated
 // chart/donut branch paints (jsdom measures the parent as 0x0 otherwise).
@@ -35,10 +35,19 @@ vi.mock('@/hooks/use-stats', () => ({
   useStats: vi.fn(),
 }));
 
+// useKeys backs the TOP API KEYS merge (idle keys). Mocked so no real fetch
+// fires; defaults to an empty list (no padding) in beforeEach.
+vi.mock('@/hooks/use-keys', () => ({
+  useKeys: vi.fn(),
+  KEYS_QUERY_KEY: ['session', 'keys'],
+}));
+
 import { useStats } from '@/hooks/use-stats';
+import { useKeys } from '@/hooks/use-keys';
 import { Stats } from './Stats';
 
 const useStatsMock = vi.mocked(useStats);
+const useKeysMock = vi.mocked(useKeys);
 
 // A minimal but valid StatsResponse fixture (one model row, one series point,
 // one key row, a configured budget).
@@ -138,6 +147,17 @@ function setSuccess(data: StatsResponse = makeStats()): void {
     refetch: vi.fn(),
   } as unknown as UseQueryResult<StatsResponse>);
 }
+
+// Default useKeys to an empty list before every test (mergeTopKeys then leaves
+// the stats `keys[]` unchanged). Individual tests may override.
+beforeEach(() => {
+  useKeysMock.mockReturnValue({
+    data: [],
+    isPending: false,
+    isError: false,
+    isSuccess: true,
+  } as unknown as UseQueryResult<KeyRow[]>);
+});
 
 afterEach(() => {
   vi.clearAllMocks();

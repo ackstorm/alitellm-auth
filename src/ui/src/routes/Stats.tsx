@@ -32,8 +32,11 @@ import { SpendChart } from '@/components/stats/SpendChart';
 import { TopKeys } from '@/components/stats/TopKeys';
 import { UsageDonut } from '@/components/stats/UsageDonut';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useKeys } from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
+import { selectKeyRows } from '@/lib/keys';
 import { presetToRange } from '@/lib/stats-presets';
+import { mergeTopKeys } from '@/lib/top-keys';
 
 // Locked copy (mirrors src/ui/stats.js §Copywriting Contract).
 const PAGE_TITLE = 'Usage & Spend';
@@ -62,7 +65,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-border bg-surface p-5">
+    <div className="flex h-full min-w-0 flex-col rounded-xl border border-border bg-surface p-5">
       <div className={`${SECTION_LABEL_CLASS} mb-3`}>{label}</div>
       {children}
     </div>
@@ -80,6 +83,9 @@ export function Stats() {
   const [compareOn, setCompareOn] = useState(false);
 
   const query = useStats(range);
+  // The user's full key list — merged into the TOP API KEYS panel so idle keys
+  // (no activity in-window, hence absent from the stats contract) still appear.
+  const keysQuery = useKeys();
 
   // A preset click: recompute the range (presetToRange clamps to <=366 days so
   // the client never submits a 422-triggering span); the queryKey refetches.
@@ -105,7 +111,9 @@ export function Stats() {
   const totals = data?.totals ?? null;
   const series = data?.series ?? [];
   const models = data?.models ?? [];
-  const keys = data?.keys ?? [];
+  // Activity rows unioned with the user's keys (idle keys padded with zeros),
+  // ranked by spend — so TOP API KEYS lists all keys, not only the active ones.
+  const keys = mergeTopKeys(data?.keys ?? [], selectKeyRows(keysQuery.data));
   const budget = data?.budget ?? null;
   const capabilities = data?.capabilities ?? null;
   const rangeDays = data?.range?.days ?? 0;
@@ -198,8 +206,10 @@ export function Stats() {
         </Panel>
       </div>
 
-      {/* §5 usage-by-model donut + §6 top keys */}
-      <div className="grid grid-cols-2 items-start gap-3 max-[880px]:grid-cols-1">
+      {/* §5 usage-by-model donut + §6 top keys. No items-start: the cells
+          stretch to equal height, and both panels are h-full so the shorter
+          one (top keys) matches its taller sibling (empty space below is fine). */}
+      <div className="grid grid-cols-2 gap-3 max-[880px]:grid-cols-1">
         <Panel label={SECTION_USAGE_BY_MODEL}>
           {loading ? (
             <Skeleton variant="chart" />
@@ -212,7 +222,7 @@ export function Stats() {
           )}
         </Panel>
         {loading ? (
-          <div className="rounded-xl border border-border bg-surface p-5">
+          <div className="h-full rounded-xl border border-border bg-surface p-5">
             <Skeleton variant="table-rows" rows={5} />
           </div>
         ) : (

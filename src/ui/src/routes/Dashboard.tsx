@@ -18,21 +18,23 @@
 //   • T-10-16 (info disclosure, endpoint Copy): the Copy button writes only
 //     me.endpoint (a public base URL), on an explicit user click.
 
-import { useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { BarChart3, DollarSign, Key, Users } from 'lucide-react';
 
 import { DeleteKeyModal } from '@/components/keys/DeleteKeyModal';
 import { KeysTable } from '@/components/keys/KeysTable';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useKeys } from '@/hooks/use-keys';
+import { useStats } from '@/hooks/use-stats';
 import type {
   KeyRow,
   SessionLimits,
   SessionMe,
   SessionSpend,
 } from '@/lib/api-types';
-import { formatCurrency, formatInt } from '@/lib/format';
+import { abbreviate, formatCurrency, formatInt } from '@/lib/format';
 import { isRevoked, selectKeyRows } from '@/lib/keys';
+import { presetToRange } from '@/lib/stats-presets';
 import { cn } from '@/lib/utils';
 import { useCreateKeyModalStore } from '@/stores/create-key-modal';
 
@@ -87,7 +89,7 @@ function MetricTile({
   icon: Icon,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   icon: typeof Key;
 }) {
   return (
@@ -183,9 +185,25 @@ export function Dashboard({ me }: DashboardProps) {
     query.isSuccess && query.data
       ? formatInt(selectKeyRows(query.data).filter((k) => !isRevoked(k)).length)
       : EM_DASH;
-  // Monthly requests is stats-derived (the /api/session/stats window total),
-  // wired in Phase 4 — it degrades to EM_DASH here.
-  const requestsValue = EM_DASH;
+  // Requests (MTD) + tokens (MTD) come from /api/session/stats over the
+  // month-to-date range. The range is computed once on mount (a fresh `new Date()`
+  // each render would thrash the query key). While loading/errored or absent it
+  // degrades to EM_DASH; otherwise we show "<req>req / <tokens>tokens" with the
+  // units de-emphasized at a smaller size so the composite fits the tile.
+  const mtdRange = useMemo(() => presetToRange('This month', new Date()), []);
+  const stats = useStats(mtdRange);
+  const requestsValue: ReactNode =
+    stats.isSuccess && stats.data ? (
+      <span className="text-lg">
+        {abbreviate(stats.data.totals.requests)}
+        <span className="text-text-tertiary text-xs font-normal"> req</span>
+        <span className="text-text-tertiary"> / </span>
+        {abbreviate(stats.data.totals.tokens)}
+        <span className="text-text-tertiary text-xs font-normal"> tokens</span>
+      </span>
+    ) : (
+      EM_DASH
+    );
   // Spend MTD uses the documented me.spend.current fallback from dashboard.js;
   // the stats-window total replaces it in Phase 4.
   const spendValue = formatCurrency(me.spend.current);
@@ -204,8 +222,8 @@ export function Dashboard({ me }: DashboardProps) {
       {/* DASH-06: four-tile metric header */}
       <div className="grid grid-cols-4 gap-3 max-[880px]:grid-cols-2 max-[520px]:grid-cols-1">
         <MetricTile label="Active keys" value={activeKeys} icon={Key} />
-        <MetricTile label="Monthly requests" value={requestsValue} icon={BarChart3} />
-        <MetricTile label="Spend MTD" value={spendValue} icon={DollarSign} />
+        <MetricTile label="Requests (MTD)" value={requestsValue} icon={BarChart3} />
+        <MetricTile label="Spend (MTD)" value={spendValue} icon={DollarSign} />
         <MetricTile label="Team" value={teamValue} icon={Users} />
       </div>
 

@@ -2,6 +2,13 @@
 
 ## [unreleased]
 
+- feat: light/dark theme — a sun/moon toggle in the topbar (and login), persisted to localStorage, defaulting to the OS preference; an inline pre-paint script applies the stored theme before first paint (no flash). The full light palette is authored as token overrides; the green identity is preserved
+- feat: the dashboard "Requests (MTD)" tile now shows both requests and tokens for the month-to-date (e.g. `11 req / 10.02K tokens`), sourced from `/api/session/stats`
+- change: the service indicator now reads "READY" (login card + inner-page footer, renamed from "STATUS") with an "All systems operational" tooltip; the "Spend MTD" tile label is now "Spend (MTD)" for consistency
+- change: the keys table shows the key id as `id:` + the first 16 characters + ellipsis (prefix-truncated) instead of the `prefix…last4` mask
+- fix: the STATS "Top API Keys" panel lists the user's keys even when they have no activity in the window (idle keys are padded with zeros and ranked by spend), instead of only the keys that appear in the spend logs
+- fix: the STATS "Usage by Model" and "Top API Keys" panels are now equal height (the shorter one stretches to match its sibling)
+
 ## [0.4.2] - 2026-06-04
 
 - change: refined the login sign-in card — a richer description (view / mint / revoke; "no password is handled here, sign-in is delegated to your SSO provider"), a decorative `$ sign-in --sso --provider=openid` terminal command line, and the READY status indicator moved from the card top to the bottom status strip (replacing "redirects to dex")

@@ -28,13 +28,25 @@ import {
   type DataTableColumn,
 } from '@/components/ui/data-table';
 import { useKeys } from '@/hooks/use-keys';
-import { formatDate, maskKey } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { isExpired, isRevoked, selectKeyRows } from '@/lib/keys';
 import type { KeyRow } from '@/lib/api-types';
 
 // The em-dash placeholder (matches format.ts EM_DASH) for the always-empty
 // "Last used" cell (the backend emits no last-used — parity with the old table).
 const EM_DASH = '—';
+
+// How many leading characters of the public key id to show in the table.
+const KEY_ID_MAX = 16;
+
+// Display the public key id as up to KEY_ID_MAX leading chars, with a trailing
+// ellipsis when it is longer (e.g. "9834338392932xjw…"). Prefix-truncated (NOT
+// the prefix…last4 mask used elsewhere) per the keys-table design. The full id
+// is intentionally not surfaced in the table.
+function shortKeyId(id: string | null): string {
+  if (id == null || id === '') return EM_DASH;
+  return id.length > KEY_ID_MAX ? `${id.slice(0, KEY_ID_MAX)}…` : id;
+}
 
 type KeysTableProps = {
   /** Invoked by the per-row revoke action. The parent owns the confirm + DELETE. */
@@ -91,12 +103,12 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       // the row action off the right edge under overflow-x-auto.
       className: 'align-top',
       cell: (row) => {
-        const id = row.id;
-        // The primary line: the human alias when set, else the masked id.
-        const name = row.key_alias || maskKey(id);
-        // The chip repeats the masked id beneath the name. Skip it when there is
-        // no alias — the name already IS the masked id, so the two lines would
-        // otherwise be identical.
+        const short = shortKeyId(row.id);
+        // The primary line: the human alias when set, else the truncated id.
+        const name = row.key_alias || short;
+        // The chip repeats the truncated id beneath the name. Skip it when there
+        // is no alias — the name already IS the truncated id, so the two lines
+        // would otherwise be identical.
         const showChip = Boolean(row.key_alias);
         return (
           <div className="flex min-w-0 flex-col gap-0.5">
@@ -108,7 +120,7 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                 data-slot="key-chip"
                 className="text-muted-foreground font-mono text-xs break-all"
               >
-                id:{maskKey(id)}
+                id:{short}
               </span>
             ) : null}
           </div>

@@ -20,7 +20,6 @@ vi.mock('@/hooks/use-keys', () => ({
 
 import { useKeys } from '@/hooks/use-keys';
 import { KeysTable } from './KeysTable';
-import { maskKey } from '@/lib/format';
 
 const useKeysMock = vi.mocked(useKeys);
 
@@ -106,19 +105,18 @@ describe('KeysTable — populated table', () => {
     expect(screen.getByText('production-key')).toBeInTheDocument();
   });
 
-  it('shows maskKey(id) when key_alias is null', () => {
+  it('shows the id verbatim (<= 16 chars) when key_alias is null', () => {
     setRows([makeRow({ key_alias: null, id: 'key-abc123' })]);
     render(<KeysTable onDelete={vi.fn()} />);
-    expect(screen.getByText(maskKey('key-abc123'))).toBeInTheDocument();
+    // 'key-abc123' is 10 chars (<= 16) -> shown in full, no ellipsis.
+    expect(screen.getByText('key-abc123')).toBeInTheDocument();
   });
 
-  it('shows the masked id beneath the alias, prefixed with "id:"', () => {
+  it('shows the truncated id (16 chars + ellipsis) beneath the alias, prefixed "id:"', () => {
     setRows([makeRow({ key_alias: 'production-key', id: 'key-0123456789abcdef' })]);
     render(<KeysTable onDelete={vi.fn()} />);
-    // The chip reads "id:<first4…last4>" (no space; maskKey -> 'key-…cdef').
-    expect(
-      screen.getByText(`id:${maskKey('key-0123456789abcdef')}`),
-    ).toBeInTheDocument();
+    // 'key-0123456789abcdef' is 20 chars -> first 16 + ellipsis = 'key-0123456789ab…'.
+    expect(screen.getByText('id:key-0123456789ab…')).toBeInTheDocument();
   });
 
   it('status pill honors Revoked > Expired > Active precedence', () => {
@@ -157,11 +155,11 @@ describe('KeysTable — no secret material, no reveal/copy actions', () => {
     expect(screen.getByRole('button', { name: 'Revoke' })).toBeInTheDocument();
   });
 
-  it('shows the id MASKED to prefix…last4 — never the full id', () => {
+  it('truncates a long id to 16 chars + ellipsis — never the full id', () => {
     setRows([makeRow({ id: 'key-0123456789abcdef', key_alias: null })]);
     render(<KeysTable onDelete={vi.fn()} />);
 
-    expect(screen.getByText(maskKey('key-0123456789abcdef'))).toBeInTheDocument();
+    expect(screen.getByText('key-0123456789ab…')).toBeInTheDocument();
     expect(screen.queryByText('key-0123456789abcdef')).not.toBeInTheDocument();
   });
 });

@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>aLiteLLM Console</title>
+    <!-- Pre-paint theme: apply the stored/system theme before first paint so a
+         light-preference user never sees a dark flash. `class="dark"` above is
+         the no-JS fallback; this script corrects it. Mirrors lib/theme.ts. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('alitellm-theme');
+          if (t !== 'dark' && t !== 'light') {
+            t =
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark';
+          }
+          var el = document.documentElement;
+          el.classList.remove('dark', 'light');
+          el.classList.add(t);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

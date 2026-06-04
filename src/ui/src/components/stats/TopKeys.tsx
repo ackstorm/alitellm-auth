@@ -95,7 +95,7 @@ function Panel({ children }: { children: React.ReactNode }): React.ReactElement 
   return (
     <div
       data-slot="top-keys"
-      className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5"
+      className="flex h-full flex-col gap-4 rounded-2xl border border-border bg-surface p-5"
     >
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary">

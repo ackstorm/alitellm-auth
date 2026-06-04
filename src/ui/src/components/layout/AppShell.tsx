@@ -21,6 +21,7 @@ import { Toaster } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { BrandLockup } from './BrandLockup';
 import { SiteFooter } from './SiteFooter';
+import { ThemeToggle } from './ThemeToggle';
 
 export interface AppShellProps {
   me: SessionMe;
@@ -68,7 +69,7 @@ export function AppShell({ me, config }: AppShellProps) {
         aria-hidden="true"
         className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
       />
-      Status
+      READY
     </span>
   );
 
@@ -99,6 +100,7 @@ export function AppShell({ me, config }: AppShellProps) {
           >
             sign out
           </a>
+          <ThemeToggle />
         </div>
       </header>
 
