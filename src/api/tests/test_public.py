@@ -5,6 +5,7 @@ This endpoint returns ONLY non-secret presentation config (brand/tagline/links/
 providers/public_host) sourced from pydantic Settings at request time. It NEVER
 returns a key, user data, or any secret-bearing field (threat T-09-18).
 """
+
 from fastapi.testclient import TestClient
 
 

@@ -1053,9 +1053,7 @@ async def test_spend_logs_last_used_max_per_model():
         return_value=httpx.Response(200, json=rows)
     )
 
-    result = await spend_logs_last_used(
-        "alice@example.com", settings, "2026-04-01", "2026-04-02"
-    )
+    result = await spend_logs_last_used("alice@example.com", settings, "2026-04-01", "2026-04-02")
 
     assert route.called
     assert result["gemini/flash"] == "2026-04-01T09:49:44.420000Z"
@@ -1079,9 +1077,7 @@ async def test_spend_logs_last_used_degrades_on_5xx():
         return_value=httpx.Response(503, text="upstream down")
     )
 
-    result = await spend_logs_last_used(
-        "alice@example.com", settings, "2026-04-01", "2026-04-02"
-    )
+    result = await spend_logs_last_used("alice@example.com", settings, "2026-04-01", "2026-04-02")
 
     assert result == {}
 
@@ -1094,12 +1090,8 @@ async def test_spend_logs_last_used_empty_rows():
 
     settings = make_settings()
 
-    respx.get("http://litellm.test/spend/logs").mock(
-        return_value=httpx.Response(200, json=[])
-    )
+    respx.get("http://litellm.test/spend/logs").mock(return_value=httpx.Response(200, json=[]))
 
-    result = await spend_logs_last_used(
-        "alice@example.com", settings, "2026-04-01", "2026-04-02"
-    )
+    result = await spend_logs_last_used("alice@example.com", settings, "2026-04-01", "2026-04-02")
 
     assert result == {}

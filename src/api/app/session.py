@@ -382,9 +382,7 @@ async def session_delete_key(
     return JSONResponse({"status": "deleted", "id": key_id})
 
 
-def _parse_stats_range(
-    start_date: str | None, end_date: str | None
-) -> tuple[date, date]:
+def _parse_stats_range(start_date: str | None, end_date: str | None) -> tuple[date, date]:
     """Parse + bound the /stats date window (D-04). Raises HTTPException(422) on error.
 
     YYYY-MM-DD via date.fromisoformat (malformed -> 422). Defaults to a 30-day
@@ -400,9 +398,7 @@ def _parse_stats_range(
             else end - timedelta(days=_DEFAULT_RANGE_DAYS - 1)
         )
     except ValueError:
-        raise HTTPException(
-            status_code=422, detail="start_date/end_date must be YYYY-MM-DD"
-        )
+        raise HTTPException(status_code=422, detail="start_date/end_date must be YYYY-MM-DD")
 
     if start > end:
         raise HTTPException(status_code=422, detail="start_date must not be after end_date")
@@ -502,7 +498,5 @@ async def session_stats(
         "compare": {"start": prev_start.isoformat(), "end": prev_end.isoformat()},
     }
 
-    contract = build_stats_contract(
-        cur_agg, prev_agg, budget, last_used, capabilities, range_meta
-    )
+    contract = build_stats_contract(cur_agg, prev_agg, budget, last_used, capabilities, range_meta)
     return JSONResponse(contract)

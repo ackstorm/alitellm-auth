@@ -376,15 +376,23 @@ def _stats_mocks(
     """
     current = current if current is not None else _load_fixture("daily_activity_current.json")
     prior = prior if prior is not None else _load_fixture("daily_activity_prior.json")
-    last_used = last_used if last_used is not None else {
-        "gemini/gemini-flash-latest": "2026-04-01T09:49:44.420000Z",
-    }
-    budget_user = budget_user if budget_user is not None else {
-        "user_id": "alice@example.com",
-        "email": "alice@example.com",
-        "max_budget": 500.0,
-        "spend": 4.2,
-    }
+    last_used = (
+        last_used
+        if last_used is not None
+        else {
+            "gemini/gemini-flash-latest": "2026-04-01T09:49:44.420000Z",
+        }
+    )
+    budget_user = (
+        budget_user
+        if budget_user is not None
+        else {
+            "user_id": "alice@example.com",
+            "email": "alice@example.com",
+            "max_budget": 500.0,
+            "spend": 4.2,
+        }
+    )
     activity = AsyncMock(side_effect=[current, prior])
     last = AsyncMock(return_value=last_used)
     budget = AsyncMock(return_value=budget_user)
@@ -494,11 +502,11 @@ def test_stats_prior_window_degrades(client):
     """Prior-window fetch raising → capabilities.deltas false, still 200."""
     request = httpx.Request("GET", "http://litellm.test/user/daily/activity")
     current = _load_fixture("daily_activity_current.json")
-    activity = AsyncMock(
-        side_effect=[current, httpx.RequestError("boom", request=request)]
-    )
+    activity = AsyncMock(side_effect=[current, httpx.RequestError("boom", request=request)])
     last = AsyncMock(return_value={})
-    budget = AsyncMock(return_value={"user_id": "alice@example.com", "max_budget": None, "spend": 0.0})
+    budget = AsyncMock(
+        return_value={"user_id": "alice@example.com", "max_budget": None, "spend": 0.0}
+    )
     with (
         patch("app.session.user_daily_activity", activity),
         patch("app.session.spend_logs_last_used", last),
@@ -548,7 +556,9 @@ def test_stats_empty_window_zero_not_null(client):
     activity = AsyncMock(side_effect=[empty, empty])
     # last-used unavailable → null + capability false (the "flagged-unavailable" figure).
     last = AsyncMock(return_value={})
-    budget = AsyncMock(return_value={"user_id": "alice@example.com", "max_budget": None, "spend": 0.0})
+    budget = AsyncMock(
+        return_value={"user_id": "alice@example.com", "max_budget": None, "spend": 0.0}
+    )
     with (
         patch("app.session.user_daily_activity", activity),
         patch("app.session.spend_logs_last_used", last),

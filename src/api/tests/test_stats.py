@@ -177,9 +177,7 @@ def test_build_stats_contract_shape_and_capabilities():
     prev = aggregate_window(_load("daily_activity_prior.json"))
     budget = {"current": 0.0, "max_budget": 500.0, "source": "user"}
 
-    contract = build_stats_contract(
-        cur, prev, budget, {}, dict(_CAPABILITIES), _RANGE
-    )
+    contract = build_stats_contract(cur, prev, budget, {}, dict(_CAPABILITIES), _RANGE)
 
     assert set(contract.keys()) == {
         "range",
@@ -226,9 +224,7 @@ def test_build_stats_contract_last_used_null_flips_capability():
     """No last_used map → models[].last_used == null + capability false."""
     cur = aggregate_window(_load("daily_activity_current.json"))
     caps = dict(_CAPABILITIES)
-    contract = build_stats_contract(
-        cur, cur, {"current": 0, "max_budget": None}, {}, caps, _RANGE
-    )
+    contract = build_stats_contract(cur, cur, {"current": 0, "max_budget": None}, {}, caps, _RANGE)
 
     assert contract["capabilities"]["per_model_last_used"] is False
     for m in contract["models"]:
@@ -252,9 +248,7 @@ def test_build_stats_contract_last_used_present_keeps_capability():
 def test_build_stats_contract_budget_with_max():
     cur = aggregate_window(_load("daily_activity_empty.json"))
     budget = {"current": 4.2, "max_budget": 10.0, "source": "user"}
-    contract = build_stats_contract(
-        cur, cur, budget, {}, dict(_CAPABILITIES), _RANGE
-    )
+    contract = build_stats_contract(cur, cur, budget, {}, dict(_CAPABILITIES), _RANGE)
 
     b = contract["budget"]
     assert b["has_budget"] is True
@@ -266,9 +260,7 @@ def test_build_stats_contract_null_budget_pct_none():
     """null max_budget → pct None + has_budget False (D-08)."""
     cur = aggregate_window(_load("daily_activity_empty.json"))
     budget = {"current": 0.0, "max_budget": None, "source": "unknown"}
-    contract = build_stats_contract(
-        cur, cur, budget, {}, dict(_CAPABILITIES), _RANGE
-    )
+    contract = build_stats_contract(cur, cur, budget, {}, dict(_CAPABILITIES), _RANGE)
 
     b = contract["budget"]
     assert b["has_budget"] is False
