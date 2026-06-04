@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.4.1] - 2026-06-04
+
 - feat: primary nav reworked to a KEYS · STATS · HOW-TO segmented-pill menu (KEYS returns to the dashboard); new placeholder `#/howto` guide page; the service-status indicator moved out of the topbar into the footer (with an "All systems operational" tooltip — still static, no live health check)
 - feat: the login "BACKED BY" chips now render the real Google and Dex brand glyphs (matched by provider label), with the green shield as the fallback for other providers (e.g. OIDC)
 - change: login is a single centered sign-in card (the right value-props/overview column was removed); its header and footer are now full-width bars matching the inner pages, and the footer © aligns with the brand margin
