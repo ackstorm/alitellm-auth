@@ -13,6 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.admin import router as admin_router
 from app.auth import configure_auth, router as auth_router
 from app.config import Settings, get_settings
+from app.public import router as public_router
 from app.session import router as session_router
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     # Mount session API router (/api/session/*)
     app.include_router(session_router)
+    # Public presentation-config router (GET /api/config) — registered BEFORE the
+    # /ui StaticFiles mount below so /api/config is never shadowed by the static mount.
+    app.include_router(public_router)
 
     @app.get("/health")
     async def health() -> dict:
