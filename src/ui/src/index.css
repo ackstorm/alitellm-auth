@@ -116,6 +116,20 @@
   --radius-4xl: calc(var(--radius) + 16px);
   --animate-slide-up: slide-up 0.25s ease-out;
   --animate-content-in: content-in 0.35s ease-out;
+  --animate-blink: blink 1.05s steps(1) infinite;
+}
+
+/* Blinking block cursor for the login terminal prompt (hard step blink, not a
+ * fade) — matches the "$ sign-in --sso" matrix-style command line. */
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
 }
 
 @keyframes slide-up {

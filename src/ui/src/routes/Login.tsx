@@ -37,7 +37,6 @@ export interface LoginProps {
 export function Login({ config }: LoginProps) {
   const links = config.links ?? {};
   const brandShort = config.brand_short || 'LiteLLM';
-  const providerLabel = config.provider_label || 'dex';
   const tagline = config.tagline || '';
   const providers =
     Array.isArray(config.providers) && config.providers.length
@@ -102,15 +101,6 @@ export function Login({ config }: LoginProps) {
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <main className="w-full max-w-[480px] rounded-xl border border-border bg-card shadow-sm">
           <div className="border-b border-border px-8 pt-8 pb-6">
-            <div className="mb-4 flex items-center gap-2.5">
-              <span
-                aria-hidden="true"
-                className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
-              />
-              <span className="font-mono text-xs font-semibold tracking-widest text-primary">
-                READY
-              </span>
-            </div>
             <BrandLockup
               config={config}
               className="text-2xl tracking-tight"
@@ -119,10 +109,26 @@ export function Login({ config }: LoginProps) {
             <h1 className="mt-4 text-2xl font-semibold leading-tight text-text-primary">
               Sign in
             </h1>
-            <p className="mt-4 text-sm text-text-secondary">
-              Authenticate with your organization account to manage your{' '}
-              {brandShort} API keys.
+            <p className="mt-4 text-sm leading-relaxed text-text-secondary">
+              Authenticate to manage your{' '}
+              <span className="text-text-primary">{brandShort} virtual keys</span>{' '}
+              — view, mint, and revoke. No password is handled here; sign-in is
+              delegated to your SSO provider.
             </p>
+
+            {/* Matrix-style command line — decorative; the real action is the
+                "Continue with SSO" button below. */}
+            <div
+              aria-hidden="true"
+              className="mt-5 flex items-center gap-2 overflow-hidden font-mono text-[13px] whitespace-nowrap"
+            >
+              <span className="select-none text-text-tertiary">$</span>
+              <span className="text-text-secondary">
+                <span className="text-primary">sign-in</span> --sso
+                --provider=openid
+              </span>
+              <span className="inline-block h-[1.05em] w-[0.5em] animate-blink bg-primary" />
+            </div>
           </div>
 
           <div className="px-8 py-7">
@@ -166,8 +172,12 @@ export function Login({ config }: LoginProps) {
               </svg>
               no password stored here
             </span>
-            <span className="ml-auto">
-              redirects to <b className="text-text-primary">{providerLabel}</b>
+            <span className="ml-auto inline-flex items-center gap-2 text-primary">
+              <span
+                aria-hidden="true"
+                className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
+              />
+              <span className="font-semibold tracking-widest">READY</span>
             </span>
           </div>
         </main>

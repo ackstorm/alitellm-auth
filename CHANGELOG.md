@@ -2,6 +2,9 @@
 
 ## [unreleased]
 
+- change: refined the login sign-in card — a richer description (view / mint / revoke; "no password is handled here, sign-in is delegated to your SSO provider"), a decorative `$ sign-in --sso --provider=openid` terminal command line, and the READY status indicator moved from the card top to the bottom status strip (replacing "redirects to dex")
+- change: the inner pages (dashboard, stats, how-to) now carry the same subtle green radial gradient as the login screen, for a consistent backdrop
+
 ## [0.4.1] - 2026-06-04
 
 - feat: primary nav reworked to a KEYS · STATS · HOW-TO segmented-pill menu (KEYS returns to the dashboard); new placeholder `#/howto` guide page; the service-status indicator moved out of the topbar into the footer (with an "All systems operational" tooltip — still static, no live health check)

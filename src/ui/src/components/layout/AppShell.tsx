@@ -73,7 +73,7 @@ export function AppShell({ me, config }: AppShellProps) {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-background [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,var(--accent),transparent),radial-gradient(circle_at_80%_80%,rgba(74,222,128,0.03),transparent)]">
       <header className="flex h-14 shrink-0 items-center gap-6 border-b border-border bg-surface px-6">
         <BrandLockup config={config} className="text-sm" />
 

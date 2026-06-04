@@ -108,7 +108,7 @@ describe('Login', () => {
     render(<Login config={DEFAULT_CONFIG} />);
     const card = screen.getByRole('main');
     expect(
-      within(card).getByText(/manage your LiteLLM API keys/),
-    ).toBeInTheDocument();
+      within(card).getByText(/manage your/),
+    ).toHaveTextContent('LiteLLM virtual keys');
   });
 });
