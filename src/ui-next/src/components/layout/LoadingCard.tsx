@@ -5,27 +5,27 @@
 // INITIALIZING / "Connecting to alitellm-auth..." / "Verifying your session,
 // please wait." / "checking session".
 //
-// The card takes `config` so the surrounding driver can stay config-aware, but
-// the locked copy strings are intentionally NOT derived from config (parity with
-// app.js, where LoadingCard takes no props and hardcodes the literals).
+// The locked copy strings are hardcoded per the UI-SPEC (parity with app.js,
+// where LoadingCard takes no props and hardcodes the literals). M3: the dead
+// `config` prop was removed — it was never read.
 
-import type { AppConfig } from '@/lib/api-types';
 import { Card } from '@/components/ui/card';
 
-export interface LoadingCardProps {
-  config: AppConfig;
-}
-
-export function LoadingCard({ config: _config }: LoadingCardProps) {
+export function LoadingCard() {
   return (
     <div
       data-state="loading"
+      role="status"
+      aria-live="polite"
       className="flex flex-1 items-center justify-center p-8 min-h-screen"
     >
       <Card className="w-full max-w-[620px] gap-0 py-0">
         <div className="border-b border-border px-8 pt-8 pb-6">
           <div className="mb-4 flex items-center gap-2.5">
-            <span className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+            <span
+              aria-hidden="true"
+              className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
+            />
             <span className="font-mono text-xs font-semibold tracking-widest text-primary">
               INITIALIZING
             </span>

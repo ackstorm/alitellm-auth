@@ -15,7 +15,7 @@
 // deterministic and isolated.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { App } from './App';
 import { useSessionStore, initialSessionState } from './stores/session';
 import { useConfigStore, initialConfigState, DEFAULT_CONFIG } from './stores/config';
@@ -50,6 +50,9 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  // Reset the hash so hash-router tests stay isolated (a leftover #/garbage or
+  // #/stats would leak into the next render).
+  window.location.hash = '';
 });
 
 describe('App driver — boot', () => {
@@ -122,6 +125,41 @@ describe('App driver — authed', () => {
     expect(screen.getByText('Service Unavailable')).toBeInTheDocument();
     // The shell must NOT have mounted (no sign-out link).
     expect(screen.queryByRole('link', { name: 'sign out' })).toBeNull();
+  });
+
+  it('unknown hash (#/garbage) redirects to the index Dashboard', async () => {
+    // Regression for the `*` route: an unknown hash must Navigate to "/" so the
+    // index Dashboard renders, not an empty <Outlet/> with a blank main region.
+    window.location.hash = '#/garbage';
+    useSessionStore.setState({ status: 200, hasLoaded: true, me: ME });
+    render(<App />);
+    // The Navigate redirect is a client-side navigation; wait for the index
+    // Dashboard stub to mount in the content slot (proves we landed on "/").
+    await waitFor(() =>
+      expect(screen.getByText('Keys — coming in Phase 3')).toBeInTheDocument(),
+    );
+  });
+});
+
+describe('App driver — active nav (aria-current)', () => {
+  it('Stats NavLink has aria-current="page" at /stats, not at /', () => {
+    // At the index route the Stats link is NOT current.
+    useSessionStore.setState({ status: 200, hasLoaded: true, me: ME });
+    const { unmount } = render(<App />);
+    expect(screen.getByRole('link', { name: 'Stats' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    unmount();
+    cleanup();
+
+    // At #/stats react-router v7 sets aria-current="page" on the active NavLink.
+    window.location.hash = '#/stats';
+    useSessionStore.setState({ status: 200, hasLoaded: true, me: ME });
+    render(<App />);
+    expect(screen.getByRole('link', { name: 'Stats' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 });
 

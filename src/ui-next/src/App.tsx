@@ -18,7 +18,7 @@
 //        (useSessionStore(s => s.x)), never a bare useSessionStore().
 
 import { useEffect, useMemo } from 'react';
-import { createHashRouter, RouterProvider } from 'react-router';
+import { createHashRouter, Navigate, RouterProvider } from 'react-router';
 import { resolveState } from '@/lib/resolve-state';
 import { useSessionStore } from '@/stores/session';
 import { useConfigStore } from '@/stores/config';
@@ -48,8 +48,10 @@ function makeRouter(me: SessionMe, config: AppConfig) {
       ],
     },
     // Any unknown hash falls back to the dashboard (allow-list parity with the
-    // old hash router; the hash never becomes a redirect target).
-    { path: '*', element: <AppShell me={me} config={config} /> },
+    // old hash router; the hash never becomes a redirect target). Without this
+    // redirect an unknown hash matched AppShell with NO children -> an empty
+    // <Outlet/> -> topbar with a BLANK main region.
+    { path: '*', element: <Navigate to="/" replace /> },
   ]);
 }
 
@@ -107,5 +109,5 @@ export function App() {
 
   // "loading" and "expired" both render the loading card (expired also triggers
   // the redirect effect above, so the card is only a brief placeholder).
-  return <LoadingCard config={config} />;
+  return <LoadingCard />;
 }
