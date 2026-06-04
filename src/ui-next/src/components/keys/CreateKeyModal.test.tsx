@@ -1,0 +1,179 @@
+// CreateKeyModal.test.tsx — vitest suite for the create-key modal (jsdom).
+//
+// useCreateKey is fully mocked so NO real fetch happens; each test programs its
+// `mutateAsync` (resolve / reject) + `isPending`. The clipboard is stubbed so
+// the result-view copy can be observed without a real platform clipboard. Both
+// the open-state store and the fresh-keys store are reset between tests; the
+// modal is rendered with the store already opened.
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+
+// Mock the create-key mutation hook — each test sets mutateAsync + isPending.
+vi.mock('@/hooks/use-keys', () => ({
+  useCreateKey: vi.fn(),
+}));
+
+import { useCreateKey } from '@/hooks/use-keys';
+import { CreateKeyModal } from './CreateKeyModal';
+import { ALIAS_ERROR, DURATION_ERROR } from '@/lib/key-validation';
+import {
+  initialCreateKeyModalState,
+  useCreateKeyModalStore,
+} from '@/stores/create-key-modal';
+import {
+  initialFreshKeysState,
+  useFreshKeysStore,
+} from '@/stores/fresh-keys';
+
+const useCreateKeyMock = vi.mocked(useCreateKey);
+
+/** Program useCreateKey with a given mutateAsync + pending flag. */
+function setMutation(mutateAsync: ReturnType<typeof vi.fn>, isPending = false): void {
+  useCreateKeyMock.mockReturnValue({
+    mutateAsync,
+    isPending,
+  } as unknown as ReturnType<typeof useCreateKey>);
+}
+
+/** Install a navigator.clipboard.writeText stub, returning the spy. */
+function stubClipboard(): ReturnType<typeof vi.fn> {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText },
+    configurable: true,
+    writable: true,
+  });
+  return writeText;
+}
+
+beforeEach(() => {
+  // Reset both stores, then open the modal so render shows the form.
+  const { openModal, closeModal } = useCreateKeyModalStore.getState();
+  useCreateKeyModalStore.setState(
+    { ...initialCreateKeyModalState, openModal, closeModal },
+    true,
+  );
+  const { setFresh, dropFresh } = useFreshKeysStore.getState();
+  useFreshKeysStore.setState({ ...initialFreshKeysState, setFresh, dropFresh }, true);
+  useCreateKeyModalStore.getState().openModal();
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+  Reflect.deleteProperty(navigator, 'clipboard');
+});
+
+describe('CreateKeyModal — form view', () => {
+  it('renders the form: title "Create Key" + both fields with helper text', () => {
+    setMutation(vi.fn());
+    render(<CreateKeyModal />);
+
+    expect(screen.getByRole('heading', { name: 'Create Key' })).toBeInTheDocument();
+    expect(screen.getByLabelText('name')).toBeInTheDocument();
+    expect(screen.getByLabelText('expires')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Letters, numbers, dash, underscore, dot. Up to 128 characters.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Leave blank for no expiry. Format: 90d, 24h, 30m.'),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('CreateKeyModal — client validation (no request)', () => {
+  it('an invalid alias shows ALIAS_ERROR and does NOT call mutateAsync', () => {
+    const mutateAsync = vi.fn();
+    setMutation(mutateAsync);
+    render(<CreateKeyModal />);
+
+    fireEvent.change(screen.getByLabelText('name'), {
+      target: { value: 'bad name!' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Key' }));
+
+    expect(screen.getByText(ALIAS_ERROR)).toBeInTheDocument();
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('an invalid duration shows DURATION_ERROR and does NOT call mutateAsync', () => {
+    const mutateAsync = vi.fn();
+    setMutation(mutateAsync);
+    render(<CreateKeyModal />);
+
+    fireEvent.change(screen.getByLabelText('expires'), {
+      target: { value: '90x' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Key' }));
+
+    expect(screen.getByText(DURATION_ERROR)).toBeInTheDocument();
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('CreateKeyModal — valid submit + one-time reveal', () => {
+  it('empty fields -> mutateAsync({}) -> result view shows the warning + full sk-, copy writes it', async () => {
+    const writeText = stubClipboard();
+    const mutateAsync = vi.fn().mockResolvedValue({ id: 'key-1', key: 'sk-secret' });
+    setMutation(mutateAsync);
+    render(<CreateKeyModal />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Key' }));
+
+    // The body omits empty fields -> {} is sent.
+    expect(mutateAsync).toHaveBeenCalledWith({});
+
+    // The view switches to the shown-once result.
+    expect(await screen.findByText('Key created')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This key is shown once. Copy and store it now — you won't see it again.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('sk-secret')).toBeInTheDocument();
+
+    // Copy writes the FULL sk- to the clipboard stub.
+    fireEvent.click(screen.getByRole('button', { name: 'copy' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('sk-secret'));
+  });
+});
+
+describe('CreateKeyModal — server error routing', () => {
+  it('a 422 rejection routes the detail to the alias field (form stays open)', async () => {
+    const mutateAsync = vi
+      .fn()
+      .mockRejectedValue(
+        Object.assign(new Error(), {
+          status: 422,
+          detail: 'alias must be 1-128 characters',
+        }),
+      );
+    setMutation(mutateAsync);
+    render(<CreateKeyModal />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Key' }));
+
+    expect(
+      await screen.findByText('alias must be 1-128 characters'),
+    ).toBeInTheDocument();
+    // Form stays open (still shows the submit button, not the result view).
+    expect(screen.getByRole('button', { name: 'Create Key' })).toBeInTheDocument();
+    expect(screen.queryByText('Key created')).not.toBeInTheDocument();
+  });
+
+  it('a 502 rejection (detail null) shows CREATE_502_ERROR', async () => {
+    const mutateAsync = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error(), { status: 502, detail: null }));
+    setMutation(mutateAsync);
+    render(<CreateKeyModal />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Key' }));
+
+    expect(
+      await screen.findByText("Couldn't create the key. Try again in a moment."),
+    ).toBeInTheDocument();
+  });
+});
