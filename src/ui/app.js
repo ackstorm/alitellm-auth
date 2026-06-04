@@ -17,7 +17,7 @@ import { h, render } from "preact";
 import { useState, useEffect, useCallback, useRef } from "preact/hooks";
 import htm from "htm";
 import { resolveState } from "./state.js";
-import { apiFetch, getHasLoaded, setHasLoaded } from "./api.js";
+import { apiFetch, getJson, getHasLoaded, setHasLoaded } from "./api.js";
 import { useHashRoute } from "./router.js";
 import { RightSidebar } from "./sidebar.js";
 import { TwoColumnLogin, LOGIN_CSS } from "./login.js";
@@ -189,6 +189,22 @@ const SHELL_CSS = `
 // Mid-session expiry redirects to the bare login (no landing card, UI-SPEC).
 const EXPIRED_REDIRECT_URL = "/api/oauth/login";
 
+// Built-in default presentation config (D-01). The SPA renders fully from these
+// defaults even if the boot GET /api/config never resolves (never-throw,
+// never-block-render — mirrors the `me`-degradation discipline, threat T-14-01).
+// A successful fetch is merged OVER these defaults; a missing `links` stays {} so
+// the real-links-only rule (D-02/D-03) drops every nav/footer anchor by default.
+const DEFAULT_CONFIG = {
+  brand: "alitellm-auth",
+  brand_short: "LiteLLM",
+  tagline: "",
+  accent_segment: "-auth",
+  provider_label: "dex",
+  public_host: "",
+  providers: [{ label: "Google" }, { label: "Dex" }, { label: "OIDC" }],
+  links: {},
+};
+
 // ── State views ───────────────────────────────────────────────────────────────
 
 function LoadingCard() {
@@ -252,9 +268,22 @@ function ErrorCard({ onRetry }) {
 // modal as the main `+ New Key` CTA. The opener is held in a ref so it does not
 // re-trigger renders, and the sidebar calls it without ever touching a /keys
 // endpoint itself (threat T-09-15).
-function AuthedShell({ me }) {
+function AuthedShell({ me, config }) {
   const route = useHashRoute();
+  const cfg = config || DEFAULT_CONFIG;
+  const links = cfg.links || {};
   const email = (me && me.email) || "";
+  // User-menu trigger prefers the display name, falling back to email (UI-SPEC
+  // copy table). Rendered as a Preact text child only — never raw HTML (T-10-14).
+  const menuLabel = (me && me.name) || email;
+  // Config-aware two-tone brand lockup. When accent_segment is non-empty the
+  // wordmark splits base + accent; when empty (e.g. ACKStorm) the full brand
+  // renders in --bright with no accent span. Both render as text children only.
+  const accent = cfg.accent_segment || "";
+  const base =
+    accent && cfg.brand && cfg.brand.endsWith(accent)
+      ? cfg.brand.slice(0, cfg.brand.length - accent.length)
+      : cfg.brand;
   const createOpenerRef = useRef(null);
   const registerCreateOpener = useCallback((opener) => {
     createOpenerRef.current = opener;
@@ -270,7 +299,7 @@ function AuthedShell({ me }) {
     <header class="topbar">
       <div class="brand">
         <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 4.5 3.4 7.3 8 10 4.6-2.7 8-5.5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
-        alitellm<span>-auth</span>
+        ${accent ? html`${base}<span>${accent}</span>` : cfg.brand}
       </div>
       <nav class="topbar-nav">
         <a
@@ -278,10 +307,12 @@ function AuthedShell({ me }) {
           class=${route === "stats" ? "active" : ""}
           onClick=${onStats}
         >Stats</a>
-        <span class="connected"><span class="pulse-dot"></span>Status</span>
+        ${links.status
+          ? html`<a href=${links.status} target="_blank" rel="noopener noreferrer">Status</a>`
+          : html`<span class="connected"><span class="pulse-dot"></span>Status</span>`}
       </nav>
       <div class="topbar-meta">
-        <span class="email">${email} ▾</span>
+        <span class="email">${menuLabel} ▾</span>
         <a class="signout" href="/api/oauth/logout">sign out</a>
       </div>
     </header>
@@ -294,7 +325,7 @@ function AuthedShell({ me }) {
             </div>`}
       </main>
       ${route !== "stats"
-        ? html`<${RightSidebar} onCreateKey=${onCreateKey} />`
+        ? html`<${RightSidebar} onCreateKey=${onCreateKey} config=${cfg} />`
         : null}
     </div>
   `;
@@ -307,6 +338,9 @@ export function App() {
   // resolves, so there is no white flash (UI-SPEC §Loading Sequence step 1).
   const [status, setStatus] = useState(null);
   const [me, setMe] = useState(null);
+  // Presentation config (D-01). Starts from the built-in defaults so the SPA
+  // renders correctly before (and if) the boot fetch resolves.
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
 
   const loadSession = useCallback(async () => {
     setStatus(null); // show loading immediately on (re)load
@@ -322,6 +356,22 @@ export function App() {
     loadSession();
   }, [loadSession]);
 
+  // ONE boot fetch of the public presentation config (UI-SPEC §A). On success
+  // merge it OVER the defaults; on any failure keep the built-in defaults — the
+  // never-throw getJson contract guarantees this never blocks render (T-14-01).
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { status: s, data } = await getJson("/api/config");
+      if (active && s === 200 && data) {
+        setConfig({ ...DEFAULT_CONFIG, ...data });
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const view = resolveState(status, getHasLoaded());
 
   // Mid-session expiry: silent redirect, no card. Done as an effect so render
@@ -333,10 +383,10 @@ export function App() {
   }, [view]);
 
   if (view === "authed") {
-    return html`<${AuthedShell} me=${me} />`;
+    return html`<${AuthedShell} me=${me} config=${config} />`;
   }
   if (view === "signin") {
-    return html`<${TwoColumnLogin} endpoint=${me && me.endpoint} />`;
+    return html`<${TwoColumnLogin} endpoint=${me && me.endpoint} config=${config} />`;
   }
   if (view === "error") {
     return html`<${ErrorCard} onRetry=${loadSession} />`;

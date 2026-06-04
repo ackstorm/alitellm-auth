@@ -24,10 +24,13 @@ function onViewStats() {
   window.location.hash = "#/stats";
 }
 
-// Props: { onCreateKey } — the Dashboard-owned opener (threaded through app.js's
-// AuthedShell). `Create key` calls it to open the create modal; the sidebar
-// itself calls NO /keys endpoint (threat T-09-15: no key material here).
-export function RightSidebar({ onCreateKey }) {
+// Props: { onCreateKey, config } — `onCreateKey` is the Dashboard-owned opener
+// (threaded through app.js's AuthedShell). `Create key` calls it to open the
+// create modal; the sidebar itself calls NO /keys endpoint (threat T-09-15: no
+// key material here). `config` carries the presentation config; the NEED HELP?
+// docs link renders ONLY when config.links.docs is set (real-links-only D-02/C7).
+export function RightSidebar({ onCreateKey, config }) {
+  const docs = (config && config.links && config.links.docs) || null;
   return html`
     <aside class="sidebar">
       <div class="panel panel-primary">
@@ -49,7 +52,11 @@ export function RightSidebar({ onCreateKey }) {
 
       <div class="panel panel-minimal">
         <div class="panel-label">NEED HELP?</div>
-        <p class="panel-body">See the endpoint reference and docs.</p>
+        <p class="panel-body">
+          ${docs
+            ? html`See the <a href=${docs} target="_blank" rel="noopener noreferrer">endpoint reference and docs</a>.`
+            : "See the endpoint reference and docs."}
+        </p>
       </div>
     </aside>
   `;
