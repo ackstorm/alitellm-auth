@@ -1,0 +1,145 @@
+// use-keys.test.ts — vitest suite for the keys TanStack Query hooks (jsdom).
+//
+// The api module is fully mocked so NO real fetch happens; each test programs
+// getJson/postJson/del's resolved { status, data }. Each test gets a FRESH
+// QueryClient (retry disabled so error paths resolve immediately) provided via a
+// renderHook wrapper. The fresh-keys store is reset between tests so the
+// create/delete onSuccess side-effects are asserted in isolation.
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
+import { createElement } from 'react';
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+import type { KeyRow } from '@/lib/api-types';
+
+// Mock the api module: every entrypoint is a vi.fn() each test programs.
+vi.mock('@/lib/api', () => ({
+  getJson: vi.fn(),
+  postJson: vi.fn(),
+  del: vi.fn(),
+}));
+
+import { del, getJson, postJson } from '@/lib/api';
+import {
+  KEYS_QUERY_KEY,
+  useCreateKey,
+  useDeleteKey,
+  useKeys,
+} from './use-keys';
+import { initialFreshKeysState, useFreshKeysStore } from '@/stores/fresh-keys';
+
+const getJsonMock = vi.mocked(getJson);
+const postJsonMock = vi.mocked(postJson);
+const delMock = vi.mocked(del);
+
+// A representative key list row (mirrors the api-types KeyRow contract).
+const ROW: KeyRow = {
+  id: 'key-1',
+  key_alias: 'my-key',
+  spend: 0,
+  budget: null,
+  tpm_limit: null,
+  rpm_limit: null,
+  models: ['all-team-models'],
+  created_at: '2026-03-01T10:00:00+00:00',
+  expires: null,
+};
+
+/** Build a fresh QueryClient with retries off so error tests resolve fast. */
+function makeClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+}
+
+/** renderHook wrapper providing a given QueryClient. */
+function wrapperFor(client: QueryClient) {
+  return ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client }, children);
+}
+
+beforeEach(() => {
+  getJsonMock.mockReset();
+  postJsonMock.mockReset();
+  delMock.mockReset();
+  // Reset the fresh-keys store to its empty initial state, keeping the actions.
+  const { setFresh, dropFresh } = useFreshKeysStore.getState();
+  useFreshKeysStore.setState({ ...initialFreshKeysState, setFresh, dropFresh }, true);
+});
+
+describe('useKeys', () => {
+  it('200 + { keys: [row] } -> data is that KeyRow[]', async () => {
+    getJsonMock.mockResolvedValue({ status: 200, data: { keys: [ROW] } });
+
+    const { result } = renderHook(() => useKeys(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([ROW]);
+    expect(getJsonMock).toHaveBeenCalledWith(
+      '/api/session/keys',
+      expect.objectContaining({ signal: expect.anything() }),
+    );
+  });
+
+  it('non-200 (502) -> isError', async () => {
+    getJsonMock.mockResolvedValue({ status: 502, data: null });
+
+    const { result } = renderHook(() => useKeys(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+});
+
+describe('useCreateKey', () => {
+  it('200 -> stores the fresh sk- AND invalidates the keys query', async () => {
+    postJsonMock.mockResolvedValue({
+      status: 200,
+      data: { key: 'sk-abc', id: 'key-1', team_id: 'team-x' },
+    });
+
+    const client = makeClient();
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+
+    const { result } = renderHook(() => useCreateKey(), {
+      wrapper: wrapperFor(client),
+    });
+
+    await result.current.mutateAsync({});
+
+    expect(useFreshKeysStore.getState().freshKeys).toEqual({ 'key-1': 'sk-abc' });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: KEYS_QUERY_KEY });
+  });
+});
+
+describe('useDeleteKey', () => {
+  it('200 -> drops the fresh key AND invalidates the keys query', async () => {
+    // Pre-seed the store so dropFresh has something to remove.
+    useFreshKeysStore.getState().setFresh('key-1', 'sk-abc');
+
+    delMock.mockResolvedValue({
+      status: 200,
+      data: { status: 'deleted', id: 'key-1' },
+    });
+
+    const client = makeClient();
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+
+    const { result } = renderHook(() => useDeleteKey(), {
+      wrapper: wrapperFor(client),
+    });
+
+    await result.current.mutateAsync('key-1');
+
+    expect(useFreshKeysStore.getState().freshKeys).toEqual({});
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: KEYS_QUERY_KEY });
+  });
+});
