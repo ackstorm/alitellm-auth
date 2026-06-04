@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.4.3] - 2026-06-04
+
 - feat: light/dark theme — a sun/moon toggle in the topbar (and login), persisted to localStorage, defaulting to the OS preference; an inline pre-paint script applies the stored theme before first paint (no flash). The full light palette is authored as token overrides; the green identity is preserved
 - feat: the dashboard "Requests (MTD)" tile now shows both requests and tokens for the month-to-date (e.g. `11 req / 10.02K tokens`), sourced from `/api/session/stats`
 - change: the service indicator now reads "READY" (login card + inner-page footer, renamed from "STATUS") with an "All systems operational" tooltip; the "Spend MTD" tile label is now "Spend (MTD)" for consistency

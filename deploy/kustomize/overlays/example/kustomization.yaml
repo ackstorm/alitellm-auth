@@ -11,4 +11,4 @@ resources:
 # Pin the runtime image tag. Bumped by `make release-bump VERSION=X.Y.Z`.
 images:
   - name: ghcr.io/ackstorm/alitellm-auth
-    newTag: v0.4.2
+    newTag: v0.4.3
