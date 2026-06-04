@@ -43,7 +43,10 @@ export function DeleteModal({ keyToDelete, onClose, onDeleted }) {
   const [deleting, setDeleting] = useState(false);
 
   const onConfirm = useCallback(async () => {
-    if (deleting || !keyToDelete) return;
+    // Guard the absence of an id (malformed /keys projection or a future shape
+    // change): without this, encodeURIComponent(undefined) → "undefined" and we
+    // would fire DELETE /api/session/keys/undefined at the backend (WR-03).
+    if (deleting || !keyToDelete || !keyToDelete.id) return;
     setError(null);
     setDeleting(true);
     const { status } = await del(
@@ -65,8 +68,9 @@ export function DeleteModal({ keyToDelete, onClose, onDeleted }) {
     onClose && onClose();
   }, [onClose]);
 
-  // Modal is open only when a key is targeted.
-  if (!keyToDelete) return null;
+  // Modal is open only when a key with an id is targeted. A key object missing
+  // an id is treated as not-open (defensive, mirrors the onConfirm guard, WR-03).
+  if (!keyToDelete || !keyToDelete.id) return null;
 
   return html`
     <div class="dm-overlay" role="dialog" aria-modal="true" aria-label="Revoke key">
