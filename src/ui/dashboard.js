@@ -26,16 +26,24 @@ import { useState, useEffect, useCallback, useRef } from "preact/hooks";
 import htm from "htm";
 import { getJson } from "./api.js";
 import { useCopyFeedback } from "./clipboard.js";
-import { formatCurrency, formatInt } from "./format.js";
+import { formatCurrency, formatInt, abbreviate } from "./format.js";
 import { KeysTable } from "./keys-table.js";
 import { CreateKeyModal } from "./create-key.js";
 import { DeleteModal } from "./delete-modal.js";
 
 const html = htm.bind(h);
 
-// The em-dash placeholder (matches format.js EM_DASH) — `Monthly requests` is
-// ALWAYS the em-dash this phase (no time-series fetch — UI-SPEC §2).
+// The em-dash placeholder (matches format.js EM_DASH). `Monthly requests` and
+// `Spend MTD` degrade to it when the additive /api/session/stats fetch (D-09)
+// fails or returns a null figure (UI-SPEC §C1 degrade rule).
 const EM_DASH = "—";
+
+// ── KPI tile icons (D-10) — reuse the login.js `.vp-icon` --accent SVG idiom ───
+// 24x24 viewBox stroke glyphs sized + colored by `.metric-icon` CSS.
+const IconKey = html`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8"/><path d="m16 6 3 3"/><path d="m19 3 2 2"/></svg>`;
+const IconChart = html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="5" width="3" height="12"/></svg>`;
+const IconDollar = html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`;
+const IconPeople = html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
 
 // A key is "Active" unless an explicit revoked/blocked flag is truthy — mirrors
 // keys-table.js isRevoked (absence == active, UI-SPEC §4).
@@ -63,31 +71,48 @@ function EndpointChip({ endpoint }) {
 }
 
 // ── MetricTile ───────────────────────────────────────────────────────────────
-// One of the four numeric/text tiles (DASH-06): 11px caption label + 24px
-// heading value. Value-only, no sparkline, no chart (D-03/D-06).
-function MetricTile({ label, value }) {
+// One of the four numeric/text tiles (DASH-06): an optional per-tile accent icon
+// (D-10) + 11px caption label + 24px heading value. Value-only, no sparkline, no
+// chart (D-03/D-06).
+function MetricTile({ label, value, icon }) {
   return html`
     <div class="metric-tile">
-      <div class="metric-label">${label}</div>
+      <div class="metric-head">
+        ${icon ? html`<span class="metric-icon">${icon}</span>` : null}
+        <div class="metric-label">${label}</div>
+      </div>
       <div class="metric-value">${value}</div>
     </div>
   `;
 }
 
 // ── BudgetBar ────────────────────────────────────────────────────────────────
-// The account budget bar (DASH-06 / UI-SPEC §3). If limits.max_budget is present
-// it renders an 8px track with an --accent fill = spend/max_budget (the overflow
-// segment uses --destructive when spend > max_budget). Otherwise it HIDES the bar
-// and shows the spent-no-budget copy — never a divide-by-zero.
+// The account budget bar (DASH-06 / UI-SPEC §C6). If limits.max_budget is present
+// (and > 0) it renders an 8px track with an --accent fill = spend/max_budget (the
+// overflow state color-switches to --destructive when spend > max_budget).
+// Otherwise (max_budget null OR <= 0 — the FID-03 defect case) it renders a
+// NEUTRAL EMPTY 0% track with "no budget set" copy — never a full-green bar and
+// never a divide-by-zero.
 function BudgetBar({ limits, spend }) {
   const current = (spend && typeof spend.current === "number") ? spend.current : 0;
   const maxBudget = limits && typeof limits.max_budget === "number" ? limits.max_budget : null;
 
-  // No budget set (limits null OR max_budget null): no bar, just the spent copy.
-  if (maxBudget === null) {
+  // No budget set: treat null AND <= 0 identically (D-11 / FID-03 fix). The old
+  // code only guarded `=== null`, so `max_budget: 0` fell through to the
+  // has-budget branch where `ratio = maxBudget > 0 ? current/maxBudget : 1`
+  // forced ratio=1 → a full-green 100% bar. Render an EMPTY neutral track
+  // (0% fill, --border/--bg, NOT --accent) instead — an empty bar, NOT a hidden
+  // bar and NOT a full-green bar.
+  if (maxBudget === null || maxBudget <= 0) {
     return html`
       <div class="budget-bar budget-bar--none">
-        <div class="budget-none">${formatCurrency(current)} spent · no account budget set</div>
+        <div class="budget-head">
+          <span class="budget-label">Account budget</span>
+          <span class="budget-figure">${formatCurrency(current)} · no budget set</span>
+        </div>
+        <div class="budget-track">
+          <div class="budget-fill budget-fill--empty" style="width:0%"></div>
+        </div>
       </div>
     `;
   }
@@ -168,6 +193,30 @@ export function Dashboard({ me, registerCreateOpener }) {
     loadKeys();
   }, [loadKeys]);
 
+  // ── D-09: additive KPI stats fetch (Monthly requests / Spend MTD) ───────────
+  // A SEPARATE state + effect from loadKeys — the stats fetch MUST NOT block or
+  // couple to the keys render (UI-SPEC §C1 / Interaction Contracts). It hits the
+  // Phase-12 /api/session/stats endpoint over a ~30d UTC window and degrades to
+  // EM_DASH on any failure/null. A stats failure never surfaces a whole-dashboard
+  // error — `statsTotals` simply stays null and the two tiles read the em-dash.
+  const [statsTotals, setStatsTotals] = useState(null);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const end = new Date();
+      const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const iso = (d) => d.toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+      const url = `/api/session/stats?start_date=${iso(start)}&end_date=${iso(end)}`;
+      const { status, data } = await getJson(url);
+      if (!live) return;
+      if (status === 200 && data && data.totals) {
+        setStatsTotals(data.totals);
+      }
+      // On any non-200 / missing-totals: leave statsTotals null → tiles em-dash.
+    })();
+    return () => { live = false; };
+  }, []);
+
   // Expose the create-modal opener up to the shell (Task 2 threads it into the
   // sidebar). Done in an effect so render stays a pure function of state.
   const openCreate = useCallback(() => setCreateOpen(true), []);
@@ -205,16 +254,25 @@ export function Dashboard({ me, registerCreateOpener }) {
 
   // ── Metric tile values (DASH-06 numeric) ───────────────────────────────────
   // Active keys = non-revoked row count from /keys (— while loading/error so we
-  // never show a misleading 0). Monthly requests = em-dash ALWAYS (no fetch).
-  // Spend MTD = formatCurrency(me.spend.current). Team = me.team_id.
+  // never show a misleading 0). Monthly requests / Spend MTD = the additive
+  // /api/session/stats totals (D-09), degrading to em-dash on failure/null.
+  // Team = me.team_id.
   const activeKeys =
     keysStatus === "ok"
       ? formatInt(keys.filter((k) => !isRevoked(k)).length)
       : EM_DASH;
-  const spendValue =
-    identity.spend && typeof identity.spend.current === "number"
-      ? formatCurrency(identity.spend.current)
+  const requestsValue =
+    statsTotals && typeof statsTotals.requests === "number"
+      ? abbreviate(statsTotals.requests)
       : EM_DASH;
+  // Spend MTD prefers the stats-window total; falls back to me.spend.current so
+  // the tile still renders a figure before/without the stats fetch resolving.
+  const spendValue =
+    statsTotals && typeof statsTotals.spend === "number"
+      ? formatCurrency(statsTotals.spend)
+      : identity.spend && typeof identity.spend.current === "number"
+        ? formatCurrency(identity.spend.current)
+        : EM_DASH;
   const teamValue = identity.team_id || EM_DASH;
 
   return html`
@@ -227,10 +285,10 @@ export function Dashboard({ me, registerCreateOpener }) {
       </div>
 
       <div class="metric-tiles">
-        <${MetricTile} label="Active keys" value=${activeKeys} />
-        <${MetricTile} label="Monthly requests" value=${EM_DASH} />
-        <${MetricTile} label="Spend MTD" value=${spendValue} />
-        <${MetricTile} label="Team" value=${teamValue} />
+        <${MetricTile} label="Active keys" value=${activeKeys} icon=${IconKey} />
+        <${MetricTile} label="Monthly requests" value=${requestsValue} icon=${IconChart} />
+        <${MetricTile} label="Spend MTD" value=${spendValue} icon=${IconDollar} />
+        <${MetricTile} label="Team" value=${teamValue} icon=${IconPeople} />
       </div>
 
       <${BudgetBar} limits=${identity.limits} spend=${identity.spend} />
@@ -306,6 +364,13 @@ export const DASHBOARD_CSS = `
   background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
   padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm);
 }
+.metric-tile .metric-head { display: flex; align-items: center; gap: var(--space-sm); }
+.metric-tile .metric-icon {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--glow); border: 1px solid var(--border);
+}
+.metric-tile .metric-icon svg { width: 15px; height: 15px; stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .metric-tile .metric-label {
   font-family: var(--mono); font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 1px; color: var(--dim);
@@ -332,6 +397,9 @@ export const DASHBOARD_CSS = `
 }
 .budget-bar .budget-fill { height: 100%; background: var(--accent); flex-shrink: 0; transition: width .25s; }
 .budget-bar .budget-fill--over { background: var(--destructive); }
+/* D-11 no-budget state — an EMPTY neutral track (0% fill on the --bg track),
+ * NOT a hidden bar and NOT a full-green bar. */
+.budget-bar .budget-fill--empty { background: var(--border); }
 .budget-bar .budget-none { font-family: var(--sans); font-size: 14px; color: var(--dim); }
 
 /* ── DASH-02 keys section head ─────────────────────────────────────────────── */
