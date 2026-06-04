@@ -1,75 +1,135 @@
-// UsageDonut.tsx — the token-split usage donut for the #/stats Usage & Spend
+// UsageDonut.tsx — the Usage-by-Model SPEND donut for the #/stats Usage & Spend
 // page (STATS-05). React + Tailwind + Recharts port of the old hand-rolled
 // inline-SVG donut src/ui/stats-donut.js.
 //
 // The old leaf hand-rolled an inline-SVG ring because uPlot had no pie/donut
 // (CONTEXT D-01). ui-next ships Recharts, so this renders a real <PieChart>/<Pie>
-// donut. Per the task's token_split intent the two segments are INPUT vs OUTPUT
-// tokens (the capability this figure gates on), with the `${total}` figure
-// centered under a `TOTAL` caption. Colors come from tokens (var(--primary) +
-// a muted second token shade) — NEVER a raw hex.
+// donut. PARITY with stats-donut.js: the figure shows Usage-by-Model by SPEND —
+// the Top-5 named slices by spend desc + one neutral `Other` aggregate, with
+// `formatCurrency(totalSpend)` centered (24px heading) under a `TOTAL` caption,
+// and a legend of model · spend · spend%. Colors step a green token opacity
+// ramp; the `Other` slice is forced to a neutral token so it never competes.
 //
-// PURE presentational leaf — no fetch, no data ownership. The container passes
-// the Phase-12 `totals` slice + `capabilities`. The render branch is decided by
-// capabilityRenderMode(capabilities, 'token_split', hasData):
+// PURE presentational leaf — no fetch, no data ownership. The container (the
+// old src/ui/stats.js) passes the Phase-12 `models` slice, the `totalSpend`, and
+// the `capabilities` map. The render branch is decided by
+// capabilityRenderMode(capabilities, 'per_model_spend', models.length > 0):
 //   "coming-soon" -> the source's `Coming soon` copy + em-dash where the total sits.
 //   "empty"       -> the source's `No usage in this range`.
 //   "ready"       -> the donut + legend.
+// (`per_model_spend` is not a declared StatsCapabilities key, so it is never
+//  explicitly false today and resolves to ready/empty — but the coming-soon
+//  branch is kept, faithful to the source.)
 //
 // SECURITY (T-13-05, XSS — MITIGATED): all labels render as React text children
 // (auto-escaped). No dangerouslySetInnerHTML. Numbers pass through format.ts.
 // SECURITY (T-13-07, DoS / divide-by-zero — MITIGATED): the donut renders only
-// when there is real data; an all-zero total falls to the "empty" branch.
+// when there is real data; an all-zero models list falls to the "empty" branch.
 
 import * as React from 'react';
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
 
-import type { StatsCapabilities, StatsTotals } from '@/lib/api-types';
-import { abbreviate, formatInt } from '@/lib/format';
+import type { StatsCapabilities, StatsModelRow } from '@/lib/api-types';
+import { formatCurrency } from '@/lib/format';
 import { capabilityRenderMode } from '@/lib/stats-presets';
 
 // The em-dash placeholder (matches format.ts EM_DASH).
 const EM_DASH = '—';
 
 // Locked copy, lifted verbatim from stats-donut.js (13-UI-SPEC §Copywriting).
+const OTHER_LABEL = 'Other';
 const TOTAL_CAPTION = 'TOTAL';
 const COMING_SOON_COPY = 'Coming soon';
 const EMPTY_COPY = 'No usage in this range';
 
-// The two token-split segment labels.
-const INPUT_LABEL = 'Input';
-const OUTPUT_LABEL = 'Output';
-
-// Segment colors from tokens (the accent green + a muted second shade) — never
-// a raw hex. --primary === --chart-1 (the series accent); --chart-3 is the
-// stepped-down second token shade for the OUTPUT slice.
-const INPUT_COLOR = 'var(--primary)';
-const OUTPUT_COLOR = 'var(--chart-3)';
-
 // Donut geometry — a fixed-height figure mirroring the old 160px ring.
-const DONUT_HEIGHT = 160;
+const DONUT_HEIGHT = 200;
+const INNER_RADIUS = 56;
+const OUTER_RADIUS = 80;
 
-export interface UsageDonutProps {
-  /** The Phase-12 `totals` slice (input/output token figures live on models, but
-   *  the contract's window totals carry the split when token_split is on). */
-  totals: StatsTotals | null | undefined;
-  /** Per-model rows — the source of the input/output token split. */
-  models: { input_tokens: number; output_tokens: number }[] | null | undefined;
-  /** The contract `capabilities` map (gate: `token_split`). */
-  capabilities: StatsCapabilities | null | undefined;
+// Slice color ramp (parity with stats-donut.js §4/§Color): all Top-5 slices use
+// the accent token at stepped opacities (largest -> opaque), so the largest
+// model reads strongest. NEVER a raw hex — the green is var(--primary). The
+// trailing `Other` bucket is forced to the neutral var(--text-tertiary) so it
+// never competes with a real model.
+const SLICE_FILL = 'var(--primary)';
+const SLICE_OPACITY = [1, 0.7, 0.5, 0.35, 0.2];
+const OTHER_FILL = 'var(--text-tertiary)';
+
+/** One ranked donut slice. */
+interface Slice {
+  model: string;
+  spend: number;
+  spend_pct: number | null;
+  isOther: boolean;
 }
 
-// Sum a numeric field across the model rows (divide-by-zero safe — a non-number
-// contributes 0). Pure.
-function sumField(
-  rows: { input_tokens: number; output_tokens: number }[] | null | undefined,
-  field: 'input_tokens' | 'output_tokens',
-): number {
-  if (!Array.isArray(rows)) return 0;
-  return rows.reduce((acc, r) => {
-    const v = r && typeof r[field] === 'number' ? r[field] : 0;
-    return acc + v;
-  }, 0);
+// Format a contract spend_pct fraction (e.g. 0.182) as a one-decimal `%`; a
+// null/non-finite fraction -> em-dash (never `0%` / `NaN`). Ported verbatim from
+// stats-donut.js formatPct.
+function formatPct(pct: number | null | undefined): string {
+  if (pct === null || pct === undefined || !Number.isFinite(pct)) return EM_DASH;
+  return `${(pct * 100).toFixed(1)}%`;
+}
+
+// rankSlices(models) -> [{model, spend, spend_pct, isOther}] of at most 6
+// entries: the Top-5 named slices by spend desc + a single summed `Other`.
+// Pure: no DOM, no mutation of the input array. Ported from stats-donut.js.
+export function rankSlices(
+  models: StatsModelRow[] | null | undefined,
+): Slice[] {
+  const list = Array.isArray(models) ? models.slice() : [];
+  list.sort((a, b) => (b && b.spend ? b.spend : 0) - (a && a.spend ? a.spend : 0));
+
+  const top: Slice[] = list.slice(0, 5).map((m) => ({
+    model: m && m.model ? m.model : EM_DASH,
+    spend: m && typeof m.spend === 'number' ? m.spend : 0,
+    spend_pct: m && typeof m.spend_pct === 'number' ? m.spend_pct : null,
+    isOther: false,
+  }));
+
+  const rest = list.slice(5);
+  if (rest.length > 0) {
+    let otherSpend = 0;
+    let otherPct = 0;
+    let anyPct = false;
+    for (const m of rest) {
+      if (m && typeof m.spend === 'number') otherSpend += m.spend;
+      if (m && typeof m.spend_pct === 'number') {
+        otherPct += m.spend_pct;
+        anyPct = true;
+      }
+    }
+    top.push({
+      model: OTHER_LABEL,
+      spend: otherSpend,
+      spend_pct: anyPct ? otherPct : null,
+      isOther: true,
+    });
+  }
+
+  return top;
+}
+
+// The fill token for a slice: the neutral token for `Other`, else the accent.
+function sliceFill(slice: Slice): string {
+  return slice.isOther ? OTHER_FILL : SLICE_FILL;
+}
+
+// The fill opacity for a slice: 1 for `Other` (a flat neutral), else the stepped
+// accent ramp (clamped to the last step past index 4).
+function sliceOpacity(slice: Slice, index: number): number {
+  if (slice.isOther) return 1;
+  return SLICE_OPACITY[index] ?? SLICE_OPACITY[SLICE_OPACITY.length - 1];
+}
+
+export interface UsageDonutProps {
+  /** The Phase-12 per-model rows — the source of the spend split. */
+  models: StatsModelRow[] | null | undefined;
+  /** The window total spend, centered under the TOTAL caption. */
+  totalSpend: number | null;
+  /** The contract `capabilities` map (gate: `per_model_spend`). */
+  capabilities: StatsCapabilities | null | undefined;
 }
 
 // A small state panel (coming-soon / empty) matching the old usage-donut--state
@@ -102,25 +162,16 @@ function DonutStatePanel({
 }
 
 export function UsageDonut({
-  totals,
   models,
+  totalSpend,
   capabilities,
 }: UsageDonutProps): React.ReactElement {
-  const inputTokens = sumField(models, 'input_tokens');
-  const outputTokens = sumField(models, 'output_tokens');
-  // Prefer the contract window total when present; else the derived split sum.
-  const total =
-    totals && typeof totals.tokens === 'number'
-      ? totals.tokens
-      : inputTokens + outputTokens;
-
-  // hasData drives the empty distinction; the split must carry real tokens.
-  const hasData = inputTokens + outputTokens > 0;
+  const hasData = (models?.length ?? 0) > 0;
   // StatsCapabilities is a fixed boolean record; capabilityRenderMode wants the
   // open Record<string, boolean> shape, so we read it through that view.
   const mode = capabilityRenderMode(
     capabilities as Record<string, boolean> | null | undefined,
-    'token_split',
+    'per_model_spend',
     hasData
   );
 
@@ -134,34 +185,40 @@ export function UsageDonut({
     return <DonutStatePanel>{EMPTY_COPY}</DonutStatePanel>;
   }
 
-  const segments = [
-    { name: INPUT_LABEL, value: inputTokens, color: INPUT_COLOR },
-    { name: OUTPUT_LABEL, value: outputTokens, color: OUTPUT_COLOR },
-  ];
+  const slices = rankSlices(models);
+  // total = totalSpend when a number, else the sum of slice spends.
+  const total =
+    typeof totalSpend === 'number'
+      ? totalSpend
+      : slices.reduce((acc, s) => acc + s.spend, 0);
 
   return (
     <div
       data-slot="usage-donut"
       className="flex flex-wrap items-center gap-8 rounded-2xl border border-border bg-surface p-5"
     >
-      <div className="relative h-40 w-40 shrink-0">
+      <div className="relative h-50 w-50 shrink-0">
         <ResponsiveContainer width="100%" height={DONUT_HEIGHT}>
           <PieChart>
             <Pie
-              data={segments}
-              dataKey="value"
-              nameKey="name"
+              data={slices}
+              dataKey="spend"
+              nameKey="model"
               cx="50%"
               cy="50%"
-              innerRadius={56}
-              outerRadius={78}
+              innerRadius={INNER_RADIUS}
+              outerRadius={OUTER_RADIUS}
               startAngle={90}
               endAngle={-270}
               stroke="none"
               isAnimationActive={false}
             >
-              {segments.map((s) => (
-                <Cell key={s.name} fill={s.color} />
+              {slices.map((s, i) => (
+                <Cell
+                  key={`${s.model}-${i}`}
+                  fill={sliceFill(s)}
+                  fillOpacity={sliceOpacity(s, i)}
+                />
               ))}
             </Pie>
           </PieChart>
@@ -171,26 +228,32 @@ export function UsageDonut({
             {TOTAL_CAPTION}
           </div>
           <div className="font-sans text-2xl font-semibold leading-tight text-primary">
-            {abbreviate(total)}
+            {formatCurrency(total)}
           </div>
         </div>
       </div>
-      <ul data-slot="usage-donut-legend" className="flex flex-1 basis-50 flex-col gap-2">
-        {segments.map((s) => (
+      <ul
+        data-slot="usage-donut-legend"
+        className="flex flex-1 basis-50 flex-col gap-2"
+      >
+        {slices.map((s, i) => (
           <li
-            key={s.name}
-            className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-lg px-2 py-1"
+            key={`${s.model}-${i}`}
+            className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 rounded-lg px-2 py-1"
           >
             <span
               className="size-2.5 shrink-0 rounded-full"
-              style={{ background: s.color }}
+              style={{ background: sliceFill(s), opacity: sliceOpacity(s, i) }}
               aria-hidden="true"
             />
             <span className="truncate font-mono text-xs text-text-primary">
-              {s.name}
+              {s.model}
             </span>
             <span className="font-mono text-xs text-text-primary">
-              {formatInt(s.value)}
+              {formatCurrency(s.spend)}
+            </span>
+            <span className="font-mono text-xs text-text-secondary">
+              {formatPct(s.spend_pct)}
             </span>
           </li>
         ))}
