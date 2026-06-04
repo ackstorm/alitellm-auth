@@ -49,7 +49,11 @@ export function useCopyFeedback(): {
   }, []);
 
   // Clear any pending timer on unmount so we never setState after unmount.
-  useEffect(() => clearPending, [clearPending]);
+  // (Returning `clearPending` registers it as the effect cleanup — it runs on
+  // unmount/re-arm, NOT at mount.)
+  useEffect(() => {
+    return clearPending;
+  }, [clearPending]);
 
   const copy = useCallback(
     async (text: string): Promise<boolean> => {
