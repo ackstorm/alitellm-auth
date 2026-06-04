@@ -1,0 +1,225 @@
+// Dashboard.test.tsx — vitest suite for the dashboard CONTAINER (jsdom).
+//
+// The keys data hook (useKeys) is fully mocked so NO real fetch happens; each
+// test programs its return to drive the metric/empty/populated branches. The
+// delete mutation (useDeleteKey, used by the DeleteKeyModal the dashboard
+// renders) is mocked too. The create-key-modal + fresh-keys stores are reset
+// between tests; the REAL toast store is reset so the delete success toast
+// stays isolated. The clipboard is stubbed for the endpoint-copy path.
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { UseQueryResult } from '@tanstack/react-query';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+
+import type { KeyRow, SessionMe } from '@/lib/api-types';
+
+// Mock the keys hooks module — useKeys drives the dashboard metrics/table,
+// useDeleteKey backs the DeleteKeyModal the dashboard renders.
+vi.mock('@/hooks/use-keys', () => ({
+  useKeys: vi.fn(),
+  useDeleteKey: vi.fn(),
+  KEYS_QUERY_KEY: ['session', 'keys'],
+}));
+
+import { useDeleteKey, useKeys } from '@/hooks/use-keys';
+import { Dashboard } from './Dashboard';
+import { formatCurrency } from '@/lib/format';
+import {
+  initialCreateKeyModalState,
+  useCreateKeyModalStore,
+} from '@/stores/create-key-modal';
+import {
+  initialFreshKeysState,
+  useFreshKeysStore,
+} from '@/stores/fresh-keys';
+import { initialToastState, useToastStore } from '@/hooks/use-toast';
+
+const useKeysMock = vi.mocked(useKeys);
+const useDeleteKeyMock = vi.mocked(useDeleteKey);
+
+// Build a valid SessionMe fixture with overrides.
+function makeMe(overrides: Partial<SessionMe> = {}): SessionMe {
+  return {
+    email: 'alice@example.com',
+    name: 'Alice Example',
+    team_id: 'team-platform',
+    endpoint: 'https://litellm.example.com',
+    limits: null,
+    spend: { current: 12.5, source: 'user' },
+    ...overrides,
+  };
+}
+
+// A minimal projected /keys row factory.
+function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
+  return {
+    id: 'key-abc123',
+    key_alias: 'my-key',
+    spend: 0,
+    budget: null,
+    tpm_limit: null,
+    rpm_limit: null,
+    models: null,
+    created_at: '2026-03-01T10:00:00+00:00',
+    expires: null,
+    ...overrides,
+  };
+}
+
+/** Program useKeys to a populated success state with `rows`. */
+function setKeysSuccess(rows: KeyRow[]): void {
+  useKeysMock.mockReturnValue({
+    data: rows,
+    isPending: false,
+    isError: false,
+    isSuccess: true,
+  } as unknown as UseQueryResult<KeyRow[]>);
+}
+
+/** Program useKeys to the pending (loading) state. */
+function setKeysPending(): void {
+  useKeysMock.mockReturnValue({
+    data: undefined,
+    isPending: true,
+    isError: false,
+    isSuccess: false,
+  } as unknown as UseQueryResult<KeyRow[]>);
+}
+
+beforeEach(() => {
+  // Reset the create-key-modal store to closed, preserving its actions.
+  const { openModal, closeModal } = useCreateKeyModalStore.getState();
+  useCreateKeyModalStore.setState(
+    { ...initialCreateKeyModalState, openModal, closeModal },
+    true,
+  );
+  // Reset the fresh-keys store to empty.
+  const { setFresh, dropFresh } = useFreshKeysStore.getState();
+  useFreshKeysStore.setState({ ...initialFreshKeysState, setFresh, dropFresh }, true);
+  // Reset the real toast store.
+  const { toast, dismiss, dismissAll } = useToastStore.getState();
+  useToastStore.setState({ ...initialToastState, toast, dismiss, dismissAll }, true);
+  // Default the delete mutation to a no-op resolved mutation.
+  useDeleteKeyMock.mockReturnValue({
+    mutateAsync: vi.fn().mockResolvedValue({ status: 'deleted', id: 'key-abc123' }),
+    isPending: false,
+  } as unknown as ReturnType<typeof useDeleteKey>);
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+  useToastStore.getState().dismissAll();
+  cleanup();
+});
+
+describe('Dashboard — top row + tiles', () => {
+  it('greeting shows me.name', () => {
+    setKeysSuccess([]);
+    render(<Dashboard me={makeMe({ name: 'Alice Example' })} />);
+    expect(screen.getByText(/Welcome back,/)).toBeInTheDocument();
+    expect(screen.getByText('Alice Example')).toBeInTheDocument();
+  });
+
+  it('Team tile shows me.team_id', () => {
+    setKeysSuccess([]);
+    render(<Dashboard me={makeMe({ team_id: 'team-platform' })} />);
+    expect(screen.getByText('team-platform')).toBeInTheDocument();
+  });
+
+  it('Spend MTD shows formatCurrency(me.spend.current)', () => {
+    setKeysSuccess([]);
+    render(<Dashboard me={makeMe({ spend: { current: 1249.5, source: 'user' } })} />);
+    expect(screen.getByText(formatCurrency(1249.5))).toBeInTheDocument();
+  });
+});
+
+describe('Dashboard — Active keys tile', () => {
+  it('shows the non-revoked count when the keys query has loaded', () => {
+    setKeysSuccess([
+      makeRow({ id: 'key-1' }),
+      makeRow({ id: 'key-2' }),
+      makeRow({ id: 'key-3', revoked: true }),
+    ]);
+    render(<Dashboard me={makeMe()} />);
+    // 3 rows, 1 revoked -> 2 active.
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('shows the em-dash placeholder while the keys query is pending', () => {
+    setKeysPending();
+    render(<Dashboard me={makeMe()} />);
+    // The Active keys tile reads "—" while pending (never a misleading 0). The
+    // em-dash appears in the tile; assert at least one is in the document.
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+});
+
+describe('Dashboard — budget bar', () => {
+  it('shows "no budget set" when limits is null', () => {
+    setKeysSuccess([]);
+    render(<Dashboard me={makeMe({ limits: null })} />);
+    expect(screen.getByText(/no budget set/)).toBeInTheDocument();
+  });
+
+  it('shows "no budget set" when max_budget <= 0', () => {
+    setKeysSuccess([]);
+    render(
+      <Dashboard
+        me={makeMe({
+          limits: {
+            max_budget: 0,
+            budget_duration: null,
+            tpm_limit: null,
+            rpm_limit: null,
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText(/no budget set/)).toBeInTheDocument();
+  });
+
+  it('shows "{spend} of {max}" when a positive budget is set', () => {
+    setKeysSuccess([]);
+    render(
+      <Dashboard
+        me={makeMe({
+          spend: { current: 20, source: 'user' },
+          limits: {
+            max_budget: 50,
+            budget_duration: '24h',
+            tpm_limit: null,
+            rpm_limit: null,
+          },
+        })}
+      />,
+    );
+    expect(
+      screen.getByText(`${formatCurrency(20)} of ${formatCurrency(50)}`),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('Dashboard — keys section + modals', () => {
+  it('renders the KeysTable (the empty-state copy proves it mounted)', () => {
+    setKeysSuccess([]);
+    render(<Dashboard me={makeMe()} />);
+    expect(screen.getByText('No API Keys')).toBeInTheDocument();
+  });
+
+  it('clicking "+ New Key" opens the create modal (store open === true)', () => {
+    setKeysSuccess([]);
+    render(<Dashboard me={makeMe()} />);
+    expect(useCreateKeyModalStore.getState().open).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: '+ New Key' }));
+    expect(useCreateKeyModalStore.getState().open).toBe(true);
+  });
+
+  it('clicking a row Revoke opens the DeleteKeyModal ("Revoke Key" title appears)', () => {
+    setKeysSuccess([makeRow({ id: 'key-del' })]);
+    render(<Dashboard me={makeMe()} />);
+    // No delete modal until a row's revoke action fires.
+    expect(screen.queryByText('Revoke Key')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    expect(screen.getByText('Revoke Key')).toBeInTheDocument();
+  });
+});

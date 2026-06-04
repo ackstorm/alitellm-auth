@@ -14,7 +14,11 @@
 
 import { Outlet, NavLink, useLocation } from 'react-router';
 import type { AppConfig, SessionMe } from '@/lib/api-types';
+import { CreateKeyModal } from '@/components/keys/CreateKeyModal';
+import { Toaster } from '@/components/ui/toast';
 import { BrandLockup } from './BrandLockup';
+import { RightSidebar } from './RightSidebar';
+import { SiteFooter } from './SiteFooter';
 
 export interface AppShellProps {
   me: SessionMe;
@@ -84,23 +88,31 @@ export function AppShell({ me, config }: AppShellProps) {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1200px] flex-1 gap-8 px-6 py-8 max-[1024px]:flex-col">
-        <main className="min-w-0 flex-1 animate-[slide-up_0.5s_ease-out]">
-          <Outlet />
-        </main>
+      <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-6 py-8">
+        <div className="flex flex-1 gap-8 max-[1024px]:flex-col">
+          <main className="min-w-0 flex-1 animate-[slide-up_0.5s_ease-out]">
+            <Outlet />
+          </main>
 
-        {!onStats && (
-          <aside className="w-[320px] shrink-0 max-[1024px]:w-full">
-            {/* Right-sidebar slot — panels arrive in Phase 3 (quick actions,
-                security, need-help). M5: rendered as a plain non-interactive
-                placeholder card; the old <Link to="/"> advertised an interactive
-                element to AT that navigated nowhere. Real links land in Phase 3. */}
-            <div className="block rounded-xl border border-border bg-surface p-5 font-mono text-[11px] font-semibold uppercase tracking-widest text-text-secondary">
-              Quick actions — coming soon
-            </div>
-          </aside>
-        )}
+          {/* RightSidebar IS the <aside>. Hidden on /stats (parity with the old
+              shell), so the Stats route renders full width. */}
+          {!onStats && <RightSidebar config={config} />}
+        </div>
+
+        {/* The shared footer spans under both columns, on every authed route. */}
+        <SiteFooter config={config} />
       </div>
+
+      {/* Store-driven / queue-driven overlays mounted at the authed shell root.
+          The CreateKeyModal is mounted HERE (not in the dashboard) so both the
+          dashboard `+ New Key` CTA and the sidebar `Create key` shortcut open
+          the SAME modal via useCreateKeyModalStore. The Toaster is mounted here
+          (not at App root) because toasts only fire in authed flows (create /
+          delete) and AppShell is the authed root — this scopes them correctly
+          while guaranteeing they render wherever a toast can fire. Both render
+          nothing when idle. */}
+      <CreateKeyModal />
+      <Toaster />
     </div>
   );
 }
