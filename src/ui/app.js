@@ -25,6 +25,20 @@ import { Dashboard, DASHBOARD_CSS } from "./dashboard.js";
 import { KEYS_TABLE_CSS } from "./keys-table.js";
 import { CREATE_KEY_CSS } from "./create-key.js";
 import { DELETE_MODAL_CSS } from "./delete-modal.js";
+// The Phase-13 #/stats page (StatsView) + every new component stylesheet. The
+// container (stats.js) imports the leaves for behavior but does NOT re-export
+// their CSS, so app.js pulls each *_CSS in directly to feed injectShellStyles.
+import { StatsView, STATS_CSS } from "./stats.js";
+import { SKELETON_CSS } from "./skeleton.js";
+import { TOAST_CSS } from "./toast.js";
+import { CHARTS_CSS } from "./charts.js";
+import { STATS_KPIS_CSS } from "./stats-kpis.js";
+import { STATS_DONUT_CSS } from "./stats-donut.js";
+import { STATS_BUDGET_CSS } from "./stats-budget.js";
+import { STATS_MODEL_TABLE_CSS } from "./stats-model-table.js";
+import { STATS_TOP_KEYS_CSS } from "./stats-top-keys.js";
+import { STATS_RAIL_CSS } from "./stats-rail.js";
+import { DATE_RANGE_CSS } from "./date-range.js";
 
 const html = htm.bind(h);
 
@@ -163,14 +177,6 @@ const SHELL_CSS = `
 /* Security / Need-help: visually subordinate (smaller, dimmer) to Quick actions. */
 .panel-minimal .panel-body { font-family: var(--sans); font-size: 12px; color: var(--dim); line-height: 1.5; }
 
-/* Reserved Stats route placeholder (Phase 12, D-10). */
-.stats-placeholder {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-  padding: var(--space-3xl) var(--space-xl); text-align: center; animation: slideUp .5s ease-out;
-}
-.stats-placeholder .heading { font-size: 24px; font-weight: 600; color: var(--bright); }
-.stats-placeholder .sub { margin-top: var(--space-sm); font-size: 14px; color: var(--dim); }
-
 /* Responsive: below 1024px the sidebar stacks below the main content. */
 @media (max-width: 1024px) {
   .content { flex-direction: column; padding: var(--space-xl) var(--space-lg) 0; }
@@ -236,8 +242,10 @@ function ErrorCard({ onRetry }) {
 // a 56px topbar (brand + Stats/Status nav + connected pulse-dot + {email} +
 // sign out), a centered 1200px-max content region, and a fixed 320px right
 // sidebar. A client-side hash router (useHashRoute) drives the main content
-// slot: #/ -> the Dashboard (DASH-01..06, dashboard.js), #/stats -> a reserved
-// "Coming soon" placeholder (Phase 12, D-10).
+// slot: #/ -> the Dashboard (DASH-01..06, dashboard.js), #/stats -> the Usage &
+// Spend page (StatsView, stats.js — Phase 13). The stats page owns its own
+// full-width grid + left rail + page right column, so the shell's 320px
+// RightSidebar is HIDDEN on #/stats (CONTEXT D-08); the #/ route is untouched.
 //
 // The Dashboard OWNS the create-modal open-state; it hands its opener up via
 // `registerCreateOpener` so the sidebar `Create key` shortcut opens the SAME
@@ -280,16 +288,14 @@ function AuthedShell({ me }) {
     <div class="content">
       <main class="main-region">
         ${route === "stats"
-          ? html`
-            <div class="stats-placeholder">
-              <div class="heading">Coming soon</div>
-              <div class="sub">Usage analytics arrive in a later release.</div>
-            </div>`
+          ? html`<${StatsView} me=${me} />`
           : html`<div class="main-slot">
               <${Dashboard} me=${me} registerCreateOpener=${registerCreateOpener} />
             </div>`}
       </main>
-      <${RightSidebar} onCreateKey=${onCreateKey} />
+      ${route !== "stats"
+        ? html`<${RightSidebar} onCreateKey=${onCreateKey} />`
+        : null}
     </div>
   `;
 }
@@ -349,9 +355,14 @@ export function injectShellStyles(doc) {
   // SHELL_CSS owns the shell-state cards + wide authed layout; LOGIN_CSS owns
   // the two-column sign-in landing (login.js); the four DASH-* strings own the
   // dashboard container, keys table, and the create/delete modals (Phase 10).
+  // The Phase-13 STATS_* strings own the #/stats page: the container grid
+  // (STATS_CSS), the Wave-1 primitives (skeleton/toast/charts), and every
+  // Wave-2 leaf (KPIs, donut, budget, model table, top keys, rail, date range).
   // All use only var(--*) tokens.
   style.textContent =
-    SHELL_CSS + LOGIN_CSS + DASHBOARD_CSS + KEYS_TABLE_CSS + CREATE_KEY_CSS + DELETE_MODAL_CSS;
+    SHELL_CSS + LOGIN_CSS + DASHBOARD_CSS + KEYS_TABLE_CSS + CREATE_KEY_CSS + DELETE_MODAL_CSS +
+    STATS_CSS + SKELETON_CSS + TOAST_CSS + CHARTS_CSS + STATS_KPIS_CSS + STATS_DONUT_CSS +
+    STATS_BUDGET_CSS + STATS_MODEL_TABLE_CSS + STATS_TOP_KEYS_CSS + STATS_RAIL_CSS + DATE_RANGE_CSS;
   d.head.appendChild(style);
 }
 
