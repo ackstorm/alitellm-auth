@@ -2,6 +2,16 @@
 
 ## [unreleased]
 
+## [0.3.1] - 2026-06-04
+
+- feat: read-only "Usage & Spend" page at `#/stats` — per-user requests, tokens, models, and spend with period-over-period KPI deltas, spend charts, a Model Breakdown table, a Top API Keys table, and a date-range filter; conflicting v2 extras (Export/PDF/Insights, real Team/Environment filters) render as non-functional "coming soon" placeholders
+- feat: session-authenticated `GET /api/session/stats` — a server-shaped usage/spend contract scoped to the logged-in user's keys (sourced from LiteLLM spend logs via the master key, server-side) with per-figure graceful degradation (a `capabilities` map distinguishes "unavailable" from a real zero)
+- feat: public `GET /api/config` — non-secret presentation config (brand, tagline, external links, SSO providers) consumed by the SPA so a deployment can re-brand the login and dashboard without a rebuild
+- feat: login and dashboard re-skinned to the reference design — login topbar, "BACKED BY" provider chips, a richer overview, and a shared footer; the dashboard keys table is now a 6-column data-table with an expandable per-key detail row, icon actions (reveal/copy/revoke), status pills, and pagination
+- fix: the account budget bar no longer renders a full-green 100% bar for a no-budget account (`$0.00 of $0.00`) — it shows a neutral empty track with "no budget set"
+- fix: the keys data-table no longer overflows horizontally at standard viewport widths (Name merged into the Key ID cell; usage moved to the expandable detail row)
+- change: removed the unused `GET /api/session/usage` passthrough (now `404`); its data source feeds `GET /api/session/stats`
+
 ## [0.3.0] - 2026-06-03
 
 - feat: self-service dashboard SPA (Preact + htm + Vite) served same-origin by FastAPI at `/ui` — view identity + account budget, list keys with metadata/usage, reveal + copy a key, create a key, delete a key (with a confirm step); dark-terminal design system, `success.html`/`error.html` restyled to match
