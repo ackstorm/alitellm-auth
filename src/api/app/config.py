@@ -21,7 +21,10 @@ class Settings(BaseSettings):
     # API (LiteLLM backend)
     litellm_url: str  # internal URL used server-side to call admin endpoints
     litellm_master_key: str
-    api_public_url: str = "https://api.ackstorm.ai"  # public URL shown to users
+    # Neutral default (D-01): keep OSS forks brand-neutral. Deployments set the
+    # branded public URL via API_PUBLIC_URL. When unset, public_config falls back
+    # gracefully (urlparse("").hostname or "" → "").
+    api_public_url: str = ""  # public URL shown to users
 
     # Factory config — path to mounted ConfigMap JSON with team/user LiteLLM params
     factory_config_path: str | None = None
