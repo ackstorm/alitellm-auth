@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.0] - 2026-06-05
+
 - feat: a per-user **default key** — promote any key to your default from its `⋯` row menu ("Set as default"); the default carries a DEFAULT badge in the Key ID column and cannot be deleted until another key is promoted. A default is never auto-assigned (explicit only). Backed by a flag in the key's LiteLLM metadata.
 - feat: a **Chat** button in the nav (set apart, accent-coloured) linking to `chat.{domain}`, enabled only when you have a default key (otherwise it shows "you need a default key").
 - feat: a **pastel** theme — the topbar toggle now cycles dark → light → pastel (lavender/cyan/pink, with a frosted sign-in card and a gradient sign-in button); persisted to localStorage and applied before first paint.
