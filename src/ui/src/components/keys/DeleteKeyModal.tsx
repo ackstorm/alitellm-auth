@@ -32,7 +32,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { useDeleteKey } from '@/hooks/use-keys';
+import { useDeleteKey, type ApiCallError } from '@/hooks/use-keys';
 import { useToast } from '@/hooks/use-toast';
 import type { KeyRow } from '@/lib/api-types';
 import { maskKey } from '@/lib/format';
@@ -84,9 +84,16 @@ export function DeleteKeyModal({ keyToDelete, onClose }: DeleteKeyModalProps) {
       // the list; here we only surface the success toast and close.
       toast({ message: DELETE_SUCCESS, variant: 'success' });
       onClose();
-    } catch {
-      // 403 (foreign/absent) or 502 (backend) — keep the modal OPEN.
-      setError(DELETE_ERROR);
+    } catch (err) {
+      // A 409 is the default-key guard — surface the server's specific reason
+      // ("Make another key default first."). Any other rejection (403 foreign /
+      // 502 backend / network) shows the locked generic copy. Keep the modal OPEN.
+      const e = err as Partial<ApiCallError>;
+      if (e && e.status === 409 && typeof e.detail === 'string') {
+        setError(e.detail);
+      } else {
+        setError(DELETE_ERROR);
+      }
     }
   }, [deleteKey, keyToDelete, isPending, toast, onClose]);
 

@@ -220,4 +220,28 @@ describe('KeysTable — default key', () => {
     expect(screen.queryByRole('button', { name: 'Make default' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Revoke' })).toBeDisabled();
   });
+
+  it('nudges to set a default when there are keys but none is default', () => {
+    setRows([
+      makeRow({ id: 'key-1', is_default: false }),
+      makeRow({ id: 'key-2', is_default: false }),
+    ]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.getByText(/No default key set/i)).toBeInTheDocument();
+  });
+
+  it('hides the nudge once a default exists', () => {
+    setRows([
+      makeRow({ id: 'key-1', is_default: true }),
+      makeRow({ id: 'key-2', is_default: false }),
+    ]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.queryByText(/No default key set/i)).not.toBeInTheDocument();
+  });
+
+  it('shows no nudge in the empty state', () => {
+    setRows([]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.queryByText(/No default key set/i)).not.toBeInTheDocument();
+  });
 });

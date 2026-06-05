@@ -146,6 +146,24 @@ describe('DeleteKeyModal — confirm error', () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(useToastStore.getState().toasts).toHaveLength(0);
   });
+
+  it('a 409 (default-key guard) shows the server detail, not the generic error', async () => {
+    const detail = 'Cannot delete the default key. Make another key default first.';
+    const mutateAsync = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error(), { status: 409, detail }));
+    setMutation(mutateAsync);
+    const onClose = vi.fn();
+    render(
+      <DeleteKeyModal keyToDelete={makeKey({ id: 'key-abc', is_default: true })} onClose={onClose} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Revoke' }));
+
+    expect(await screen.findByText(detail)).toBeInTheDocument();
+    expect(screen.queryByText(DELETE_ERROR)).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
 
 describe('DeleteKeyModal — keep key', () => {

@@ -168,68 +168,84 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
     },
   ];
 
+  // Explicit-only nudge: the user has keys but has not picked a default yet.
+  // A default is never auto-assigned, and Chat is gated on having one — so prompt.
+  const showDefaultNudge = rows.length > 0 && !rows.some((r) => r.is_default);
+
   return (
-    <DataTable
-      data-slot="keys-table"
-      columns={columns}
-      rows={rows}
-      getRowId={(row) => row.id ?? ''}
-      actionsHeader="Action"
-      empty={
-        <div data-slot="keys-table-empty" className="py-6">
-          <p className="text-foreground text-base font-semibold">No API Keys</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            You have no virtual keys yet. Create one to get started.
-          </p>
+    <div className="flex flex-col gap-3">
+      {showDefaultNudge ? (
+        <div
+          data-slot="keys-default-nudge"
+          className="border-primary/30 bg-primary/5 text-foreground rounded-lg border px-3 py-2 text-xs"
+        >
+          No default key set. Pick one with the{' '}
+          <Star className="inline size-3 align-[-1px]" aria-hidden="true" /> Make default
+          action to enable Chat.
         </div>
-      }
-      rowActions={(row) => (
-        <div className="flex items-center justify-end gap-2">
-          {row.is_default ? (
-            <button
-              type="button"
-              data-slot="key-default-on"
-              aria-label="Default key"
-              title="This is your default key"
-              disabled
-              className="text-primary border-primary/40 inline-flex size-7 cursor-default items-center justify-center rounded-md border"
-            >
-              <Star className="size-[15px] fill-current" aria-hidden="true" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              data-slot="key-make-default"
-              aria-label="Make default"
-              title="Make this your default key"
-              onClick={() => makeDefault.mutate(row.id ?? '')}
-              className="text-muted-foreground border-border hover:border-primary hover:text-primary inline-flex size-7 cursor-pointer items-center justify-center rounded-md border transition-colors"
-            >
-              <Star className="size-[15px]" aria-hidden="true" />
-            </button>
-          )}
-          <button
-            type="button"
-            data-slot="key-delete"
-            aria-label="Revoke"
-            title={
-              row.is_default
-                ? 'Make another key default before deleting'
-                : 'Revoke'
-            }
-            disabled={row.is_default}
-            onClick={() => onDelete(row)}
-            className={cn(
-              'inline-flex size-7 items-center justify-center rounded-md border transition-colors',
-              row.is_default
-                ? 'text-muted-foreground border-border cursor-not-allowed opacity-50'
-                : 'text-destructive border-destructive/40 hover:border-destructive cursor-pointer'
+      ) : null}
+      <DataTable
+        data-slot="keys-table"
+        columns={columns}
+        rows={rows}
+        getRowId={(row) => row.id ?? ''}
+        actionsHeader="Action"
+        empty={
+          <div data-slot="keys-table-empty" className="py-6">
+            <p className="text-foreground text-base font-semibold">No API Keys</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              You have no virtual keys yet. Create one to get started.
+            </p>
+          </div>
+        }
+        rowActions={(row) => (
+          <div className="flex items-center justify-end gap-2">
+            {row.is_default ? (
+              <button
+                type="button"
+                data-slot="key-default-on"
+                aria-label="Default key"
+                title="This is your default key"
+                disabled
+                className="text-primary border-primary/40 inline-flex size-7 cursor-default items-center justify-center rounded-md border"
+              >
+                <Star className="size-[15px] fill-current" aria-hidden="true" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                data-slot="key-make-default"
+                aria-label="Make default"
+                title="Make this your default key"
+                onClick={() => makeDefault.mutate(row.id ?? '')}
+                className="text-muted-foreground border-border hover:border-primary hover:text-primary inline-flex size-7 cursor-pointer items-center justify-center rounded-md border transition-colors"
+              >
+                <Star className="size-[15px]" aria-hidden="true" />
+              </button>
             )}
-          >
-            <Trash2 className="size-[15px]" aria-hidden="true" />
-          </button>
-        </div>
-      )}
-    />
+            <button
+              type="button"
+              data-slot="key-delete"
+              aria-label="Revoke"
+              title={
+                row.is_default
+                  ? 'Make another key default before deleting'
+                  : 'Revoke'
+              }
+              disabled={row.is_default}
+              onClick={() => onDelete(row)}
+              className={cn(
+                'inline-flex size-7 items-center justify-center rounded-md border transition-colors',
+                row.is_default
+                  ? 'text-muted-foreground border-border cursor-not-allowed opacity-50'
+                  : 'text-destructive border-destructive/40 hover:border-destructive cursor-pointer'
+              )}
+            >
+              <Trash2 className="size-[15px]" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+      />
+    </div>
   );
 }
