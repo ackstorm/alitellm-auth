@@ -34,6 +34,7 @@ import { useNavigate } from 'react-router';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { cn } from '@/lib/utils';
+import { deriveSubdomainUrl } from '@/lib/urls';
 import { useConfigStore } from '@/stores/config';
 import { useSessionStore } from '@/stores/session';
 
@@ -51,18 +52,7 @@ const AUTH_HEADER = 'x-litellm-api-key';
 // Fallback host shown before the session endpoint resolves / when unparseable.
 const FALLBACK_API_BASE = 'https://api.your-domain.example';
 
-// Derive a sibling-subdomain URL from the gateway endpoint by swapping the
-// leading `api.` host label (e.g. https://api.acme.ai -> https://chat.acme.ai).
-// A host without the `api.` prefix just gets the sub prepended to the bare host.
-function deriveSubdomainUrl(endpoint: string | undefined, sub: string): string {
-  try {
-    const u = new URL(endpoint ?? '');
-    const baseHost = u.hostname.replace(/^api\./, '');
-    return `${u.protocol}//${sub}.${baseHost}`;
-  } catch {
-    return `https://${sub}.your-domain.example`;
-  }
-}
+// `deriveSubdomainUrl` now lives in @/lib/urls (shared with the CHAT nav button).
 
 // ── TOC ──────────────────────────────────────────────────────────────────────
 // Sticky in-page nav. NOTE: this app is a HASH router (#/howto), so the URL hash
