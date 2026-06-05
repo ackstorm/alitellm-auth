@@ -2,9 +2,11 @@
 
 ## [unreleased]
 
-- feat: a per-user **default key** — mark any key as your default (a star on the Keys table), stored in the key's LiteLLM metadata. The default key cannot be deleted until another key is promoted ("Make default"); a default is never auto-assigned (explicit only).
+- feat: a per-user **default key** — promote any key to your default from its `⋯` row menu ("Set as default"); the default carries a DEFAULT badge in the Key ID column and cannot be deleted until another key is promoted. A default is never auto-assigned (explicit only). Backed by a flag in the key's LiteLLM metadata.
 - feat: a **Chat** button in the nav (set apart, accent-coloured) linking to `chat.{domain}`, enabled only when you have a default key (otherwise it shows "you need a default key").
+- feat: a **pastel** theme — the topbar toggle now cycles dark → light → pastel (lavender/cyan/pink, with a frosted sign-in card and a gradient sign-in button); persisted to localStorage and applied before first paint.
 - change: the **Models** and **MCPs** pages are now scoped to the signed-in user — the service sends an `x-user-id` header (with the master key kept server-side) so the catalog reflects that user's access, resolved by the gateway's custom auth.
+- change: primary (green) buttons use white text in light mode for legibility; the pastel theme lightens its primary-button ink for readable contrast on the purple.
 
 ## [0.4.5] - 2026-06-05
 

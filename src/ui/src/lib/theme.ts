@@ -7,11 +7,24 @@
 // class. Kept side-effect-light and guarded (no throw if storage/matchMedia is
 // unavailable) so they are safe to call at module load and in tests.
 
-export type Theme = 'dark' | 'light';
+export type Theme = 'dark' | 'light' | 'pastel';
 
 export const THEME_STORAGE_KEY = 'alitellm-theme';
 
-/** The OS preference, defaulting to dark when matchMedia is unavailable. */
+/** The toggle cycle order: dark → light → pastel → (dark). */
+export const THEME_ORDER: readonly Theme[] = ['dark', 'light', 'pastel'];
+
+/** The class names this app ever puts on <html> for theming. */
+const THEME_CLASSES = ['dark', 'light', 'pastel'] as const;
+
+/** The next theme in the cycle (wraps around). */
+export function nextTheme(theme: Theme): Theme {
+  const i = THEME_ORDER.indexOf(theme);
+  return THEME_ORDER[(i + 1) % THEME_ORDER.length];
+}
+
+/** The OS preference, defaulting to dark when matchMedia is unavailable.
+ *  Note: pastel is an explicit choice only — the OS never resolves to it. */
 export function getSystemTheme(): Theme {
   if (typeof window === 'undefined' || !window.matchMedia) return 'dark';
   return window.matchMedia('(prefers-color-scheme: light)').matches
@@ -23,7 +36,7 @@ export function getSystemTheme(): Theme {
 export function readStoredTheme(): Theme | null {
   try {
     const v = localStorage.getItem(THEME_STORAGE_KEY);
-    return v === 'dark' || v === 'light' ? v : null;
+    return v === 'dark' || v === 'light' || v === 'pastel' ? v : null;
   } catch {
     return null;
   }
@@ -34,11 +47,11 @@ export function resolveInitialTheme(): Theme {
   return readStoredTheme() ?? getSystemTheme();
 }
 
-/** Mutate <html> so exactly one of `dark`/`light` is present. */
+/** Mutate <html> so exactly one of `dark`/`light`/`pastel` is present. */
 export function applyThemeClass(theme: Theme): void {
   if (typeof document === 'undefined') return;
   const el = document.documentElement;
-  el.classList.remove('dark', 'light');
+  el.classList.remove(...THEME_CLASSES);
   el.classList.add(theme);
 }
 

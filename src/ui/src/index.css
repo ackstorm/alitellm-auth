@@ -54,6 +54,12 @@
   --sidebar-accent-foreground: oklch(0.93 0.005 260);
   --sidebar-border: oklch(0.28 0.01 260);
   --sidebar-ring: oklch(0.72 0.19 150);
+
+  /* Decorative background glow blobs (login + authed shell). Subtle green in
+     dark mode; recoloured per theme below. */
+  --glow-1: oklch(0.72 0.19 150 / 0.12);
+  --glow-2: oklch(0.65 0.18 210 / 0.07);
+  --glow-3: oklch(0.72 0.19 150 / 0.05);
 }
 
 /* Light theme — applied when <html> carries the `light` class (set by the theme
@@ -88,7 +94,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.22 0.015 260);
   --primary: oklch(0.68 0.19 150);
-  --primary-foreground: oklch(0.18 0.04 150);
+  --primary-foreground: oklch(1 0 0); /* white ink on the green button (light) */
   --secondary: oklch(0.955 0.005 260);
   --secondary-foreground: oklch(0.22 0.015 260);
   --muted: oklch(0.955 0.005 260);
@@ -112,6 +118,71 @@
   --sidebar-accent-foreground: oklch(0.3 0.1 150);
   --sidebar-border: oklch(0.9 0.008 260);
   --sidebar-ring: oklch(0.68 0.19 150);
+
+  --glow-1: oklch(0.68 0.19 150 / 0.12);
+  --glow-2: oklch(0.7 0.16 210 / 0.1);
+  --glow-3: oklch(0.82 0.12 150 / 0.12);
+}
+
+/* Pastel theme — applied when <html> carries the `pastel` class (explicit choice
+ * from the toggle cycle; the OS preference never resolves to it). A soft
+ * lavender/cyan/pink skin: light-family (dark ink on tinted-white surfaces), so
+ * shadcn `dark:` utilities stay OFF (no `.dark` ancestor) exactly like light. The
+ * green identity is swapped for a violet/fuchsia primary. */
+:root.pastel {
+  /* App-specific colors */
+  --surface: oklch(0.99 0.012 320);
+  --surface-elevated: oklch(1 0 0);
+  --border-bright: oklch(0.8 0.05 312);
+  --text-primary: oklch(0.31 0.08 305);
+  --text-secondary: oklch(0.5 0.06 305);
+  --text-tertiary: oklch(0.62 0.05 312);
+  --accent-hover: oklch(0.7 0.16 330);
+  --accent-muted: oklch(0.9 0.06 320);
+  --surface-inset: oklch(0.975 0.018 320);
+  --surface-hover: oklch(0.96 0.024 320);
+  --accent-bright: oklch(0.72 0.18 330);
+  --success: oklch(0.7 0.13 165);
+  --warning: oklch(0.8 0.12 75);
+  --error: oklch(0.64 0.19 18);
+
+  /* shadcn variables mapped to the pastel theme */
+  --background: oklch(0.975 0.022 330);
+  --foreground: oklch(0.31 0.08 305);
+  --card: oklch(0.992 0.01 320);
+  --card-foreground: oklch(0.31 0.08 305);
+  --popover: oklch(0.992 0.01 320);
+  --popover-foreground: oklch(0.31 0.08 305);
+  --primary: oklch(0.71 0.17 322);
+  --primary-foreground: oklch(0.97 0.012 320); /* light grey — dark ink read low-contrast on the purple */
+  --secondary: oklch(0.95 0.028 320);
+  --secondary-foreground: oklch(0.31 0.08 305);
+  --muted: oklch(0.95 0.028 320);
+  --muted-foreground: oklch(0.52 0.06 305);
+  --accent: oklch(0.92 0.05 320);
+  --accent-foreground: oklch(0.36 0.11 322);
+  --destructive: oklch(0.62 0.2 18);
+  --border: oklch(0.9 0.032 320);
+  --input: oklch(0.9 0.032 320);
+  --ring: oklch(0.71 0.17 322);
+  --chart-1: oklch(0.72 0.16 322);
+  --chart-2: oklch(0.74 0.13 220);
+  --chart-3: oklch(0.78 0.13 350);
+  --chart-4: oklch(0.8 0.12 75);
+  --chart-5: oklch(0.7 0.13 162);
+  --sidebar: oklch(0.992 0.01 320);
+  --sidebar-foreground: oklch(0.31 0.08 305);
+  --sidebar-primary: oklch(0.71 0.17 322);
+  --sidebar-primary-foreground: oklch(0.97 0.012 320);
+  --sidebar-accent: oklch(0.92 0.05 320);
+  --sidebar-accent-foreground: oklch(0.36 0.11 322);
+  --sidebar-border: oklch(0.9 0.032 320);
+  --sidebar-ring: oklch(0.71 0.17 322);
+
+  /* Vivid pastel glow blobs: lavender · cyan · pink. */
+  --glow-1: oklch(0.8 0.15 300 / 0.62);
+  --glow-2: oklch(0.84 0.12 220 / 0.62);
+  --glow-3: oklch(0.84 0.13 350 / 0.62);
 }
 
 @theme inline {

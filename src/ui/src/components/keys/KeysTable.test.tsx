@@ -200,25 +200,38 @@ describe('KeysTable — default key', () => {
     expect(screen.getAllByText('DEFAULT')).toHaveLength(1);
   });
 
-  it('a non-default key exposes an enabled "Make default" control', () => {
+  it('a non-default key offers "Set as default" in its kebab menu', async () => {
     setRows([makeRow({ id: 'key-other', is_default: false })]);
     render(<KeysTable onDelete={vi.fn()} />);
-    const btn = screen.getByRole('button', { name: 'Make default' });
-    expect(btn).toBeEnabled();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'Enter',
+    });
+    const item = await screen.findByRole('menuitem', { name: 'Set as default' });
+    expect(item).toBeInTheDocument();
   });
 
-  it('clicking "Make default" fires the mutation with the row id', () => {
+  it('choosing "Set as default" fires the mutation with the row id', async () => {
     setRows([makeRow({ id: 'key-other', is_default: false })]);
     render(<KeysTable onDelete={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Make default' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'Enter',
+    });
+    const item = await screen.findByRole('menuitem', { name: 'Set as default' });
+    fireEvent.keyDown(item, { key: 'Enter' });
     expect(makeDefaultMutate).toHaveBeenCalledWith('key-other');
   });
 
-  it('the default key has no "Make default" control and a disabled Revoke', () => {
+  it('the default key omits "Set as default" and disables Revoke', async () => {
     setRows([makeRow({ id: 'key-default', is_default: true })]);
     render(<KeysTable onDelete={vi.fn()} />);
-    expect(screen.queryByRole('button', { name: 'Make default' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Revoke' })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'Enter',
+    });
+    await screen.findByRole('menuitem', { name: 'Default key' });
+    expect(
+      screen.queryByRole('menuitem', { name: 'Set as default' })
+    ).not.toBeInTheDocument();
   });
 
   it('nudges to set a default when there are keys but none is default', () => {

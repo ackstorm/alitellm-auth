@@ -30,3 +30,23 @@ class PatchedRequest extends BaseRequest {
 }
 
 globalThis.Request = PatchedRequest as unknown as typeof globalThis.Request;
+
+// --- Radix UI primitives in jsdom -----------------------------------------
+// Radix (DropdownMenu, etc.) drives open/close via Pointer Events + pointer
+// capture and calls scrollIntoView on focus. jsdom implements none of these, so
+// a click on a Radix trigger throws "hasPointerCapture is not a function". Shim
+// them as no-ops so menus open/close in tests.
+const proto = globalThis.Element?.prototype as
+  | (Element & {
+      hasPointerCapture?: unknown;
+      setPointerCapture?: unknown;
+      releasePointerCapture?: unknown;
+      scrollIntoView?: unknown;
+    })
+  | undefined;
+if (proto) {
+  proto.hasPointerCapture ??= () => false;
+  proto.setPointerCapture ??= () => {};
+  proto.releasePointerCapture ??= () => {};
+  proto.scrollIntoView ??= () => {};
+}

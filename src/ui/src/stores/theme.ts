@@ -11,6 +11,7 @@ import { create } from 'zustand';
 import {
   type Theme,
   applyThemeClass,
+  nextTheme,
   persistTheme,
   resolveInitialTheme,
 } from '@/lib/theme';
@@ -19,7 +20,7 @@ export interface ThemeState {
   theme: Theme;
   /** Set + apply + persist an explicit theme. */
   setTheme: (theme: Theme) => void;
-  /** Flip between dark and light. */
+  /** Cycle through the themes: dark → light → pastel → dark. */
   toggle: () => void;
 }
 
@@ -30,5 +31,5 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     persistTheme(theme);
     set({ theme });
   },
-  toggle: () => get().setTheme(get().theme === 'dark' ? 'light' : 'dark'),
+  toggle: () => get().setTheme(nextTheme(get().theme)),
 }));

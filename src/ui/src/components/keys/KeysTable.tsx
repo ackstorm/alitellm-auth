@@ -20,13 +20,19 @@
 //     redundant with the one-time create-modal reveal and have been removed.
 
 import * as React from 'react';
-import { Star, Trash2 } from 'lucide-react';
+import { MoreVertical, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import {
   DataTable,
   type DataTableColumn,
 } from '@/components/ui/data-table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useKeys, useMakeDefault } from '@/hooks/use-keys';
 import { formatDate } from '@/lib/format';
 import { isExpired, isRevoked, selectKeyRows } from '@/lib/keys';
@@ -179,9 +185,10 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
           data-slot="keys-default-nudge"
           className="border-primary/30 bg-primary/5 text-foreground rounded-lg border px-3 py-2 text-xs"
         >
-          No default key set. Pick one with the{' '}
-          <Star className="inline size-3 align-[-1px]" aria-hidden="true" /> Make default
-          action to enable Chat.
+          No default key set. Open a key&apos;s{' '}
+          <MoreVertical className="inline size-3 align-[-1px]" aria-hidden="true" />{' '}
+          menu and choose <span className="font-semibold">Set as default</span> to
+          enable Chat.
         </div>
       ) : null}
       <DataTable
@@ -200,29 +207,6 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         }
         rowActions={(row) => (
           <div className="flex items-center justify-end gap-2">
-            {row.is_default ? (
-              <button
-                type="button"
-                data-slot="key-default-on"
-                aria-label="Default key"
-                title="This is your default key"
-                disabled
-                className="text-primary border-primary/40 inline-flex size-7 cursor-default items-center justify-center rounded-md border"
-              >
-                <Star className="size-[15px] fill-current" aria-hidden="true" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                data-slot="key-make-default"
-                aria-label="Make default"
-                title="Make this your default key"
-                onClick={() => makeDefault.mutate(row.id ?? '')}
-                className="text-muted-foreground border-border hover:border-primary hover:text-primary inline-flex size-7 cursor-pointer items-center justify-center rounded-md border transition-colors"
-              >
-                <Star className="size-[15px]" aria-hidden="true" />
-              </button>
-            )}
             <button
               type="button"
               data-slot="key-delete"
@@ -243,6 +227,33 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
             >
               <Trash2 className="size-[15px]" aria-hidden="true" />
             </button>
+
+            {/* Kebab menu — per-row actions beyond Revoke. "Set as default" is the
+                only item today (omitted on the default key, which shows a disabled
+                marker so the menu is never empty). Room for more (e.g. Disable). */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                data-slot="key-menu"
+                aria-label="More actions"
+                className="text-muted-foreground border-border hover:border-primary hover:text-primary inline-flex size-7 cursor-pointer items-center justify-center rounded-md border transition-colors outline-none focus-visible:border-primary"
+              >
+                <MoreVertical className="size-[15px]" aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {row.is_default ? (
+                  <DropdownMenuItem disabled data-slot="key-is-default">
+                    Default key
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    data-slot="key-set-default"
+                    onSelect={() => makeDefault.mutate(row.id ?? '')}
+                  >
+                    Set as default
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       />

@@ -8,6 +8,11 @@
 // right-hand value-props / OVERVIEW teaser column was removed — the card now
 // stands alone, centered.)
 //
+// THEMING: this page is fully token-driven, so it follows the active theme
+// (dark / light / pastel) chosen by the topbar cycle. The decorative background
+// glow blobs read the per-theme --glow-1/2/3 vars (subtle green in dark/light,
+// vivid lavender·cyan·pink in pastel).
+//
 // SECURITY INVARIANTS (parity with login.js / threat register 09-06 / 14):
 //   • T-09-17 (open-redirect): the `Continue with SSO` CTA is the ONLY redirect
 //     trigger and points at the FIXED literal /api/oauth/login?action=ui — it is
@@ -25,11 +30,18 @@ import { BrandLockup } from '@/components/layout/BrandLockup';
 import { SiteFooter } from '@/components/layout/SiteFooter';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { ProviderChips } from '@/components/auth/ProviderChips';
+import { cn } from '@/lib/utils';
+import { useThemeStore } from '@/stores/theme';
 
 // The SOLE redirect trigger (T-09-17). FIXED literal — the ?action=ui param makes
 // the callback eager-create the LiteLLM user WITHOUT minting a key (D-13). Never
 // construct this from any prop/query/next/hash.
 const SSO_LOGIN_URL = '/api/oauth/login?action=ui';
+
+// Theme-aware decorative background: three radial glow blobs reading the per-theme
+// --glow-* vars. Shared shape with the authed shell so login and inner pages match.
+const GLOW_BG =
+  '[background-image:radial-gradient(ellipse_70%_55%_at_12%_-5%,var(--glow-1),transparent),radial-gradient(ellipse_65%_55%_at_88%_8%,var(--glow-2),transparent),radial-gradient(ellipse_80%_65%_at_50%_105%,var(--glow-3),transparent)]';
 
 export interface LoginProps {
   config: AppConfig;
@@ -44,11 +56,13 @@ export function Login({ config }: LoginProps) {
       ? config.providers
       : [];
 
+  // Pastel mode gets the richer treatment the user liked: a frosted-glass card
+  // and a fuchsia→violet→sky gradient CTA. Dark/light stay token-flat (the green
+  // button's ink is the --primary-foreground token: dark in dark, white in light).
+  const isPastel = useThemeStore((s) => s.theme) === 'pastel';
+
   return (
-    <div
-      data-state="signin"
-      className="flex min-h-screen flex-col bg-background [background-image:radial-gradient(ellipse_80%_50%_at_50%_-20%,var(--accent),transparent),radial-gradient(circle_at_80%_80%,rgba(74,222,128,0.03),transparent)]"
-    >
+    <div data-state="signin" className={`flex min-h-screen flex-col bg-background ${GLOW_BG}`}>
       {/* ── Topbar — full-width bar (mirrors the authed shell): brand lockup +
           tagline on the left, real-links nav on the right. ──────────────────── */}
       <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-surface px-6">
@@ -102,7 +116,14 @@ export function Login({ config }: LoginProps) {
 
       {/* ── Body — a single, centered Sign-in card ─────────────────────────────── */}
       <div className="flex flex-1 items-center justify-center px-6 py-12">
-        <main className="w-full max-w-[480px] rounded-xl border border-border bg-card shadow-sm">
+        <main
+          className={cn(
+            'w-full max-w-[480px]',
+            isPastel
+              ? 'rounded-2xl border border-white/70 bg-white/70 shadow-[0_25px_70px_-20px_rgba(168,140,255,0.55)] ring-1 ring-violet-200/50 backdrop-blur-xl'
+              : 'rounded-xl border border-border bg-card shadow-sm'
+          )}
+        >
           <div className="border-b border-border px-8 pt-8 pb-6">
             <BrandLockup
               config={config}
@@ -135,7 +156,14 @@ export function Login({ config }: LoginProps) {
           </div>
 
           <div className="px-8 py-7">
-            <Button asChild className="w-full">
+            <Button
+              asChild
+              className={cn(
+                'w-full font-semibold',
+                isPastel &&
+                  'border-0 bg-gradient-to-r from-fuchsia-300 via-violet-300 to-sky-300 text-violet-950 shadow-md shadow-violet-200/60 hover:from-fuchsia-400 hover:via-violet-400 hover:to-sky-400'
+              )}
+            >
               <a href={SSO_LOGIN_URL}>
                 <svg
                   viewBox="0 0 24 24"
