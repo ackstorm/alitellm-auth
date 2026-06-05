@@ -1055,3 +1055,124 @@ async def delete_litellm_user(email: str, settings: Settings) -> None:
             request=resp.request,
             response=resp,
         )
+
+
+# ---------------------------------------------------------------------------
+# Read-only catalogs (model groups + MCP servers) for the SPA (GET /api/session/*)
+# ---------------------------------------------------------------------------
+
+
+def _project_model_group(m: dict) -> dict:
+    """Allow-listed projection of one /model_group/info row.
+
+    EXPLICIT allow-list (not a passthrough): only the public per-alias presentation
+    fields are surfaced, so no future LiteLLM field can leak through. /model_group/info
+    already omits litellm_params (the upstream model / api_base / api_key), which is
+    why it — not /model/info — is the safe public catalog source.
+    """
+    providers = m.get("providers")
+    return {
+        "name": m.get("model_group"),
+        "providers": [str(p) for p in providers] if isinstance(providers, list) else [],
+        "mode": m.get("mode"),
+        "max_input_tokens": m.get("max_input_tokens"),
+        "max_output_tokens": m.get("max_output_tokens"),
+        "input_cost_per_token": m.get("input_cost_per_token"),
+        "output_cost_per_token": m.get("output_cost_per_token"),
+        "supports_vision": bool(m.get("supports_vision")),
+        "supports_function_calling": bool(m.get("supports_function_calling")),
+        "supports_reasoning": bool(m.get("supports_reasoning")),
+        "supports_web_search": bool(m.get("supports_web_search")),
+    }
+
+
+async def list_litellm_models(settings: Settings) -> list[dict]:
+    """List the public model-group catalog (GET /model_group/info).
+
+    Uses /model_group/info (NOT /model/info): the group view is the safe public
+    projection — it carries cost/limits/capabilities per public alias and does NOT
+    expose litellm_params (the real upstream model, api_base, or api_key). Each row
+    is run through the explicit allow-list _project_model_group. Sorted by name.
+
+    Raises httpx.HTTPStatusError / httpx.RequestError on failure (caller degrades).
+    Used by GET /api/session/models.
+    """
+    headers = _admin_headers(settings)
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
+        resp = await client.get("/model_group/info", headers=headers)
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM /model_group/info failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+    data = resp.json()
+    rows = data.get("data", []) if isinstance(data, dict) else []
+    if not isinstance(rows, list):
+        logger.warning("LiteLLM /model_group/info returned non-list 'data': %r", rows)
+        return []
+    out = [_project_model_group(m) for m in rows if isinstance(m, dict)]
+    out.sort(key=lambda x: (x.get("name") or "").lower())
+    return out
+
+
+def _project_mcp_server(s: dict) -> dict:
+    """Allow-listed PUBLIC projection of one MCP server row (LiteLLM_MCPServerTable).
+
+    SECURITY: an EXPLICIT allow-list — it deliberately DROPS every secret-bearing or
+    internal field (credentials, env, static_headers, extra_headers, command/args,
+    authorization_url/token_url/registration_url, *_by). Only public presentation
+    fields are surfaced. auth_type is the TYPE label only (e.g. "oauth2"), never a
+    secret value.
+    """
+    tools = s.get("allowed_tools")
+    tools = [str(t) for t in tools] if isinstance(tools, list) else []
+    groups = s.get("mcp_access_groups")
+    groups = [str(g) for g in groups] if isinstance(groups, list) else []
+    return {
+        "id": s.get("server_id"),
+        "name": s.get("alias") or s.get("server_name"),
+        "description": s.get("description"),
+        "url": s.get("url"),
+        "transport": s.get("transport"),
+        "auth_type": s.get("auth_type"),
+        "status": s.get("status"),
+        "tools": tools,
+        "tool_count": len(tools),
+        "access_groups": groups,
+    }
+
+
+async def list_litellm_mcp_servers(settings: Settings) -> list[dict]:
+    """List configured MCP servers from the LiteLLM MCP gateway (GET /v1/mcp/server).
+
+    Returns a BARE JSON array of server objects (a {"data"|"servers": [...]} wrapper
+    is tolerated defensively). Each row is run through the allow-list
+    _project_mcp_server — NEVER credentials/env/headers/OAuth URLs. Sorted by name.
+
+    Raises httpx.HTTPStatusError on a non-2xx (the caller maps a 404 — an older
+    LiteLLM with no MCP gateway — to an "unavailable" empty state) and
+    httpx.RequestError when unreachable. Used by GET /api/session/mcp.
+    """
+    headers = _admin_headers(settings)
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
+        resp = await client.get("/v1/mcp/server", headers=headers)
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM /v1/mcp/server failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+    data = resp.json()
+    if isinstance(data, dict):
+        rows = data.get("data") or data.get("servers") or []
+    else:
+        rows = data
+    if not isinstance(rows, list):
+        logger.warning("LiteLLM /v1/mcp/server returned unexpected shape: %r", rows)
+        return []
+    out = [_project_mcp_server(s) for s in rows if isinstance(s, dict)]
+    out.sort(key=lambda x: (x.get("name") or "").lower())
+    return out

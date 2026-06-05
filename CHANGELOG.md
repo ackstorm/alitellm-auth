@@ -2,6 +2,11 @@
 
 ## [unreleased]
 
+- feat: HOW-TO onboarding page (`#/howto`) — a real guide replacing the placeholder: a Quickstart with a copy-paste `curl` to the `ackstorm.fast` alias (auto-personalized with the user's gateway base URL, `x-litellm-api-key: Bearer sk-...` header, `sk-...` placeholder only — never a real key), editor/CLI setup tabs (Claude Code + Gemini CLI with live env exports; opencode + codex are placeholders for now), and no-terminal chat-UI cards (ACKstorm Chat + Open WebUI). Sticky in-page TOC, theme-aware, copy buttons; fully static (no backend)
+- feat: Models catalog page (`#/models`) + `GET /api/session/models` — the model aliases available on the gateway with provider(s), mode, context window, per-1M-token pricing, and capability badges (vision / tools / reasoning / web). Server-side master-key call to LiteLLM `/model_group/info` (the safe public group view — no upstream model / api_base / api_key leaks); an explicit field allow-list on the server
+- feat: MCP page (`#/mcp`) + `GET /api/session/mcp` — the Model Context Protocol servers wired into the gateway (name, status pill, endpoint, transport, auth type, exposed tools, access groups). Server-side master-key call to LiteLLM `/v1/mcp/server`, projected to a PUBLIC subset (credentials / env / headers stripped); a 404 (no MCP gateway) degrades to a calm "not enabled" state instead of an error
+- change: primary nav is now `KEYS · MODELS · MCPS · STATS · HOW-TO`
+
 ## [0.4.3] - 2026-06-04
 
 - feat: light/dark theme — a sun/moon toggle in the topbar (and login), persisted to localStorage, defaulting to the OS preference; an inline pre-paint script applies the stored theme before first paint (no flash). The full light palette is authored as token overrides; the green identity is preserved

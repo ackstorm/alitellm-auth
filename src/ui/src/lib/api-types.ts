@@ -229,6 +229,72 @@ export interface StatsResponse {
 // (defaults mirrored in src/ui/app.js DEFAULT_CONFIG)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// GET /api/session/models  — src/api/app/session.py::session_models
+// (rows projected by litellm_client.py::_project_model_group from LiteLLM
+//  /model_group/info — the safe public group view; no litellm_params/creds)
+// ---------------------------------------------------------------------------
+
+/**
+ * One public model-group row. EVERY field mirrors _project_model_group's
+ * explicit allow-list. `mode` is e.g. "chat" | "embedding" | "rerank" | null.
+ * Costs are per-token floats (often scientific notation); token caps are floats
+ * or null (LiteLLM emits them as floats, e.g. 128000.0).
+ */
+export interface ModelRow {
+  name: string | null;
+  providers: string[];
+  mode: string | null;
+  max_input_tokens: number | null;
+  max_output_tokens: number | null;
+  input_cost_per_token: number | null;
+  output_cost_per_token: number | null;
+  supports_vision: boolean;
+  supports_function_calling: boolean;
+  supports_reasoning: boolean;
+  supports_web_search: boolean;
+}
+
+/** GET /api/session/models response. session.py::session_models. */
+export interface ModelsResponse {
+  models: ModelRow[];
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/session/mcp  — src/api/app/session.py::session_mcp
+// (rows projected by litellm_client.py::_project_mcp_server from LiteLLM
+//  /v1/mcp/server — a PUBLIC subset; credentials/env/headers are stripped)
+// ---------------------------------------------------------------------------
+
+/**
+ * One configured MCP server (public projection). `transport` is "sse" | "http"
+ * | "stdio"; `status` is "healthy" | "unhealthy" | "unknown" | null; `auth_type`
+ * is the type LABEL only (e.g. "oauth2"), never a secret. `tool_count` mirrors
+ * tools.length (LiteLLM has no numeric count field).
+ */
+export interface McpServerRow {
+  id: string | null;
+  name: string | null;
+  description: string | null;
+  url: string | null;
+  transport: string | null;
+  auth_type: string | null;
+  status: string | null;
+  tools: string[];
+  tool_count: number;
+  access_groups: string[];
+}
+
+/**
+ * GET /api/session/mcp response. session.py::session_mcp. `available` is false
+ * when the deployment's LiteLLM has no MCP gateway (a 404 the backend degrades
+ * to an empty, available:false 200) — the page shows a calm "not enabled" state.
+ */
+export interface McpResponse {
+  servers: McpServerRow[];
+  available: boolean;
+}
+
 /** One BACKED-BY provider chip. public.py::_PROVIDERS. */
 export interface ConfigProvider {
   label: string;

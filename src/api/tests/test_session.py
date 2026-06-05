@@ -905,3 +905,97 @@ def test_default_http_dev_settings_construct():
     settings = make_test_settings()
     assert settings.app_base_url == "http://localhost:8080"
     assert settings.session_https_only is False
+
+
+# ---------------------------------------------------------------------------
+# GET /api/session/models — public model-group catalog (read-only)
+# ---------------------------------------------------------------------------
+
+
+def test_session_models_ok(client):
+    """200 with the projected model list from list_litellm_models."""
+    sample = [
+        {
+            "name": "ackstorm.fast",
+            "providers": ["openai"],
+            "mode": "chat",
+            "max_input_tokens": 128000.0,
+            "max_output_tokens": 16384.0,
+            "input_cost_per_token": 1.5e-07,
+            "output_cost_per_token": 6e-07,
+            "supports_vision": True,
+            "supports_function_calling": True,
+            "supports_reasoning": False,
+            "supports_web_search": True,
+        }
+    ]
+    with patch("app.session.list_litellm_models", new_callable=AsyncMock) as mock_models:
+        mock_models.return_value = sample
+        resp = client.get("/api/session/models", cookies=_authed_cookie())
+    assert resp.status_code == 200
+    assert resp.json() == {"models": sample}
+
+
+def test_session_models_401_without_cookie(client):
+    resp = client.get("/api/session/models")
+    assert resp.status_code == 401
+
+
+def test_session_models_502_on_backend_failure(client):
+    with patch("app.session.list_litellm_models", new_callable=AsyncMock) as mock_models:
+        mock_models.side_effect = httpx.RequestError("unreachable")
+        resp = client.get("/api/session/models", cookies=_authed_cookie())
+    assert resp.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# GET /api/session/mcp — configured MCP servers (read-only)
+# ---------------------------------------------------------------------------
+
+
+def test_session_mcp_ok(client):
+    """200 {servers, available:true} from list_litellm_mcp_servers."""
+    sample = [
+        {
+            "id": "github-mcp",
+            "name": "GitHub",
+            "description": "Repos.",
+            "url": "https://mcp.internal/github",
+            "transport": "http",
+            "auth_type": "oauth2",
+            "status": "healthy",
+            "tools": ["list_repos"],
+            "tool_count": 1,
+            "access_groups": ["platform"],
+        }
+    ]
+    with patch("app.session.list_litellm_mcp_servers", new_callable=AsyncMock) as mock_mcp:
+        mock_mcp.return_value = sample
+        resp = client.get("/api/session/mcp", cookies=_authed_cookie())
+    assert resp.status_code == 200
+    assert resp.json() == {"servers": sample, "available": True}
+
+
+def test_session_mcp_404_degrades_to_unavailable(client):
+    """A 404 (no MCP gateway) -> 200 {servers: [], available: false}, NOT a 502."""
+    req = httpx.Request("GET", "http://litellm.test/v1/mcp/server")
+    err = httpx.HTTPStatusError("404", request=req, response=httpx.Response(404, request=req))
+    with patch("app.session.list_litellm_mcp_servers", new_callable=AsyncMock) as mock_mcp:
+        mock_mcp.side_effect = err
+        resp = client.get("/api/session/mcp", cookies=_authed_cookie())
+    assert resp.status_code == 200
+    assert resp.json() == {"servers": [], "available": False}
+
+
+def test_session_mcp_502_on_5xx(client):
+    req = httpx.Request("GET", "http://litellm.test/v1/mcp/server")
+    err = httpx.HTTPStatusError("500", request=req, response=httpx.Response(500, request=req))
+    with patch("app.session.list_litellm_mcp_servers", new_callable=AsyncMock) as mock_mcp:
+        mock_mcp.side_effect = err
+        resp = client.get("/api/session/mcp", cookies=_authed_cookie())
+    assert resp.status_code == 502
+
+
+def test_session_mcp_401_without_cookie(client):
+    resp = client.get("/api/session/mcp")
+    assert resp.status_code == 401

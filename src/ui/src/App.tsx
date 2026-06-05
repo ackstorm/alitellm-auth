@@ -29,6 +29,8 @@ import { ErrorCard } from '@/components/layout/ErrorCard';
 import { Login } from '@/routes/Login';
 import { Dashboard } from '@/routes/Dashboard';
 import { Stats } from '@/routes/Stats';
+import { Models } from '@/routes/Models';
+import { Mcp } from '@/routes/Mcp';
 import { HowTo } from '@/routes/HowTo';
 
 // Mid-session expiry redirects to the BARE login (no landing card) — FIXED
@@ -46,6 +48,8 @@ function makeRouter(me: SessionMe, config: AppConfig) {
       children: [
         { index: true, element: <Dashboard me={me} /> },
         { path: 'stats', element: <Stats /> },
+        { path: 'models', element: <Models /> },
+        { path: 'mcp', element: <Mcp /> },
         { path: 'howto', element: <HowTo /> },
       ],
     },

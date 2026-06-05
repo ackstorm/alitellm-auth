@@ -276,6 +276,176 @@ async def spend_logs(
     return copy.deepcopy(_SPEND_LOGS)
 
 
+# ── Model catalog + MCP gateway ───────────────────────────────────────────────
+# Canned /model_group/info rows (the public per-alias group view — costs are
+# per-token floats, token counts are floats, as real LiteLLM emits).
+_MODEL_GROUPS = [
+    {
+        "model_group": "ackstorm.fast",
+        "providers": ["openai"],
+        "mode": "chat",
+        "max_input_tokens": 128000.0,
+        "max_output_tokens": 16384.0,
+        "input_cost_per_token": 1.5e-07,
+        "output_cost_per_token": 6e-07,
+        "supports_vision": True,
+        "supports_function_calling": True,
+        "supports_reasoning": False,
+        "supports_web_search": True,
+        "supported_openai_params": ["temperature", "max_tokens", "stream", "tools"],
+    },
+    {
+        "model_group": "ackstorm.smart",
+        "providers": ["anthropic"],
+        "mode": "chat",
+        "max_input_tokens": 200000.0,
+        "max_output_tokens": 64000.0,
+        "input_cost_per_token": 3e-06,
+        "output_cost_per_token": 1.5e-05,
+        "supports_vision": True,
+        "supports_function_calling": True,
+        "supports_reasoning": True,
+        "supports_web_search": True,
+        "supported_openai_params": ["temperature", "max_tokens", "stream", "tools"],
+    },
+    {
+        "model_group": "ackstorm.cheap",
+        "providers": ["openai"],
+        "mode": "chat",
+        "max_input_tokens": 128000.0,
+        "max_output_tokens": 16384.0,
+        "input_cost_per_token": 5e-08,
+        "output_cost_per_token": 2e-07,
+        "supports_vision": False,
+        "supports_function_calling": True,
+        "supports_reasoning": False,
+        "supports_web_search": False,
+        "supported_openai_params": ["temperature", "max_tokens", "stream"],
+    },
+    {
+        "model_group": "ackstorm.reason",
+        "providers": ["openai"],
+        "mode": "chat",
+        "max_input_tokens": 200000.0,
+        "max_output_tokens": 100000.0,
+        "input_cost_per_token": 1.1e-06,
+        "output_cost_per_token": 4.4e-06,
+        "supports_vision": True,
+        "supports_function_calling": True,
+        "supports_reasoning": True,
+        "supports_web_search": False,
+        "supported_openai_params": ["max_tokens", "stream", "tools", "reasoning_effort"],
+    },
+    {
+        "model_group": "ackstorm.vision",
+        "providers": ["google"],
+        "mode": "chat",
+        "max_input_tokens": 1048576.0,
+        "max_output_tokens": 8192.0,
+        "input_cost_per_token": 1.25e-07,
+        "output_cost_per_token": 5e-07,
+        "supports_vision": True,
+        "supports_function_calling": True,
+        "supports_reasoning": False,
+        "supports_web_search": True,
+        "supported_openai_params": ["temperature", "max_tokens", "stream", "tools"],
+    },
+    {
+        "model_group": "ackstorm.embed",
+        "providers": ["openai"],
+        "mode": "embedding",
+        "max_input_tokens": 8192.0,
+        "max_output_tokens": None,
+        "input_cost_per_token": 2e-08,
+        "output_cost_per_token": 0.0,
+        "supports_vision": False,
+        "supports_function_calling": False,
+        "supports_reasoning": False,
+        "supports_web_search": False,
+        "supported_openai_params": ["encoding_format", "dimensions"],
+    },
+]
+
+# Canned /v1/mcp/server rows. NOTE: each carries `credentials`/`env`/`static_headers`
+# ON PURPOSE — the backend projection (_project_mcp_server) MUST strip them, so
+# seeding them here proves they never reach the browser.
+_MCP_SERVERS = [
+    {
+        "server_id": "github-mcp",
+        "server_name": "github",
+        "alias": "GitHub",
+        "description": "Repositories, issues, and pull requests.",
+        "url": "https://mcp.internal.ackstorm.ai/github",
+        "transport": "http",
+        "auth_type": "oauth2",
+        "status": "healthy",
+        "allowed_tools": ["list_repos", "create_issue", "get_pull_request", "search_code"],
+        "mcp_access_groups": ["platform"],
+        "teams": [{"team_id": TEAM_ID, "team_alias": "platform"}],
+        "allow_all_keys": True,
+        "credentials": {"api_key": "SHOULD-NOT-LEAK"},
+        "env": {"GITHUB_TOKEN": "ghp_SHOULD_NOT_LEAK"},
+        "static_headers": {"x-internal": "SHOULD-NOT-LEAK"},
+    },
+    {
+        "server_id": "filesystem-mcp",
+        "server_name": "filesystem",
+        "alias": "Filesystem",
+        "description": "Sandboxed read/write access to a working directory.",
+        "url": None,
+        "transport": "stdio",
+        "auth_type": "none",
+        "status": "healthy",
+        "allowed_tools": ["read_file", "write_file", "list_directory"],
+        "mcp_access_groups": [],
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"],
+        "env": {"SECRET": "SHOULD-NOT-LEAK"},
+    },
+    {
+        "server_id": "web-search-mcp",
+        "server_name": "web-search",
+        "alias": "Web Search",
+        "description": "Live web search and page fetch.",
+        "url": "https://mcp.internal.ackstorm.ai/search",
+        "transport": "http",
+        "auth_type": "api_key",
+        "status": "healthy",
+        "allowed_tools": ["search", "fetch_page"],
+        "mcp_access_groups": ["platform"],
+        "credentials": {"api_key": "SHOULD-NOT-LEAK"},
+    },
+    {
+        "server_id": "postgres-mcp",
+        "server_name": "postgres",
+        "alias": "Postgres",
+        "description": "Read-only SQL over the analytics warehouse.",
+        "url": "https://mcp.internal.ackstorm.ai/postgres",
+        "transport": "sse",
+        "auth_type": "bearer_token",
+        "status": "unhealthy",
+        "health_check_error": "connection refused",
+        "allowed_tools": ["query", "list_tables", "describe_table"],
+        "mcp_access_groups": ["data"],
+        "credentials": {"token": "SHOULD-NOT-LEAK"},
+    },
+]
+
+
+@app.get("/model_group/info")
+async def model_group_info(model_group: str | None = None):
+    data = [copy.deepcopy(m) for m in _MODEL_GROUPS]
+    if model_group:
+        data = [m for m in data if m["model_group"] == model_group]
+    return {"data": data}
+
+
+@app.get("/v1/mcp/server")
+async def mcp_server_list(team_id: str | None = None):
+    # Bare JSON array (matches LiteLLM's response_model=List[LiteLLM_MCPServerTable]).
+    return [copy.deepcopy(s) for s in _MCP_SERVERS]
+
+
 # ── Helpers + catch-all ─────────────────────────────────────────────────────
 
 

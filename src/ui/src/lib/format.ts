@@ -75,6 +75,23 @@ export function abbreviate(n: number | string | null | undefined): string {
   return String(parseFloat(num.toFixed(2)));
 }
 
+// formatPricePerMillion(costPerToken) -> "$0.15" — the per-1M-token price from a
+// LiteLLM per-token cost (×1e6), as USD currency. null/undefined/non-numeric ->
+// "—". A genuine 0 cost renders "$0.00" (free), NOT a dash.
+export function formatPricePerMillion(
+  costPerToken: number | string | null | undefined,
+): string {
+  const num = asNumber(costPerToken);
+  if (num === null) return EM_DASH;
+  return _currencyFmt.format(num * 1e6);
+}
+
+// formatTokens(n) -> "128K" / "1M" (abbreviate), with null/undefined -> "—".
+// A thin alias so the models table reads intent at the call site.
+export function formatTokens(n: number | string | null | undefined): string {
+  return abbreviate(n);
+}
+
 const _MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',

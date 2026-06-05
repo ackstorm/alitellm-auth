@@ -84,6 +84,12 @@ export function AppShell({ me, config }: AppShellProps) {
           <NavLink to="/" end className={navLinkClass}>
             Keys
           </NavLink>
+          <NavLink to="/models" className={navLinkClass}>
+            Models
+          </NavLink>
+          <NavLink to="/mcp" className={navLinkClass}>
+            MCPs
+          </NavLink>
           <NavLink to="/stats" className={navLinkClass}>
             Stats
           </NavLink>

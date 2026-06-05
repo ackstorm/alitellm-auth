@@ -1095,3 +1095,143 @@ async def test_spend_logs_last_used_empty_rows():
     result = await spend_logs_last_used("alice@example.com", settings, "2026-04-01", "2026-04-02")
 
     assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# Read-only catalogs: list_litellm_models + list_litellm_mcp_servers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_litellm_models_projects_group_view():
+    """/model_group/info rows are projected to the public allow-list, sorted by name."""
+    from app.litellm_client import list_litellm_models
+
+    settings = make_settings()
+    respx.get("http://litellm.test/model_group/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "model_group": "zeta.model",
+                        "providers": ["openai"],
+                        "mode": "chat",
+                        "max_input_tokens": 128000.0,
+                        "max_output_tokens": 16384.0,
+                        "input_cost_per_token": 1.5e-07,
+                        "output_cost_per_token": 6e-07,
+                        "supports_vision": True,
+                        "supports_function_calling": True,
+                        "supports_reasoning": False,
+                        "supports_web_search": True,
+                        # A field NOT in the allow-list must NOT pass through.
+                        "litellm_params": {"model": "openai/secret-upstream", "api_base": "x"},
+                    },
+                    {"model_group": "alpha.model", "providers": ["anthropic"], "mode": "chat"},
+                ]
+            },
+        )
+    )
+
+    models = await list_litellm_models(settings)
+
+    assert [m["name"] for m in models] == ["alpha.model", "zeta.model"]  # sorted
+    zeta = models[1]
+    assert zeta["providers"] == ["openai"]
+    assert zeta["input_cost_per_token"] == 1.5e-07
+    assert zeta["supports_vision"] is True
+    # No upstream leakage: only the allow-listed keys are present.
+    assert "litellm_params" not in zeta
+    assert set(zeta.keys()) == {
+        "name",
+        "providers",
+        "mode",
+        "max_input_tokens",
+        "max_output_tokens",
+        "input_cost_per_token",
+        "output_cost_per_token",
+        "supports_vision",
+        "supports_function_calling",
+        "supports_reasoning",
+        "supports_web_search",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_litellm_models_raises_on_5xx():
+    from app.litellm_client import list_litellm_models
+
+    settings = make_settings()
+    respx.get("http://litellm.test/model_group/info").mock(
+        return_value=httpx.Response(500, json={"error": {"message": "boom"}})
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        await list_litellm_models(settings)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_litellm_mcp_servers_strips_secrets():
+    """/v1/mcp/server bare array is projected to a PUBLIC subset (no creds/env)."""
+    from app.litellm_client import list_litellm_mcp_servers
+
+    settings = make_settings()
+    respx.get("http://litellm.test/v1/mcp/server").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "server_id": "github-mcp",
+                    "server_name": "github",
+                    "alias": "GitHub",
+                    "description": "Repos and issues.",
+                    "url": "https://mcp.internal/github",
+                    "transport": "http",
+                    "auth_type": "oauth2",
+                    "status": "healthy",
+                    "allowed_tools": ["list_repos", "create_issue"],
+                    "mcp_access_groups": ["platform"],
+                    "credentials": {"api_key": "SHOULD-NOT-LEAK"},
+                    "env": {"TOKEN": "SHOULD-NOT-LEAK"},
+                    "static_headers": {"x": "SHOULD-NOT-LEAK"},
+                    "command": "npx",
+                    "args": ["secret-arg"],
+                }
+            ],
+        )
+    )
+
+    servers = await list_litellm_mcp_servers(settings)
+
+    assert len(servers) == 1
+    s = servers[0]
+    assert s["id"] == "github-mcp"
+    assert s["name"] == "GitHub"  # alias preferred
+    assert s["transport"] == "http"
+    assert s["auth_type"] == "oauth2"
+    assert s["tool_count"] == 2
+    assert s["tools"] == ["list_repos", "create_issue"]
+    assert s["access_groups"] == ["platform"]
+    # No secret-bearing / internal field may survive the projection.
+    blob = _json.dumps(s)
+    assert "SHOULD-NOT-LEAK" not in blob
+    for forbidden in ("credentials", "env", "static_headers", "command", "args"):
+        assert forbidden not in s
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_litellm_mcp_servers_404_raises():
+    """A 404 (no MCP gateway) raises HTTPStatusError for the route to map to unavailable."""
+    from app.litellm_client import list_litellm_mcp_servers
+
+    settings = make_settings()
+    respx.get("http://litellm.test/v1/mcp/server").mock(
+        return_value=httpx.Response(404, json={"error": {"message": "not found"}})
+    )
+    with pytest.raises(httpx.HTTPStatusError) as exc:
+        await list_litellm_mcp_servers(settings)
+    assert exc.value.response.status_code == 404

@@ -1,20 +1,429 @@
-// HowTo.tsx — the "How-to" guide route (nav: KEYS | STATS | HOWTO).
+// HowTo.tsx — the "How-to" onboarding guide (nav: KEYS | STATS | HOW-TO).
 //
-// Placeholder for now: real step-by-step content (create a key, call the
-// gateway, set a budget) is a follow-up. This stub keeps the nav link live (no
-// dead route) and matches the dark card style of the other routes. Rendered
-// inside AppShell via <Outlet/>, so it inherits the topbar + footer chrome.
+// Answers the "I just logged in and minted a key — now what?" question for a
+// corporate user. Three sections, all STATIC (no backend, no fetch):
+//
+//   §1 Quickstart  — mint a key (link to the Keys tab) + a copy-paste `curl` to
+//                    the `ackstorm.fast` model alias against the user's gateway.
+//   §2 Editors/CLI — tabbed env-var exports for opencode / codex / gemini.
+//   §3 No terminal — chat-UI cards (ACKstorm Chat, hosted; Open WebUI).
+//
+// PERSONALIZATION (no rebuild): the gateway base URL is read live from the
+// session (`me.endpoint` === settings.api_public_url, e.g. https://api.<domain>);
+// the hosted-chat URL is derived by swapping the `api.` host label for `chat.`
+// (the deployment's convention — chat.<domain>). Falls back to a neutral
+// placeholder host when the endpoint is absent/unparseable.
+//
+// SECURITY (T-10-01 / info disclosure): this page NEVER renders a real key. The
+// curl/exports show the literal `sk-...` placeholder; minting (and the one-time
+// `sk-` reveal) happens only on the Keys tab. Copy buttons write exactly the
+// shown text on an explicit click (useCopyFeedback) — no auto-copy, no logging.
+
+import { useState } from 'react';
+import {
+  ArrowRight,
+  Check,
+  Copy,
+  ExternalLink,
+  KeyRound,
+  MessageSquare,
+  Terminal,
+} from 'lucide-react';
+import { useNavigate } from 'react-router';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useCopyFeedback } from '@/hooks/use-copy-feedback';
+import { cn } from '@/lib/utils';
+import { useConfigStore } from '@/stores/config';
+import { useSessionStore } from '@/stores/session';
+
+// The literal key placeholder shown everywhere a real `sk-` would go. The real
+// key is shown ONCE, at creation, on the Keys tab — never on this page.
+const KEY_PLACEHOLDER = 'sk-...';
+
+// Featured model alias for the quickstart (locked copy — the standard alias).
+const MODEL_ALIAS = 'ackstorm.fast';
+
+// LiteLLM auth header (the deployment's standard: a Bearer value under the
+// custom header name, not the bare Authorization header).
+const AUTH_HEADER = 'x-litellm-api-key';
+
+// Fallback host shown before the session endpoint resolves / when unparseable.
+const FALLBACK_API_BASE = 'https://api.your-domain.example';
+
+// Derive a sibling-subdomain URL from the gateway endpoint by swapping the
+// leading `api.` host label (e.g. https://api.acme.ai -> https://chat.acme.ai).
+// A host without the `api.` prefix just gets the sub prepended to the bare host.
+function deriveSubdomainUrl(endpoint: string | undefined, sub: string): string {
+  try {
+    const u = new URL(endpoint ?? '');
+    const baseHost = u.hostname.replace(/^api\./, '');
+    return `${u.protocol}//${sub}.${baseHost}`;
+  } catch {
+    return `https://${sub}.your-domain.example`;
+  }
+}
+
+// ── TOC ──────────────────────────────────────────────────────────────────────
+// Sticky in-page nav. NOTE: this app is a HASH router (#/howto), so the URL hash
+// belongs to react-router — we must NOT use `<a href="#id">` anchors (that would
+// hijack the route hash). Instead each item scrolls its section into view.
+const TOC = [
+  { id: 'quickstart', label: 'Quickstart' },
+  { id: 'tools', label: 'Editors & CLIs' },
+  { id: 'chat', label: 'No terminal?' },
+] as const;
+
+function scrollToSection(id: string): void {
+  document
+    .getElementById(id)
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── CodeBlock ──────────────────────────────────────────────────────────────—─
+// A dark, horizontally-scrollable code box with a copy button. `code` is shown
+// verbatim (mono, pre-wrapped); the copy writes exactly that string. An optional
+// `caption` renders a thin header strip (e.g. a shell/file label).
+function CodeBlock({ code, caption }: { code: string; caption?: string }) {
+  const { copied, copy } = useCopyFeedback();
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-background">
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-surface px-3 py-1.5">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+          {caption ?? 'shell'}
+        </span>
+        <button
+          type="button"
+          onClick={() => void copy(code)}
+          className={cn(
+            'inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[11px] font-semibold lowercase tracking-wide transition-colors',
+            copied
+              ? 'border-primary bg-primary/15 text-primary'
+              : 'border-border text-text-tertiary hover:border-primary hover:text-primary'
+          )}
+        >
+          {copied ? (
+            <Check className="size-3" aria-hidden="true" />
+          ) : (
+            <Copy className="size-3" aria-hidden="true" />
+          )}
+          {copied ? 'copied!' : 'copy'}
+        </button>
+      </div>
+      <pre className="overflow-x-auto px-4 py-3 font-mono text-[13px] leading-relaxed text-text-primary">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
+// ── Section ──────────────────────────────────────────────────────────────────
+// A titled content block with a scroll anchor (`id`) the TOC targets. `scroll-mt`
+// keeps the heading clear of the top edge when scrolled into view.
+function Section({
+  id,
+  icon: Icon,
+  title,
+  sub,
+  children,
+}: {
+  id: string;
+  icon: typeof Terminal;
+  title: string;
+  sub: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-8">
+      <div className="flex items-center gap-2.5">
+        <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg border border-border">
+          <Icon className="size-4 text-primary" aria-hidden="true" />
+        </span>
+        <h2 className="font-sans text-lg font-semibold leading-tight text-text-primary">
+          {title}
+        </h2>
+      </div>
+      <p className="mt-2 font-sans text-sm leading-relaxed text-text-secondary">
+        {sub}
+      </p>
+      <div className="mt-5">{children}</div>
+    </section>
+  );
+}
+
+// A small numbered step marker (the quickstart 1·2 sequence).
+function StepBadge({ n }: { n: number }) {
+  return (
+    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10 font-mono text-[11px] font-semibold text-primary">
+      {n}
+    </span>
+  );
+}
 
 export function HowTo() {
+  const me = useSessionStore((s) => s.me);
+  const config = useConfigStore((s) => s.config);
+  const navigate = useNavigate();
+
+  // Live gateway base (api_public_url). Falls back to a neutral placeholder so
+  // the page reads sensibly before the session resolves.
+  const apiBase = me?.endpoint || FALLBACK_API_BASE;
+  const chatUrl = deriveSubdomainUrl(me?.endpoint, 'chat');
+  const brandShort = config.brand_short || 'LiteLLM';
+
+  // The quickstart curl — the featured first call. Header is the deployment's
+  // standard `x-litellm-api-key: Bearer sk-...` form; the key is the placeholder.
+  const curlSnippet = `curl ${apiBase}/v1/chat/completions \\
+  -H "${AUTH_HEADER}: Bearer ${KEY_PLACEHOLDER}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "${MODEL_ALIAS}",
+    "messages": [{ "role": "user", "content": "Hello!" }]
+  }'`;
+
+  // ── Editor / CLI setup ───────────────────────────────────────────────────────
+  // Live, tested exports for Claude Code + Gemini CLI; opencode + codex are
+  // placeholders until their tested values land. The base URL is the user's live
+  // gateway (apiBase); the key is the `sk-...` placeholder (mint it on Keys).
+  const TOOLS: { id: string; label: string; ready: boolean; code: string }[] = [
+    {
+      id: 'claude',
+      label: 'Claude Code',
+      ready: true,
+      code: `# Claude Code → LiteLLM
+export ANTHROPIC_BASE_URL="${apiBase}"
+export ANTHROPIC_AUTH_TOKEN=${KEY_PLACEHOLDER}
+export ANTHROPIC_MODEL="ackstorm.smart"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="ackstorm.smart"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="ackstorm.fast"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="ackstorm.fast-lite"
+export CLAUDE_CODE_SUBAGENT_MODEL="ackstorm.fast"
+
+claude`,
+    },
+    {
+      id: 'gemini',
+      label: 'Gemini CLI',
+      ready: true,
+      code: `# Gemini CLI → LiteLLM
+export GOOGLE_GEMINI_BASE_URL=${apiBase}/gemini
+export GEMINI_BASE_URL=${apiBase}/gemini/v1beta
+export GEMINI_API_KEY=${KEY_PLACEHOLDER}
+
+gemini`,
+    },
+    {
+      id: 'opencode',
+      label: 'opencode',
+      ready: false,
+      code: `# opencode → LiteLLM (OpenAI-compatible)
+export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
+export OPENAI_BASE_URL="${apiBase}/v1"
+
+opencode --model ${MODEL_ALIAS}`,
+    },
+    {
+      id: 'codex',
+      label: 'codex',
+      ready: false,
+      code: `# codex → LiteLLM (OpenAI-compatible)
+export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
+export OPENAI_BASE_URL="${apiBase}/v1"
+
+codex --model ${MODEL_ALIAS}`,
+    },
+  ];
+  const [tool, setTool] = useState<string>('claude');
+
   return (
-    <section className="mx-auto max-w-2xl py-16 text-center">
-      <h1 className="text-2xl font-semibold leading-tight text-text-primary">
-        How-to
-      </h1>
-      <p className="mt-4 text-sm text-text-secondary">
-        Step-by-step guides — creating a virtual key, calling the gateway with
-        it, and tracking spend — are coming soon.
-      </p>
-    </section>
+    <div className="flex flex-col gap-8">
+      {/* Page header */}
+      <div>
+        <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
+          How-to
+        </h1>
+        <p className="mt-1 font-sans text-sm text-text-secondary">
+          You have a key — here is how to make your first call to{' '}
+          <span className="font-mono text-text-primary">{brandShort}</span>,
+          wire up your editor, or skip the terminal entirely.
+        </p>
+      </div>
+
+      <div className="grid gap-10 lg:grid-cols-[180px_1fr]">
+        {/* Sticky in-page TOC (desktop only). Buttons, not hash anchors — the
+            hash belongs to the router. */}
+        <aside className="hidden lg:block">
+          <nav
+            aria-label="On this page"
+            className="sticky top-8 flex flex-col gap-1"
+          >
+            <div className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+              On this page
+            </div>
+            {TOC.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => scrollToSection(item.id)}
+                className="cursor-pointer rounded-md px-2.5 py-1.5 text-left font-sans text-sm text-text-secondary transition-colors hover:bg-primary/5 hover:text-text-primary"
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        {/* Content column */}
+        <div className="flex min-w-0 flex-col gap-12">
+          {/* §1 Quickstart */}
+          <Section
+            id="quickstart"
+            icon={Terminal}
+            title="Quickstart"
+            sub="Two steps to your first response: mint a key, then call the gateway."
+          >
+            <div className="flex flex-col gap-5">
+              {/* Step 1 — mint a key */}
+              <div className="flex gap-3">
+                <StepBadge n={1} />
+                <div className="min-w-0 flex-1">
+                  <div className="font-sans text-sm font-medium text-text-primary">
+                    Mint a virtual key
+                  </div>
+                  <p className="mt-1 font-sans text-sm leading-relaxed text-text-secondary">
+                    Create one on the{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate('/')}
+                      className="inline-flex cursor-pointer items-center gap-1 font-medium text-primary hover:underline"
+                    >
+                      <KeyRound className="size-3.5" aria-hidden="true" />
+                      Keys
+                    </button>{' '}
+                    tab. The{' '}
+                    <span className="font-mono text-text-primary">sk-</span> value
+                    is shown <span className="text-text-primary">once</span>, at
+                    creation — copy it then; it is never displayed again.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2 — call the gateway */}
+              <div className="flex gap-3">
+                <StepBadge n={2} />
+                <div className="min-w-0 flex-1">
+                  <div className="font-sans text-sm font-medium text-text-primary">
+                    Call the gateway
+                  </div>
+                  <p className="mt-1 mb-3 font-sans text-sm leading-relaxed text-text-secondary">
+                    Swap{' '}
+                    <span className="font-mono text-text-primary">
+                      {KEY_PLACEHOLDER}
+                    </span>{' '}
+                    for your key and run it. The endpoint is OpenAI-compatible —{' '}
+                    <span className="font-mono text-text-primary">
+                      {MODEL_ALIAS}
+                    </span>{' '}
+                    is a standard model alias.
+                  </p>
+                  <CodeBlock code={curlSnippet} caption="curl" />
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          {/* §2 Editors & CLIs */}
+          <Section
+            id="tools"
+            icon={ArrowRight}
+            title="Editors & CLIs"
+            sub="Point your AI coding tool at the gateway. Export the variables, then run the tool as usual."
+          >
+            <Tabs value={tool} onValueChange={setTool}>
+              <TabsList variant="line">
+                {TOOLS.map((t) => (
+                  <TabsTrigger key={t.id} value={t.id}>
+                    {t.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {TOOLS.map((t) => (
+                <TabsContent key={t.id} value={t.id} className="mt-4">
+                  <CodeBlock code={t.code} caption={`${t.label} · setup`} />
+                  {!t.ready && (
+                    <p className="mt-2 font-sans text-xs text-text-tertiary">
+                      Placeholder — tested {t.label} values land here soon.
+                    </p>
+                  )}
+                </TabsContent>
+              ))}
+            </Tabs>
+            <p className="mt-3 font-sans text-xs leading-relaxed text-text-tertiary">
+              Swap {KEY_PLACEHOLDER} for your key (mint it on the Keys tab). The
+              base URL is your live gateway; only the key differs per user.
+            </p>
+          </Section>
+
+          {/* §3 No terminal? */}
+          <Section
+            id="chat"
+            icon={MessageSquare}
+            title="No terminal?"
+            sub="Prefer a chat window over a shell? Use a browser UI — paste your key once and start chatting."
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* ACKstorm Chat — hosted */}
+              <a
+                href={chatUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex flex-col gap-2 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-primary"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-sans text-sm font-semibold text-text-primary">
+                    ACKstorm Chat
+                  </span>
+                  <ExternalLink
+                    className="size-4 text-text-tertiary transition-colors group-hover:text-primary"
+                    aria-hidden="true"
+                  />
+                </div>
+                <p className="font-sans text-sm leading-relaxed text-text-secondary">
+                  Hosted chat UI, ready to use — sign in and pick{' '}
+                  <span className="font-mono text-text-primary">
+                    {MODEL_ALIAS}
+                  </span>
+                  . Nothing to install.
+                </p>
+                <span className="mt-1 break-all font-mono text-[11px] text-text-tertiary">
+                  {chatUrl}
+                </span>
+              </a>
+
+              {/* Open WebUI — self-host / connect */}
+              <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
+                <span className="font-sans text-sm font-semibold text-text-primary">
+                  Open WebUI
+                </span>
+                <p className="font-sans text-sm leading-relaxed text-text-secondary">
+                  Run your own desktop/browser chat. In its connection settings,
+                  point an OpenAI-compatible backend at the gateway:
+                </p>
+                <div className="mt-1 flex flex-col gap-1 font-mono text-[11px] text-text-tertiary">
+                  <span className="break-all">
+                    <span className="text-text-secondary">Base URL</span>{' '}
+                    {apiBase}/v1
+                  </span>
+                  <span>
+                    <span className="text-text-secondary">API Key</span>{' '}
+                    {KEY_PLACEHOLDER}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Section>
+        </div>
+      </div>
+    </div>
   );
 }

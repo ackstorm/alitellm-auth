@@ -9,9 +9,42 @@
 // 2.45M, MMM DD, YYYY dates, sk-…last4 masks, and the em-dash "—" (U+2014) for
 // every null/undefined input.
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, formatInt, abbreviate, formatDate, maskKey } from './format';
+import {
+  formatCurrency,
+  formatInt,
+  abbreviate,
+  formatDate,
+  maskKey,
+  formatPricePerMillion,
+  formatTokens,
+} from './format';
 
 const EM_DASH = '—'; // — (U+2014)
+
+describe('formatPricePerMillion — per-1M-token USD price (×1e6)', () => {
+  it('scales a per-token cost to a per-1M currency string', () => {
+    expect(formatPricePerMillion(1.5e-7)).toBe('$0.15');
+    expect(formatPricePerMillion(6e-7)).toBe('$0.60');
+    expect(formatPricePerMillion(3e-6)).toBe('$3.00');
+  });
+  it('renders a genuine 0 cost as $0.00 (free), not a dash', () => {
+    expect(formatPricePerMillion(0)).toBe('$0.00');
+  });
+  it('returns the em-dash for null/undefined/non-numeric', () => {
+    expect(formatPricePerMillion(null)).toBe(EM_DASH);
+    expect(formatPricePerMillion(undefined)).toBe(EM_DASH);
+  });
+});
+
+describe('formatTokens — abbreviated token counts', () => {
+  it('abbreviates large counts', () => {
+    expect(formatTokens(128000)).toBe('128K');
+    expect(formatTokens(1048576)).toBe('1.05M');
+  });
+  it('returns the em-dash for null', () => {
+    expect(formatTokens(null)).toBe(EM_DASH);
+  });
+});
 
 describe('formatCurrency — USD, 2 decimals, thousands separators', () => {
   it('formats a fractional value to 2 decimals with grouping', () => {
