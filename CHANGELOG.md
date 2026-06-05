@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.4.5] - 2026-06-05
+
 - change: the Models table now renders through the same table component as the Keys table — matching header font/size, cell padding, row borders, and card chrome — so the two surfaces are visually consistent
 - change: Models — "Thinking" is now its own column (after Mode) flagging reasoning models; the input/output prices are merged into one `$ / 1M (in / out)` column (mirroring the Context column); capability icons are neutral grey so they no longer look like clickable toggle buttons
 - change: HOW-TO — the "No terminal?" section drops the Open WebUI card and adds an `openwork` card (github.com/different-ai/openwork) tagged "SOONER" (gateway support is not available yet)
