@@ -18,7 +18,9 @@ import { Outlet, NavLink } from 'react-router';
 import type { AppConfig, SessionMe } from '@/lib/api-types';
 import { CreateKeyModal } from '@/components/keys/CreateKeyModal';
 import { Toaster } from '@/components/ui/toast';
+import { useKeys } from '@/hooks/use-keys';
 import { cn } from '@/lib/utils';
+import { deriveSubdomainUrl } from '@/lib/urls';
 import { BrandLockup } from './BrandLockup';
 import { SiteFooter } from './SiteFooter';
 import { ThemeToggle } from './ThemeToggle';
@@ -45,6 +47,16 @@ export function AppShell({ me, config }: AppShellProps) {
         ? 'bg-primary/10 text-primary'
         : 'text-text-secondary hover:bg-primary/5 hover:text-text-primary'
     );
+
+  // CHAT is set apart from the segmented nav (a filled accent pill, not the grey
+  // navLinkClass) AND gated on the user having a default key — Chat needs a
+  // default key to authenticate. A default is never auto-assigned (explicit-only),
+  // so when none exists the pill is rendered disabled with a hint pointing at Keys.
+  const { data: keys } = useKeys();
+  const hasDefault = (keys ?? []).some((k) => k.is_default);
+  const chatUrl = deriveSubdomainUrl(me.endpoint, 'chat');
+  const chatPill =
+    'rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors';
 
   // Service-status indicator (D-02/D-03). An external link when config.links.status
   // is set, else a connected pulse-dot "operational" label. Moved OUT of the
@@ -96,6 +108,34 @@ export function AppShell({ me, config }: AppShellProps) {
           <NavLink to="/howto" className={navLinkClass}>
             How-to
           </NavLink>
+
+          {/* CHAT — set apart from the segmented nav by a separator + accent
+              fill, and gated on a default key. */}
+          <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
+          {hasDefault ? (
+            <a
+              href={chatUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                chatPill,
+                'bg-primary text-primary-foreground hover:bg-primary/90'
+              )}
+            >
+              Chat
+            </a>
+          ) : (
+            <span
+              aria-disabled="true"
+              title="You need a default key — set one on the Keys tab"
+              className={cn(
+                chatPill,
+                'cursor-not-allowed bg-surface-elevated text-text-tertiary'
+              )}
+            >
+              Chat
+            </span>
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-4 font-mono text-[11px]">
