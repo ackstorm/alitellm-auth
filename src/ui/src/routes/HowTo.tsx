@@ -6,7 +6,7 @@
 //   §1 Quickstart  — mint a key (link to the Keys tab) + a copy-paste `curl` to
 //                    the `ackstorm.fast` model alias against the user's gateway.
 //   §2 Editors/CLI — tabbed env-var exports for opencode / codex / gemini.
-//   §3 No terminal — chat-UI cards (ACKstorm Chat, hosted; Open WebUI).
+//   §3 No terminal — chat-UI cards (ACKstorm Chat, hosted; openwork, coming soon).
 //
 // PERSONALIZATION (no rebuild): the gateway base URL is read live from the
 // session (`me.endpoint` === settings.api_public_url, e.g. https://api.<domain>);
@@ -400,26 +400,35 @@ codex --model ${MODEL_ALIAS}`,
                 </span>
               </a>
 
-              {/* Open WebUI — self-host / connect */}
-              <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
-                <span className="font-sans text-sm font-semibold text-text-primary">
-                  Open WebUI
-                </span>
-                <p className="font-sans text-sm leading-relaxed text-text-secondary">
-                  Run your own desktop/browser chat. In its connection settings,
-                  point an OpenAI-compatible backend at the gateway:
-                </p>
-                <div className="mt-1 flex flex-col gap-1 font-mono text-[11px] text-text-tertiary">
-                  <span className="break-all">
-                    <span className="text-text-secondary">Base URL</span>{' '}
-                    {apiBase}/v1
+              {/* openwork — coming soon (not yet wired to the gateway) */}
+              <a
+                href="https://github.com/different-ai/openwork"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex flex-col gap-2 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-primary"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <span className="font-sans text-sm font-semibold text-text-primary">
+                      openwork
+                    </span>
+                    <span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                      Sooner
+                    </span>
                   </span>
-                  <span>
-                    <span className="text-text-secondary">API Key</span>{' '}
-                    {KEY_PLACEHOLDER}
-                  </span>
+                  <ExternalLink
+                    className="size-4 text-text-tertiary transition-colors group-hover:text-primary"
+                    aria-hidden="true"
+                  />
                 </div>
-              </div>
+                <p className="font-sans text-sm leading-relaxed text-text-secondary">
+                  Open-source AI workspace. Gateway support is on the way — not
+                  available yet. Star the repo to follow along.
+                </p>
+                <span className="mt-1 break-all font-mono text-[11px] text-text-tertiary">
+                  github.com/different-ai/openwork
+                </span>
+              </a>
             </div>
           </Section>
         </div>

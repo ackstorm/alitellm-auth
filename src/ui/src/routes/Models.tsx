@@ -1,14 +1,16 @@
-// Models.tsx — the #/models catalog page (nav: KEYS · STATS · MODELS · MCP · HOW-TO).
+// Models.tsx — the #/models catalog page (nav: KEYS · MODELS · MCPS · STATS · HOW-TO).
 //
 // Read-only catalog of the model aliases available on the gateway, sourced from
 // GET /api/session/models (server-side LiteLLM /model_group/info — the safe public
 // group view: no upstream model / api_base / api_key). Per alias it shows the
-// provider(s), mode, context window (max input/output tokens), per-1M-token
-// pricing, and capability badges (vision / tools / reasoning / web).
+// provider(s), mode, whether it is a thinking/reasoning model, context window
+// (max input/output tokens), per-1M-token pricing, and capability badges.
 //
-// States mirror the Stats container: per-page error+retry card (useModels throws
-// on non-200) and an empty "no models configured" state. Presentational only —
-// no data ownership; the hook owns the fetch.
+// Renders through the SAME generic DataTable<T> as the Keys table so the two
+// surfaces are visually coherent (header font/size, padding, row borders, card
+// chrome). States: per-page error+retry card (useModels throws on non-200), a
+// skeleton while pending, and an in-table empty state. Presentational only — no
+// data ownership; the hook owns the fetch.
 
 import {
   Brain,
@@ -17,6 +19,10 @@ import {
   Wrench,
 } from 'lucide-react';
 
+import {
+  DataTable,
+  type DataTableColumn,
+} from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useModels } from '@/hooks/use-models';
 import type { ModelRow } from '@/lib/api-types';
@@ -34,9 +40,6 @@ const EMPTY_HEADING = 'No models yet';
 const EMPTY_BODY =
   'No model aliases are configured on the gateway for your access level.';
 
-// Column captions (mono 11px section-label role).
-const COLS = ['Model', 'Mode', 'Context (in / out)', '$ / 1M in', '$ / 1M out', 'Capabilities'];
-
 // A small provider chip (e.g. openai, anthropic, google).
 function ProviderChip({ label }: { label: string }) {
   return (
@@ -46,8 +49,10 @@ function ProviderChip({ label }: { label: string }) {
   );
 }
 
-// A capability badge: a tinted icon pill with a tooltip. Only rendered when the
-// capability is true (off-capabilities are simply absent — no greyed clutter).
+// A capability badge: a NEUTRAL grey icon pill with a tooltip. Grey (not the
+// primary accent) so it reads as a static info marker, not a clickable/toggle
+// button. Only rendered when the capability is true (off-capabilities are simply
+// absent — no greyed clutter).
 function CapBadge({
   icon: Icon,
   label,
@@ -59,15 +64,32 @@ function CapBadge({
     <span
       title={label}
       aria-label={label}
-      className="inline-flex size-6 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary"
+      className="inline-flex size-6 items-center justify-center rounded-md border border-border bg-surface-elevated text-text-secondary"
     >
       <Icon className="size-3.5" aria-hidden="true" />
     </span>
   );
 }
 
+// Thinking-column cell. Its own column (after Mode) answers "is this a reasoning
+// model?" directly. Backed by supports_reasoning: a neutral labelled badge when
+// true, an em-dash when not. Neutral styling — info, not a button.
+function ThinkingCell({ on }: { on: boolean }) {
+  if (!on) return <span className="text-muted-foreground">{EM_DASH}</span>;
+  return (
+    <span
+      title="Thinking model — supports extended reasoning"
+      aria-label="Thinking model"
+      className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-text-secondary"
+    >
+      <Brain className="size-3" aria-hidden="true" />
+      Yes
+    </span>
+  );
+}
+
 function ModeBadge({ mode }: { mode: string | null }) {
-  if (!mode) return <span className="text-text-tertiary">{EM_DASH}</span>;
+  if (!mode) return <span className="text-muted-foreground">{EM_DASH}</span>;
   return (
     <span className="inline-flex items-center rounded-md border border-border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
       {mode}
@@ -75,71 +97,109 @@ function ModeBadge({ mode }: { mode: string | null }) {
   );
 }
 
+// Context window as "in / out", abbreviated (e.g. 128K / 16K). A single em-dash
+// when neither cap is set.
 function ContextCell({ row }: { row: ModelRow }) {
   const hasIn = typeof row.max_input_tokens === 'number';
   const hasOut = typeof row.max_output_tokens === 'number';
-  if (!hasIn && !hasOut) return <span className="text-text-tertiary">{EM_DASH}</span>;
+  if (!hasIn && !hasOut) return <span className="text-muted-foreground">{EM_DASH}</span>;
   return (
-    <span className="font-mono text-xs whitespace-nowrap text-text-primary">
+    <span className="font-mono text-xs whitespace-nowrap text-foreground">
       {hasIn ? formatTokens(row.max_input_tokens) : EM_DASH}
-      <span className="text-text-tertiary"> / </span>
+      <span className="text-muted-foreground"> / </span>
       {hasOut ? formatTokens(row.max_output_tokens) : EM_DASH}
     </span>
   );
 }
 
-function ModelRowItem({ row }: { row: ModelRow }) {
+// Combined price cell: "$in / $out" per 1M tokens, mirroring ContextCell so the
+// two paired metrics read the same way. A single em-dash when neither cost is set.
+function PriceCell({ row }: { row: ModelRow }) {
+  const hasIn = typeof row.input_cost_per_token === 'number';
+  const hasOut = typeof row.output_cost_per_token === 'number';
+  if (!hasIn && !hasOut) return <span className="text-muted-foreground">{EM_DASH}</span>;
   return (
-    <tr className="border-b border-border last:border-0">
-      {/* Model name + provider chips */}
-      <td className="py-3 pr-4 align-top">
-        <div className="font-mono text-sm font-medium text-text-primary">
+    <span className="font-mono text-xs whitespace-nowrap text-foreground">
+      {hasIn ? formatPricePerMillion(row.input_cost_per_token) : EM_DASH}
+      <span className="text-muted-foreground"> / </span>
+      {hasOut ? formatPricePerMillion(row.output_cost_per_token) : EM_DASH}
+    </span>
+  );
+}
+
+// Capability badge cluster (vision / tools / web). Reasoning lives in its own
+// Thinking column, so it is intentionally absent here.
+function CapabilitiesCell({ row }: { row: ModelRow }) {
+  const any =
+    row.supports_vision || row.supports_function_calling || row.supports_web_search;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {row.supports_vision && <CapBadge icon={Eye} label="Vision" />}
+      {row.supports_function_calling && (
+        <CapBadge icon={Wrench} label="Function calling / tools" />
+      )}
+      {row.supports_web_search && <CapBadge icon={Globe} label="Web search" />}
+      {!any && <span className="font-mono text-xs text-muted-foreground">{EM_DASH}</span>}
+    </div>
+  );
+}
+
+// Columns for the shared DataTable. Same contract as KeysTable so the two tables
+// render with identical header/cell chrome.
+const COLUMNS: DataTableColumn<ModelRow>[] = [
+  {
+    key: 'model',
+    header: 'Model',
+    headerClassName: 'whitespace-nowrap',
+    className: 'align-top',
+    cell: (row) => (
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="text-foreground font-mono text-sm font-semibold">
           {row.name ?? EM_DASH}
-        </div>
-        {row.providers.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
+        </span>
+        {row.providers.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
             {row.providers.map((p) => (
               <ProviderChip key={p} label={p} />
             ))}
           </div>
-        )}
-      </td>
-      {/* Mode */}
-      <td className="py-3 pr-4 align-top">
-        <ModeBadge mode={row.mode} />
-      </td>
-      {/* Context */}
-      <td className="py-3 pr-4 align-top">
-        <ContextCell row={row} />
-      </td>
-      {/* Input price */}
-      <td className="py-3 pr-4 text-right align-top font-mono text-xs whitespace-nowrap text-text-primary">
-        {formatPricePerMillion(row.input_cost_per_token)}
-      </td>
-      {/* Output price */}
-      <td className="py-3 pr-4 text-right align-top font-mono text-xs whitespace-nowrap text-text-primary">
-        {formatPricePerMillion(row.output_cost_per_token)}
-      </td>
-      {/* Capabilities */}
-      <td className="py-3 align-top">
-        <div className="flex flex-wrap gap-1.5">
-          {row.supports_vision && <CapBadge icon={Eye} label="Vision" />}
-          {row.supports_function_calling && (
-            <CapBadge icon={Wrench} label="Function calling / tools" />
-          )}
-          {row.supports_reasoning && <CapBadge icon={Brain} label="Reasoning" />}
-          {row.supports_web_search && <CapBadge icon={Globe} label="Web search" />}
-          {!row.supports_vision &&
-            !row.supports_function_calling &&
-            !row.supports_reasoning &&
-            !row.supports_web_search && (
-              <span className="font-mono text-xs text-text-tertiary">{EM_DASH}</span>
-            )}
-        </div>
-      </td>
-    </tr>
-  );
-}
+        ) : null}
+      </div>
+    ),
+  },
+  {
+    key: 'mode',
+    header: 'Mode',
+    className: 'align-top',
+    cell: (row) => <ModeBadge mode={row.mode} />,
+  },
+  {
+    key: 'thinking',
+    header: 'Thinking',
+    className: 'align-top',
+    cell: (row) => <ThinkingCell on={row.supports_reasoning} />,
+  },
+  {
+    key: 'context',
+    header: 'Context (in / out)',
+    headerClassName: 'whitespace-nowrap',
+    className: 'align-top whitespace-nowrap',
+    cell: (row) => <ContextCell row={row} />,
+  },
+  {
+    key: 'price',
+    header: '$ / 1M (in / out)',
+    headerClassName: 'whitespace-nowrap',
+    className: 'align-top whitespace-nowrap',
+    cell: (row) => <PriceCell row={row} />,
+  },
+  {
+    key: 'caps',
+    header: 'Capabilities',
+    className: 'align-top',
+    cell: (row) => <CapabilitiesCell row={row} />,
+  },
+];
 
 export function Models() {
   const query = useModels();
@@ -186,39 +246,21 @@ export function Models() {
 
       {query.isPending ? (
         <Skeleton variant="table-rows" rows={6} />
-      ) : models.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-surface p-12 text-center">
-          <div className="font-sans text-lg font-semibold text-text-primary">
-            {EMPTY_HEADING}
-          </div>
-          <div className="max-w-md font-sans text-sm text-text-secondary">
-            {EMPTY_BODY}
-          </div>
-        </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-surface px-5">
-          <table className="w-full min-w-[680px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-border">
-                {COLS.map((c, i) => (
-                  <th
-                    key={c}
-                    className={`py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary ${
-                      i === 3 || i === 4 ? 'text-right' : ''
-                    }`}
-                  >
-                    {c}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {models.map((m, i) => (
-                <ModelRowItem key={m.name ?? i} row={m} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data-slot="models-table"
+          columns={COLUMNS}
+          rows={models}
+          getRowId={(row) => row.name ?? ''}
+          empty={
+            <div data-slot="models-table-empty" className="py-6">
+              <p className="text-foreground text-base font-semibold">
+                {EMPTY_HEADING}
+              </p>
+              <p className="text-muted-foreground mt-1 text-sm">{EMPTY_BODY}</p>
+            </div>
+          }
+        />
       )}
     </div>
   );

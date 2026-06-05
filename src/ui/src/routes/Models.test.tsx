@@ -103,14 +103,26 @@ describe('Models — populated', () => {
     render(<Models />);
     expect(screen.getByText('ackstorm.fast')).toBeInTheDocument();
     expect(screen.getByText('openai')).toBeInTheDocument();
-    // 1.5e-7 * 1e6 = $0.15 (input); 6e-7 * 1e6 = $0.60 (output).
-    expect(screen.getByText('$0.15')).toBeInTheDocument();
-    expect(screen.getByText('$0.60')).toBeInTheDocument();
+    // Combined price cell: 1.5e-7*1e6=$0.15 (in) / 6e-7*1e6=$0.60 (out).
+    expect(screen.getByText(/\$0\.15/)).toBeInTheDocument();
+    expect(screen.getByText(/\$0\.60/)).toBeInTheDocument();
     // Context window abbreviated (128K input).
     expect(screen.getByText(/128K/)).toBeInTheDocument();
     // Enabled capabilities surface as labelled badges; disabled ones do not.
     expect(screen.getByLabelText('Vision')).toBeInTheDocument();
     expect(screen.getByLabelText('Function calling / tools')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Reasoning')).not.toBeInTheDocument();
+    // Non-reasoning model: no Thinking marker.
+    expect(screen.queryByLabelText('Thinking model')).not.toBeInTheDocument();
+  });
+
+  it('marks reasoning models in the Thinking column', () => {
+    setSuccess([makeModel({ supports_reasoning: true })]);
+    render(<Models />);
+    // Column header is always present.
+    expect(screen.getByText('Thinking')).toBeInTheDocument();
+    // Reasoning row carries the labelled badge.
+    const badge = screen.getByLabelText('Thinking model');
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent('Yes');
   });
 });

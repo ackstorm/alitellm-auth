@@ -2,6 +2,11 @@
 
 ## [unreleased]
 
+- change: the Models table now renders through the same table component as the Keys table — matching header font/size, cell padding, row borders, and card chrome — so the two surfaces are visually consistent
+- change: Models — "Thinking" is now its own column (after Mode) flagging reasoning models; the input/output prices are merged into one `$ / 1M (in / out)` column (mirroring the Context column); capability icons are neutral grey so they no longer look like clickable toggle buttons
+- change: HOW-TO — the "No terminal?" section drops the Open WebUI card and adds an `openwork` card (github.com/different-ai/openwork) tagged "SOONER" (gateway support is not available yet)
+- change: the deployment readiness probe initial delay drops from 30s to 5s so the pod starts serving sooner (the liveness probe initial delay is unchanged at 60s)
+
 ## [0.4.4] - 2026-06-05
 
 - feat: HOW-TO onboarding page (`#/howto`) — a real guide replacing the placeholder: a Quickstart with a copy-paste `curl` to the `ackstorm.fast` alias (auto-personalized with the user's gateway base URL, `x-litellm-api-key: Bearer sk-...` header, `sk-...` placeholder only — never a real key), editor/CLI setup tabs (Claude Code + Gemini CLI with live env exports; opencode + codex are placeholders for now), and no-terminal chat-UI cards (ACKstorm Chat + Open WebUI). Sticky in-page TOC, theme-aware, copy buttons; fully static (no backend)
