@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+- feat: a per-user **default key** — mark any key as your default (a star on the Keys table), stored in the key's LiteLLM metadata. The default key cannot be deleted until another key is promoted ("Make default"); a default is never auto-assigned (explicit only).
+- feat: a **Chat** button in the nav (set apart, accent-coloured) linking to `chat.{domain}`, enabled only when you have a default key (otherwise it shows "you need a default key").
+- change: the **Models** and **MCPs** pages are now scoped to the signed-in user — the service sends an `x-user-id` header (with the master key kept server-side) so the catalog reflects that user's access, resolved by the gateway's custom auth.
+
 ## [0.4.5] - 2026-06-05
 
 - change: the Models table now renders through the same table component as the Keys table — matching header font/size, cell padding, row borders, and card chrome — so the two surfaces are visually consistent
