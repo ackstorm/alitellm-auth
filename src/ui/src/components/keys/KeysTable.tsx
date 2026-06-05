@@ -20,16 +20,17 @@
 //     redundant with the one-time create-modal reveal and have been removed.
 
 import * as React from 'react';
-import { Trash2 } from 'lucide-react';
+import { Star, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import {
   DataTable,
   type DataTableColumn,
 } from '@/components/ui/data-table';
-import { useKeys } from '@/hooks/use-keys';
+import { useKeys, useMakeDefault } from '@/hooks/use-keys';
 import { formatDate } from '@/lib/format';
 import { isExpired, isRevoked, selectKeyRows } from '@/lib/keys';
+import { cn } from '@/lib/utils';
 import type { KeyRow } from '@/lib/api-types';
 
 // The em-dash placeholder (matches format.ts EM_DASH) for the always-empty
@@ -65,6 +66,7 @@ function statusFor(row: KeyRow): {
 
 export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
   const query = useKeys();
+  const makeDefault = useMakeDefault();
   const rows = selectKeyRows(query.data);
 
   // ── State branches (exact copy lifted from keys-table.js) ───────────────────
@@ -112,9 +114,20 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         const showChip = Boolean(row.key_alias);
         return (
           <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-foreground truncate text-sm font-semibold">
-              {name}
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-foreground truncate text-sm font-semibold">
+                {name}
+              </span>
+              {row.is_default ? (
+                <Badge
+                  data-slot="key-default-badge"
+                  variant="default"
+                  className="shrink-0 px-1.5 py-0 text-[10px] font-semibold tracking-wider"
+                >
+                  DEFAULT
+                </Badge>
+              ) : null}
+            </div>
             {showChip ? (
               <span
                 data-slot="key-chip"
@@ -172,13 +185,46 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       }
       rowActions={(row) => (
         <div className="flex items-center justify-end gap-2">
+          {row.is_default ? (
+            <button
+              type="button"
+              data-slot="key-default-on"
+              aria-label="Default key"
+              title="This is your default key"
+              disabled
+              className="text-primary border-primary/40 inline-flex size-7 cursor-default items-center justify-center rounded-md border"
+            >
+              <Star className="size-[15px] fill-current" aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-slot="key-make-default"
+              aria-label="Make default"
+              title="Make this your default key"
+              onClick={() => makeDefault.mutate(row.id ?? '')}
+              className="text-muted-foreground border-border hover:border-primary hover:text-primary inline-flex size-7 cursor-pointer items-center justify-center rounded-md border transition-colors"
+            >
+              <Star className="size-[15px]" aria-hidden="true" />
+            </button>
+          )}
           <button
             type="button"
             data-slot="key-delete"
             aria-label="Revoke"
-            title="Revoke"
+            title={
+              row.is_default
+                ? 'Make another key default before deleting'
+                : 'Revoke'
+            }
+            disabled={row.is_default}
             onClick={() => onDelete(row)}
-            className="text-destructive border-destructive/40 hover:border-destructive inline-flex size-7 cursor-pointer items-center justify-center rounded-md border transition-colors"
+            className={cn(
+              'inline-flex size-7 items-center justify-center rounded-md border transition-colors',
+              row.is_default
+                ? 'text-muted-foreground border-border cursor-not-allowed opacity-50'
+                : 'text-destructive border-destructive/40 hover:border-destructive cursor-pointer'
+            )}
           >
             <Trash2 className="size-[15px]" aria-hidden="true" />
           </button>

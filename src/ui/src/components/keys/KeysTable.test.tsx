@@ -6,22 +6,33 @@
 // removed — the sk- is shown once, at mint time, in the create-key modal); the
 // only per-row action is Revoke.
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { UseQueryResult } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 
-import type { KeyRow } from '@/lib/api-types';
+import type { KeyRow, MakeDefaultResponse } from '@/lib/api-types';
 
 // Mock the data hook — each test sets useKeys's return value.
 vi.mock('@/hooks/use-keys', () => ({
   useKeys: vi.fn(),
+  useMakeDefault: vi.fn(),
   KEYS_QUERY_KEY: ['session', 'keys'],
 }));
 
-import { useKeys } from '@/hooks/use-keys';
+import { useKeys, useMakeDefault } from '@/hooks/use-keys';
 import { KeysTable } from './KeysTable';
 
 const useKeysMock = vi.mocked(useKeys);
+const useMakeDefaultMock = vi.mocked(useMakeDefault);
+
+// A reusable mutation stub; reset per test via beforeEach.
+let makeDefaultMutate: ReturnType<typeof vi.fn>;
+beforeEach(() => {
+  makeDefaultMutate = vi.fn();
+  useMakeDefaultMock.mockReturnValue({
+    mutate: makeDefaultMutate,
+  } as unknown as UseMutationResult<MakeDefaultResponse, Error, string>);
+});
 
 // A minimal projected /keys row factory (mirrors the api-types KeyRow contract).
 function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
@@ -176,5 +187,37 @@ describe('KeysTable — delete action', () => {
 
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledWith(row);
+  });
+});
+
+describe('KeysTable — default key', () => {
+  it('shows a DEFAULT badge on the default key only', () => {
+    setRows([
+      makeRow({ id: 'key-default', key_alias: 'default-key', is_default: true }),
+      makeRow({ id: 'key-other', key_alias: 'other-key', is_default: false }),
+    ]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.getAllByText('DEFAULT')).toHaveLength(1);
+  });
+
+  it('a non-default key exposes an enabled "Make default" control', () => {
+    setRows([makeRow({ id: 'key-other', is_default: false })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    const btn = screen.getByRole('button', { name: 'Make default' });
+    expect(btn).toBeEnabled();
+  });
+
+  it('clicking "Make default" fires the mutation with the row id', () => {
+    setRows([makeRow({ id: 'key-other', is_default: false })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Make default' }));
+    expect(makeDefaultMutate).toHaveBeenCalledWith('key-other');
+  });
+
+  it('the default key has no "Make default" control and a disabled Revoke', () => {
+    setRows([makeRow({ id: 'key-default', is_default: true })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Make default' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeDisabled();
   });
 });

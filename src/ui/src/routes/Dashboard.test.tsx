@@ -18,6 +18,7 @@ import type { KeyRow, SessionMe } from '@/lib/api-types';
 vi.mock('@/hooks/use-keys', () => ({
   useKeys: vi.fn(),
   useDeleteKey: vi.fn(),
+  useMakeDefault: vi.fn(),
   KEYS_QUERY_KEY: ['session', 'keys'],
 }));
 
@@ -28,7 +29,7 @@ vi.mock('@/hooks/use-stats', () => ({
   useStats: vi.fn(),
 }));
 
-import { useDeleteKey, useKeys } from '@/hooks/use-keys';
+import { useDeleteKey, useKeys, useMakeDefault } from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
 import { Dashboard } from './Dashboard';
 import { formatCurrency } from '@/lib/format';
@@ -44,6 +45,7 @@ import { initialToastState, useToastStore } from '@/hooks/use-toast';
 
 const useKeysMock = vi.mocked(useKeys);
 const useDeleteKeyMock = vi.mocked(useDeleteKey);
+const useMakeDefaultMock = vi.mocked(useMakeDefault);
 const useStatsMock = vi.mocked(useStats);
 
 // Build a valid SessionMe fixture with overrides.
@@ -114,6 +116,11 @@ beforeEach(() => {
     mutateAsync: vi.fn().mockResolvedValue({ status: 'deleted', id: 'key-abc123' }),
     isPending: false,
   } as unknown as ReturnType<typeof useDeleteKey>);
+  // Default the make-default mutation to a no-op.
+  useMakeDefaultMock.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+  } as unknown as ReturnType<typeof useMakeDefault>);
   // Default stats to a non-success state — the Requests (MTD) tile shows EM_DASH.
   useStatsMock.mockReturnValue({
     data: undefined,
