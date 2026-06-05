@@ -404,6 +404,10 @@ def _project_session_key(k: dict, md: dict) -> dict:
         "expires": k.get("expires"),
         # Explicit "default key" flag (metadata-backed). Absent/false => not default.
         "is_default": bool(md.get("is_default")),
+        # Raw metadata for SERVER-SIDE use only (Make-default read-modify-write).
+        # The session router MUST strip this before returning to the browser
+        # (it may hold factory user_meta_extra) — see session_list_keys strip set.
+        "metadata": md,
     }
 
 
@@ -419,6 +423,7 @@ _EMPTY_SESSION_KEY = {
     "created_at": None,
     "expires": None,
     "is_default": False,
+    "metadata": {},
 }
 
 
@@ -729,6 +734,38 @@ async def delete_litellm_key(token: str, settings: Settings) -> None:
         msg = _extract_litellm_error(resp)
         raise httpx.HTTPStatusError(
             f"LiteLLM /key/delete failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+
+
+async def set_litellm_key_default(
+    token: str,
+    settings: Settings,
+    *,
+    is_default: bool,
+    existing_metadata: dict,
+) -> None:
+    """Set/clear the is_default flag on a virtual key via /key/update.
+
+    LiteLLM replaces the whole `metadata` field on update, so we merge into the
+    existing metadata (read-modify-write) and send the full dict. `token` is the
+    hashed token from /key/list (same value /key/delete accepts — LiteLLM only
+    re-hashes values starting with `sk-`, so a stored hash passes through).
+    """
+    headers = _admin_headers(settings)
+    merged = dict(existing_metadata or {})
+    if is_default:
+        merged["is_default"] = True
+    else:
+        merged.pop("is_default", None)
+    payload = {"key": token, "metadata": merged}
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+        resp = await client.post("/key/update", headers=headers, json=payload)
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM /key/update failed ({resp.status_code}): {msg}",
             request=resp.request,
             response=resp,
         )

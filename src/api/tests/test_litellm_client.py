@@ -1249,6 +1249,9 @@ def test_project_session_key_reads_is_default_from_metadata():
     row = {"token": "hash-abc", "key_alias": "key-a", "metadata": md}
     out = _project_session_key(row, md)
     assert out["is_default"] is True
+    # Raw metadata is carried through for server-side read-modify-write (stripped
+    # by the session router before reaching the browser).
+    assert out["metadata"] is md
 
 
 def test_project_session_key_default_false_when_flag_absent():
@@ -1256,3 +1259,62 @@ def test_project_session_key_default_false_when_flag_absent():
 
     out = _project_session_key({"token": "h", "key_alias": "k"}, {})
     assert out["is_default"] is False
+
+
+# ---------------------------------------------------------------------------
+# A2: set_litellm_key_default — write path (/key/update metadata merge)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_set_litellm_key_default_sends_merged_metadata():
+    from app.litellm_client import set_litellm_key_default
+
+    settings = make_settings()
+    route = respx.post(f"{settings.litellm_url}/key/update").mock(
+        return_value=httpx.Response(200, json={"key": "hash-abc"})
+    )
+    await set_litellm_key_default(
+        "hash-abc",
+        settings,
+        is_default=True,
+        existing_metadata={"email": "a@b.com", "source": "token-factory"},
+    )
+    body = _json_body(route)
+    assert body["key"] == "hash-abc"
+    assert body["metadata"]["is_default"] is True
+    assert body["metadata"]["email"] == "a@b.com"  # preserved
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_set_litellm_key_default_false_removes_flag():
+    from app.litellm_client import set_litellm_key_default
+
+    settings = make_settings()
+    route = respx.post(f"{settings.litellm_url}/key/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    await set_litellm_key_default(
+        "h",
+        settings,
+        is_default=False,
+        existing_metadata={"email": "a@b.com", "is_default": True},
+    )
+    body = _json_body(route)
+    assert body["metadata"].get("is_default") in (False, None)
+    assert body["metadata"]["email"] == "a@b.com"  # preserved
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_set_litellm_key_default_raises_on_5xx():
+    from app.litellm_client import set_litellm_key_default
+
+    settings = make_settings()
+    respx.post(f"{settings.litellm_url}/key/update").mock(
+        return_value=httpx.Response(500, text="boom")
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        await set_litellm_key_default("h", settings, is_default=True, existing_metadata={})
