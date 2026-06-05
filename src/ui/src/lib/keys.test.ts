@@ -30,6 +30,7 @@ const PAYLOAD: KeyRow[] = [
     models: ['all-team-models'],
     created_at: '2026-03-01T10:00:00+00:00',
     expires: null,
+    is_default: false,
   },
   {
     id: 'key-def456',
@@ -41,6 +42,7 @@ const PAYLOAD: KeyRow[] = [
     models: null,
     created_at: '2026-02-01T08:00:00+00:00',
     expires: '2099-01-01T00:00:00+00:00',
+    is_default: false,
   },
 ];
 

@@ -71,6 +71,7 @@ function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
     models: null,
     created_at: '2026-03-01T10:00:00+00:00',
     expires: null,
+    is_default: false,
     ...overrides,
   };
 }

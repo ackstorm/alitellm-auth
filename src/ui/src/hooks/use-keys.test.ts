@@ -45,6 +45,7 @@ const ROW: KeyRow = {
   models: ['all-team-models'],
   created_at: '2026-03-01T10:00:00+00:00',
   expires: null,
+  is_default: false,
 };
 
 /** Build a fresh QueryClient with retries off so error tests resolve fast. */

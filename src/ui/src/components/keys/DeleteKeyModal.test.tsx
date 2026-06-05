@@ -41,6 +41,7 @@ function makeKey(overrides: Partial<KeyRow> = {}): KeyRow {
     models: null,
     created_at: null,
     expires: null,
+    is_default: false,
     ...overrides,
   };
 }
