@@ -193,6 +193,29 @@ def test_keys_one_call(client):
     assert "key" not in data["keys"][0]
 
 
+def test_list_keys_strips_metadata_but_keeps_is_default(client):
+    """The raw metadata (server-side only) must not reach the browser; is_default does."""
+    keys = [
+        {
+            "id": "abc123",
+            "token": "ltoken-hash",
+            "key": "sk-should-not-leak",
+            "key_alias": "key-a",
+            "is_default": True,
+            "metadata": {"email": "alice@example.com", "user_meta_extra": "secret"},
+        }
+    ]
+    with patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list:
+        mock_list.return_value = keys
+        response = client.get("/api/session/keys", cookies=_authed_cookie())
+    assert response.status_code == 200
+    body = response.json()["keys"][0]
+    assert "metadata" not in body
+    assert "token" not in body
+    assert "key" not in body
+    assert body["is_default"] is True
+
+
 def test_keys_fallback(client):
     """GET /keys still returns correctly when list_session_keys triggers fallback."""
     fallback_keys = [

@@ -251,8 +251,12 @@ async def session_list_keys(
         raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
-    # D-17: never expose the raw sk- ("key") nor the server-side delete hash ("token") to the browser.
-    safe_keys = [{k: v for k, v in kd.items() if k not in ("key", "token")} for kd in keys]
+    # D-17: never expose the raw sk- ("key"), the server-side delete hash ("token"),
+    # nor the raw "metadata" (may hold factory user_meta_extra) to the browser.
+    # The derived "is_default" bool DOES go to the browser.
+    safe_keys = [
+        {k: v for k, v in kd.items() if k not in ("key", "token", "metadata")} for kd in keys
+    ]
     return JSONResponse({"keys": safe_keys})
 
 
