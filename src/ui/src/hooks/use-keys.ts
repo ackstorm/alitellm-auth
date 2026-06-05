@@ -32,6 +32,7 @@ import type {
   DeleteKeyResponse,
   KeyRow,
   KeysResponse,
+  MakeDefaultResponse,
 } from '@/lib/api-types';
 import { useFreshKeysStore } from '@/stores/fresh-keys';
 
@@ -136,6 +137,30 @@ export function useDeleteKey() {
     },
     onSuccess: (_data, id) => {
       dropFresh(id);
+      queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
+    },
+  });
+}
+
+/**
+ * POST /api/session/keys/{id}/default. Backend returns HTTP 200 { status:
+ * "default", id } (session.py::session_make_default), promoting the key to the
+ * user's explicit default and clearing any prior default. On success the list is
+ * invalidated so the DEFAULT badge + revoke-guard re-render.
+ */
+export function useMakeDefault() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { status, data } = await postJson<MakeDefaultResponse>(
+        `/api/session/keys/${encodeURIComponent(id)}/default`,
+        {},
+      );
+      if (status !== 200 || !data) throw apiCallError('make-default-failed', status, data);
+      return data;
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
     },
   });

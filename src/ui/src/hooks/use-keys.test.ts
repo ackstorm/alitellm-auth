@@ -27,6 +27,7 @@ import {
   useCreateKey,
   useDeleteKey,
   useKeys,
+  useMakeDefault,
 } from './use-keys';
 import { initialFreshKeysState, useFreshKeysStore } from '@/stores/fresh-keys';
 
@@ -188,6 +189,37 @@ describe('useDeleteKey', () => {
     delMock.mockResolvedValue({ status: 403, data: null });
 
     const { result } = renderHook(() => useDeleteKey(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await expect(result.current.mutateAsync('key-x')).rejects.toThrow();
+  });
+});
+
+describe('useMakeDefault', () => {
+  it('200 -> POSTs the default endpoint AND invalidates the keys query', async () => {
+    postJsonMock.mockResolvedValue({
+      status: 200,
+      data: { status: 'default', id: 'key-1' },
+    });
+
+    const client = makeClient();
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+
+    const { result } = renderHook(() => useMakeDefault(), {
+      wrapper: wrapperFor(client),
+    });
+
+    await result.current.mutateAsync('key-1');
+
+    expect(postJsonMock).toHaveBeenCalledWith('/api/session/keys/key-1/default', {});
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: KEYS_QUERY_KEY });
+  });
+
+  it('non-200 (502) -> rejects', async () => {
+    postJsonMock.mockResolvedValue({ status: 502, data: null });
+
+    const { result } = renderHook(() => useMakeDefault(), {
       wrapper: wrapperFor(makeClient()),
     });
 

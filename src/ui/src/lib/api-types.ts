@@ -117,6 +117,12 @@ export interface DeleteKeyResponse {
   id: string;
 }
 
+/** POST /api/session/keys/{id}/default response. session.py::session_make_default. */
+export interface MakeDefaultResponse {
+  status: string;
+  id: string;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/session/stats  — src/api/app/session.py::session_stats
 // (contract assembled by src/api/app/stats.py::build_stats_contract)
