@@ -352,6 +352,51 @@ def test_delete_foreign_key_403(client):
     assert response_foreign.json()["detail"] == response_nonexistent.json()["detail"]
 
 
+def test_delete_default_key_blocked_409(client):
+    """The default key cannot be deleted — 409 and NO /key/delete call."""
+    owned = [
+        {
+            "id": "key-a",
+            "token": "tok-a",
+            "key_alias": "a",
+            "is_default": True,
+            "metadata": {"is_default": True},
+        }
+    ]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.delete_litellm_key", new_callable=AsyncMock) as mock_delete,
+    ):
+        mock_list.return_value = owned
+        response = client.delete(
+            "/api/session/keys/key-a",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+        )
+    assert response.status_code == 409
+    assert "default" in response.json()["detail"].lower()
+    mock_delete.assert_not_awaited()
+
+
+def test_delete_non_default_key_ok(client):
+    """A non-default key still deletes normally (happy path unchanged)."""
+    owned = [
+        {"id": "key-b", "token": "tok-b", "key_alias": "b", "is_default": False, "metadata": {}}
+    ]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.delete_litellm_key", new_callable=AsyncMock) as mock_delete,
+    ):
+        mock_list.return_value = owned
+        response = client.delete(
+            "/api/session/keys/key-b",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+        )
+    assert response.status_code == 200
+    assert mock_delete.await_args.args[0] == "tok-b"
+
+
 # ---------------------------------------------------------------------------
 # Default key — POST /api/session/keys/{id}/default (promote, explicit-only)
 # ---------------------------------------------------------------------------

@@ -361,17 +361,19 @@ async def session_delete_key(
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
-    # Find the token for this id — 403 for any id not in the user's list (D-12)
-    target_token: str | None = None
-    for k in user_keys:
-        if k.get("id") == key_id:
-            # /key/list returns the hashed "token" (not the sk- plaintext); /key/delete accepts it.
-            target_token = k.get("token")
-            break
-
-    if target_token is None:
+    # Find the key for this id — 403 for any id not in the user's list (D-12)
+    target = next((k for k in user_keys if k.get("id") == key_id), None)
+    if target is None:
         # D-12: 403 regardless of whether the key exists elsewhere or nowhere
         raise HTTPException(status_code=403, detail="Not authorized")
+    if target.get("is_default"):
+        # The default key is undeletable until another key is promoted.
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete the default key. Make another key default first.",
+        )
+    # /key/list returns the hashed "token" (not the sk- plaintext); /key/delete accepts it.
+    target_token = target.get("token")
 
     try:
         await delete_litellm_key(target_token, settings)
