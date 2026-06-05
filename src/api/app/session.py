@@ -38,6 +38,7 @@ from app.litellm_client import (
     list_litellm_mcp_servers,
     list_litellm_models,
     list_session_keys,
+    set_litellm_key_default,
     spend_logs_last_used,
     user_daily_activity,
 )
@@ -382,6 +383,62 @@ async def session_delete_key(
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
     return JSONResponse({"status": "deleted", "id": key_id})
+
+
+@router.post("/keys/{key_id}/default", response_model=None)
+async def session_make_default(
+    request: Request,
+    key_id: str,
+    user: dict = Depends(require_session_user),
+) -> JSONResponse:
+    """Promote an owned key to be the user's default (explicit-only).
+
+    Sets is_default=True on the target and clears it on any other key that
+    currently has it. 403 for a foreign/unknown id (no existence leak, D-12).
+    The default is metadata-backed and never auto-assigned on create.
+    """
+    settings: Settings = request.app.state.settings
+    assert_same_origin(request, settings)
+    email = user["email"]
+
+    try:
+        user_keys = await list_session_keys(email, settings)
+    except httpx.HTTPStatusError as exc:
+        logger.error("session_make_default: relist failed for %s: %s", email, exc)
+        raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
+    target = next((k for k in user_keys if k.get("id") == key_id), None)
+    if target is None:
+        # D-12: 403 regardless of whether the key exists elsewhere or nowhere
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    try:
+        # Promote target.
+        await set_litellm_key_default(
+            target["token"],
+            settings,
+            is_default=True,
+            existing_metadata=target.get("metadata") or {},
+        )
+        # Demote any other current default.
+        for k in user_keys:
+            if k.get("id") != key_id and k.get("is_default"):
+                await set_litellm_key_default(
+                    k["token"],
+                    settings,
+                    is_default=False,
+                    existing_metadata=k.get("metadata") or {},
+                )
+    except httpx.HTTPStatusError as exc:
+        logger.error("session_make_default: update failed for %s: %s", key_id, exc)
+        raise HTTPException(status_code=502, detail="Failed to set default key")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
+    logger.info("session_make_default: user %s set default key %s", email, key_id)
+    return JSONResponse({"status": "default", "id": key_id})
 
 
 def _parse_stats_range(start_date: str | None, end_date: str | None) -> tuple[date, date]:

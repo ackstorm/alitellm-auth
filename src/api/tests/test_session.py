@@ -353,6 +353,101 @@ def test_delete_foreign_key_403(client):
 
 
 # ---------------------------------------------------------------------------
+# Default key — POST /api/session/keys/{id}/default (promote, explicit-only)
+# ---------------------------------------------------------------------------
+
+
+def test_make_default_promotes_and_demotes(client):
+    """POST .../{id}/default promotes the target and clears the prior default."""
+    owned = [
+        {
+            "id": "key-a",
+            "token": "tok-a",
+            "key_alias": "a",
+            "is_default": True,
+            "metadata": {"email": "alice@example.com", "is_default": True},
+        },
+        {
+            "id": "key-b",
+            "token": "tok-b",
+            "key_alias": "b",
+            "is_default": False,
+            "metadata": {"email": "alice@example.com"},
+        },
+    ]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
+    ):
+        mock_list.return_value = owned
+        response = client.post(
+            "/api/session/keys/key-b/default",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            content="{}",
+        )
+    assert response.status_code == 200
+    assert response.json() == {"status": "default", "id": "key-b"}
+    calls = mock_set.await_args_list
+    # target promoted with the merged existing metadata
+    assert any(c.args[0] == "tok-b" and c.kwargs["is_default"] is True for c in calls)
+    # prior default demoted
+    assert any(c.args[0] == "tok-a" and c.kwargs["is_default"] is False for c in calls)
+
+
+def test_make_default_foreign_key_403(client):
+    """A foreign/unknown id → 403 and NO /key/update call (D-12, no existence leak)."""
+    owned = [{"id": "key-a", "token": "tok-a", "key_alias": "a", "is_default": False, "metadata": {}}]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
+    ):
+        mock_list.return_value = owned
+        response = client.post(
+            "/api/session/keys/not-mine/default",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            content="{}",
+        )
+    assert response.status_code == 403
+    mock_set.assert_not_awaited()
+
+
+def test_make_default_requires_origin(client):
+    """Missing Origin/Referer → 403 (assert_same_origin)."""
+    response = client.post(
+        "/api/session/keys/key-a/default",
+        headers={"content-type": "application/json"},
+        cookies=_authed_cookie(),
+        content="{}",
+    )
+    assert response.status_code == 403
+
+
+def test_make_default_502_on_litellm_error(client):
+    """A /key/update failure → 502."""
+    owned = [{"id": "key-a", "token": "tok-a", "key_alias": "a", "is_default": False, "metadata": {}}]
+    err = httpx.HTTPStatusError(
+        "boom",
+        request=httpx.Request("POST", "http://litellm.test/key/update"),
+        response=httpx.Response(500),
+    )
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
+    ):
+        mock_list.return_value = owned
+        mock_set.side_effect = err
+        response = client.post(
+            "/api/session/keys/key-a/default",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            content="{}",
+        )
+    assert response.status_code == 502
+
+
+# ---------------------------------------------------------------------------
 # STATS-01 — GET /api/session/stats (Plan 12-03)
 # ---------------------------------------------------------------------------
 
