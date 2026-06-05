@@ -26,7 +26,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s mock-litellm %(message)s")
@@ -228,6 +228,34 @@ async def key_delete(request: Request):
     _KEYS[:] = [k for k in _KEYS if k.get("token") not in targets and k.get("key") not in targets]
     log.info("key/delete removed %d key(s)", before - len(_KEYS))
     return {"deleted_keys": list(targets)}
+
+
+def _update_key_metadata(token: str | None, metadata: dict) -> dict | None:
+    """Replace the metadata of the in-memory key matched by token/key (wholesale).
+
+    Mirrors real LiteLLM /key/update semantics: the supplied `metadata` dict
+    replaces the stored one. Returns the mutated key, or None when not found.
+    """
+    for k in _KEYS:
+        if k.get("token") == token or k.get("key") == token:
+            k["metadata"] = metadata
+            return k
+    return None
+
+
+@app.post("/key/update")
+async def key_update(request: Request):
+    body = await _json(request)
+    token = body.get("key")
+    metadata = body.get("metadata", {})
+    updated = _update_key_metadata(token, metadata)
+    log.info(
+        "key/update token=%s is_default=%s (%s)",
+        token,
+        metadata.get("is_default"),
+        "ok" if updated else "not-found",
+    )
+    return {"key": token, "metadata": metadata}
 
 
 # ── Usage / spend ───────────────────────────────────────────────────────────
@@ -433,7 +461,14 @@ _MCP_SERVERS = [
 
 
 @app.get("/model_group/info")
-async def model_group_info(model_group: str | None = None):
+async def model_group_info(
+    model_group: str | None = None,
+    x_user_id: str | None = Header(default=None),
+):
+    # Real per-user scoping is the deployment's custom auth; the mock just logs
+    # the header to prove the x-user-id path is exercised (and must not 500 on it).
+    if x_user_id:
+        log.info("model_group/info scoped to x-user-id=%s", x_user_id)
     data = [copy.deepcopy(m) for m in _MODEL_GROUPS]
     if model_group:
         data = [m for m in data if m["model_group"] == model_group]
@@ -441,7 +476,12 @@ async def model_group_info(model_group: str | None = None):
 
 
 @app.get("/v1/mcp/server")
-async def mcp_server_list(team_id: str | None = None):
+async def mcp_server_list(
+    team_id: str | None = None,
+    x_user_id: str | None = Header(default=None),
+):
+    if x_user_id:
+        log.info("v1/mcp/server scoped to x-user-id=%s", x_user_id)
     # Bare JSON array (matches LiteLLM's response_model=List[LiteLLM_MCPServerTable]).
     return [copy.deepcopy(s) for s in _MCP_SERVERS]
 

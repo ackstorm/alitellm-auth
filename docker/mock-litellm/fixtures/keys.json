@@ -17,7 +17,8 @@
       "name": "Mock User",
       "source": "token-factory",
       "created_at": "2026-04-01T09:12:44.000000Z",
-      "key_alias": "prod-pipeline"
+      "key_alias": "prod-pipeline",
+      "is_default": true
     }
   },
   {
