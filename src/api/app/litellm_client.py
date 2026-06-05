@@ -1126,7 +1126,7 @@ def _project_model_group(m: dict) -> dict:
     }
 
 
-async def list_litellm_models(settings: Settings) -> list[dict]:
+async def list_litellm_models(settings: Settings, user_id: str | None = None) -> list[dict]:
     """List the public model-group catalog (GET /model_group/info).
 
     Uses /model_group/info (NOT /model/info): the group view is the safe public
@@ -1134,10 +1134,16 @@ async def list_litellm_models(settings: Settings) -> list[dict]:
     expose litellm_params (the real upstream model, api_base, or api_key). Each row
     is run through the explicit allow-list _project_model_group. Sorted by name.
 
+    When ``user_id`` is set, sends ``x-user-id: <user_id>`` alongside the master-key
+    Authorization so the deployment's LiteLLM custom auth scopes the catalog to that
+    user. The value MUST come from the authenticated session, never client input.
+
     Raises httpx.HTTPStatusError / httpx.RequestError on failure (caller degrades).
     Used by GET /api/session/models.
     """
     headers = _admin_headers(settings)
+    if user_id:
+        headers["x-user-id"] = user_id
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
         resp = await client.get("/model_group/info", headers=headers)
     if not resp.is_success:
@@ -1184,18 +1190,24 @@ def _project_mcp_server(s: dict) -> dict:
     }
 
 
-async def list_litellm_mcp_servers(settings: Settings) -> list[dict]:
+async def list_litellm_mcp_servers(settings: Settings, user_id: str | None = None) -> list[dict]:
     """List configured MCP servers from the LiteLLM MCP gateway (GET /v1/mcp/server).
 
     Returns a BARE JSON array of server objects (a {"data"|"servers": [...]} wrapper
     is tolerated defensively). Each row is run through the allow-list
     _project_mcp_server — NEVER credentials/env/headers/OAuth URLs. Sorted by name.
 
+    When ``user_id`` is set, sends ``x-user-id: <user_id>`` alongside the master-key
+    Authorization so the deployment's LiteLLM custom auth scopes the catalog to that
+    user. The value MUST come from the authenticated session, never client input.
+
     Raises httpx.HTTPStatusError on a non-2xx (the caller maps a 404 — an older
     LiteLLM with no MCP gateway — to an "unavailable" empty state) and
     httpx.RequestError when unreachable. Used by GET /api/session/mcp.
     """
     headers = _admin_headers(settings)
+    if user_id:
+        headers["x-user-id"] = user_id
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
         resp = await client.get("/v1/mcp/server", headers=headers)
     if not resp.is_success:

@@ -1318,3 +1318,62 @@ async def test_set_litellm_key_default_raises_on_5xx():
     )
     with pytest.raises(httpx.HTTPStatusError):
         await set_litellm_key_default("h", settings, is_default=True, existing_metadata={})
+
+
+# ---------------------------------------------------------------------------
+# C1: per-user scoping header (x-user-id) on the catalog calls
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_models_sends_x_user_id_header():
+    from app.litellm_client import list_litellm_models
+
+    settings = make_settings()
+    route = respx.get(f"{settings.litellm_url}/model_group/info").mock(
+        return_value=httpx.Response(200, json={"data": []})
+    )
+    await list_litellm_models(settings, user_id="alice@example.com")
+    assert route.calls.last.request.headers["x-user-id"] == "alice@example.com"
+    assert route.calls.last.request.headers["authorization"].startswith("Bearer ")
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_models_omits_x_user_id_when_none():
+    from app.litellm_client import list_litellm_models
+
+    settings = make_settings()
+    route = respx.get(f"{settings.litellm_url}/model_group/info").mock(
+        return_value=httpx.Response(200, json={"data": []})
+    )
+    await list_litellm_models(settings)
+    assert "x-user-id" not in route.calls.last.request.headers
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_mcp_sends_x_user_id_header():
+    from app.litellm_client import list_litellm_mcp_servers
+
+    settings = make_settings()
+    route = respx.get(f"{settings.litellm_url}/v1/mcp/server").mock(
+        return_value=httpx.Response(200, json=[])
+    )
+    await list_litellm_mcp_servers(settings, user_id="alice@example.com")
+    assert route.calls.last.request.headers["x-user-id"] == "alice@example.com"
+    assert route.calls.last.request.headers["authorization"].startswith("Bearer ")
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_mcp_omits_x_user_id_when_none():
+    from app.litellm_client import list_litellm_mcp_servers
+
+    settings = make_settings()
+    route = respx.get(f"{settings.litellm_url}/v1/mcp/server").mock(
+        return_value=httpx.Response(200, json=[])
+    )
+    await list_litellm_mcp_servers(settings)
+    assert "x-user-id" not in route.calls.last.request.headers
