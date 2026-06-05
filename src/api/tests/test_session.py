@@ -465,7 +465,9 @@ def test_make_default_promotes_and_demotes(client):
 
 def test_make_default_foreign_key_403(client):
     """A foreign/unknown id → 403 and NO /key/update call (D-12, no existence leak)."""
-    owned = [{"id": "key-a", "token": "tok-a", "key_alias": "a", "is_default": False, "metadata": {}}]
+    owned = [
+        {"id": "key-a", "token": "tok-a", "key_alias": "a", "is_default": False, "metadata": {}}
+    ]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
@@ -494,7 +496,9 @@ def test_make_default_requires_origin(client):
 
 def test_make_default_502_on_litellm_error(client):
     """A /key/update failure → 502."""
-    owned = [{"id": "key-a", "token": "tok-a", "key_alias": "a", "is_default": False, "metadata": {}}]
+    owned = [
+        {"id": "key-a", "token": "tok-a", "key_alias": "a", "is_default": False, "metadata": {}}
+    ]
     err = httpx.HTTPStatusError(
         "boom",
         request=httpx.Request("POST", "http://litellm.test/key/update"),
@@ -1111,6 +1115,15 @@ def test_session_models_502_on_backend_failure(client):
     assert resp.status_code == 502
 
 
+def test_session_models_forwards_email_as_user_id(client):
+    """The handler scopes the catalog to the session user via user_id (x-user-id)."""
+    with patch("app.session.list_litellm_models", new_callable=AsyncMock) as mock_models:
+        mock_models.return_value = []
+        resp = client.get("/api/session/models", cookies=_authed_cookie())
+    assert resp.status_code == 200
+    assert mock_models.await_args.kwargs.get("user_id") == "alice@example.com"
+
+
 # ---------------------------------------------------------------------------
 # GET /api/session/mcp — configured MCP servers (read-only)
 # ---------------------------------------------------------------------------
@@ -1162,3 +1175,12 @@ def test_session_mcp_502_on_5xx(client):
 def test_session_mcp_401_without_cookie(client):
     resp = client.get("/api/session/mcp")
     assert resp.status_code == 401
+
+
+def test_session_mcp_forwards_email_as_user_id(client):
+    """The handler scopes the MCP catalog to the session user via user_id (x-user-id)."""
+    with patch("app.session.list_litellm_mcp_servers", new_callable=AsyncMock) as mock_mcp:
+        mock_mcp.return_value = []
+        resp = client.get("/api/session/mcp", cookies=_authed_cookie())
+    assert resp.status_code == 200
+    assert mock_mcp.await_args.kwargs.get("user_id") == "alice@example.com"

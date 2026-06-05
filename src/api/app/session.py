@@ -575,13 +575,15 @@ async def session_models(
     """Return the public model-group catalog for the session user (read-only).
 
     Server-side master-key call to LiteLLM /model_group/info — the safe public
-    view (no upstream model / api_base / api_key). Read-only GET (no
-    assert_same_origin, mirrors /stats). A backend failure 502s (the SPA renders
-    its error+retry branch); an empty catalog is a valid 200 with models: [].
+    view (no upstream model / api_base / api_key). Scoped to the session user via
+    an x-user-id header (resolved by the gateway's custom auth); the value is the
+    authenticated email, NEVER client input. Read-only GET (no assert_same_origin,
+    mirrors /stats). A backend failure 502s (the SPA renders its error+retry
+    branch); an empty catalog is a valid 200 with models: [].
     """
     settings: Settings = request.app.state.settings
     try:
-        models = await list_litellm_models(settings)
+        models = await list_litellm_models(settings, user_id=user["email"])
     except (httpx.HTTPStatusError, httpx.RequestError) as exc:
         logger.error("session_models: catalog fetch failed: %s", exc)
         raise HTTPException(status_code=502, detail="Model catalog unavailable")
@@ -596,7 +598,9 @@ async def session_mcp(
     """Return the configured MCP servers for the session user (read-only).
 
     Server-side master-key call to LiteLLM /v1/mcp/server, projected to a PUBLIC
-    subset (no credentials — see _project_mcp_server). Read-only GET.
+    subset (no credentials — see _project_mcp_server). Scoped to the session user
+    via an x-user-id header (resolved by the gateway's custom auth); the value is
+    the authenticated email, NEVER client input. Read-only GET.
 
     A 404 means the deployment's LiteLLM has no MCP gateway -> a calm
     {servers: [], available: false} 200 (the page shows a "not enabled" state).
@@ -604,7 +608,7 @@ async def session_mcp(
     """
     settings: Settings = request.app.state.settings
     try:
-        servers = await list_litellm_mcp_servers(settings)
+        servers = await list_litellm_mcp_servers(settings, user_id=user["email"])
     except httpx.HTTPStatusError as exc:
         if exc.response is not None and exc.response.status_code == 404:
             logger.info("session_mcp: MCP gateway unavailable (404), degrading")
