@@ -402,6 +402,8 @@ def _project_session_key(k: dict, md: dict) -> dict:
         "models": k.get("models"),
         "created_at": md.get("created_at") or k.get("created_at"),
         "expires": k.get("expires"),
+        # Explicit "default key" flag (metadata-backed). Absent/false => not default.
+        "is_default": bool(md.get("is_default")),
     }
 
 
@@ -416,6 +418,7 @@ _EMPTY_SESSION_KEY = {
     "models": None,
     "created_at": None,
     "expires": None,
+    "is_default": False,
 }
 
 

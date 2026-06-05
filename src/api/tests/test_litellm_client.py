@@ -1235,3 +1235,24 @@ async def test_list_litellm_mcp_servers_404_raises():
     with pytest.raises(httpx.HTTPStatusError) as exc:
         await list_litellm_mcp_servers(settings)
     assert exc.value.response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Default-key flag (is_default) — A1: surfaced in the session-key projection
+# ---------------------------------------------------------------------------
+
+
+def test_project_session_key_reads_is_default_from_metadata():
+    from app.litellm_client import _project_session_key
+
+    md = {"created_at": "2026-06-05T10:00:00+00:00", "is_default": True}
+    row = {"token": "hash-abc", "key_alias": "key-a", "metadata": md}
+    out = _project_session_key(row, md)
+    assert out["is_default"] is True
+
+
+def test_project_session_key_default_false_when_flag_absent():
+    from app.litellm_client import _project_session_key
+
+    out = _project_session_key({"token": "h", "key_alias": "k"}, {})
+    assert out["is_default"] is False
