@@ -19,3 +19,6 @@ site/
 docs/plans/
 .claude/
 src/api/coverage.xml
+
+# git worktrees (superpowers)
+.worktrees/
