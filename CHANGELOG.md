@@ -3,6 +3,7 @@
 ## [unreleased]
 
 - change: the **Models** and **MCPs** pages (and their nav links) now require a default key — they are scoped to your account through it. Without a default key the nav items are disabled ("you need a default key") and the pages show a prompt to set one on the Keys tab, instead of failing with an error. With a default key they load normally.
+- feat: the service now **verifies the LiteLLM user-scoping contract at startup** — it checks that the `sso_key_swapper` custom auth (which resolves the `x-user-id` header to a user's default key) is installed on LiteLLM. If it is missing (a master-key request is accepted as full admin), a prominent CRITICAL banner is logged because per-user Models/MCPs would silently fall back to the global admin view. This is non-fatal and can be disabled with `LITELLM_USER_SCOPING_CHECK=false`. The custom-auth plugin and install/contract docs are now vendored under `deploy/litellm/`.
 
 ## [0.5.0] - 2026-06-05
 

@@ -1407,9 +1407,7 @@ async def test_verify_contract_enforced_on_401():
     from app.litellm_client import verify_user_scoping_contract
 
     settings = make_settings()
-    respx.get(f"{settings.litellm_url}/v1/models").mock(
-        return_value=httpx.Response(401, json={})
-    )
+    respx.get(f"{settings.litellm_url}/v1/models").mock(return_value=httpx.Response(401, json={}))
     assert await verify_user_scoping_contract(settings) == "enforced"
 
 

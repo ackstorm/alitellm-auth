@@ -25,7 +25,9 @@ def make_settings(**kwargs) -> Settings:
 
 @pytest.mark.asyncio
 async def test_not_enforced_logs_critical(monkeypatch, caplog):
-    monkeypatch.setattr(contract, "verify_user_scoping_contract", AsyncMock(return_value="not_enforced"))
+    monkeypatch.setattr(
+        contract, "verify_user_scoping_contract", AsyncMock(return_value="not_enforced")
+    )
     sleep = AsyncMock()
     with caplog.at_level(logging.CRITICAL, logger="app.contract"):
         status = await contract.warn_if_contract_unenforced(make_settings(), sleep=sleep)
@@ -38,7 +40,9 @@ async def test_not_enforced_logs_critical(monkeypatch, caplog):
 
 @pytest.mark.asyncio
 async def test_enforced_no_critical(monkeypatch, caplog):
-    monkeypatch.setattr(contract, "verify_user_scoping_contract", AsyncMock(return_value="enforced"))
+    monkeypatch.setattr(
+        contract, "verify_user_scoping_contract", AsyncMock(return_value="enforced")
+    )
     with caplog.at_level(logging.INFO, logger="app.contract"):
         status = await contract.warn_if_contract_unenforced(make_settings(), sleep=AsyncMock())
     assert status == "enforced"
@@ -76,9 +80,7 @@ async def test_unknown_then_enforced_breaks_early(monkeypatch):
     probe = AsyncMock(side_effect=["unknown", "enforced"])
     monkeypatch.setattr(contract, "verify_user_scoping_contract", probe)
     sleep = AsyncMock()
-    status = await contract.warn_if_contract_unenforced(
-        make_settings(), attempts=5, sleep=sleep
-    )
+    status = await contract.warn_if_contract_unenforced(make_settings(), attempts=5, sleep=sleep)
     assert status == "enforced"
     assert probe.await_count == 2  # stopped once definitive
     assert sleep.await_count == 1
