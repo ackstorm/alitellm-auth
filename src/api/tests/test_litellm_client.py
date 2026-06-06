@@ -69,6 +69,39 @@ async def test_generate_litellm_key_success():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_generate_litellm_key_is_not_route_restricted_by_default():
+    """The generated key carries NO allowed_routes by default (regression).
+
+    Pinning allowed_routes=["llm_api_routes"] broke the per-user catalog: once the
+    sso_key_swapper impersonated the user's default key, /model_group/info 403'd
+    ("Only allowed to call routes: ['llm_api_routes']"). The key must be left
+    un-restricted so LiteLLM's role-based access (LLM + info routes) applies.
+    """
+    settings = make_settings()
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "team-platform"})
+    )
+    respx.post("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+    gen = respx.post("http://litellm.test/key/generate").mock(
+        return_value=httpx.Response(200, json={"key": "sk-k", "key_id": "key-1"})
+    )
+
+    await generate_litellm_key("alice@example.com", settings)
+
+    body = _json_body(gen)
+    assert "allowed_routes" not in body
+    # Invariant scoping fields are still present.
+    assert body["team_id"] == "team-platform"
+    assert body["user_id"] == "alice@example.com"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_generate_litellm_key_team_id_is_shared():
     """All users get the same team_id, derived from oauth_client_id."""
     settings = make_settings()

@@ -330,6 +330,14 @@ async def generate_litellm_key(
     headers = _admin_headers(settings)
     factory = _load_factory_config(settings.factory_config_path)
     user_meta_extra = factory.get("user", {}).get("metadata", {})
+    # Deployment-provided key defaults (e.g. allowed_routes / models). By DEFAULT
+    # we do NOT route-restrict the key: a generated key is a non-admin team key,
+    # so LiteLLM already gates it by role (LLM + read/info routes; management
+    # routes still require proxy_admin). The per-user Models/MCPs catalog needs
+    # info routes like /model_group/info, so pinning allowed_routes=["llm_api_routes"]
+    # broke it (403 once the sso_key_swapper impersonated the user's default key).
+    # A security-conscious deployment can re-restrict via factory `key.allowed_routes`.
+    factory_key_extra = {k: v for k, v in factory.get("key", {}).items() if k != "metadata"}
 
     # Steps A, B, A2: ensure team → access group → user (shared prerequisite, D-13).
     team_id = await ensure_team_and_user(email, settings, name=name)
@@ -345,8 +353,11 @@ async def generate_litellm_key(
         now = datetime.now(timezone.utc)
         key_alias = alias or f"key-{now.strftime('%Y-%m-%d-%H%M%S')}"
         key_payload: dict = {
-            "models": ["all-team-models"],  # default — configmap can override
-            "allowed_routes": ["llm_api_routes"],  # default — configmap can override
+            "models": ["all-team-models"],  # default — factory `key.models` may override
+            # Deployment overrides (e.g. allowed_routes). NOT route-restricted by
+            # default so the per-user catalog (/model_group/info) works; the
+            # invariant fields below always win over anything factory supplies.
+            **factory_key_extra,
             "team_id": team_id,  # always wins — not overridable
             "user_id": email,  # scope key to LiteLLM user (USER-02)
             "access_group_ids": [access_group_id] if access_group_id else [],
