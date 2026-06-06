@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.1] - 2026-06-06
+
 - feat: a **red** corporate theme — the topbar toggle now cycles dark → light → pastel → red (coral-red primary on white surfaces with deep-navy ink); persisted to localStorage and applied before first paint.
 - change: topbar nav restyle — the active tab now carries a strong filled highlight, items are separated by `|`, and **Chat** moves next to the user as a low-contrast pill (no longer reads as the selected tab).
 - change: the keys table **DEFAULT** marker is now a neutral grey pill (matching the Models catalog) instead of the green accent badge — it is a property of the key, not a status.
