@@ -330,11 +330,13 @@ async def session_create_key(
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
-    # Auto-promote the FIRST key: if the user has no default yet, make this new one
-    # the default so Chat/Models/MCPs are not gated on day one. Otherwise the default
-    # stays explicit-only — we never silently reassign an existing default. Non-fatal:
-    # the key is already minted, so any failure here just leaves it un-defaulted (the
-    # user can still set one from the kebab menu).
+    # If the user has NO default key, make the key we JUST created the default.
+    # This is a presence check, not a positional one — it does not matter whether
+    # this is the 1st key or the 5th; whenever no default exists, the new key
+    # becomes it (so the very first key is default, and the user is never left
+    # without one). An existing default is never silently reassigned (that stays
+    # explicit-only via the kebab). Non-fatal: the key is already minted, so any
+    # failure here just leaves it un-defaulted (the user can set one manually).
     is_default = False
     try:
         user_keys = await list_session_keys(email, settings)
@@ -423,8 +425,9 @@ async def session_make_default(
 
     Sets is_default=True on the target and clears it on any other key that
     currently has it. 403 for a foreign/unknown id (no existence leak, D-12).
-    The default is metadata-backed; only the user's FIRST key is auto-assigned
-    (session_create_key) — reassigning between existing keys is explicit.
+    The default is metadata-backed; session_create_key auto-assigns a newly
+    created key ONLY when no default currently exists (presence check, not
+    positional) — reassigning between existing keys is explicit (here).
     """
     settings: Settings = request.app.state.settings
     assert_same_origin(request, settings)

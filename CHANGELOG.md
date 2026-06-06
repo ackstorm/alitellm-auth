@@ -6,7 +6,7 @@
 
 - fix: virtual keys are no longer route-restricted at creation. Pinning `allowed_routes=["llm_api_routes"]` made the per-user **Models**/**MCPs** catalog fail with a 403 ("Only allowed to call routes: ['llm_api_routes']") once a key was scoped via `x-user-id` — the catalog needs read/info routes like `/model_group/info`. Keys now show "All routes allowed" (still gated by role; management routes remain admin-only) and a deployment can re-restrict via factory `key.allowed_routes`.
 - feat: the keys table **Last used** column is now populated from LiteLLM's per-key `last_active` (shows "—" until the key is first used).
-- feat: your **first key is automatically set as default**, so Chat/Models/MCPs work immediately after the first key is minted. Additional keys are unaffected — an existing default is never reassigned automatically.
+- feat: when you have **no default key, the key you just create becomes the default** (a presence check, not positional — so your first key is default, and you are never left without one). When a default already exists it is never reassigned automatically.
 
 ## [0.5.1] - 2026-06-06
 

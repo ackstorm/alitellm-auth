@@ -303,8 +303,8 @@ def test_create_key(client):
     assert call_kwargs.kwargs.get("duration") == "90d"
 
 
-def test_create_key_auto_defaults_first_key(client):
-    """The user's FIRST key (no existing default) is auto-promoted to default."""
+def test_create_key_defaults_when_no_default_exists(client):
+    """When NO default exists, the just-created key is promoted (first key case)."""
     with (
         patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
@@ -325,6 +325,32 @@ def test_create_key_auto_defaults_first_key(client):
     mock_set.assert_awaited_once()
     assert mock_set.await_args.args[0] == "tok-new"
     assert mock_set.await_args.kwargs.get("is_default") is True
+
+
+def test_create_key_defaults_with_other_nondefault_keys(client):
+    """Presence check, NOT positional: with several keys but none default, the new
+    key (3rd here) still becomes the default."""
+    with (
+        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
+    ):
+        mock_gen.return_value = {"key": "sk-third", "id": "new-id", "team_id": "team-test-client"}
+        mock_list.return_value = [
+            {"id": "old-1", "token": "tok-1", "is_default": False, "metadata": {}},
+            {"id": "old-2", "token": "tok-2", "is_default": False, "metadata": {}},
+            {"id": "new-id", "token": "tok-new", "is_default": False, "metadata": {}},
+        ]
+        response = client.post(
+            "/api/session/keys",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            content="{}",
+        )
+    assert response.status_code == 200
+    assert response.json()["is_default"] is True
+    mock_set.assert_awaited_once()
+    assert mock_set.await_args.args[0] == "tok-new"
 
 
 def test_create_key_does_not_reassign_existing_default(client):
