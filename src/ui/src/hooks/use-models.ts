@@ -13,9 +13,14 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { getJson } from '@/lib/api';
 import type { ModelsResponse } from '@/lib/api-types';
 
-export function useModels(): UseQueryResult<ModelsResponse> {
+// `enabled` gates the fetch: the catalog is per-user (scoped via the gateway's
+// custom auth on x-user-id, resolved through the user's default key), so the page
+// passes `false` when the user has no default key — no request fires (avoids a
+// custom-auth 403) and the page renders its "needs a default key" state instead.
+export function useModels(enabled: boolean = true): UseQueryResult<ModelsResponse> {
   return useQuery({
     queryKey: ['session', 'models'],
+    enabled,
     queryFn: async ({ signal }): Promise<ModelsResponse> => {
       const { status, data } = await getJson<ModelsResponse>(
         '/api/session/models',

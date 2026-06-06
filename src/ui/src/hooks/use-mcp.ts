@@ -15,9 +15,12 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { getJson } from '@/lib/api';
 import type { McpResponse } from '@/lib/api-types';
 
-export function useMcp(): UseQueryResult<McpResponse> {
+// `enabled` gates the fetch — same per-user/default-key rationale as useModels:
+// the page passes `false` when the user has no default key so no request fires.
+export function useMcp(enabled: boolean = true): UseQueryResult<McpResponse> {
   return useQuery({
     queryKey: ['session', 'mcp'],
+    enabled,
     queryFn: async ({ signal }): Promise<McpResponse> => {
       const { status, data } = await getJson<McpResponse>('/api/session/mcp', {
         signal,

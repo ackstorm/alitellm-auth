@@ -26,6 +26,7 @@ import {
   KEYS_QUERY_KEY,
   useCreateKey,
   useDeleteKey,
+  useHasDefaultKey,
   useKeys,
   useMakeDefault,
 } from './use-keys';
@@ -224,5 +225,35 @@ describe('useMakeDefault', () => {
     });
 
     await expect(result.current.mutateAsync('key-x')).rejects.toThrow();
+  });
+});
+
+describe('useHasDefaultKey', () => {
+  it('true once a key with is_default loads', async () => {
+    getJsonMock.mockResolvedValue({
+      status: 200,
+      data: { keys: [{ ...ROW, is_default: true }] },
+    });
+    const { result } = renderHook(() => useHasDefaultKey(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+    await waitFor(() => expect(result.current).toBe(true));
+  });
+
+  it('false when keys load but none is_default', async () => {
+    getJsonMock.mockResolvedValue({ status: 200, data: { keys: [ROW] } });
+    const { result } = renderHook(() => useHasDefaultKey(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+    await waitFor(() => expect(getJsonMock).toHaveBeenCalled());
+    expect(result.current).toBe(false);
+  });
+
+  it('false while pending / on error (never throws)', () => {
+    getJsonMock.mockResolvedValue({ status: 500, data: null });
+    const { result } = renderHook(() => useHasDefaultKey(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+    expect(result.current).toBe(false);
   });
 });

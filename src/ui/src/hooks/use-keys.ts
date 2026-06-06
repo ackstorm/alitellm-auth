@@ -88,6 +88,18 @@ export function useKeys() {
 }
 
 /**
+ * Derived: does the user have an explicit default key? Reads the keys query (no
+ * extra fetch) and returns true iff some key carries is_default. Safe before the
+ * query settles / on error — returns false (never throws). Shared by the AppShell
+ * CHAT/Models/MCPs nav gating and the Models/MCP route gates (per-user catalog
+ * reads are scoped to the default key via the gateway's custom auth).
+ */
+export function useHasDefaultKey(): boolean {
+  const { data } = useKeys();
+  return (data ?? []).some((k) => k.is_default);
+}
+
+/**
  * POST /api/session/keys. Backend returns HTTP 200 with { key, id, team_id }
  * (session.py::session_create_key). On success the one-time full `sk-` is stashed
  * in the in-memory fresh-keys store (never persisted; T-10-15) and the list is
