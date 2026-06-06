@@ -30,6 +30,16 @@ export interface AppShellProps {
   config: AppConfig;
 }
 
+// A thin "|" divider between nav items so the group reads as KEYS | MODELS | ….
+// Module-level (stable component identity) so it never remounts on parent render.
+function NavSep() {
+  return (
+    <span aria-hidden="true" className="select-none px-0.5 text-text-tertiary/50">
+      |
+    </span>
+  );
+}
+
 export function AppShell({ me, config }: AppShellProps) {
   const links = config.links ?? {};
   // User-menu label prefers the display name, falling back to email (UI-SPEC
@@ -44,19 +54,43 @@ export function AppShell({ me, config }: AppShellProps) {
     cn(
       'rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors',
       isActive
-        ? 'bg-primary/10 text-primary'
+        ? // Strong filled highlight so the current tab is unmistakable (the
+          // emphasis the CHAT pill used to carry, moved onto the active nav item).
+          'bg-primary text-primary-foreground'
         : 'text-text-secondary hover:bg-primary/5 hover:text-text-primary'
     );
 
-  // CHAT is set apart from the segmented nav (a filled accent pill, not the grey
-  // navLinkClass) AND gated on the user having a default key — Chat needs a
-  // default key to authenticate. A default is never auto-assigned (explicit-only),
-  // so when none exists the pill is rendered disabled with a hint pointing at Keys.
+  // CHAT lives on the RIGHT, next to the user — a low-contrast OUTLINE pill so it
+  // is clearly a separate destination and never reads as the selected tab (which
+  // now carries the strong filled highlight). Gated on the user having a default
+  // key — Chat needs one to authenticate. A default is never auto-assigned
+  // (explicit-only), so when none exists the pill is rendered disabled with a hint.
   const { data: keys } = useKeys();
   const hasDefault = (keys ?? []).some((k) => k.is_default);
   const chatUrl = deriveSubdomainUrl(me.endpoint, 'chat');
   const chatPill =
-    'rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors';
+    'rounded-md border px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors';
+  const chatEl = hasDefault ? (
+    <a
+      href={chatUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        chatPill,
+        'border-border text-text-secondary hover:border-primary hover:text-primary'
+      )}
+    >
+      Chat
+    </a>
+  ) : (
+    <span
+      aria-disabled="true"
+      title="You need a default key — set one on the Keys tab"
+      className={cn(chatPill, 'cursor-not-allowed border-border text-text-tertiary')}
+    >
+      Chat
+    </span>
+  );
 
   // Models/MCPs are per-user catalogs scoped through the default key, so their nav
   // items are gated on one like CHAT: a normal NavLink when a default exists, else
@@ -110,49 +144,29 @@ export function AppShell({ me, config }: AppShellProps) {
 
         <nav aria-label="Primary" className="flex items-center gap-0.5">
           {/* KEYS returns to the dashboard (`end` so it is active ONLY on the
-              exact "/" route, not for every nested path). */}
+              exact "/" route, not for every nested path). Items are joined by a
+              thin "|" so the group reads as one menu, KEYS | MODELS | …. */}
           <NavLink to="/" end className={navLinkClass}>
             Keys
           </NavLink>
+          <NavSep />
           {gatedNav('/models', 'Models')}
+          <NavSep />
           {gatedNav('/mcp', 'MCPs')}
+          <NavSep />
           <NavLink to="/stats" className={navLinkClass}>
             Stats
           </NavLink>
+          <NavSep />
           <NavLink to="/howto" className={navLinkClass}>
             How-to
           </NavLink>
-
-          {/* CHAT — set apart from the segmented nav by a separator + accent
-              fill, and gated on a default key. */}
-          <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
-          {hasDefault ? (
-            <a
-              href={chatUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                chatPill,
-                'bg-primary text-primary-foreground hover:bg-primary/90'
-              )}
-            >
-              Chat
-            </a>
-          ) : (
-            <span
-              aria-disabled="true"
-              title="You need a default key — set one on the Keys tab"
-              className={cn(
-                chatPill,
-                'cursor-not-allowed bg-surface-elevated text-text-tertiary'
-              )}
-            >
-              Chat
-            </span>
-          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-4 font-mono text-[11px]">
+          {/* CHAT — separate destination, low-contrast outline pill, just before
+              the user label. Gated on a default key (disabled span otherwise). */}
+          {chatEl}
           <span className="text-text-primary">{menuLabel}</span>
           <a
             href="/api/oauth/logout"

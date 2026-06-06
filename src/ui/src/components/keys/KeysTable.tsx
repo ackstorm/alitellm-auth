@@ -125,13 +125,15 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                 {name}
               </span>
               {row.is_default ? (
-                <Badge
+                // Neutral GREY pill — DEFAULT is a property of the key, not a
+                // status, so it matches the muted catalog pills used elsewhere
+                // (e.g. the Models table) rather than the green accent badge.
+                <span
                   data-slot="key-default-badge"
-                  variant="default"
-                  className="shrink-0 px-1.5 py-0 text-[10px] font-semibold tracking-wider"
+                  className="inline-flex shrink-0 items-center rounded-md border border-border bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-text-secondary"
                 >
                   DEFAULT
-                </Badge>
+                </span>
               ) : null}
             </div>
             {showChip ? (
