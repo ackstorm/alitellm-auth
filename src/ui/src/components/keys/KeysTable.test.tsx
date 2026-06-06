@@ -292,6 +292,13 @@ describe('KeysTable — disable / enable (LiteLLM block)', () => {
     expect(toggleBlockMutate).toHaveBeenCalledWith({ id: 'key-x', blocked: true });
   });
 
+  it('dims the disabled key row so it reads as inactive', () => {
+    setRows([makeRow({ id: 'key-x', blocked: true })]);
+    const { container } = render(<KeysTable onDelete={vi.fn()} />);
+    const row = container.querySelector('[data-slot="data-table-row"]');
+    expect(row?.className).toContain('opacity-55');
+  });
+
   it('a disabled key shows the "Disabled" status and offers "Enable key"', async () => {
     setRows([makeRow({ id: 'key-x', blocked: true })]);
     render(<KeysTable onDelete={vi.fn()} />);

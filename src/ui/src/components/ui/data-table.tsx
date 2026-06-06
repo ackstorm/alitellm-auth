@@ -24,6 +24,8 @@ export type DataTableProps<T> = {
   empty?: React.ReactNode;
   /** Optional trailing right-aligned actions cell. */
   rowActions?: (row: T) => React.ReactNode;
+  /** Optional per-row <tr> className (e.g. dim an inactive row). */
+  rowClassName?: (row: T) => string | undefined;
   /**
    * Header label for the trailing actions column. When omitted the header is
    * visually hidden (sr-only "Actions"); pass a node to show a real label (e.g.
@@ -42,6 +44,7 @@ export function DataTable<T>({
   getRowId,
   empty,
   rowActions,
+  rowClassName,
   actionsHeader,
   caption,
   className,
@@ -98,7 +101,7 @@ export function DataTable<T>({
               <tr
                 key={getRowId(row)}
                 data-slot="data-table-row"
-                className={cn(index < rows.length - 1 && 'border-b')}
+                className={cn(index < rows.length - 1 && 'border-b', rowClassName?.(row))}
               >
                 {columns.map((column) => (
                   <td

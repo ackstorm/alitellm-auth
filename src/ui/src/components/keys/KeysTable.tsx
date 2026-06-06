@@ -203,6 +203,10 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         columns={columns}
         rows={rows}
         getRowId={(row) => row.id ?? ''}
+        // Dim a disabled (blocked) row so it reads as inactive at a glance. The
+        // kebab content is portaled to <body>, so its Enable item stays full
+        // opacity even though the trigger is dimmed with the row.
+        rowClassName={(row) => (row.blocked ? 'opacity-55' : undefined)}
         actionsHeader="Action"
         empty={
           <div data-slot="keys-table-empty" className="py-6">
