@@ -249,8 +249,13 @@ describe('Dashboard — budget bar', () => {
         })}
       />,
     );
+    // The amount carries the budget PERIOD so "$X of $Y" is unambiguous. The
+    // period is a child span, so match on the amount span's full textContent.
     expect(
-      screen.getByText(`${formatCurrency(20)} of ${formatCurrency(50)}`),
+      screen.getByText(
+        (_content, el) =>
+          el?.textContent === `${formatCurrency(20)} of ${formatCurrency(50)} / 24h`,
+      ),
     ).toBeInTheDocument();
   });
 });

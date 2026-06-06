@@ -56,16 +56,18 @@ factoryConfig:
     # Team budget is a SHARED pool: max_budget caps the combined spend of all
     # users in the team, not per-user. Spread into POST /team/new.
     team:
-      max_budget: 500
-      budget_duration: 30d
-      tpm_limit: 5000000
-      rpm_limit: 500
+      rpm_limit: 100
+      tpm_limit: 1000000
+      max_budget: 200
+      budget_duration: "30d"
+      metadata:
+        rpm_limit_type: best_effort_throughput
+        tpm_limit_type: best_effort_throughput
     user:
-      max_parallel_requests: 5
-      rpm_limit: 10
-      tpm_limit: 100
-      max_budget: 10
-      budget_duration: "24h"
+      rpm_limit: 100
+      tpm_limit: 1000000
+      max_budget: 100
+      budget_duration: "30d"
       metadata:
         rpm_limit_type: best_effort_throughput
         tpm_limit_type: best_effort_throughput

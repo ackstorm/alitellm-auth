@@ -2,6 +2,9 @@
 
 ## [unreleased]
 
+- change: the dashboard **Account budget** now shows the budget **period** (e.g. `$0.17 of $100.00 / 30d`) so the cap is unambiguous.
+- change: default factory limits updated — **team** 200 budget / 30d, **user** 100 budget / 30d, both `rpm_limit: 100`, `tpm_limit: 1,000,000` (best-effort throughput). (Helm `values.yaml` + Kustomize configmap; applies to deployments that adopt the defaults.)
+
 ## [0.5.4] - 2026-06-06
 
 - fix: **key names no longer collide between users (or with your own keys).** LiteLLM requires a globally-unique `key_alias`, so two people both naming a key "default" failed ("Key with alias 'default' already exists"). The stored alias is now an opaque `lk-{random}` token while your friendly name is shown in the table — so any number of keys (yours or others') can share a name.

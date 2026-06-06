@@ -158,6 +158,10 @@ function BudgetBar({
         </span>
         <span className="font-mono text-xs text-text-secondary">
           {formatCurrency(current)} of {formatCurrency(maxBudget)}
+          {limits?.budget_duration ? (
+            // The budget is per-period; show it so "$X of $Y" isn't ambiguous.
+            <span className="text-text-tertiary"> / {limits.budget_duration}</span>
+          ) : null}
         </span>
       </div>
       <div className="flex h-2 overflow-hidden rounded-full border border-border bg-background">
