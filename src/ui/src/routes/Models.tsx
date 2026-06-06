@@ -213,7 +213,7 @@ export function Models() {
       <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
         {PAGE_TITLE}
       </h1>
-      <p className="mt-1 max-w-2xl font-sans text-sm text-text-secondary">
+      <p className="mt-1 font-sans text-sm text-text-secondary">
         {PAGE_SUB}
       </p>
     </div>
