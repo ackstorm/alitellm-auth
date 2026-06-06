@@ -1,7 +1,7 @@
 // Stats.tsx — the #/stats Usage & Spend page CONTAINER (Task 4.6).
 //
 // React + TanStack Query + Tailwind rebuild of the old Preact container
-// src/ui/stats.js (StatsView). It owns the date/compare state, drives the
+// src/ui/stats.js (StatsView). It owns the date-range state, drives the
 // re-query against GET /api/session/stats via useStats(range), and composes the
 // Phase-4 leaves (KpiRow, SpendChart, RequestsChart, UsageDonut, TopKeys,
 // ModelTable, BudgetPanel, DateRange) with per-panel Skeletons while loading and
@@ -49,8 +49,8 @@ const ERR_HEADING = "Couldn't load usage";
 const ERR_BODY =
   "We couldn't reach the usage service. Check your connection and retry.";
 
-// The default preset (Phase-12 default window — 30d).
-const DEFAULT_PRESET = '30d';
+// The default preset (default window — 7d).
+const DEFAULT_PRESET = '7d';
 
 // Shared 11px mono-caption section label (the UI-SPEC §Typography caption role).
 const SECTION_LABEL_CLASS =
@@ -73,14 +73,12 @@ function Panel({
 }
 
 export function Stats() {
-  // Date/compare state (mirrors src/ui/stats.js). `preset` drives the range via
+  // Date-range state (mirrors src/ui/stats.js). `preset` drives the range via
   // presetToRange; `range` is the resolved {start,end} submitted to the server.
   const [preset, setPreset] = useState<string>(DEFAULT_PRESET);
   const [range, setRange] = useState<{ start: string; end: string }>(() =>
     presetToRange(DEFAULT_PRESET, new Date()),
   );
-  // compareOn is CLIENT-ONLY (toggles the KPI delta chips, no fetch).
-  const [compareOn, setCompareOn] = useState(false);
 
   const query = useStats(range);
   // The user's full key list — merged into the TOP API KEYS panel so idle keys
@@ -98,10 +96,6 @@ export function Stats() {
     setPreset('Custom');
     setRange(r);
   };
-  // Compare toggle — CLIENT-ONLY, no fetch.
-  const onToggleCompare = (): void => {
-    setCompareOn((v) => !v);
-  };
 
   const loading = query.isPending;
   const isError = query.isError;
@@ -116,7 +110,6 @@ export function Stats() {
   const keys = mergeTopKeys(data?.keys ?? [], selectKeyRows(keysQuery.data));
   const budget = data?.budget ?? null;
   const capabilities = data?.capabilities ?? null;
-  const rangeDays = data?.range?.days ?? 0;
 
   // The header band — title + sub on the LEFT, the date controls on the RIGHT.
   // rangeError is null for now (the 422-inline distinction is deferred; useStats
@@ -133,10 +126,8 @@ export function Stats() {
       </div>
       <DateRange
         preset={preset}
-        compareOn={compareOn}
         onPreset={onPreset}
         onCustomRange={onCustomRange}
-        onToggleCompare={onToggleCompare}
         rangeError={null}
       />
     </div>
@@ -181,12 +172,7 @@ export function Stats() {
           <Skeleton variant="card" />
         </div>
       ) : (
-        <KpiRow
-          totals={totals}
-          capabilities={capabilities}
-          compareOn={compareOn}
-          rangeDays={rangeDays}
-        />
+        <KpiRow totals={totals} />
       )}
 
       {/* §7 Account budget — full-width band */}

@@ -244,25 +244,34 @@ describe('Stats — preset interaction', () => {
     setSuccess();
   });
 
-  it('clicking the 7d preset re-queries useStats with a 7-inclusive-day range', () => {
+  const MS_PER_DAY = 86400000;
+  const inclusiveDays = (r: { start: string; end: string }): number => {
+    const start = Date.parse(`${r.start}T00:00:00Z`);
+    const end = Date.parse(`${r.end}T00:00:00Z`);
+    return Math.round((end - start) / MS_PER_DAY) + 1;
+  };
+
+  it('defaults to a 7-inclusive-day range (7d preset)', () => {
+    render(<Stats />);
+    const defaultCall = useStatsMock.mock.calls.at(-1)?.[0];
+    expect(defaultCall).toBeDefined();
+    expect(inclusiveDays(defaultCall!)).toBe(7);
+  });
+
+  it('clicking the 30d preset re-queries useStats with a 30-inclusive-day range', () => {
     render(<Stats />);
 
-    // The default 30d range was the most-recent call before the click.
+    // The default 7d range was the most-recent call before the click.
     const defaultCall = useStatsMock.mock.calls.at(-1)?.[0];
     expect(defaultCall).toBeDefined();
 
-    fireEvent.click(screen.getByRole('button', { name: '7d' }));
+    fireEvent.click(screen.getByRole('button', { name: '30d' }));
 
     const latest = useStatsMock.mock.calls.at(-1)?.[0];
     expect(latest).toBeDefined();
-    // The range changed from the 30d default.
+    // The range changed from the 7d default.
     expect(latest).not.toEqual(defaultCall);
-
-    // The 7d range spans exactly 7 inclusive UTC days (new-Date()-independent).
-    const MS_PER_DAY = 86400000;
-    const start = Date.parse(`${latest!.start}T00:00:00Z`);
-    const end = Date.parse(`${latest!.end}T00:00:00Z`);
-    const inclusiveDays = Math.round((end - start) / MS_PER_DAY) + 1;
-    expect(inclusiveDays).toBe(7);
+    // The 30d range spans exactly 30 inclusive UTC days (new-Date()-independent).
+    expect(inclusiveDays(latest!)).toBe(30);
   });
 });

@@ -1,7 +1,7 @@
 // DateRange.test.tsx — jsdom suite for the STATS-09 date-range control cluster.
 //
-// Pragmatic: asserts the preset/compare wiring (callbacks + active state) and
-// the custom-calendar open + two-click Apply emit. The pure UTC date helpers
+// Pragmatic: asserts the preset wiring (callbacks + active state) and the
+// custom-calendar open + two-click Apply emit. The pure UTC date helpers
 // (toUTCDateString / buildMonthGrid) are exercised directly to lock their
 // behavior independently of the rendered month.
 
@@ -34,18 +34,15 @@ describe('DateRange', () => {
   function setup(overrides: Partial<React.ComponentProps<typeof DateRange>> = {}) {
     const onPreset = vi.fn();
     const onCustomRange = vi.fn();
-    const onToggleCompare = vi.fn();
     const utils = render(
       <DateRange
         preset="30d"
-        compareOn={false}
         onPreset={onPreset}
         onCustomRange={onCustomRange}
-        onToggleCompare={onToggleCompare}
         {...overrides}
       />
     );
-    return { onPreset, onCustomRange, onToggleCompare, ...utils };
+    return { onPreset, onCustomRange, ...utils };
   }
 
   it('renders all seven preset buttons', () => {
@@ -70,20 +67,6 @@ describe('DateRange', () => {
     expect(active.className).toContain('bg-primary/10');
     expect(inactive).toHaveAttribute('aria-pressed', 'false');
     expect(inactive.className).not.toContain('bg-primary/10');
-  });
-
-  it('clicking Compare calls onToggleCompare', () => {
-    const { getByRole, onToggleCompare } = setup();
-    fireEvent.click(getByRole('button', { name: 'Compare' }));
-    expect(onToggleCompare).toHaveBeenCalledTimes(1);
-  });
-
-  it('compareOn=true sets aria-pressed="true" on the Compare button', () => {
-    const { getByRole } = setup({ compareOn: true });
-    expect(getByRole('button', { name: 'Compare' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    );
   });
 
   it('renders the inline rangeError text when provided', () => {

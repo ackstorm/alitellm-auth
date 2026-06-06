@@ -2,7 +2,7 @@
 // page (STATS-09 / UI-SPEC §1). React + Tailwind port of the old Preact + htm
 // control src/ui/date-range.js.
 //
-// Three controls, top-right of the page header band (per the mockup):
+// Two controls, top-right of the page header band (per the mockup):
 //   • Preset buttons (PRESETS from @/lib/stats-presets): 7d / 30d / 90d /
 //     This month / Last month / This year / Custom. The active preset is
 //     accent-tinted; a click on a non-Custom preset calls onPreset(presetId) and
@@ -11,16 +11,11 @@
 //     scrim overlay). The day-grid + month-nav are hand-rolled over the token set
 //     (D-11 — NO native date inputs, no heavy dep) with Apply/Cancel; Apply calls
 //     onCustomRange({start,end}). Clicking Custom ALSO calls onPreset('Custom').
-//   • Compare — a CLIENT-ONLY boolean toggle calling onToggleCompare. It
-//     shows/hides the KPI delta chips over the SERVER-computed deltas — NO fetch.
 //
 // SECURITY (threat register 13-04):
 //   • T-13-09 (Tampering): presetToRange (the container's pure helper) clamps to
 //     the ~366d cap so the client never submits an over-cap range; the server
 //     re-validates (422), surfaced as the inline rangeError.
-//   • T-13-11 (Spoofing — ACCEPTED): Compare is client-only show/hide over
-//     server-computed deltas; no fetch, no trust boundary crossed. This module
-//     references no HTTP client at all.
 
 import * as React from 'react';
 
@@ -28,7 +23,6 @@ import { PRESETS } from '@/lib/stats-presets';
 import { cn } from '@/lib/utils';
 
 // Locked copy, lifted verbatim from date-range.js (13-UI-SPEC §Copywriting).
-const COMPARE_LABEL = 'Compare';
 const APPLY_LABEL = 'Apply';
 const CANCEL_LABEL = 'Cancel';
 const CUSTOM_PRESET = 'Custom';
@@ -233,14 +227,10 @@ function CalendarPopover({
 export interface DateRangeProps {
   /** The active preset id (one of PRESETS) — accent-tinted. */
   preset: string;
-  /** The client-only Compare boolean. */
-  compareOn: boolean;
   /** A preset button click. The container computes the range via presetToRange. */
   onPreset: (id: string) => void;
   /** The calendar Apply emit. */
   onCustomRange: (range: { start: string; end: string }) => void;
-  /** The client-only Compare toggle (NO fetch). */
-  onToggleCompare: () => void;
   /** Optional inline error (server 422 over-cap / bad range) — surfaced ON the
    *  control, NOT a whole-page error. */
   rangeError?: string | null;
@@ -248,10 +238,8 @@ export interface DateRangeProps {
 
 export function DateRange({
   preset,
-  compareOn,
   onPreset,
   onCustomRange,
-  onToggleCompare,
   rangeError,
 }: DateRangeProps): React.ReactElement {
   const [calOpen, setCalOpen] = React.useState(false);
@@ -271,7 +259,7 @@ export function DateRange({
     onCustomRange(range);
   };
 
-  // The shared pill base for preset + compare buttons. var(--*) tokens only.
+  // The shared pill base for the preset buttons. var(--*) tokens only.
   const pillBase =
     'inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border bg-transparent px-3 font-mono text-[11px] font-semibold uppercase tracking-wide transition-colors sm:min-h-8';
   const pillIdle = 'border-border text-text-secondary hover:border-text-tertiary hover:text-text-primary';
@@ -299,15 +287,6 @@ export function DateRange({
             </button>
           );
         })}
-        <button
-          type="button"
-          data-slot="date-range-compare"
-          aria-pressed={compareOn}
-          onClick={() => onToggleCompare()}
-          className={cn(pillBase, compareOn ? pillActive : pillIdle)}
-        >
-          {COMPARE_LABEL}
-        </button>
       </div>
       {rangeError ? (
         <div
