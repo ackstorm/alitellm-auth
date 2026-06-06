@@ -32,6 +32,7 @@ from pydantic import BaseModel, ValidationError
 from app.config import Settings
 from app.litellm_client import (
     LiteLLMUserNotFound,
+    block_litellm_key,
     delete_litellm_key,
     generate_litellm_key,
     get_litellm_user,
@@ -129,6 +130,12 @@ class CreateKeyBody(BaseModel):
 
     alias: str | None = None
     duration: str | None = None
+
+
+class BlockKeyBody(BaseModel):
+    """Body for POST /api/session/keys/{id}/block — desired disabled state."""
+
+    blocked: bool
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +478,53 @@ async def session_make_default(
 
     logger.info("session_make_default: user %s set default key %s", email, key_id)
     return JSONResponse({"status": "default", "id": key_id})
+
+
+@router.post("/keys/{key_id}/block", response_model=None)
+async def session_block_key(
+    request: Request,
+    key_id: str,
+    user: dict = Depends(require_session_user),
+) -> JSONResponse:
+    """Disable (block) or re-enable (unblock) an owned key — reversible, not a delete.
+
+    Body: {"blocked": true|false}. 403 for a foreign/unknown id (no existence leak,
+    D-12). Any key may be blocked, including the default — Chat/Models/MCPs stay
+    gated on it, so disabling the default key disables those until it is re-enabled
+    (the caller chose this over a 409 guard).
+    """
+    settings: Settings = request.app.state.settings
+    assert_same_origin(request, settings)
+    email = user["email"]
+
+    try:
+        body = BlockKeyBody.model_validate_json(await request.body())
+    except ValidationError:
+        raise HTTPException(status_code=422, detail="invalid request body")
+
+    try:
+        user_keys = await list_session_keys(email, settings)
+    except httpx.HTTPStatusError as exc:
+        logger.error("session_block_key: relist failed for %s: %s", email, exc)
+        raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
+    target = next((k for k in user_keys if k.get("id") == key_id), None)
+    if target is None:
+        # D-12: 403 regardless of whether the key exists elsewhere or nowhere
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    try:
+        await block_litellm_key(target["token"], settings, blocked=body.blocked)
+    except httpx.HTTPStatusError as exc:
+        logger.error("session_block_key: update failed for %s: %s", key_id, exc)
+        raise HTTPException(status_code=502, detail="Failed to update key")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
+    logger.info("session_block_key: user %s set blocked=%s on key %s", email, body.blocked, key_id)
+    return JSONResponse({"status": "blocked" if body.blocked else "active", "id": key_id})
 
 
 def _parse_stats_range(start_date: str | None, end_date: str | None) -> tuple[date, date]:

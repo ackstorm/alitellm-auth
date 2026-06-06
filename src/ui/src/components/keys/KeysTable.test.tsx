@@ -10,29 +10,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 
-import type { KeyRow, MakeDefaultResponse } from '@/lib/api-types';
+import type { BlockKeyResponse, KeyRow, MakeDefaultResponse } from '@/lib/api-types';
 import { formatDate } from '@/lib/format';
 
 // Mock the data hook — each test sets useKeys's return value.
 vi.mock('@/hooks/use-keys', () => ({
   useKeys: vi.fn(),
   useMakeDefault: vi.fn(),
+  useToggleKeyBlock: vi.fn(),
   KEYS_QUERY_KEY: ['session', 'keys'],
 }));
 
-import { useKeys, useMakeDefault } from '@/hooks/use-keys';
+import { useKeys, useMakeDefault, useToggleKeyBlock } from '@/hooks/use-keys';
 import { KeysTable } from './KeysTable';
 
 const useKeysMock = vi.mocked(useKeys);
 const useMakeDefaultMock = vi.mocked(useMakeDefault);
+const useToggleKeyBlockMock = vi.mocked(useToggleKeyBlock);
 
-// A reusable mutation stub; reset per test via beforeEach.
+// Reusable mutation stubs; reset per test via beforeEach.
 let makeDefaultMutate: ReturnType<typeof vi.fn>;
+let toggleBlockMutate: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   makeDefaultMutate = vi.fn();
   useMakeDefaultMock.mockReturnValue({
     mutate: makeDefaultMutate,
   } as unknown as UseMutationResult<MakeDefaultResponse, Error, string>);
+  toggleBlockMutate = vi.fn();
+  useToggleKeyBlockMock.mockReturnValue({
+    mutate: toggleBlockMutate,
+  } as unknown as UseMutationResult<BlockKeyResponse, Error, { id: string; blocked: boolean }>);
 });
 
 // A minimal projected /keys row factory (mirrors the api-types KeyRow contract).
@@ -272,5 +279,26 @@ describe('KeysTable — default key', () => {
     setRows([]);
     render(<KeysTable onDelete={vi.fn()} />);
     expect(screen.queryByText(/No default key set/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('KeysTable — disable / enable (LiteLLM block)', () => {
+  it('an enabled key offers "Disable key"; choosing it fires toggleBlock(blocked:true)', async () => {
+    setRows([makeRow({ id: 'key-x', blocked: false })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
+    const item = await screen.findByRole('menuitem', { name: 'Disable key' });
+    fireEvent.keyDown(item, { key: 'Enter' });
+    expect(toggleBlockMutate).toHaveBeenCalledWith({ id: 'key-x', blocked: true });
+  });
+
+  it('a disabled key shows the "Disabled" status and offers "Enable key"', async () => {
+    setRows([makeRow({ id: 'key-x', blocked: true })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.getByText('Disabled')).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
+    const item = await screen.findByRole('menuitem', { name: 'Enable key' });
+    fireEvent.keyDown(item, { key: 'Enter' });
+    expect(toggleBlockMutate).toHaveBeenCalledWith({ id: 'key-x', blocked: false });
   });
 });

@@ -13,6 +13,15 @@ export function isRevoked(key: KeyRow | null | undefined): boolean {
   return Boolean(key && (key.revoked || key.blocked));
 }
 
+// A key is "Disabled" when LiteLLM's reversible `blocked` flag is set (via
+// /key/block). Distinct from a true `revoked` — a disabled key can be re-enabled.
+// The keys table reads this for the "Disabled" status pill and the kebab's
+// Disable/Enable toggle; `isRevoked` still treats blocked as revoked for the
+// dashboard active-key count (a disabled key is not active).
+export function isBlocked(key: KeyRow | null | undefined): boolean {
+  return Boolean(key && key.blocked);
+}
+
 // Parse a LiteLLM `expires` value to an epoch-ms instant, or null when it
 // carries no usable expiry. LiteLLM has shipped this field in several shapes
 // across versions: an offset-bearing ISO string ("…+00:00" / "…Z"), a NAIVE ISO

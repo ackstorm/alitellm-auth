@@ -31,11 +31,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useKeys, useMakeDefault } from '@/hooks/use-keys';
+import { useKeys, useMakeDefault, useToggleKeyBlock } from '@/hooks/use-keys';
 import { formatDate } from '@/lib/format';
-import { isExpired, isRevoked, selectKeyRows } from '@/lib/keys';
+import { isBlocked, isExpired, selectKeyRows } from '@/lib/keys';
 import { cn } from '@/lib/utils';
 import type { KeyRow } from '@/lib/api-types';
 
@@ -60,12 +61,15 @@ type KeysTableProps = {
   onDelete: (row: KeyRow) => void;
 };
 
-/** Status precedence: Revoked > Expired > Active (UI-SPEC §C4). */
+/** Status precedence: Revoked > Disabled > Expired > Active (UI-SPEC §C4).
+ *  "Disabled" is the reversible LiteLLM `blocked` state; "Revoked" is a true
+ *  revoked flag (checked first, never emitted by the current backend). */
 function statusFor(row: KeyRow): {
-  label: 'Revoked' | 'Expired' | 'Active';
-  variant: 'default' | 'outline' | 'destructive';
+  label: 'Revoked' | 'Disabled' | 'Expired' | 'Active';
+  variant: 'default' | 'outline' | 'destructive' | 'secondary';
 } {
-  if (isRevoked(row)) return { label: 'Revoked', variant: 'destructive' };
+  if (row.revoked) return { label: 'Revoked', variant: 'destructive' };
+  if (isBlocked(row)) return { label: 'Disabled', variant: 'secondary' };
   if (isExpired(row)) return { label: 'Expired', variant: 'outline' };
   return { label: 'Active', variant: 'default' };
 }
@@ -73,6 +77,7 @@ function statusFor(row: KeyRow): {
 export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
   const query = useKeys();
   const makeDefault = useMakeDefault();
+  const toggleBlock = useToggleKeyBlock();
   const rows = selectKeyRows(query.data);
 
   // ── State branches (exact copy lifted from keys-table.js) ───────────────────
@@ -254,6 +259,18 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                     Set as default
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
+                {/* Disable/Enable — reversible LiteLLM block. Any key may be
+                    disabled, including the default (Chat then stays gated until
+                    re-enabled). */}
+                <DropdownMenuItem
+                  data-slot="key-toggle-block"
+                  onSelect={() =>
+                    toggleBlock.mutate({ id: row.id ?? '', blocked: !row.blocked })
+                  }
+                >
+                  {row.blocked ? 'Enable key' : 'Disable key'}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

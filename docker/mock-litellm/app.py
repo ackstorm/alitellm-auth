@@ -258,6 +258,31 @@ async def key_update(request: Request):
     return {"key": token, "metadata": metadata}
 
 
+def _set_key_blocked(token: str | None, blocked: bool) -> dict | None:
+    """Flip the in-memory key's `blocked` flag (mirrors /key/block | /key/unblock)."""
+    for k in _KEYS:
+        if k.get("token") == token or k.get("key") == token:
+            k["blocked"] = blocked
+            return k
+    return None
+
+
+@app.post("/key/block")
+async def key_block(request: Request):
+    token = (await _json(request)).get("key")
+    updated = _set_key_blocked(token, True)
+    log.info("key/block token=%s (%s)", token, "ok" if updated else "not-found")
+    return updated or {"key": token, "blocked": True}
+
+
+@app.post("/key/unblock")
+async def key_unblock(request: Request):
+    token = (await _json(request)).get("key")
+    updated = _set_key_blocked(token, False)
+    log.info("key/unblock token=%s (%s)", token, "ok" if updated else "not-found")
+    return updated or {"key": token, "blocked": False}
+
+
 # ── Usage / spend ───────────────────────────────────────────────────────────
 
 

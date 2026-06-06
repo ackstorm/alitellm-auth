@@ -16,6 +16,7 @@ from app.litellm_client import (
     list_litellm_keys,
     delete_litellm_user,
     list_session_keys,
+    block_litellm_key,
     _normalize_teams,
     _project_session_key,
 )
@@ -81,10 +82,30 @@ def test_project_session_key_surfaces_last_used_from_last_active():
     }
     out = _project_session_key(k, k["metadata"])
     assert out["last_used"] == "2026-06-06T06:25:06.024000Z"
+    assert out["blocked"] is False
 
     # A never-used key has no last_active -> last_used is None (UI renders "—").
     out_unused = _project_session_key({"token": "hash-2"}, {})
     assert out_unused["last_used"] is None
+    # The disabled state is surfaced from the raw /key/list `blocked` field.
+    assert _project_session_key({"token": "h", "blocked": True}, {})["blocked"] is True
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_block_litellm_key_routes_block_and_unblock():
+    """blocked=True hits /key/block; blocked=False hits /key/unblock; body is {key}."""
+    settings = make_settings()
+    blk = respx.post("http://litellm.test/key/block").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    unblk = respx.post("http://litellm.test/key/unblock").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    await block_litellm_key("tok-1", settings, blocked=True)
+    await block_litellm_key("tok-1", settings, blocked=False)
+    assert _json_body(blk) == {"key": "tok-1"}
+    assert _json_body(unblk) == {"key": "tok-1"}
 
 
 @pytest.mark.asyncio

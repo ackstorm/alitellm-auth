@@ -125,6 +125,12 @@ export interface MakeDefaultResponse {
   id: string;
 }
 
+/** POST /api/session/keys/{id}/block response. session.py::session_block_key. */
+export interface BlockKeyResponse {
+  status: 'blocked' | 'active';
+  id: string;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/session/stats  — src/api/app/session.py::session_stats
 // (contract assembled by src/api/app/stats.py::build_stats_contract)

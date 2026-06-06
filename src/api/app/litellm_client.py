@@ -416,6 +416,9 @@ def _project_session_key(k: dict, md: dict) -> dict:
         # LiteLLM's per-key last-used timestamp (same field whoami surfaces). May be
         # null until the key is used / LiteLLM populates it; the UI shows "—" then.
         "last_used": k.get("last_active"),
+        # Disabled state (LiteLLM /key/block sets this). Surfaced so the table can
+        # show a "Disabled" status and the kebab offer Enable instead of Disable.
+        "blocked": bool(k.get("blocked")),
         # Explicit "default key" flag (metadata-backed). Absent/false => not default.
         "is_default": bool(md.get("is_default")),
         # Raw metadata for SERVER-SIDE use only (Make-default read-modify-write).
@@ -437,6 +440,7 @@ _EMPTY_SESSION_KEY = {
     "created_at": None,
     "expires": None,
     "last_used": None,
+    "blocked": False,
     "is_default": False,
     "metadata": {},
 }
@@ -729,8 +733,10 @@ async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:
                     "created_at": metadata.get("created_at"),
                     "expires": k.get("expires"),
                     "models": k.get("models"),
-                    # Preserved so the fallback projection can surface "last used".
+                    # Preserved so the fallback projection can surface "last used"
+                    # and the disabled state.
                     "last_active": k.get("last_active"),
+                    "blocked": k.get("blocked"),
                 }
             )
 
@@ -783,6 +789,27 @@ async def set_litellm_key_default(
         msg = _extract_litellm_error(resp)
         raise httpx.HTTPStatusError(
             f"LiteLLM /key/update failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+
+
+async def block_litellm_key(token: str, settings: Settings, *, blocked: bool) -> None:
+    """Disable (block) or re-enable (unblock) a virtual key — reversible, NOT a delete.
+
+    Calls POST /key/block | /key/unblock with {"key": token}. Blocking sets the
+    key's `blocked` flag so LiteLLM rejects its requests; unblocking clears it.
+    `token` is the hashed token from /key/list (the same value /key/delete and
+    /key/update accept — LiteLLM only re-hashes `sk-` plaintext).
+    """
+    headers = _admin_headers(settings)
+    route = "/key/block" if blocked else "/key/unblock"
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+        resp = await client.post(route, headers=headers, json={"key": token})
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM {route} failed ({resp.status_code}): {msg}",
             request=resp.request,
             response=resp,
         )
@@ -849,6 +876,7 @@ async def get_key_info(api_key: str, settings: Settings) -> dict:
         "tpm_limit": info.get("tpm_limit"),
         "rpm_limit": info.get("rpm_limit"),
         "last_active": info.get("last_active"),
+        "blocked": info.get("blocked"),
     }
 
 

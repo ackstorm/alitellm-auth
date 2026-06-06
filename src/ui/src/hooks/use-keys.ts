@@ -27,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { del, getJson, postJson } from '@/lib/api';
 import type {
+  BlockKeyResponse,
   CreateKeyBody,
   CreateKeyResponse,
   DeleteKeyResponse,
@@ -170,6 +171,30 @@ export function useMakeDefault() {
         {},
       );
       if (status !== 200 || !data) throw apiCallError('make-default-failed', status, data);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
+    },
+  });
+}
+
+/**
+ * POST /api/session/keys/{id}/block. Disables (blocked:true) or re-enables
+ * (blocked:false) a key via LiteLLM /key/block | /key/unblock — reversible, not a
+ * delete (session.py::session_block_key). On success the list is invalidated so
+ * the Status pill + kebab label re-render.
+ */
+export function useToggleKeyBlock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, blocked }: { id: string; blocked: boolean }) => {
+      const { status, data } = await postJson<BlockKeyResponse>(
+        `/api/session/keys/${encodeURIComponent(id)}/block`,
+        { blocked },
+      );
+      if (status !== 200 || !data) throw apiCallError('block-key-failed', status, data);
       return data;
     },
     onSuccess: () => {

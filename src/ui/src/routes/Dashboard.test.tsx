@@ -19,6 +19,7 @@ vi.mock('@/hooks/use-keys', () => ({
   useKeys: vi.fn(),
   useDeleteKey: vi.fn(),
   useMakeDefault: vi.fn(),
+  useToggleKeyBlock: vi.fn(),
   KEYS_QUERY_KEY: ['session', 'keys'],
 }));
 
@@ -29,7 +30,7 @@ vi.mock('@/hooks/use-stats', () => ({
   useStats: vi.fn(),
 }));
 
-import { useDeleteKey, useKeys, useMakeDefault } from '@/hooks/use-keys';
+import { useDeleteKey, useKeys, useMakeDefault, useToggleKeyBlock } from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
 import { Dashboard } from './Dashboard';
 import { formatCurrency } from '@/lib/format';
@@ -46,6 +47,7 @@ import { initialToastState, useToastStore } from '@/hooks/use-toast';
 const useKeysMock = vi.mocked(useKeys);
 const useDeleteKeyMock = vi.mocked(useDeleteKey);
 const useMakeDefaultMock = vi.mocked(useMakeDefault);
+const useToggleKeyBlockMock = vi.mocked(useToggleKeyBlock);
 const useStatsMock = vi.mocked(useStats);
 
 // Build a valid SessionMe fixture with overrides.
@@ -122,6 +124,11 @@ beforeEach(() => {
     mutate: vi.fn(),
     isPending: false,
   } as unknown as ReturnType<typeof useMakeDefault>);
+  // Default the block-toggle mutation to a no-op.
+  useToggleKeyBlockMock.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+  } as unknown as ReturnType<typeof useToggleKeyBlock>);
   // Default stats to a non-success state — the Requests (MTD) tile shows EM_DASH.
   useStatsMock.mockReturnValue({
     data: undefined,

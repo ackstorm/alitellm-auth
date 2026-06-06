@@ -593,6 +593,101 @@ def test_make_default_502_on_litellm_error(client):
 
 
 # ---------------------------------------------------------------------------
+# Disable key — POST /api/session/keys/{id}/block (block / unblock)
+# ---------------------------------------------------------------------------
+
+
+def test_block_key_disables_owned_key(client):
+    """blocked:true on an owned key → calls block_litellm_key(..., blocked=True)."""
+    owned = [{"id": "key-a", "token": "tok-a", "is_default": False, "metadata": {}}]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
+    ):
+        mock_list.return_value = owned
+        response = client.post(
+            "/api/session/keys/key-a/block",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"blocked": True},
+        )
+    assert response.status_code == 200
+    assert response.json()["status"] == "blocked"
+    mock_block.assert_awaited_once()
+    assert mock_block.await_args.args[0] == "tok-a"
+    assert mock_block.await_args.kwargs.get("blocked") is True
+
+
+def test_block_key_can_disable_the_default_key(client):
+    """The default key MAY be disabled (no 409 guard — caller's explicit choice)."""
+    owned = [{"id": "key-a", "token": "tok-a", "is_default": True, "metadata": {}}]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
+    ):
+        mock_list.return_value = owned
+        response = client.post(
+            "/api/session/keys/key-a/block",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"blocked": True},
+        )
+    assert response.status_code == 200
+    mock_block.assert_awaited_once()
+
+
+def test_unblock_key_reenables(client):
+    """blocked:false → unblock path; status 'active'."""
+    owned = [{"id": "key-a", "token": "tok-a", "is_default": False, "metadata": {}}]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
+    ):
+        mock_list.return_value = owned
+        response = client.post(
+            "/api/session/keys/key-a/block",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"blocked": False},
+        )
+    assert response.status_code == 200
+    assert response.json()["status"] == "active"
+    assert mock_block.await_args.kwargs.get("blocked") is False
+
+
+def test_block_key_foreign_id_403(client):
+    """A foreign/unknown id → 403 and NO block call (D-12)."""
+    owned = [{"id": "key-a", "token": "tok-a", "is_default": False, "metadata": {}}]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
+    ):
+        mock_list.return_value = owned
+        response = client.post(
+            "/api/session/keys/not-mine/block",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"blocked": True},
+        )
+    assert response.status_code == 403
+    mock_block.assert_not_awaited()
+
+
+def test_block_key_invalid_body_422(client):
+    """A body missing `blocked` → 422."""
+    owned = [{"id": "key-a", "token": "tok-a", "is_default": False, "metadata": {}}]
+    with patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list:
+        mock_list.return_value = owned
+        response = client.post(
+            "/api/session/keys/key-a/block",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            content="{}",
+        )
+    assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
 # STATS-01 — GET /api/session/stats (Plan 12-03)
 # ---------------------------------------------------------------------------
 

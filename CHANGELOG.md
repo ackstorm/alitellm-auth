@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+- feat: **disable / enable a key** without deleting it — the `⋯` row menu now offers **Disable key** (and **Enable key** when disabled), backed by LiteLLM `/key/block` + `/key/unblock`. A disabled key shows a **Disabled** status pill and is excluded from the Active-keys count. Any key may be disabled, including the default (Chat/Models/MCPs stay gated on it, so they pause until it is re-enabled).
+
 ## [0.5.2] - 2026-06-06
 
 - fix: virtual keys are no longer route-restricted at creation. Pinning `allowed_routes=["llm_api_routes"]` made the per-user **Models**/**MCPs** catalog fail with a 403 ("Only allowed to call routes: ['llm_api_routes']") once a key was scoped via `x-user-id` — the catalog needs read/info routes like `/model_group/info`. Keys now show "All routes allowed" (still gated by role; management routes remain admin-only) and a deployment can re-restrict via factory `key.allowed_routes`.
