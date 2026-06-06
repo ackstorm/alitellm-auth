@@ -1377,3 +1377,75 @@ async def test_list_mcp_omits_x_user_id_when_none():
     )
     await list_litellm_mcp_servers(settings)
     assert "x-user-id" not in route.calls.last.request.headers
+
+
+# ---------------------------------------------------------------------------
+# user-scoping contract probe (sso_key_swapper custom auth verification)
+# ---------------------------------------------------------------------------
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_verify_contract_enforced_on_403():
+    from app.litellm_client import CONTRACT_PROBE_USER_ID, verify_user_scoping_contract
+
+    settings = make_settings()
+    route = respx.get(f"{settings.litellm_url}/v1/models").mock(
+        return_value=httpx.Response(403, json={"error": {"message": "access denied"}})
+    )
+    assert await verify_user_scoping_contract(settings) == "enforced"
+    # The probe impersonates a deliberately non-existent user via x-user-id, with
+    # the master key in Authorization.
+    req = route.calls.last.request
+    assert req.headers["x-user-id"] == CONTRACT_PROBE_USER_ID
+    assert req.headers["authorization"].startswith("Bearer ")
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_verify_contract_enforced_on_401():
+    from app.litellm_client import verify_user_scoping_contract
+
+    settings = make_settings()
+    respx.get(f"{settings.litellm_url}/v1/models").mock(
+        return_value=httpx.Response(401, json={})
+    )
+    assert await verify_user_scoping_contract(settings) == "enforced"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_verify_contract_not_enforced_on_200():
+    from app.litellm_client import verify_user_scoping_contract
+
+    settings = make_settings()
+    # 200 means the master key authenticated as full admin (x-user-id ignored) —
+    # the custom auth is NOT installed/enforcing.
+    respx.get(f"{settings.litellm_url}/v1/models").mock(
+        return_value=httpx.Response(200, json={"data": []})
+    )
+    assert await verify_user_scoping_contract(settings) == "not_enforced"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_verify_contract_unknown_on_5xx():
+    from app.litellm_client import verify_user_scoping_contract
+
+    settings = make_settings()
+    respx.get(f"{settings.litellm_url}/v1/models").mock(
+        return_value=httpx.Response(503, text="upstream down")
+    )
+    assert await verify_user_scoping_contract(settings) == "unknown"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_verify_contract_unknown_on_network_error():
+    from app.litellm_client import verify_user_scoping_contract
+
+    settings = make_settings()
+    respx.get(f"{settings.litellm_url}/v1/models").mock(
+        side_effect=httpx.ConnectError("unreachable")
+    )
+    assert await verify_user_scoping_contract(settings) == "unknown"
