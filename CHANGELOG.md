@@ -2,6 +2,7 @@
 
 ## [unreleased]
 
+- change: the dashboard **API Keys** section now uses a large page-style heading (matching the Models/Stats pages) instead of the small mono caption.
 - feat: **disable / enable a key** without deleting it — the `⋯` row menu now offers **Disable key** (and **Enable key** when disabled), backed by LiteLLM `/key/block` + `/key/unblock`. A disabled key shows a **Disabled** status pill, its row is dimmed so it reads as inactive at a glance, and it is excluded from the Active-keys count. Any key may be disabled, including the default (Chat/Models/MCPs stay gated on it, so they pause until it is re-enabled).
 
 ## [0.5.2] - 2026-06-06
