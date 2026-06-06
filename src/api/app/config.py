@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # API (LiteLLM backend)
     litellm_url: str  # internal URL used server-side to call admin endpoints
     litellm_master_key: str
+    # Startup verification of the master-key + x-user-id user-scoping contract
+    # (the sso_key_swapper custom auth — see deploy/litellm/). Non-fatal: when the
+    # contract is not enforced we log a CRITICAL banner; we never refuse to serve.
+    # Set false for OSS forks / deployments not using per-user catalog scoping.
+    # Env var: LITELLM_USER_SCOPING_CHECK
+    litellm_user_scoping_check: bool = True
     # Neutral default (D-01): keep OSS forks brand-neutral. Deployments set the
     # branded public URL via API_PUBLIC_URL. When unset, public_config falls back
     # gracefully (urlparse("").hostname or "" → "").

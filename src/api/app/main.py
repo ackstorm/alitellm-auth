@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -13,10 +15,27 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.admin import router as admin_router
 from app.auth import configure_auth, router as auth_router
 from app.config import Settings, get_settings
+from app.contract import warn_if_contract_unenforced
 from app.public import router as public_router
 from app.session import router as session_router
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Run the (non-fatal) user-scoping contract check as a background task.
+
+    create_task (not await) so a slow/unreachable LiteLLM at boot never delays
+    serving — the check logs its own result (CRITICAL banner if not enforced).
+    """
+    settings: Settings = app.state.settings
+    task = asyncio.create_task(warn_if_contract_unenforced(settings))
+    try:
+        yield
+    finally:
+        if not task.done():
+            task.cancel()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -24,7 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = get_settings()
 
-    app = FastAPI(title="alitellm-auth", version="0.5.0")
+    app = FastAPI(title="alitellm-auth", version="0.5.0", lifespan=_lifespan)
 
     # SessionMiddleware is REQUIRED by authlib to persist OAuth state/nonce
     # between /auth/login and /auth/callback. Without it: MismatchingStateError.
