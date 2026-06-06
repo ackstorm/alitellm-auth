@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+- change: **HOW-TO** editor/CLI setup — **opencode** now ships its real `opencode.json` config (an OpenAI-compatible provider pointed at the gateway) and **codex** is marked ready; **Claude Code** and **opencode** link their authoritative LiteLLM guides.
+
 ## [0.5.3] - 2026-06-06
 
 - change: the dashboard **API Keys** section now uses a large page-style heading (matching the Models/Stats pages) instead of the small mono caption.

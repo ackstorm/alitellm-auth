@@ -5,7 +5,9 @@
 //
 //   §1 Quickstart  — mint a key (link to the Keys tab) + a copy-paste `curl` to
 //                    the `ackstorm.fast` model alias against the user's gateway.
-//   §2 Editors/CLI — tabbed env-var exports for opencode / codex / gemini.
+//   §2 Editors/CLI — tabbed setup for Claude Code / Gemini / opencode / codex
+//                    (env exports, except opencode which uses a JSON config file);
+//                    each links the authoritative LiteLLM guide where one exists.
 //   §3 No terminal — chat-UI cards (ACKstorm Chat, hosted; openwork, coming soon).
 //
 // PERSONALIZATION (no rebuild): the gateway base URL is read live from the
@@ -172,10 +174,19 @@ export function HowTo() {
   }'`;
 
   // ── Editor / CLI setup ───────────────────────────────────────────────────────
-  // Live, tested exports for Claude Code + Gemini CLI; opencode + codex are
-  // placeholders until their tested values land. The base URL is the user's live
-  // gateway (apiBase); the key is the `sk-...` placeholder (mint it on Keys).
-  const TOOLS: { id: string; label: string; ready: boolean; code: string }[] = [
+  // Live setup for Claude Code, Gemini CLI, opencode, and codex. The base URL is
+  // the user's live gateway (apiBase); the key is the `sk-...` placeholder (mint
+  // it on Keys). `caption` overrides the code-box label (e.g. a config-file path);
+  // `note` adds a one-line instruction; `guide` links the authoritative doc.
+  const TOOLS: {
+    id: string;
+    label: string;
+    ready: boolean;
+    code: string;
+    caption?: string;
+    note?: string;
+    guide?: { url: string; label: string };
+  }[] = [
     {
       id: 'claude',
       label: 'Claude Code',
@@ -190,6 +201,10 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL="ackstorm.fast-lite"
 export CLAUDE_CODE_SUBAGENT_MODEL="ackstorm.fast"
 
 claude`,
+      guide: {
+        url: 'https://docs.litellm.ai/docs/tutorials/claude_code_max_subscription',
+        label: 'Claude Code + LiteLLM guide',
+      },
     },
     {
       id: 'gemini',
@@ -205,17 +220,37 @@ gemini`,
     {
       id: 'opencode',
       label: 'opencode',
-      ready: false,
-      code: `# opencode → LiteLLM (OpenAI-compatible)
-export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
-export OPENAI_BASE_URL="${apiBase}/v1"
-
-opencode --model ${MODEL_ALIAS}`,
+      ready: true,
+      caption: '~/.config/opencode/opencode.json',
+      // opencode is configured by a JSON file (NOT env vars): an OpenAI-compatible
+      // provider pointed at the gateway. The model keys MUST match LiteLLM aliases.
+      code: `{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LiteLLM",
+      "options": {
+        "baseURL": "${apiBase}/v1",
+        "apiKey": "${KEY_PLACEHOLDER}"
+      },
+      "models": {
+        "ackstorm.fast": { "name": "ACKstorm Fast" },
+        "ackstorm.smart": { "name": "ACKstorm Smart" }
+      }
+    }
+  }
+}`,
+      note: 'Save the file, then run `opencode` and pick a LiteLLM model with `/models`.',
+      guide: {
+        url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
+        label: 'opencode + LiteLLM guide',
+      },
     },
     {
       id: 'codex',
       label: 'codex',
-      ready: false,
+      ready: true,
       code: `# codex → LiteLLM (OpenAI-compatible)
 export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
 export OPENAI_BASE_URL="${apiBase}/v1"
@@ -339,7 +374,23 @@ codex --model ${MODEL_ALIAS}`,
               </TabsList>
               {TOOLS.map((t) => (
                 <TabsContent key={t.id} value={t.id} className="mt-4">
-                  <CodeBlock code={t.code} caption={`${t.label} · setup`} />
+                  <CodeBlock code={t.code} caption={t.caption ?? `${t.label} · setup`} />
+                  {t.note && (
+                    <p className="mt-2 font-sans text-xs leading-relaxed text-text-tertiary">
+                      {t.note}
+                    </p>
+                  )}
+                  {t.guide && (
+                    <a
+                      href={t.guide.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 font-sans text-xs font-medium text-primary hover:underline"
+                    >
+                      {t.guide.label}
+                      <ExternalLink className="size-3" aria-hidden="true" />
+                    </a>
+                  )}
                   {!t.ready && (
                     <p className="mt-2 font-sans text-xs text-text-tertiary">
                       Placeholder — tested {t.label} values land here soon.
