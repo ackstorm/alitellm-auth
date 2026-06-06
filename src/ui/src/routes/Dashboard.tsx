@@ -234,12 +234,12 @@ export function Dashboard({ me }: DashboardProps) {
       <div className="flex min-w-0 flex-col gap-5">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
-            <div className="font-mono text-[11px] font-semibold uppercase tracking-widest text-text-secondary">
-              API KEYS
-            </div>
-            <div className="mt-1 font-sans text-sm text-text-secondary">
+            <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
+              API Keys
+            </h1>
+            <p className="mt-1 max-w-2xl font-sans text-sm text-text-secondary">
               Create and manage your LiteLLM virtual keys.
-            </div>
+            </p>
           </div>
           <button
             type="button"
