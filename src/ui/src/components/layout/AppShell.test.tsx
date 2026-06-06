@@ -103,3 +103,33 @@ describe('AppShell — CHAT nav gating', () => {
     expect(screen.getByText('Chat')).toHaveAttribute('aria-disabled', 'true');
   });
 });
+
+describe('AppShell — Models/MCPs nav gating', () => {
+  it('with a default key, Models + MCPs are nav links', () => {
+    setKeys([makeRow({ id: 'key-1', is_default: true })]);
+    renderShell();
+    expect(screen.getByRole('link', { name: 'Models' })).toHaveAttribute('href', '/models');
+    expect(screen.getByRole('link', { name: 'MCPs' })).toHaveAttribute('href', '/mcp');
+  });
+
+  it('without a default key, Models + MCPs are disabled (no link) with a hint', () => {
+    setKeys([makeRow({ id: 'key-1', is_default: false })]);
+    renderShell();
+    expect(screen.queryByRole('link', { name: 'Models' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'MCPs' })).not.toBeInTheDocument();
+    for (const label of ['Models', 'MCPs']) {
+      const el = screen.getByText(label);
+      expect(el).toHaveAttribute('aria-disabled', 'true');
+      expect(el).not.toHaveAttribute('href');
+      expect(el.getAttribute('title') ?? '').toMatch(/default key/i);
+    }
+  });
+
+  it('KEYS / STATS / HOW-TO stay links regardless of default key', () => {
+    setKeys([]);
+    renderShell();
+    expect(screen.getByRole('link', { name: 'Keys' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Stats' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'How-to' })).toBeInTheDocument();
+  });
+});

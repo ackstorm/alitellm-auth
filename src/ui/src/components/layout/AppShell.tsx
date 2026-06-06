@@ -58,6 +58,24 @@ export function AppShell({ me, config }: AppShellProps) {
   const chatPill =
     'rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors';
 
+  // Models/MCPs are per-user catalogs scoped through the default key, so their nav
+  // items are gated on one like CHAT: a normal NavLink when a default exists, else
+  // a disabled, muted span with a hint (the route itself also shows the prompt).
+  const gatedNav = (to: string, label: string) =>
+    hasDefault ? (
+      <NavLink to={to} className={navLinkClass}>
+        {label}
+      </NavLink>
+    ) : (
+      <span
+        aria-disabled="true"
+        title="You need a default key — set one on the Keys tab"
+        className="cursor-not-allowed rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider text-text-tertiary"
+      >
+        {label}
+      </span>
+    );
+
   // Service-status indicator (D-02/D-03). An external link when config.links.status
   // is set, else a connected pulse-dot "operational" label. Moved OUT of the
   // topbar nav and into the footer's (otherwise empty) right side.
@@ -96,12 +114,8 @@ export function AppShell({ me, config }: AppShellProps) {
           <NavLink to="/" end className={navLinkClass}>
             Keys
           </NavLink>
-          <NavLink to="/models" className={navLinkClass}>
-            Models
-          </NavLink>
-          <NavLink to="/mcp" className={navLinkClass}>
-            MCPs
-          </NavLink>
+          {gatedNav('/models', 'Models')}
+          {gatedNav('/mcp', 'MCPs')}
           <NavLink to="/stats" className={navLinkClass}>
             Stats
           </NavLink>
