@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+- change: the **Models** and **MCPs** pages (and their nav links) now require a default key — they are scoped to your account through it. Without a default key the nav items are disabled ("you need a default key") and the pages show a prompt to set one on the Keys tab, instead of failing with an error. With a default key they load normally.
+
 ## [0.5.0] - 2026-06-05
 
 - feat: a per-user **default key** — promote any key to your default from its `⋯` row menu ("Set as default"); the default carries a DEFAULT badge in the Key ID column and cannot be deleted until another key is promoted. A default is never auto-assigned (explicit only). Backed by a flag in the key's LiteLLM metadata.
