@@ -86,5 +86,13 @@ services:
     volumes:
       # Reuse the repo's LiteLLM response fixtures as canned data (read-only).
       - ./src/api/tests/fixtures:/app/repo-fixtures:ro
+      # Live-mount the stub + its fixtures so edits don't need an image rebuild:
+      # `docker compose -f docker-compose.dev.yml restart mock-litellm` re-imports
+      # them in ~1s. (The image still bakes copies for non-compose use.)
+      - ./docker/mock-litellm/app.py:/app/app.py:ro
+      - ./docker/mock-litellm/fixtures:/app/fixtures:ro
+    # --reload picks up app.py edits automatically; fixture JSON is loaded at
+    # import, so a `restart` applies those.
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "4000", "--reload"]
     ports:
       - "4000:4000"
