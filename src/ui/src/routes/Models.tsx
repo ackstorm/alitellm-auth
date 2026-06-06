@@ -19,11 +19,13 @@ import {
   Wrench,
 } from 'lucide-react';
 
+import { RequiresDefaultKey } from '@/components/layout/RequiresDefaultKey';
 import {
   DataTable,
   type DataTableColumn,
 } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useModels } from '@/hooks/use-models';
 import type { ModelRow } from '@/lib/api-types';
 import { formatPricePerMillion, formatTokens } from '@/lib/format';
@@ -202,7 +204,10 @@ const COLUMNS: DataTableColumn<ModelRow>[] = [
 ];
 
 export function Models() {
-  const query = useModels();
+  // Per-user catalog: gated on a default key (the gateway scopes the read through
+  // it). No default → render the prompt and DON'T fetch (useModels disabled).
+  const hasDefault = useHasDefaultKey();
+  const query = useModels(hasDefault);
   const header = (
     <div>
       <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
@@ -213,6 +218,16 @@ export function Models() {
       </p>
     </div>
   );
+
+  // No default key → calm "set a default" prompt (no request fired).
+  if (!hasDefault) {
+    return (
+      <div className="flex flex-col gap-8">
+        {header}
+        <RequiresDefaultKey subject="Models" />
+      </div>
+    );
+  }
 
   // Error (502 / network) — same card + retry as the Stats page.
   if (query.isError) {
