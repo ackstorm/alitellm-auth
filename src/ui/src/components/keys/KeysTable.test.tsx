@@ -11,6 +11,7 @@ import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 import type { KeyRow, MakeDefaultResponse } from '@/lib/api-types';
+import { formatDate } from '@/lib/format';
 
 // Mock the data hook — each test sets useKeys's return value.
 vi.mock('@/hooks/use-keys', () => ({
@@ -46,6 +47,7 @@ function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
     models: null,
     created_at: '2026-03-01T10:00:00+00:00',
     expires: null,
+    last_used: null,
     is_default: false,
     ...overrides,
   };
@@ -122,6 +124,20 @@ describe('KeysTable — populated table', () => {
     render(<KeysTable onDelete={vi.fn()} />);
     // 'key-abc123' is 10 chars (<= 16) -> shown in full, no ellipsis.
     expect(screen.getByText('key-abc123')).toBeInTheDocument();
+  });
+
+  it('renders the Last used cell from last_used (LiteLLM last_active)', () => {
+    const lastUsed = '2026-06-06T06:25:06+00:00';
+    setRows([makeRow({ last_used: lastUsed })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.getByText(formatDate(lastUsed))).toBeInTheDocument();
+  });
+
+  it('shows the em-dash in Last used when the key was never used', () => {
+    // expires is set so the ONLY em-dash on the row comes from the empty Last used.
+    setRows([makeRow({ last_used: null, expires: '2027-01-01T00:00:00+00:00' })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.getByText('—')).toBeInTheDocument();
   });
 
   it('shows the truncated id (16 chars + ellipsis) beneath the alias, prefixed "id:"', () => {

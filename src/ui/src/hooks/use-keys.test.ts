@@ -47,6 +47,7 @@ const ROW: KeyRow = {
   models: ['all-team-models'],
   created_at: '2026-03-01T10:00:00+00:00',
   expires: null,
+  last_used: null,
   is_default: false,
 };
 

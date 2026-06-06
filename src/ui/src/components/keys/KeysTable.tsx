@@ -39,8 +39,8 @@ import { isExpired, isRevoked, selectKeyRows } from '@/lib/keys';
 import { cn } from '@/lib/utils';
 import type { KeyRow } from '@/lib/api-types';
 
-// The em-dash placeholder (matches format.ts EM_DASH) for the always-empty
-// "Last used" cell (the backend emits no last-used — parity with the old table).
+// The em-dash placeholder (matches format.ts EM_DASH) for an empty "Last used"
+// cell (the backend surfaces LiteLLM's per-key last_active; null until used).
 const EM_DASH = '—';
 
 // How many leading characters of the public key id to show in the table.
@@ -158,7 +158,7 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       key: 'lastused',
       header: 'Last used',
       className: 'font-mono text-xs whitespace-nowrap',
-      cell: () => EM_DASH,
+      cell: (row) => (row.last_used == null ? EM_DASH : formatDate(row.last_used)),
     },
     {
       key: 'expires',

@@ -68,6 +68,8 @@ export interface KeyRow {
   models: string[] | null;
   created_at: string | null;
   expires: string | null;
+  /** LiteLLM per-key last-used timestamp (its `last_active`); null until used. */
+  last_used: string | null;
   /** Explicit default-key flag (metadata-backed; session API derives it). */
   is_default: boolean;
   // Not emitted by the current backend; isRevoked() reads them defensively.

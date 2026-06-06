@@ -12,6 +12,7 @@
     "models": ["all-team-models"],
     "expires": null,
     "created_at": "2026-04-01T09:12:44.000000Z",
+    "last_active": "2026-06-06T06:25:06.024000Z",
     "metadata": {
       "email": "alice@example.com",
       "name": "Mock User",
@@ -34,6 +35,7 @@
     "models": ["all-team-models"],
     "expires": "2026-12-31T23:59:59.000000Z",
     "created_at": "2026-04-18T14:30:10.000000Z",
+    "last_active": "2026-05-30T11:02:18.000000Z",
     "metadata": {
       "email": "alice@example.com",
       "name": "Mock User",
@@ -55,6 +57,7 @@
     "models": ["all-team-models"],
     "expires": null,
     "created_at": "2026-05-22T08:05:55.000000Z",
+    "last_active": "2026-06-04T19:47:33.000000Z",
     "metadata": {
       "email": "alice@example.com",
       "name": "Mock User",
@@ -76,6 +79,7 @@
     "models": ["all-team-models"],
     "expires": null,
     "created_at": "2026-06-01T17:44:02.000000Z",
+    "last_active": null,
     "metadata": {
       "email": "alice@example.com",
       "name": "Mock User",

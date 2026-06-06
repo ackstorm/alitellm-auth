@@ -15,7 +15,9 @@ from app.litellm_client import (
     list_litellm_users,
     list_litellm_keys,
     delete_litellm_user,
+    list_session_keys,
     _normalize_teams,
+    _project_session_key,
 )
 
 
@@ -65,6 +67,49 @@ async def test_generate_litellm_key_success():
     assert len(result["id"]) == 64
     assert result["id"] != "key-123"
     assert result["team_id"] == team_id
+
+
+def test_project_session_key_surfaces_last_used_from_last_active():
+    """The keys-list projection maps LiteLLM's per-key `last_active` to `last_used`."""
+    k = {
+        "token": "hash-1",
+        "key_alias": "default",
+        "created_at": "2026-06-06T06:11:50Z",
+        "last_active": "2026-06-06T06:25:06.024000Z",
+        "expires": None,
+        "metadata": {"email": "alice@example.com"},
+    }
+    out = _project_session_key(k, k["metadata"])
+    assert out["last_used"] == "2026-06-06T06:25:06.024000Z"
+
+    # A never-used key has no last_active -> last_used is None (UI renders "—").
+    out_unused = _project_session_key({"token": "hash-2"}, {})
+    assert out_unused["last_used"] is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_session_keys_includes_last_used():
+    """End-to-end: /key/list full objects carry last_active -> exposed as last_used."""
+    settings = make_settings()
+    respx.get("http://litellm.test/key/list").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "keys": [
+                    {
+                        "token": "hash-1",
+                        "key_alias": "default",
+                        "created_at": "2026-06-06T06:11:50Z",
+                        "last_active": "2026-06-06T06:25:06.024000Z",
+                        "metadata": {"email": "alice@example.com"},
+                    }
+                ]
+            },
+        )
+    )
+    keys = await list_session_keys("alice@example.com", settings)
+    assert keys[0]["last_used"] == "2026-06-06T06:25:06.024000Z"
 
 
 @pytest.mark.asyncio

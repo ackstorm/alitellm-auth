@@ -413,6 +413,9 @@ def _project_session_key(k: dict, md: dict) -> dict:
         "models": k.get("models"),
         "created_at": md.get("created_at") or k.get("created_at"),
         "expires": k.get("expires"),
+        # LiteLLM's per-key last-used timestamp (same field whoami surfaces). May be
+        # null until the key is used / LiteLLM populates it; the UI shows "—" then.
+        "last_used": k.get("last_active"),
         # Explicit "default key" flag (metadata-backed). Absent/false => not default.
         "is_default": bool(md.get("is_default")),
         # Raw metadata for SERVER-SIDE use only (Make-default read-modify-write).
@@ -433,6 +436,7 @@ _EMPTY_SESSION_KEY = {
     "models": None,
     "created_at": None,
     "expires": None,
+    "last_used": None,
     "is_default": False,
     "metadata": {},
 }
@@ -725,6 +729,8 @@ async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:
                     "created_at": metadata.get("created_at"),
                     "expires": k.get("expires"),
                     "models": k.get("models"),
+                    # Preserved so the fallback projection can surface "last used".
+                    "last_active": k.get("last_active"),
                 }
             )
 
