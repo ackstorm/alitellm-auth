@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -352,14 +353,14 @@ async def generate_litellm_key(
         # so sha256(key_alias) ids stay distinct (no DELETE/list collision).
         #
         # LiteLLM enforces a GLOBALLY-unique key_alias across ALL keys of ALL users
-        # ("Key with alias 'default' already exists"). So the stored key_alias is
-        # NAMESPACED with the user's email — `{email}-{name}` — letting two users
-        # each name a key "default". The friendly `display_alias` is kept in
-        # metadata and is what the UI shows (the projection strips the namespace).
-        # The id is sha256(namespaced alias), stable across /me and /key/list.
+        # ("Key with alias 'default' already exists"). So the stored key_alias is an
+        # OPAQUE, collision-proof token `lk-{random}` — never the user's name — which
+        # also lets two keys share a friendly name. The friendly `display_alias` is
+        # kept in metadata and is what the UI shows; the id is sha256(opaque alias),
+        # stable across /me and /key/list.
         now = datetime.now(timezone.utc)
         display_alias = alias or f"key-{now.strftime('%Y-%m-%d-%H%M%S')}"
-        key_alias = f"{email}-{display_alias}"
+        key_alias = f"lk-{secrets.token_hex(8)}"
         key_payload: dict = {
             "models": ["all-team-models"],  # default — factory `key.models` may override
             # Deployment overrides (e.g. allowed_routes). NOT route-restricted by
@@ -369,7 +370,7 @@ async def generate_litellm_key(
             "team_id": team_id,  # always wins — not overridable
             "user_id": email,  # scope key to LiteLLM user (USER-02)
             "access_group_ids": [access_group_id] if access_group_id else [],
-            "key_alias": key_alias,  # namespaced (globally unique)
+            "key_alias": key_alias,  # opaque lk-{random} (globally unique)
             "metadata": {
                 "email": email,
                 "name": name or email,
@@ -404,20 +405,13 @@ async def generate_litellm_key(
 
 
 def _display_alias(k: dict, md: dict) -> str | None:
-    """The FRIENDLY alias to show in the UI (the namespace is an internal detail).
+    """The FRIENDLY alias to show in the UI.
 
-    Prefers metadata.key_alias (the friendly name we stored at creation). Falls
-    back to stripping the `{email}-` namespace from the raw key_alias, then to the
-    raw value — so keys created before the namespacing change still display right.
+    The stored key_alias is an opaque `lk-{random}` token, so the friendly name
+    lives in metadata.key_alias. Falls back to the raw key_alias for keys created
+    outside this service (which carry a human alias directly).
     """
-    friendly = md.get("key_alias")
-    if friendly:
-        return friendly
-    raw = k.get("key_alias")
-    email = md.get("email")
-    if raw and email and raw.startswith(f"{email}-"):
-        return raw[len(email) + 1 :]
-    return raw
+    return md.get("key_alias") or k.get("key_alias")
 
 
 def _project_session_key(k: dict, md: dict) -> dict:
