@@ -296,7 +296,7 @@ describe('KeysTable — disable / enable (LiteLLM block)', () => {
     setRows([makeRow({ id: 'key-x', blocked: true })]);
     const { container } = render(<KeysTable onDelete={vi.fn()} />);
     const row = container.querySelector('[data-slot="data-table-row"]');
-    expect(row?.className).toContain('opacity-55');
+    expect(row?.className).toContain('opacity-40');
   });
 
   it('a disabled key shows the "Disabled" status and offers "Enable key"', async () => {
