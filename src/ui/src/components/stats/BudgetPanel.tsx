@@ -61,17 +61,14 @@ export function BudgetPanel({ budget }: BudgetPanelProps): React.ReactElement {
     );
   }
 
-  // Budget present. Prefer the server-computed `budget.pct` (0..100) when finite;
-  // otherwise derive the ratio from current/max_budget with the divide-by-zero
-  // guard (maxBudget > 0 ? ratio : 1). The fill is a SINGLE width clamped to
-  // [0,100]%; over-budget is signalled by color.
+  // Budget present. Derive the fill from current/max_budget (the divide-by-zero
+  // guard makes a 0 max a full bar), EXACTLY mirroring the dashboard BudgetBar.
+  // The server also sends `budget.pct`, but it is the SAME ratio as a 0..1
+  // FRACTION — using it as a 0..100 percent rendered a sliver (15.94/50 -> a
+  // 0.32%-wide bar). The fill is a SINGLE width clamped to [0,100]%; over-budget
+  // is signalled by color.
   const ratio = maxBudget > 0 ? current / maxBudget : 1;
-  const pctFromContract =
-    b && typeof b.pct === 'number' && Number.isFinite(b.pct) ? b.pct : null;
-  const fillPct =
-    pctFromContract !== null
-      ? Math.max(0, Math.min(100, pctFromContract))
-      : Math.max(0, Math.min(1, ratio)) * 100;
+  const fillPct = Math.max(0, Math.min(1, ratio)) * 100;
   const over = current > maxBudget;
 
   return (

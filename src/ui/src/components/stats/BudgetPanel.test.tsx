@@ -15,7 +15,7 @@ describe('BudgetPanel', () => {
       current: 12.5,
       max_budget: 50,
       source: 'user',
-      pct: 25,
+      pct: 0.25, // contract pct is a 0..1 FRACTION (12.5/50)
       has_budget: true,
     };
     const { getByText, container } = render(<BudgetPanel budget={budget} />);
@@ -24,6 +24,8 @@ describe('BudgetPanel', () => {
     // Under budget -> primary fill, not destructive.
     const fill = container.querySelector('[data-slot="budget-fill"]');
     expect(fill?.className).toContain('bg-primary');
+    // 12.5/50 -> a 25%-wide bar (regression: was rendered as 0.25% sliver).
+    expect((fill as HTMLElement).style.width).toBe('25%');
     expect(container.querySelector('[data-slot="budget-panel"]')).toHaveAttribute(
       'data-state',
       'ok'
@@ -54,13 +56,13 @@ describe('BudgetPanel', () => {
       current: 120,
       max_budget: 50,
       source: 'user',
-      pct: 240,
+      pct: 2.4, // 120/50 as a 0..1-scale fraction
       has_budget: true,
     };
     const { container } = render(<BudgetPanel budget={budget} />);
     const fill = container.querySelector('[data-slot="budget-fill"]');
     expect(fill?.className).toContain('bg-destructive');
-    // Width clamped to 100% (240% pct clamps to 100).
+    // Over budget -> width clamped to 100% (ratio 2.4 clamps to 1).
     expect((fill as HTMLElement).style.width).toBe('100%');
   });
 
