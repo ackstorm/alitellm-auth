@@ -303,6 +303,28 @@ def test_create_key(client):
     assert call_kwargs.kwargs.get("duration") == "90d"
 
 
+def test_create_key_duplicate_alias_returns_422(client):
+    """A LiteLLM unique-alias 400 (same user, same name) → 422 on the alias field."""
+    err = httpx.HTTPStatusError(
+        "boom",
+        request=httpx.Request("POST", "http://litellm.test/key/generate"),
+        response=httpx.Response(
+            400,
+            json={"error": {"message": "Key with alias 'default' already exists."}},
+        ),
+    )
+    with patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen:
+        mock_gen.side_effect = err
+        response = client.post(
+            "/api/session/keys",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"alias": "default"},
+        )
+    assert response.status_code == 422
+    assert "default" in response.json()["detail"]
+
+
 def test_create_key_defaults_when_no_default_exists(client):
     """When NO default exists, the just-created key is promoted (first key case)."""
     with (

@@ -350,8 +350,16 @@ async def generate_litellm_key(
         # D-15: keys carry NO budget fields (budget is at the user level).
         # D-10: caller-supplied alias wins; default is readable AND second-unique
         # so sha256(key_alias) ids stay distinct (no DELETE/list collision).
+        #
+        # LiteLLM enforces a GLOBALLY-unique key_alias across ALL keys of ALL users
+        # ("Key with alias 'default' already exists"). So the stored key_alias is
+        # NAMESPACED with the user's email — `{email}-{name}` — letting two users
+        # each name a key "default". The friendly `display_alias` is kept in
+        # metadata and is what the UI shows (the projection strips the namespace).
+        # The id is sha256(namespaced alias), stable across /me and /key/list.
         now = datetime.now(timezone.utc)
-        key_alias = alias or f"key-{now.strftime('%Y-%m-%d-%H%M%S')}"
+        display_alias = alias or f"key-{now.strftime('%Y-%m-%d-%H%M%S')}"
+        key_alias = f"{email}-{display_alias}"
         key_payload: dict = {
             "models": ["all-team-models"],  # default — factory `key.models` may override
             # Deployment overrides (e.g. allowed_routes). NOT route-restricted by
@@ -361,13 +369,13 @@ async def generate_litellm_key(
             "team_id": team_id,  # always wins — not overridable
             "user_id": email,  # scope key to LiteLLM user (USER-02)
             "access_group_ids": [access_group_id] if access_group_id else [],
-            "key_alias": key_alias,
+            "key_alias": key_alias,  # namespaced (globally unique)
             "metadata": {
                 "email": email,
                 "name": name or email,
                 "source": "token-factory",
                 "created_at": now.isoformat(),
-                "key_alias": key_alias,
+                "key_alias": display_alias,  # FRIENDLY name — what the UI shows
                 **user_meta_extra,
             },
         }
@@ -395,6 +403,23 @@ async def generate_litellm_key(
     }
 
 
+def _display_alias(k: dict, md: dict) -> str | None:
+    """The FRIENDLY alias to show in the UI (the namespace is an internal detail).
+
+    Prefers metadata.key_alias (the friendly name we stored at creation). Falls
+    back to stripping the `{email}-` namespace from the raw key_alias, then to the
+    raw value — so keys created before the namespacing change still display right.
+    """
+    friendly = md.get("key_alias")
+    if friendly:
+        return friendly
+    raw = k.get("key_alias")
+    email = md.get("email")
+    if raw and email and raw.startswith(f"{email}-"):
+        return raw[len(email) + 1 :]
+    return raw
+
+
 def _project_session_key(k: dict, md: dict) -> dict:
     """Project one raw /key/list item to the SAPI-03 metadata shape.
 
@@ -405,7 +430,9 @@ def _project_session_key(k: dict, md: dict) -> dict:
     return {
         "id": _get_key_id(k, metadata=md),
         "token": k.get("token"),
-        "key_alias": k.get("key_alias"),
+        # FRIENDLY alias for display; the id above keeps using the raw (namespaced)
+        # key_alias so DELETE/list ids stay stable.
+        "key_alias": _display_alias(k, md),
         "spend": k.get("spend", 0.0),
         "budget": None,
         "tpm_limit": k.get("tpm_limit"),
@@ -863,6 +890,9 @@ async def get_key_info(api_key: str, settings: Settings) -> dict:
     return {
         "key": _get_token(info),  # The actual sk-... token
         "id": _get_key_id(info, metadata=metadata),
+        # Raw (namespaced) alias — keeps sha256(key_alias) ids stable in the
+        # string-item fallback projection path.
+        "key_alias": info.get("key_alias"),
         "email": metadata.get("email"),
         "name": metadata.get("name"),
         "team_id": info.get("team_id"),

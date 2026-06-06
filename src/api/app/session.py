@@ -333,6 +333,16 @@ async def session_create_key(
         )
     except httpx.HTTPStatusError as exc:
         logger.error("session_create_key: key generation failed for %s: %s", email, exc)
+        # key_alias is namespaced by email, so cross-user "default" collisions are
+        # gone — but the SAME user reusing a name still trips LiteLLM's unique-alias
+        # rule. Surface that as a 422 on the alias field (the create modal routes it
+        # there) instead of a generic 502.
+        resp = exc.response
+        if resp is not None and resp.status_code == 400 and "already exists" in resp.text.lower():
+            raise HTTPException(
+                status_code=422,
+                detail=f"You already have a key named '{alias}'. Choose a different name.",
+            )
         raise HTTPException(status_code=502, detail="Key generation failed")
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")

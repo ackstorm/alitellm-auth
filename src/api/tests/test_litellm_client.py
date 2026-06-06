@@ -17,6 +17,7 @@ from app.litellm_client import (
     delete_litellm_user,
     list_session_keys,
     block_litellm_key,
+    _display_alias,
     _normalize_teams,
     _project_session_key,
 )
@@ -131,6 +132,53 @@ async def test_list_session_keys_includes_last_used():
     )
     keys = await list_session_keys("alice@example.com", settings)
     assert keys[0]["last_used"] == "2026-06-06T06:25:06.024000Z"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_generate_litellm_key_namespaces_alias_by_email():
+    """key_alias sent to LiteLLM is `{email}-{alias}` (globally unique); the
+    friendly name is kept in metadata.key_alias for display."""
+    settings = make_settings()
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "team-platform"})
+    )
+    respx.post("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(200, json={"access_group_id": "g"})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+    gen = respx.post("http://litellm.test/key/generate").mock(
+        return_value=httpx.Response(200, json={"key": "sk-k", "key_id": "k"})
+    )
+    await generate_litellm_key("alice@example.com", settings, alias="default")
+    body = _json_body(gen)
+    assert body["key_alias"] == "alice@example.com-default"
+    assert body["metadata"]["key_alias"] == "default"
+
+
+def test_display_alias_prefers_metadata_then_strips_namespace():
+    """_display_alias shows the friendly name, never the `{email}-` namespace."""
+    # metadata friendly wins
+    assert (
+        _display_alias(
+            {"key_alias": "alice@x-default"}, {"key_alias": "default", "email": "alice@x"}
+        )
+        == "default"
+    )
+    # no metadata friendly -> strip the email namespace from the raw alias
+    assert _display_alias({"key_alias": "alice@x-default"}, {"email": "alice@x"}) == "default"
+    # legacy / un-namespaced -> raw value unchanged
+    assert _display_alias({"key_alias": "legacy"}, {}) == "legacy"
+
+
+def test_project_session_key_displays_friendly_alias():
+    """The projection surfaces the friendly alias while the id uses the raw one."""
+    k = {"token": "t", "key_alias": "alice@x-default", "metadata": {}}
+    md = {"key_alias": "default", "email": "alice@x"}
+    out = _project_session_key(k, md)
+    assert out["key_alias"] == "default"
 
 
 @pytest.mark.asyncio
@@ -705,7 +753,8 @@ async def test_generate_key_alias():
                 return_value=httpx.Response(200, json={"team_id": "team-platform"})
             )
 
-        # Test: explicit alias is threaded through verbatim.
+        # Test: explicit alias is threaded through — namespaced on the wire,
+        # friendly name kept in metadata for display.
         _setup_mocks()
         route_with = respx.post("http://litellm.test/key/generate").mock(
             return_value=httpx.Response(200, json={"key": "sk-a", "key_id": "k1"})
@@ -713,16 +762,22 @@ async def test_generate_key_alias():
         await generate_litellm_key("alice@example.com", settings, alias="my-key")
         body_with = _json_body(route_with)
         assert (
-            body_with.get("key_alias") == "my-key"
-        ), "explicit alias must be threaded into /key/generate"
+            body_with.get("key_alias") == "alice@example.com-my-key"
+        ), "key_alias must be namespaced by email for global uniqueness"
+        assert (
+            body_with["metadata"]["key_alias"] == "my-key"
+        ), "friendly alias must be kept in metadata for display"
 
-        # Test: default alias is readable + second-unique, not the debug tf- form.
+        # Test: default friendly alias is readable + second-unique, not the tf- form.
         _setup_mocks()
         route_default = respx.post("http://litellm.test/key/generate").mock(
             return_value=httpx.Response(200, json={"key": "sk-b", "key_id": "k2"})
         )
         await generate_litellm_key("alice@example.com", settings)
-        default_alias = _json_body(route_default)["key_alias"]
+        default_body = _json_body(route_default)
+        # On the wire it is namespaced; the friendly shape lives in metadata.
+        assert default_body["key_alias"].startswith("alice@example.com-key-")
+        default_alias = default_body["metadata"]["key_alias"]
         assert default_alias.startswith(
             "key-"
         ), f"default alias must start with 'key-', got {default_alias!r}"
