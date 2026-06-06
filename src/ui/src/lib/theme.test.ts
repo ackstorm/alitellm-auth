@@ -12,14 +12,15 @@ import {
 
 afterEach(() => {
   localStorage.clear();
-  document.documentElement.classList.remove('dark', 'light', 'pastel');
+  document.documentElement.classList.remove('dark', 'light', 'pastel', 'red');
 });
 
 describe('nextTheme', () => {
-  it('cycles dark -> light -> pastel -> dark', () => {
+  it('cycles dark -> light -> pastel -> red -> dark', () => {
     expect(nextTheme('dark')).toBe('light');
     expect(nextTheme('light')).toBe('pastel');
-    expect(nextTheme('pastel')).toBe('dark');
+    expect(nextTheme('pastel')).toBe('red');
+    expect(nextTheme('red')).toBe('dark');
   });
 });
 
@@ -36,17 +37,17 @@ describe('readStoredTheme', () => {
 });
 
 describe('applyThemeClass', () => {
-  it.each<Theme>(['dark', 'light', 'pastel'])(
+  it.each<Theme>(['dark', 'light', 'pastel', 'red'])(
     'puts exactly the %s class on <html>',
     (theme) => {
       // Seed a different class to prove the others are removed.
-      document.documentElement.classList.add('dark', 'light', 'pastel');
+      document.documentElement.classList.add('dark', 'light', 'pastel', 'red');
       applyThemeClass(theme);
       const cls = document.documentElement.classList;
       expect(cls.contains(theme)).toBe(true);
-      expect(['dark', 'light', 'pastel'].filter((t) => cls.contains(t))).toEqual([
-        theme,
-      ]);
+      expect(
+        ['dark', 'light', 'pastel', 'red'].filter((t) => cls.contains(t))
+      ).toEqual([theme]);
     }
   );
 });

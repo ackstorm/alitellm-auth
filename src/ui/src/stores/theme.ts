@@ -20,7 +20,7 @@ export interface ThemeState {
   theme: Theme;
   /** Set + apply + persist an explicit theme. */
   setTheme: (theme: Theme) => void;
-  /** Cycle through the themes: dark → light → pastel → dark. */
+  /** Cycle through the themes: dark → light → pastel → red → dark. */
   toggle: () => void;
 }
 

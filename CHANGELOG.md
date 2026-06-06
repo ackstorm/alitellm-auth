@@ -2,6 +2,11 @@
 
 ## [unreleased]
 
+- feat: a **red** corporate theme — the topbar toggle now cycles dark → light → pastel → red (coral-red primary on white surfaces with deep-navy ink); persisted to localStorage and applied before first paint.
+- change: topbar nav restyle — the active tab now carries a strong filled highlight, items are separated by `|`, and **Chat** moves next to the user as a low-contrast pill (no longer reads as the selected tab).
+- change: the keys table **DEFAULT** marker is now a neutral grey pill (matching the Models catalog) instead of the green accent badge — it is a property of the key, not a status.
+- change: **Stats** now opens on the 7-day window by default (was 30 days), and the **Compare** toggle (with its period-over-period delta chips) has been removed.
+- fix: the Stats **budget bar** rendered a tiny sliver regardless of spend — it treated the server's 0..1 `pct` fraction as a percentage. It now fills proportionally to spend ÷ budget.
 - change: the **Models** and **MCPs** pages (and their nav links) now require a default key — they are scoped to your account through it. Without a default key the nav items are disabled ("you need a default key") and the pages show a prompt to set one on the Keys tab, instead of failing with an error. With a default key they load normally.
 - feat: the service now **verifies the LiteLLM user-scoping contract at startup** — it checks that the `sso_key_swapper` custom auth (which resolves the `x-user-id` header to a user's default key) is installed on LiteLLM. If it is missing (a master-key request is accepted as full admin), a prominent CRITICAL banner is logged because per-user Models/MCPs would silently fall back to the global admin view. This is non-fatal and can be disabled with `LITELLM_USER_SCOPING_CHECK=false`. The custom-auth plugin and install/contract docs are now vendored under `deploy/litellm/`.
 

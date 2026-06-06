@@ -7,15 +7,15 @@
 // class. Kept side-effect-light and guarded (no throw if storage/matchMedia is
 // unavailable) so they are safe to call at module load and in tests.
 
-export type Theme = 'dark' | 'light' | 'pastel';
+export type Theme = 'dark' | 'light' | 'pastel' | 'red';
 
 export const THEME_STORAGE_KEY = 'alitellm-theme';
 
-/** The toggle cycle order: dark → light → pastel → (dark). */
-export const THEME_ORDER: readonly Theme[] = ['dark', 'light', 'pastel'];
+/** The toggle cycle order: dark → light → pastel → red → (dark). */
+export const THEME_ORDER: readonly Theme[] = ['dark', 'light', 'pastel', 'red'];
 
 /** The class names this app ever puts on <html> for theming. */
-const THEME_CLASSES = ['dark', 'light', 'pastel'] as const;
+const THEME_CLASSES = ['dark', 'light', 'pastel', 'red'] as const;
 
 /** The next theme in the cycle (wraps around). */
 export function nextTheme(theme: Theme): Theme {
@@ -36,7 +36,9 @@ export function getSystemTheme(): Theme {
 export function readStoredTheme(): Theme | null {
   try {
     const v = localStorage.getItem(THEME_STORAGE_KEY);
-    return v === 'dark' || v === 'light' || v === 'pastel' ? v : null;
+    return v === 'dark' || v === 'light' || v === 'pastel' || v === 'red'
+      ? v
+      : null;
   } catch {
     return null;
   }

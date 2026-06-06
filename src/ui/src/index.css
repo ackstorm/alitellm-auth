@@ -185,6 +185,71 @@
   --glow-3: oklch(0.84 0.13 350 / 0.62);
 }
 
+/* Red theme — applied when <html> carries the `red` class (explicit choice from
+ * the toggle cycle; the OS preference never resolves to it). The Izertis
+ * corporate skin: white surfaces, deep navy (#011C4A) ink, coral-red (#FF5361)
+ * primary, cool-gray (#cfd1df) borders. Light-family (dark ink on near-white),
+ * so shadcn `dark:` utilities stay OFF (no `.dark` ancestor) exactly like
+ * light/pastel. The green identity is swapped for the Izertis red; navy carries
+ * the text and structural lines. Hex→oklch conversions from www.izertis.com. */
+:root.red {
+  /* App-specific colors */
+  --surface: oklch(1 0 0);
+  --surface-elevated: oklch(1 0 0);
+  --border-bright: oklch(0.73 0.028 279); /* gray #a4a7ba */
+  --text-primary: oklch(0.241 0.092 259); /* navy #011C4A */
+  --text-secondary: oklch(0.5 0.042 268); /* gray #69738D, deepened */
+  --text-tertiary: oklch(0.62 0.03 281); /* gray #828498 */
+  --accent-hover: oklch(0.6 0.2 22);
+  --accent-muted: oklch(0.9 0.06 20);
+  --surface-inset: oklch(0.965 0.006 277); /* gray #f1f2f7 */
+  --surface-hover: oklch(0.955 0.008 277);
+  --accent-bright: oklch(0.6 0.21 22);
+  --success: oklch(0.62 0.11 188); /* Izertis teal #23b4aa */
+  --warning: oklch(0.66 0.15 80); /* Izertis gold #ffbc11, deepened */
+  --error: oklch(0.564 0.223 28); /* deep red #da1414 */
+
+  /* shadcn variables mapped to the red theme */
+  --background: oklch(0.985 0.004 277);
+  --foreground: oklch(0.241 0.092 259); /* navy #011C4A */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.241 0.092 259);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.241 0.092 259);
+  --primary: oklch(0.682 0.207 20); /* coral-red #FF5361 */
+  --primary-foreground: oklch(1 0 0); /* white ink on the red button */
+  --secondary: oklch(0.95 0.008 277);
+  --secondary-foreground: oklch(0.241 0.092 259);
+  --muted: oklch(0.95 0.008 277);
+  --muted-foreground: oklch(0.5 0.042 268);
+  --accent: oklch(0.94 0.04 20); /* pale red tint */
+  --accent-foreground: oklch(0.5 0.18 22);
+  --destructive: oklch(0.564 0.223 28); /* deep red #da1414, distinct from primary */
+  --border: oklch(0.863 0.019 279); /* gray #cfd1df */
+  --input: oklch(0.863 0.019 279);
+  --ring: oklch(0.682 0.207 20);
+  --chart-1: oklch(0.682 0.207 20); /* red */
+  --chart-2: oklch(0.5 0.12 260); /* navy/blue */
+  --chart-3: oklch(0.697 0.115 188); /* teal */
+  --chart-4: oklch(0.835 0.15 82); /* gold */
+  --chart-5: oklch(0.725 0.125 230); /* sky blue #3CB4E5 */
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.241 0.092 259);
+  --sidebar-primary: oklch(0.682 0.207 20);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.04 20);
+  --sidebar-accent-foreground: oklch(0.5 0.18 22);
+  --sidebar-border: oklch(0.863 0.019 279);
+  --sidebar-ring: oklch(0.682 0.207 20);
+
+  /* Izertis glow blobs: a soft top→bottom coral·sky·coral wash on the white
+     surface (lighter + higher-alpha than dark/light so the gradient actually
+     reads on near-white, mirroring how pastel makes its blobs visible). */
+  --glow-1: oklch(0.78 0.13 22 / 0.55);
+  --glow-2: oklch(0.72 0.11 245 / 0.4);
+  --glow-3: oklch(0.8 0.12 20 / 0.5);
+}
+
 @theme inline {
   /* App-specific theme colors */
   --color-background: var(--background);

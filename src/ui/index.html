@@ -11,7 +11,7 @@
       (function () {
         try {
           var t = localStorage.getItem('alitellm-theme');
-          if (t !== 'dark' && t !== 'light' && t !== 'pastel') {
+          if (t !== 'dark' && t !== 'light' && t !== 'pastel' && t !== 'red') {
             t =
               window.matchMedia &&
               window.matchMedia('(prefers-color-scheme: light)').matches
@@ -19,7 +19,7 @@
                 : 'dark';
           }
           var el = document.documentElement;
-          el.classList.remove('dark', 'light', 'pastel');
+          el.classList.remove('dark', 'light', 'pastel', 'red');
           el.classList.add(t);
         } catch (e) {}
       })();
