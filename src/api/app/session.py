@@ -330,12 +330,34 @@ async def session_create_key(
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
+    # Auto-promote the FIRST key: if the user has no default yet, make this new one
+    # the default so Chat/Models/MCPs are not gated on day one. Otherwise the default
+    # stays explicit-only — we never silently reassign an existing default. Non-fatal:
+    # the key is already minted, so any failure here just leaves it un-defaulted (the
+    # user can still set one from the kebab menu).
+    is_default = False
+    try:
+        user_keys = await list_session_keys(email, settings)
+        if not any(k.get("is_default") for k in user_keys):
+            new_key = next((k for k in user_keys if k.get("id") == key_data["id"]), None)
+            if new_key is not None:
+                await set_litellm_key_default(
+                    new_key["token"],
+                    settings,
+                    is_default=True,
+                    existing_metadata=new_key.get("metadata") or {},
+                )
+                is_default = True
+    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+        logger.warning("session_create_key: auto-default failed for %s: %s", email, exc)
+
     # Return the sk- ONCE — it is never stored and cannot be recovered (SAPI-04)
     return JSONResponse(
         {
             "key": key_data["key"],
             "id": key_data["id"],
             "team_id": key_data.get("team_id"),
+            "is_default": is_default,
         }
     )
 
@@ -401,7 +423,8 @@ async def session_make_default(
 
     Sets is_default=True on the target and clears it on any other key that
     currently has it. 403 for a foreign/unknown id (no existence leak, D-12).
-    The default is metadata-backed and never auto-assigned on create.
+    The default is metadata-backed; only the user's FIRST key is auto-assigned
+    (session_create_key) — reassigning between existing keys is explicit.
     """
     settings: Settings = request.app.state.settings
     assert_same_origin(request, settings)

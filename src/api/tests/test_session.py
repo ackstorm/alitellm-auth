@@ -303,6 +303,53 @@ def test_create_key(client):
     assert call_kwargs.kwargs.get("duration") == "90d"
 
 
+def test_create_key_auto_defaults_first_key(client):
+    """The user's FIRST key (no existing default) is auto-promoted to default."""
+    with (
+        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
+    ):
+        mock_gen.return_value = {"key": "sk-first", "id": "new-id", "team_id": "team-test-client"}
+        mock_list.return_value = [
+            {"id": "new-id", "token": "tok-new", "is_default": False, "metadata": {"email": "x"}},
+        ]
+        response = client.post(
+            "/api/session/keys",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            content="{}",
+        )
+    assert response.status_code == 200
+    assert response.json()["is_default"] is True
+    mock_set.assert_awaited_once()
+    assert mock_set.await_args.args[0] == "tok-new"
+    assert mock_set.await_args.kwargs.get("is_default") is True
+
+
+def test_create_key_does_not_reassign_existing_default(client):
+    """A subsequent key is NOT auto-promoted when a default already exists."""
+    with (
+        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
+    ):
+        mock_gen.return_value = {"key": "sk-second", "id": "new-id", "team_id": "team-test-client"}
+        mock_list.return_value = [
+            {"id": "old-id", "token": "tok-old", "is_default": True, "metadata": {}},
+            {"id": "new-id", "token": "tok-new", "is_default": False, "metadata": {}},
+        ]
+        response = client.post(
+            "/api/session/keys",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            content="{}",
+        )
+    assert response.status_code == 200
+    assert response.json()["is_default"] is False
+    mock_set.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # SAPI-05 — DELETE /api/session/keys/{id}
 # ---------------------------------------------------------------------------
