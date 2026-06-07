@@ -83,6 +83,10 @@ export function BudgetPanel({ budget }: BudgetPanelProps): React.ReactElement {
         </span>
         <span className="font-mono text-xs text-text-primary">
           {formatCurrency(current)} of {formatCurrency(maxBudget)}
+          {b?.budget_duration ? (
+            // The budget is per-period; show it so "$X of $Y" isn't ambiguous.
+            <span className="text-text-tertiary"> / {b.budget_duration}</span>
+          ) : null}
         </span>
       </div>
       <div className="flex h-2 overflow-hidden rounded-full border border-border bg-background">

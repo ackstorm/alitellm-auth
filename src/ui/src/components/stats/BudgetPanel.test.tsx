@@ -14,13 +14,20 @@ describe('BudgetPanel', () => {
     const budget: StatsBudget = {
       current: 12.5,
       max_budget: 50,
+      budget_duration: '30d',
       source: 'user',
       pct: 0.25, // contract pct is a 0..1 FRACTION (12.5/50)
       has_budget: true,
     };
     const { getByText, container } = render(<BudgetPanel budget={budget} />);
     expect(getByText('BUDGET STATUS')).toBeInTheDocument();
-    expect(getByText('$12.50 of $50.00')).toBeInTheDocument();
+    // The figure carries the budget PERIOD ("/ 30d") in a child span, so match on
+    // the amount span's full textContent.
+    expect(
+      getByText(
+        (_content, el) => el?.textContent === '$12.50 of $50.00 / 30d',
+      ),
+    ).toBeInTheDocument();
     // Under budget -> primary fill, not destructive.
     const fill = container.querySelector('[data-slot="budget-fill"]');
     expect(fill?.className).toContain('bg-primary');
@@ -36,6 +43,7 @@ describe('BudgetPanel', () => {
     const budget: StatsBudget = {
       current: 8,
       max_budget: null,
+      budget_duration: null,
       source: 'unknown',
       pct: null,
       has_budget: false,
@@ -55,6 +63,7 @@ describe('BudgetPanel', () => {
     const budget: StatsBudget = {
       current: 120,
       max_budget: 50,
+      budget_duration: '30d',
       source: 'user',
       pct: 2.4, // 120/50 as a 0..1-scale fraction
       has_budget: true,

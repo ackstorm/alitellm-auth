@@ -299,6 +299,7 @@ def build_stats_contract(
     budget_block = {
         "current": current_spend,
         "max_budget": max_budget,
+        "budget_duration": budget.get("budget_duration"),
         "source": budget.get("source"),
         "pct": _safe_pct(current_spend, max_budget),
         "has_budget": max_budget is not None,

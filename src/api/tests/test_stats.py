@@ -247,13 +247,20 @@ def test_build_stats_contract_last_used_present_keeps_capability():
 
 def test_build_stats_contract_budget_with_max():
     cur = aggregate_window(_load("daily_activity_empty.json"))
-    budget = {"current": 4.2, "max_budget": 10.0, "source": "user"}
+    budget = {
+        "current": 4.2,
+        "max_budget": 10.0,
+        "budget_duration": "30d",
+        "source": "user",
+    }
     contract = build_stats_contract(cur, cur, budget, {}, dict(_CAPABILITIES), _RANGE)
 
     b = contract["budget"]
     assert b["has_budget"] is True
     assert b["pct"] == pytest.approx(0.42)
     assert b["max_budget"] == 10.0
+    # The budget PERIOD passes through so the UI can disambiguate "$X of $Y".
+    assert b["budget_duration"] == "30d"
 
 
 def test_build_stats_contract_null_budget_pct_none():

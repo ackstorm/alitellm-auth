@@ -3,6 +3,7 @@
 ## [unreleased]
 
 - change: the dashboard **Account budget** now shows the budget **period** (e.g. `$0.17 of $100.00 / 30d`) so the cap is unambiguous.
+- change: the **Stats** page **Budget status** panel now shows the same budget **period** (e.g. `$0.17 of $100.00 / 30d`), matching the dashboard.
 - change: default factory limits updated — **team** 200 budget / 30d, **user** 100 budget / 30d, both `rpm_limit: 100`, `tpm_limit: 1,000,000` (best-effort throughput). (Helm `values.yaml` + Kustomize configmap; applies to deployments that adopt the defaults.)
 
 ## [0.5.4] - 2026-06-06

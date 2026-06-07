@@ -213,6 +213,7 @@ export interface StatsKeyRow {
 export interface StatsBudget {
   current: number;
   max_budget: number | null;
+  budget_duration: string | null;
   source: SpendSource;
   pct: number | null;
   has_budget: boolean;

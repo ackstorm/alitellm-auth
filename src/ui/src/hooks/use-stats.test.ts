@@ -51,6 +51,7 @@ const STATS: StatsResponse = {
   budget: {
     current: 0,
     max_budget: null,
+    budget_duration: null,
     source: 'unknown',
     pct: null,
     has_budget: false,

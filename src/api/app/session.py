@@ -628,7 +628,12 @@ async def session_stats(
         prev_agg = aggregate_window(prev_res)
 
     # BUDGET failure → degrade the budget block (mirrors session_me), do NOT 502.
-    budget: dict[str, Any] = {"current": 0, "max_budget": None, "source": _SPEND_SOURCE_UNKNOWN}
+    budget: dict[str, Any] = {
+        "current": 0,
+        "max_budget": None,
+        "budget_duration": None,
+        "source": _SPEND_SOURCE_UNKNOWN,
+    }
     if isinstance(budget_res, BaseException):
         logger.warning("session_stats: budget fetch failed for %s: %s", email, budget_res)
     else:
@@ -636,6 +641,7 @@ async def session_stats(
         budget = {
             "current": spend["current"],
             "max_budget": budget_res.get("max_budget"),
+            "budget_duration": budget_res.get("budget_duration"),
             "source": spend["source"],
         }
 
