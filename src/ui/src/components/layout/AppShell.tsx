@@ -191,9 +191,9 @@ export function AppShell({ me, config }: AppShellProps) {
             className="inline-flex cursor-not-allowed items-center gap-1 rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider text-text-tertiary"
           >
             Memory
-            <sup className="text-[7px] font-semibold uppercase tracking-wider text-text-tertiary/70">
+            <span className="rounded-full border border-border bg-surface-elevated px-1.5 py-px text-[8px] font-semibold uppercase leading-none tracking-wide text-text-tertiary">
               soon
-            </sup>
+            </span>
           </span>
           <NavSep />
           <NavLink to="/stats" className={navLinkClass}>
@@ -215,7 +215,7 @@ export function AppShell({ me, config }: AppShellProps) {
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label="User menu"
-              className="group inline-flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:bg-primary/5"
+              className="group inline-flex items-center gap-2 rounded-lg border border-border bg-surface py-1 pl-1 pr-2 outline-none transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:border-primary/40 data-[state=open]:bg-primary/5"
             >
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/15 font-sans text-[11px] font-semibold text-primary">
                 {initialsOf(menuLabel)}
