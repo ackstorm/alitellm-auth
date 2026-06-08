@@ -48,7 +48,7 @@ jobs:
       - run: ./scripts/dev.sh make _test
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: src/api/coverage.xml
