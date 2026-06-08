@@ -43,7 +43,7 @@ from app.litellm_client import (
     spend_logs_last_used,
     user_daily_activity,
 )
-from app.stats import aggregate_window, build_stats_contract
+from app.stats import aggregate_window, build_stats_contract, resolve_key_display
 
 logger = logging.getLogger(__name__)
 
@@ -601,11 +601,12 @@ async def session_stats(
     prev_start = prev_end - timedelta(days=span - 1)
 
     # Fetch all figures concurrently; degrade each independently (D-06).
-    cur_res, prev_res, budget_res, last_used_res = await asyncio.gather(
+    cur_res, prev_res, budget_res, last_used_res, keys_res = await asyncio.gather(
         user_daily_activity(email, settings, start.isoformat(), end.isoformat()),
         user_daily_activity(email, settings, prev_start.isoformat(), prev_end.isoformat()),
         get_litellm_user(email, settings),
         spend_logs_last_used(email, settings, start.isoformat(), end.isoformat()),
+        list_session_keys(email, settings),
         return_exceptions=True,
     )
 
@@ -652,6 +653,15 @@ async def session_stats(
     elif isinstance(last_used_res, dict):
         last_used = last_used_res
 
+    # KEY-LIST failure → skip friendly-name resolution; per-key rows keep the opaque
+    # lk- alias (prior behaviour), never 502. The key list also carries the server-
+    # side `token` hash, so it MUST stay server-side (resolve before serializing).
+    key_list: list[dict[str, Any]] = []
+    if isinstance(keys_res, BaseException):
+        logger.warning("session_stats: key-list fetch failed for %s: %s", email, keys_res)
+    elif isinstance(keys_res, list):
+        key_list = keys_res
+
     range_meta = {
         "start": start.isoformat(),
         "end": end.isoformat(),
@@ -660,6 +670,11 @@ async def session_stats(
     }
 
     contract = build_stats_contract(cur_agg, prev_agg, budget, last_used, capabilities, range_meta)
+    # Join the spend-log per-key rows (opaque lk- alias) to the user's key list so
+    # the TOP API KEYS panel shows the FRIENDLY name and the UI dedups the idle-key
+    # padding row (the active key was rendering twice: once as lk-… with all the
+    # usage, once as the friendly name with 0). D-03: the server shapes this.
+    contract["keys"] = resolve_key_display(contract["keys"], key_list)
     return JSONResponse(contract)
 
 

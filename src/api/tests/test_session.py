@@ -790,6 +790,54 @@ def test_stats_happy_path(client):
     assert data["capabilities"]["deltas"] is True
 
 
+def test_stats_keys_resolve_friendly_name_from_key_list(client):
+    """TOP API KEYS join: the spend-log key row gets its FRIENDLY name + key-list id.
+
+    Regression for the two-rows bug — the active key rendered once as its opaque
+    spend-log identifier (with all the usage) and once as the friendly name (0
+    usage). The route now joins the spend rows to the user's key list so the row
+    carries the friendly name and the stable key-list id (which lets the UI dedup
+    the idle padding row). The fixture spend row has key_alias=None + id == the key
+    hash, so this exercises the token-hash fallback join.
+    """
+    activity, last, budget = _stats_mocks()
+    key_hash = "195b8b1f2c4e46945209387ec13e08ea7d74714fd088cd118b928630a03f2317"
+    key_list = AsyncMock(
+        return_value=[
+            {"id": "stable-id-n8n", "token": key_hash, "key_alias": "n8n"},
+        ]
+    )
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget),
+        patch("app.session.list_session_keys", key_list),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 200
+    keys = response.json()["keys"]
+    row = next(k for k in keys if k["id"] == "stable-id-n8n")
+    assert row["key_alias"] == "n8n"  # friendly name, not the opaque spend-log id
+    assert row["requests"] == 11  # usage preserved (the fixture's summed requests)
+    # No opaque/raw spend-log id leaks as a separate row.
+    assert key_hash not in {k["id"] for k in keys}
+
+
+def test_stats_key_list_failure_degrades_no_502(client):
+    """Key-list fetch failure → still 200, per-key rows keep their raw alias (D-09)."""
+    activity, last, budget = _stats_mocks()
+    failing = AsyncMock(side_effect=RuntimeError("litellm down"))
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget),
+        patch("app.session.list_session_keys", failing),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 200
+    assert "keys" in response.json()
+
+
 def test_usage_removed(client):
     """Regression (D-02): the old GET /api/session/usage route is gone → 404."""
     response = client.get("/api/session/usage", cookies=_authed_cookie())

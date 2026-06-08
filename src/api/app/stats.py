@@ -33,9 +33,15 @@ window stays ``0``/``0.0``. Every denominator is guarded.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, TypedDict
 
-__all__ = ["aggregate_window", "compute_deltas", "build_stats_contract"]
+__all__ = [
+    "aggregate_window",
+    "compute_deltas",
+    "build_stats_contract",
+    "resolve_key_display",
+]
 
 
 class WindowAggregate(TypedDict):
@@ -322,3 +328,67 @@ def build_stats_contract(
         "budget": budget_block,
         "capabilities": capabilities,
     }
+
+
+def resolve_key_display(
+    keys: list[dict[str, Any]],
+    key_list: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """Rewrite each per-key stats row's OPAQUE alias to its FRIENDLY name + stable id.
+
+    The spend-log per-key rows (``aggregate_window``) carry the opaque
+    ``lk-{random}`` token as ``key_alias`` and a spend-log key hash as ``id`` — the
+    friendly name (e.g. "n8n") is NOT in the spend logs. It lives in the key's
+    metadata, exposed by the key list (``list_session_keys``) as ``key_alias``,
+    alongside the stable ``id`` = ``sha256(opaque alias)`` (``_get_key_id``) and the
+    LiteLLM ``token`` hash.
+
+    Join each spend row to its key-list entry — by ``sha256(opaque alias) == id``
+    (primary; the documented invariant) or by ``token`` hash (fallback) — and
+    rewrite the row's ``key_alias`` to the friendly name and its ``id`` to the
+    key-list ``id``. Aligning the id lets the UI ``mergeTopKeys`` dedup collapse the
+    idle-key padding row instead of rendering a second 0-usage row for the same key.
+
+    Pure + side-effect-free: returns NEW row dicts, never mutates the inputs. An
+    unmatched row (key deleted, or ``key_list`` unavailable) passes through unchanged
+    — it still shows the opaque alias, the prior behaviour, never worse (D-09).
+    """
+    if not key_list:
+        return [dict(k) for k in keys]
+
+    by_id: dict[str, dict[str, Any]] = {}
+    by_token: dict[str, dict[str, Any]] = {}
+    for row in key_list:
+        if not isinstance(row, dict):
+            continue
+        kid = row.get("id")
+        tok = row.get("token")
+        if isinstance(kid, str) and kid:
+            by_id.setdefault(kid, row)
+        if isinstance(tok, str) and tok:
+            by_token.setdefault(tok, row)
+
+    resolved: list[dict[str, Any]] = []
+    for k in keys:
+        row = dict(k)
+        match: dict[str, Any] | None = None
+
+        opaque = row.get("key_alias")
+        if isinstance(opaque, str) and opaque:
+            alias_id = hashlib.sha256(opaque.encode()).hexdigest()
+            match = by_id.get(alias_id)
+
+        if match is None:
+            sid = row.get("id")
+            if isinstance(sid, str) and sid:
+                match = by_token.get(sid)
+
+        if match is not None:
+            row["id"] = match.get("id") or row.get("id")
+            friendly = match.get("key_alias")
+            if friendly:
+                row["key_alias"] = friendly
+
+        resolved.append(row)
+
+    return resolved

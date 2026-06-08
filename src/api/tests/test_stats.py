@@ -13,7 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from app.stats import aggregate_window, build_stats_contract, compute_deltas
+import hashlib
+
+from app.stats import (
+    aggregate_window,
+    build_stats_contract,
+    compute_deltas,
+    resolve_key_display,
+)
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -286,3 +293,64 @@ def test_build_stats_contract_empty_totals_are_zero_not_null():
     assert t["spend"] == 0
     # avg_cost guarded for 0 requests → None (unavailable, not 0).
     assert t["avg_cost_per_1k_req"] is None
+
+
+# ---------------------------------------------------------------------------
+# resolve_key_display — opaque lk- alias → friendly name join (TOP API KEYS fix)
+# ---------------------------------------------------------------------------
+
+def _alias_id(opaque: str) -> str:
+    """The key-list id for an opaque alias == sha256(alias) (litellm _get_key_id)."""
+    return hashlib.sha256(opaque.encode()).hexdigest()
+
+
+def test_resolve_key_display_joins_opaque_alias_to_friendly_name():
+    """The spend row's opaque lk- alias → friendly name, id → stable key-list id."""
+    opaque = "lk-80cffcc549141094"
+    kid = _alias_id(opaque)
+    # Spend-log row: opaque alias + a spend-log key hash (NOT the key-list id).
+    stats_keys = [{"id": "spendhash_abc", "key_alias": opaque, "requests": 25, "spend": 0.05}]
+    key_list = [{"id": kid, "token": "tok_hash_1", "key_alias": "n8n"}]
+
+    out = resolve_key_display(stats_keys, key_list)
+
+    assert out[0]["key_alias"] == "n8n"
+    assert out[0]["id"] == kid  # aligned so the UI dedups the idle padding row
+    # Usage untouched.
+    assert out[0]["requests"] == 25
+    assert out[0]["spend"] == 0.05
+    # Pure: inputs not mutated.
+    assert stats_keys[0]["key_alias"] == opaque
+    assert stats_keys[0]["id"] == "spendhash_abc"
+
+
+def test_resolve_key_display_token_hash_fallback():
+    """When the opaque alias misses, join on spend-log id == key-list token hash."""
+    stats_keys = [{"id": "tok_hash_1", "key_alias": None, "requests": 3, "spend": 0.01}]
+    key_list = [{"id": _alias_id("lk-abc"), "token": "tok_hash_1", "key_alias": "default"}]
+
+    out = resolve_key_display(stats_keys, key_list)
+
+    assert out[0]["key_alias"] == "default"
+    assert out[0]["id"] == _alias_id("lk-abc")
+
+
+def test_resolve_key_display_unmatched_row_passes_through():
+    """No key-list match (key deleted) → opaque alias kept, never worse (D-09)."""
+    stats_keys = [{"id": "spendhash_x", "key_alias": "lk-deadbeef", "requests": 1, "spend": 0.0}]
+    key_list = [{"id": _alias_id("lk-other"), "token": "tok_other", "key_alias": "n8n"}]
+
+    out = resolve_key_display(stats_keys, key_list)
+
+    assert out[0]["key_alias"] == "lk-deadbeef"
+    assert out[0]["id"] == "spendhash_x"
+
+
+def test_resolve_key_display_empty_key_list_is_noop_copy():
+    """Key-list unavailable → rows pass through unchanged (degraded), as a copy."""
+    stats_keys = [{"id": "h", "key_alias": "lk-1", "requests": 2, "spend": 0.0}]
+
+    for kl in (None, []):
+        out = resolve_key_display(stats_keys, kl)
+        assert out == stats_keys
+        assert out[0] is not stats_keys[0]  # never mutates / aliases the input
