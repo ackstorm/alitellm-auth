@@ -1,7 +1,7 @@
 # ── UI builder stage ───────────────────────────────────────────────────────────
 # Node lives ONLY here; the stage is discarded so node never lands in runtime.
 # Aligned with Dockerfile.devtools (NodeSource Node 22 LTS).
-FROM node:22-slim AS ui-builder
+FROM node:26-slim AS ui-builder
 WORKDIR /src/ui
 # Explicit COPY paths only — NEVER `COPY . .` (CLAUDE.md). Copy the lockfile pair
 # first so `npm ci` caches independently of source edits; the lockfile is exact
