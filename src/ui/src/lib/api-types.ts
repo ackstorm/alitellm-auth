@@ -329,6 +329,9 @@ export interface AppConfig {
   accent_segment: string;
   provider_label: string;
   public_host: string;
+  // Explicit hosted-chat URL. Empty string => the SPA derives chat.<domain> from
+  // the gateway host (deriveSubdomainUrl over me.endpoint).
+  chat_public_url: string;
   providers: ConfigProvider[];
   links: Record<string, string>;
 }

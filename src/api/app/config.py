@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # branded public URL via API_PUBLIC_URL. When unset, public_config falls back
     # gracefully (urlparse("").hostname or "" → "").
     api_public_url: str = ""  # public URL shown to users
+    # Public URL of the hosted chat UI (CHAT nav button + How-to card). When unset,
+    # the SPA falls back to deriving chat.<domain> from api_public_url's host. Set
+    # this when the chat UI does NOT live at chat.<same-domain-as-api>.
+    # Env var: CHAT_PUBLIC_URL
+    chat_public_url: str = ""
 
     # Factory config — path to mounted ConfigMap JSON with team/user LiteLLM params
     factory_config_path: str | None = None

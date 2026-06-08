@@ -67,7 +67,9 @@ export function AppShell({ me, config }: AppShellProps) {
   // (explicit-only), so when none exists the pill is rendered disabled with a hint.
   const { data: keys } = useKeys();
   const hasDefault = (keys ?? []).some((k) => k.is_default);
-  const chatUrl = deriveSubdomainUrl(me.endpoint, 'chat');
+  // Explicit chat URL when the deployment sets CHAT_PUBLIC_URL; otherwise derive
+  // chat.<domain> from the gateway host.
+  const chatUrl = config.chat_public_url || deriveSubdomainUrl(me.endpoint, 'chat');
   const chatPill =
     'rounded-md border px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors';
   const chatEl = hasDefault ? (

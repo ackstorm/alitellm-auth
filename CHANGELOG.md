@@ -7,6 +7,7 @@
 - change: default factory limits updated — **team** 200 budget / 30d, **user** 100 budget / 30d, both `rpm_limit: 100`, `tpm_limit: 1,000,000` (best-effort throughput). (Helm `values.yaml` + Kustomize configmap; applies to deployments that adopt the defaults.)
 - feat: **HOW-TO** adds **GitHub Copilot** (VS Code proxy override) and **Qwen Code** CLI setups, each linking its authoritative LiteLLM guide.
 - feat: **HOW-TO** gains an **MCP servers** section — how to point MCP clients at the gateway's `/mcp` endpoint with your virtual key, scope the exposed tools with the `x-mcp-servers` header (servers and/or groups), or target a group directly via the `/mcp/<group>` URL.
+- feat: new **`CHAT_PUBLIC_URL`** setting (Helm `config.chatPublicUrl` + Kustomize env) for the hosted-chat link (CHAT nav button + How-to card). When unset the SPA still derives `chat.<domain>` from the gateway host, so this is backward-compatible; set it when chat does not live at `chat.<same-domain-as-api>`. Exposed via `GET /api/config`.
 
 ## [0.5.4] - 2026-06-06
 

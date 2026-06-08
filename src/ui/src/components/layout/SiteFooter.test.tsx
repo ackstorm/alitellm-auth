@@ -20,6 +20,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     accent_segment: '-auth',
     provider_label: 'dex',
     public_host: '',
+    chat_public_url: '',
     providers: [],
     links: {},
     ...overrides,

@@ -30,6 +30,9 @@ config:
   oauthClientId: "platform"
   litellmUrl: "https://litellm.ackstorm.ai"
   apiPublicUrl: "https://api.ackstorm.ai"
+  # Hosted chat UI URL (CHAT nav button + How-to card). Leave empty to derive
+  # chat.<domain> from apiPublicUrl's host; set it when chat lives elsewhere.
+  chatPublicUrl: "https://chat.ackstorm.ai"
   # D-18: Secure cookie flag. True in prod (HTTPS), False for local HTTP dev.
   sessionHttpsOnly: "true"
 

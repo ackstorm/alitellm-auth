@@ -164,7 +164,8 @@ export function HowTo() {
   // Live gateway base (api_public_url). Falls back to a neutral placeholder so
   // the page reads sensibly before the session resolves.
   const apiBase = me?.endpoint || FALLBACK_API_BASE;
-  const chatUrl = deriveSubdomainUrl(me?.endpoint, 'chat');
+  const chatUrl =
+    config.chat_public_url || deriveSubdomainUrl(me?.endpoint, 'chat');
   const brandShort = config.brand_short || 'LiteLLM';
 
   // The quickstart curl — the featured first call. Header is the deployment's

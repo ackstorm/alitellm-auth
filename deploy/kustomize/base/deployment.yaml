@@ -37,6 +37,9 @@ spec:
               value: "https://litellm.ackstorm.ai"
             - name: API_PUBLIC_URL
               value: "https://api.ackstorm.ai"
+            # Hosted chat UI URL; empty derives chat.<domain> from API_PUBLIC_URL.
+            - name: CHAT_PUBLIC_URL
+              value: "https://chat.ackstorm.ai"
             - name: FACTORY_CONFIG_PATH
               value: "/etc/alitellm-auth/factory-config.json"
             # D-18: Secure cookie flag. True in prod overlays, False for local HTTP dev.

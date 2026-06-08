@@ -74,6 +74,19 @@ def test_config_public_host_is_host_of_api_public_url():
     assert body["public_host"] == "api.test"
 
 
+def test_config_chat_public_url_defaults_empty():
+    """(d2) chat_public_url is "" by default → the SPA derives chat.<domain>."""
+    body = _client().get("/api/config").json()
+    assert body["chat_public_url"] == ""
+
+
+def test_config_chat_public_url_passthrough_when_set():
+    """(d3) An explicit CHAT_PUBLIC_URL is returned verbatim (overrides derivation)."""
+    client = _client(chat_public_url="https://chat.example.com")
+    body = client.get("/api/config").json()
+    assert body["chat_public_url"] == "https://chat.example.com"
+
+
 def test_config_contains_no_secret_values():
     """(e) The payload contains NONE of the secret setting values."""
     secrets = {

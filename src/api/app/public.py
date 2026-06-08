@@ -54,6 +54,9 @@ async def public_config(request: Request) -> JSONResponse:
         "tagline": settings.tagline,
         "accent_segment": settings.accent_segment,
         "public_host": public_host,
+        # Explicit hosted-chat URL; "" lets the SPA derive chat.<domain> from the
+        # api host (deriveSubdomainUrl). Set CHAT_PUBLIC_URL to override.
+        "chat_public_url": settings.chat_public_url,
         "provider_label": settings.provider_label,
         "providers": _PROVIDERS,
         "links": links,
