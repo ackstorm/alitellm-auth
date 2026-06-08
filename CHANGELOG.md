@@ -2,7 +2,9 @@
 
 ## [unreleased]
 
-- change: the **HOW-TO** MCP servers section is now compact — two tabs, **MCP Access** (full config) and **MCP Group access** (`x-mcp-servers` / `/mcp/<group>` scoping), matching the Editors & CLIs tab style.
+- change: the **HOW-TO** MCP servers section is now compact tabs — **MCP Access** (full config), **MCP Group access** (`x-mcp-servers` / `/mcp/<group>` scoping), and **Try with curl** (a no-LLM `tools/list` + `tools/call` smoke test over the MCP REST API).
+- feat: **HOW-TO** **OpenCode** gains a second tab — **OpenCode (Gemini)** — wiring its native `google` provider to the gateway's `/gemini/v1beta` passthrough.
+- change: **HOW-TO** polish — `codex`/`opencode` tabs renamed **Codex**/**OpenCode**; tab triggers now show a pointer cursor; the **ACKstorm Chat** open-in-new icon is accent-green (vs muted for the not-yet-wired openwork); the openwork badge reads **SOON**.
 
 ## [0.5.5] - 2026-06-08
 

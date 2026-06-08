@@ -204,6 +204,20 @@ export function HowTo() {
     }
   }
 }`;
+  // Quick smoke test via the MCP REST API — list/call tools with curl, no LLM.
+  const mcpCurl = `# List the MCP tools you can access
+curl -s ${apiBase}/mcp-rest/tools/list \\
+  -H "${AUTH_HEADER}: Bearer ${KEY_PLACEHOLDER}" | jq .
+
+# Call a tool (server_id + tool name + arguments)
+curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
+  -H "${AUTH_HEADER}: Bearer ${KEY_PLACEHOLDER}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "server_id": "Zapier_Gmail",
+    "name": "getProfile",
+    "arguments": {}
+  }' | jq .`;
 
   // ── Editor / CLI setup ───────────────────────────────────────────────────────
   // Live setup for Claude Code, Gemini CLI, opencode, and codex. The base URL is
@@ -251,7 +265,7 @@ gemini`,
     },
     {
       id: 'opencode',
-      label: 'opencode',
+      label: 'OpenCode',
       ready: true,
       caption: '~/.config/opencode/opencode.json',
       // opencode is configured by a JSON file (NOT env vars): an OpenAI-compatible
@@ -276,14 +290,43 @@ gemini`,
       note: 'Save the file, then run `opencode` and pick a LiteLLM model with `/models`.',
       guide: {
         url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
-        label: 'opencode + LiteLLM guide',
+        label: 'OpenCode + LiteLLM guide',
+      },
+    },
+    {
+      id: 'opencode-gemini',
+      label: 'OpenCode (Gemini)',
+      ready: true,
+      caption: '~/.config/opencode/opencode.json',
+      // OpenCode can instead use its native `google` provider against the gateway's
+      // Gemini-compatible passthrough (/gemini/v1beta). Model names must match the
+      // Gemini models your gateway exposes.
+      code: `{
+  "$schema": "https://opencode.ai/config.json",
+  "enabled_providers": ["google"],
+  "provider": {
+    "google": {
+      "options": {
+        "baseURL": "${apiBase}/gemini/v1beta",
+        "apiKey": "${KEY_PLACEHOLDER}",
+        "timeout": 600000
+      }
+    }
+  },
+  "model": "google/gemini-flash-latest",
+  "small_model": "google/gemini-flash-lite-latest"
+}`,
+      note: 'Save the file, then run `opencode`. Model names must match the Gemini models your gateway exposes.',
+      guide: {
+        url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
+        label: 'OpenCode + LiteLLM guide',
       },
     },
     {
       id: 'codex',
-      label: 'codex',
+      label: 'Codex',
       ready: true,
-      code: `# codex → LiteLLM (OpenAI-compatible)
+      code: `# Codex → LiteLLM (OpenAI-compatible)
 export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
 export OPENAI_BASE_URL="${apiBase}/v1"
 
@@ -483,6 +526,7 @@ qwen`,
               <TabsList variant="line">
                 <TabsTrigger value="access">MCP Access</TabsTrigger>
                 <TabsTrigger value="group">MCP Group access</TabsTrigger>
+                <TabsTrigger value="curl">Try with curl</TabsTrigger>
               </TabsList>
 
               <TabsContent value="access" className="mt-4">
@@ -516,6 +560,18 @@ qwen`,
                   caption="MCP client config · scoped"
                 />
               </TabsContent>
+
+              <TabsContent value="curl" className="mt-4">
+                <p className="mb-3 font-sans text-sm leading-relaxed text-text-secondary">
+                  List and call tools directly over the MCP REST API — no client,
+                  no LLM. Swap{' '}
+                  <span className="font-mono text-text-primary">
+                    {KEY_PLACEHOLDER}
+                  </span>{' '}
+                  for your key and the server/tool names for real ones.
+                </p>
+                <CodeBlock code={mcpCurl} caption="curl" />
+              </TabsContent>
             </Tabs>
 
             <a
@@ -548,8 +604,10 @@ qwen`,
                   <span className="font-sans text-sm font-semibold text-text-primary">
                     ACKstorm Chat
                   </span>
+                  {/* Hosted + ready -> the open-in-new icon is accent green
+                      (openwork's stays muted since it is not wired yet). */}
                   <ExternalLink
-                    className="size-4 text-text-tertiary transition-colors group-hover:text-primary"
+                    className="size-4 text-primary"
                     aria-hidden="true"
                   />
                 </div>
@@ -578,7 +636,7 @@ qwen`,
                       openwork
                     </span>
                     <span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                      Sooner
+                      Soon
                     </span>
                   </span>
                   <ExternalLink
