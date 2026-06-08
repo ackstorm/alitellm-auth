@@ -5,10 +5,12 @@
 //
 //   §1 Quickstart  — mint a key (link to the Keys tab) + a copy-paste `curl` to
 //                    the `ackstorm.fast` model alias against the user's gateway.
-//   §2 Editors/CLI — tabbed setup for Claude Code / Gemini / opencode / codex
-//                    (env exports, except opencode which uses a JSON config file);
-//                    each links the authoritative LiteLLM guide where one exists.
-//   §3 No terminal — chat-UI cards (ACKstorm Chat, hosted; openwork, coming soon).
+//   §2 Editors/CLI — tabbed setup for Claude Code / Gemini / opencode / codex /
+//                    GitHub Copilot / Qwen Code (env exports, except the JSON-config
+//                    tools); each links the authoritative LiteLLM guide where one exists.
+//   §3 MCP servers — connect MCP clients to the gateway's /mcp endpoint (same key);
+//                    optional x-mcp-servers header / group URL to scope the tools.
+//   §4 No terminal — chat-UI cards (ACKstorm Chat, hosted; openwork, coming soon).
 //
 // PERSONALIZATION (no rebuild): the gateway base URL is read live from the
 // session (`me.endpoint` === settings.api_public_url, e.g. https://api.<domain>);
@@ -29,6 +31,7 @@ import {
   ExternalLink,
   KeyRound,
   MessageSquare,
+  Server,
   Terminal,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
@@ -63,6 +66,7 @@ const FALLBACK_API_BASE = 'https://api.your-domain.example';
 const TOC = [
   { id: 'quickstart', label: 'Quickstart' },
   { id: 'tools', label: 'Editors & CLIs' },
+  { id: 'mcp', label: 'MCP servers' },
   { id: 'chat', label: 'No terminal?' },
 ] as const;
 
@@ -173,6 +177,33 @@ export function HowTo() {
     "messages": [{ "role": "user", "content": "Hello!" }]
   }'`;
 
+  // ── MCP gateway ────────────────────────────────────────────────────────────────
+  // LiteLLM exposes an MCP gateway on the SAME host, under /mcp, authenticated with
+  // the SAME `x-litellm-api-key` Bearer key. An optional `x-mcp-servers` header (or
+  // a /mcp/<group> URL) scopes the exposed tools to named servers and/or groups.
+  const mcpUrl = `${apiBase}/mcp`;
+  const mcpConfig = `{
+  "mcpServers": {
+    "litellm": {
+      "url": "${mcpUrl}",
+      "headers": {
+        "${AUTH_HEADER}": "Bearer ${KEY_PLACEHOLDER}"
+      }
+    }
+  }
+}`;
+  const mcpFilteredConfig = `{
+  "mcpServers": {
+    "litellm": {
+      "url": "${mcpUrl}",
+      "headers": {
+        "${AUTH_HEADER}": "Bearer ${KEY_PLACEHOLDER}",
+        "x-mcp-servers": "Zapier_Gmail,dev-group"
+      }
+    }
+  }
+}`;
+
   // ── Editor / CLI setup ───────────────────────────────────────────────────────
   // Live setup for Claude Code, Gemini CLI, opencode, and codex. The base URL is
   // the user's live gateway (apiBase); the key is the `sk-...` placeholder (mint
@@ -256,6 +287,40 @@ export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
 export OPENAI_BASE_URL="${apiBase}/v1"
 
 codex --model ${MODEL_ALIAS}`,
+    },
+    {
+      id: 'copilot',
+      label: 'GitHub Copilot',
+      ready: true,
+      caption: 'VS Code settings.json',
+      // GitHub Copilot (VS Code) is pointed at the gateway by overriding its proxy
+      // URL in settings.json; reload the window afterwards.
+      code: `{
+  "github.copilot.advanced": {
+    "debug.overrideProxyUrl": "${apiBase}",
+    "debug.testOverrideProxyUrl": "${apiBase}"
+  }
+}`,
+      note: 'Reload VS Code after saving. Authenticate with your gateway key when prompted — see the guide for model + auth details.',
+      guide: {
+        url: 'https://docs.litellm.ai/docs/tutorials/github_copilot_integration',
+        label: 'GitHub Copilot + LiteLLM guide',
+      },
+    },
+    {
+      id: 'qwen',
+      label: 'Qwen Code',
+      ready: true,
+      code: `# Qwen Code CLI → LiteLLM (OpenAI-compatible)
+export OPENAI_BASE_URL="${apiBase}/v1"
+export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
+export OPENAI_MODEL="${MODEL_ALIAS}"
+
+qwen`,
+      guide: {
+        url: 'https://docs.litellm.ai/docs/tutorials/litellm_qwen_code_cli',
+        label: 'Qwen Code + LiteLLM guide',
+      },
     },
   ];
   const [tool, setTool] = useState<string>('claude');
@@ -405,7 +470,74 @@ codex --model ${MODEL_ALIAS}`,
             </p>
           </Section>
 
-          {/* §3 No terminal? */}
+          {/* §3 MCP servers */}
+          <Section
+            id="mcp"
+            icon={Server}
+            title="MCP servers"
+            sub="Give MCP-capable clients (Cursor, Claude Desktop, …) access to the gateway's tool servers. The MCP endpoint lives on the same gateway host, under /mcp, and uses your same virtual key."
+          >
+            <div className="flex flex-col gap-5">
+              <div>
+                <p className="mb-3 font-sans text-sm leading-relaxed text-text-secondary">
+                  Add this to your client's MCP config. The URL is{' '}
+                  <span className="font-mono text-text-primary">{mcpUrl}</span>{' '}
+                  and the auth header is the same{' '}
+                  <span className="font-mono text-text-primary">
+                    {AUTH_HEADER}
+                  </span>{' '}
+                  Bearer key you use for chat completions.
+                </p>
+                <CodeBlock code={mcpConfig} caption="MCP client config" />
+              </div>
+
+              <div>
+                <div className="font-sans text-sm font-medium text-text-primary">
+                  Limit the exposed tools
+                </div>
+                <p className="mt-1 mb-3 font-sans text-sm leading-relaxed text-text-secondary">
+                  By default the client sees every tool you can reach. Pass an{' '}
+                  <span className="font-mono text-text-primary">
+                    x-mcp-servers
+                  </span>{' '}
+                  header (comma-separated) to expose only specific MCP servers
+                  and/or groups — e.g.{' '}
+                  <span className="font-mono text-text-primary">
+                    Zapier_Gmail,dev-group
+                  </span>
+                  .
+                </p>
+                <CodeBlock
+                  code={mcpFilteredConfig}
+                  caption="MCP client config · scoped"
+                />
+              </div>
+
+              <p className="font-sans text-sm leading-relaxed text-text-secondary">
+                You can also target a single MCP group straight from the URL —{' '}
+                <span className="font-mono text-text-primary">
+                  {`${mcpUrl}/dev-group`}
+                </span>{' '}
+                — instead of the{' '}
+                <span className="font-mono text-text-primary">
+                  x-mcp-servers
+                </span>{' '}
+                header.
+              </p>
+
+              <a
+                href="https://docs.litellm.ai/docs/mcp"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-sans text-xs font-medium text-primary hover:underline"
+              >
+                LiteLLM MCP gateway guide
+                <ExternalLink className="size-3" aria-hidden="true" />
+              </a>
+            </div>
+          </Section>
+
+          {/* §4 No terminal? */}
           <Section
             id="chat"
             icon={MessageSquare}
