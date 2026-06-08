@@ -19,6 +19,7 @@
 //   - useCreateKey.onSuccess ALREADY stashes the fresh sk- and invalidates the
 //     keys query; this modal only DISPLAYS the returned key once.
 
+import { Check, Copy, TriangleAlert } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -136,29 +137,54 @@ export function CreateKeyModal() {
           <>
             <DialogHeader>
               <DialogTitle>Key created</DialogTitle>
-              <DialogDescription className="leading-relaxed text-primary">
-                {SHOWN_ONCE_WARNING}
-              </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-4">
-              <div className="break-all rounded-md border border-border bg-background px-3 py-3 font-mono text-sm text-primary">
-                {result.key}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className={cn(
-                  'self-start',
-                  // Same feedback as the EndpointChip copy: filled green while
-                  // "copied!" is showing, reverting after the 2s timeout.
-                  copied &&
-                    'border-primary bg-primary/15 text-primary hover:bg-primary/15 hover:text-primary'
-                )}
-                onClick={() => void copy(result.key)}
+              {/* One-time warning — high-emphasis callout (icon + tinted slab) so
+                  it cannot be skimmed past. The copy is the locked shown-once
+                  string, kept as ONE text node. */}
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-2.5 text-primary"
               >
-                {copied ? 'copied!' : 'copy'}
-              </Button>
+                <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                <p className="text-sm font-semibold leading-relaxed">
+                  {SHOWN_ONCE_WARNING}
+                </p>
+              </div>
+
+              {/* The secret key — the focal point. Max-contrast mono (ink in
+                  light, near-white in dark via text-text-primary) on a muted slab;
+                  copy sits in the label row, right beside the value it acts on. */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+                    Secret key
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      'h-7 gap-1.5 px-2.5',
+                      // Same feedback as the EndpointChip copy: filled green while
+                      // "copied!" is showing, reverting after the 2s timeout.
+                      copied &&
+                        'border-primary bg-primary/15 text-primary hover:bg-primary/15 hover:text-primary'
+                    )}
+                    onClick={() => void copy(result.key)}
+                  >
+                    {copied ? (
+                      <Check aria-hidden="true" className="size-3.5" />
+                    ) : (
+                      <Copy aria-hidden="true" className="size-3.5" />
+                    )}
+                    {copied ? 'copied!' : 'copy'}
+                  </Button>
+                </div>
+                <div className="break-all rounded-md border border-border bg-muted px-3.5 py-3 font-mono text-[15px] font-semibold leading-relaxed text-text-primary select-all">
+                  {result.key}
+                </div>
+              </div>
             </div>
             <div className="flex justify-end">
               <Button type="button" onClick={handleClose}>

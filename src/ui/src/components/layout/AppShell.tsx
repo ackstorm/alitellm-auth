@@ -14,10 +14,17 @@
 // `me` is GUARANTEED non-null here (App.tsx falls through to ErrorCard when
 // me === null — carry-forward C2), so the shell never renders against a null me.
 
-import { ExternalLink } from 'lucide-react';
+import { ChevronDown, ExternalLink, LogOut } from 'lucide-react';
 import { Outlet, NavLink } from 'react-router';
 import type { AppConfig, SessionMe } from '@/lib/api-types';
 import { CreateKeyModal } from '@/components/keys/CreateKeyModal';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Toaster } from '@/components/ui/toast';
 import { useKeys } from '@/hooks/use-keys';
 import { cn } from '@/lib/utils';
@@ -39,6 +46,16 @@ function NavSep() {
       |
     </span>
   );
+}
+
+// Two-letter avatar initials from a display label: first char of the first and
+// last word (e.g. "Juan Carlos Moreno" -> "JM", "alice@acme.com" -> "AL"). The
+// email local-part is used when there is no name; punctuation splits into words.
+function initialsOf(label: string): string {
+  const parts = (label.split('@')[0] || '').split(/[\s._-]+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export function AppShell({ me, config }: AppShellProps) {
@@ -148,7 +165,7 @@ export function AppShell({ me, config }: AppShellProps) {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-background [background-image:radial-gradient(ellipse_70%_55%_at_12%_-5%,var(--glow-1),transparent),radial-gradient(ellipse_65%_55%_at_88%_8%,var(--glow-2),transparent),radial-gradient(ellipse_80%_65%_at_50%_105%,var(--glow-3),transparent)]">
+    <div className="flex min-h-screen flex-col bg-background bg-fixed [background-image:radial-gradient(ellipse_70%_55%_at_12%_-5%,var(--glow-1),transparent),radial-gradient(ellipse_65%_55%_at_88%_8%,var(--glow-2),transparent),radial-gradient(ellipse_80%_65%_at_50%_105%,var(--glow-3),transparent)]">
       <header className="flex h-14 shrink-0 items-center gap-6 border-b border-border bg-surface px-6">
         <BrandLockup config={config} className="text-sm" />
 
@@ -164,6 +181,21 @@ export function AppShell({ me, config }: AppShellProps) {
           <NavSep />
           {gatedNav('/mcp', 'MCPs')}
           <NavSep />
+          {gatedNav('/a2a', 'A2A')}
+          <NavSep />
+          {/* MEMORY — not shipped yet: a disabled item with a tiny "soon" marker
+              (and a hover title) so the slot is visible without being navigable. */}
+          <span
+            aria-disabled="true"
+            title="Memory — coming soon"
+            className="inline-flex cursor-not-allowed items-center gap-1 rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider text-text-tertiary"
+          >
+            Memory
+            <sup className="text-[7px] font-semibold uppercase tracking-wider text-text-tertiary/70">
+              soon
+            </sup>
+          </span>
+          <NavSep />
           <NavLink to="/stats" className={navLinkClass}>
             Stats
           </NavLink>
@@ -173,17 +205,49 @@ export function AppShell({ me, config }: AppShellProps) {
           </NavLink>
         </nav>
 
-        <div className="ml-auto flex items-center gap-4 font-mono text-[11px]">
+        <div className="ml-auto flex items-center gap-3">
           {/* CHAT — separate destination, low-contrast outline pill, just before
-              the user label. Gated on a default key (disabled span otherwise). */}
+              the user menu. Gated on a default key (disabled span otherwise). */}
           {chatEl}
-          <span className="text-text-primary">{menuLabel}</span>
-          <a
-            href="/api/oauth/logout"
-            className="text-text-secondary transition-colors hover:text-text-primary"
-          >
-            sign out
-          </a>
+          {/* User menu: an avatar + name trigger opening a small dropdown whose
+              only action (for now) is Log out. Replaces the inline name + "sign
+              out" anchor so the identity reads as one affordance. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="User menu"
+              className="group inline-flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:bg-primary/5"
+            >
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/15 font-sans text-[11px] font-semibold text-primary">
+                {initialsOf(menuLabel)}
+              </span>
+              <span className="max-w-[14rem] truncate font-sans text-xs font-medium text-text-primary">
+                {menuLabel}
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                className="size-3.5 text-text-secondary transition-transform group-data-[state=open]:rotate-180"
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[13rem]">
+              <div className="px-2 py-1.5">
+                <p className="truncate font-sans text-xs font-medium text-text-primary">
+                  {me.name || me.email}
+                </p>
+                {me.name ? (
+                  <p className="truncate font-mono text-[11px] text-text-secondary">
+                    {me.email}
+                  </p>
+                ) : null}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href="/api/oauth/logout">
+                  <LogOut aria-hidden="true" />
+                  Log out
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ThemeToggle />
         </div>
       </header>

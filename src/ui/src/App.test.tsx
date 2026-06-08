@@ -123,7 +123,7 @@ describe('App driver — error', () => {
 });
 
 describe('App driver — authed', () => {
-  it('200 + me -> AppShell shows brand, email and sign-out link', () => {
+  it('200 + me -> AppShell shows brand, name and the user-menu Log out link', async () => {
     useSessionStore.setState({ status: 200, hasLoaded: true, me: ME });
     renderApp();
     // Two-tone brand: base "alitellm" + accent "-auth" -> the full string is
@@ -133,8 +133,13 @@ describe('App driver — authed', () => {
     // The user-menu label AND the dashboard greeting both render the name, so
     // it appears more than once — assert at least one is present.
     expect(screen.getAllByText(ME.name).length).toBeGreaterThan(0);
-    const signOut = screen.getByRole('link', { name: 'sign out' });
-    expect(signOut).toHaveAttribute('href', '/api/oauth/logout');
+    // Logout now lives inside the user menu — open it (Radix opens on Enter),
+    // then assert the only item is a Log out link to the logout route.
+    fireEvent.keyDown(screen.getByRole('button', { name: 'User menu' }), {
+      key: 'Enter',
+    });
+    const logout = await screen.findByRole('menuitem', { name: 'Log out' });
+    expect(logout).toHaveAttribute('href', '/api/oauth/logout');
     // The dashboard mounts in the content slot — the greeting proves it.
     expect(screen.getByText(/Welcome back,/)).toBeInTheDocument();
   });
@@ -143,8 +148,8 @@ describe('App driver — authed', () => {
     useSessionStore.setState({ status: 200, hasLoaded: true, me: null });
     renderApp();
     expect(screen.getByText('Service Unavailable')).toBeInTheDocument();
-    // The shell must NOT have mounted (no sign-out link).
-    expect(screen.queryByRole('link', { name: 'sign out' })).toBeNull();
+    // The shell must NOT have mounted (no user menu).
+    expect(screen.queryByRole('button', { name: 'User menu' })).toBeNull();
   });
 
   it('unknown hash (#/garbage) redirects to the index Dashboard', async () => {
