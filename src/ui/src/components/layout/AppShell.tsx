@@ -14,6 +14,7 @@
 // `me` is GUARANTEED non-null here (App.tsx falls through to ErrorCard when
 // me === null — carry-forward C2), so the shell never renders against a null me.
 
+import { ExternalLink } from 'lucide-react';
 import { Outlet, NavLink } from 'react-router';
 import type { AppConfig, SessionMe } from '@/lib/api-types';
 import { CreateKeyModal } from '@/components/keys/CreateKeyModal';
@@ -60,18 +61,20 @@ export function AppShell({ me, config }: AppShellProps) {
         : 'text-text-secondary hover:bg-primary/5 hover:text-text-primary'
     );
 
-  // CHAT lives on the RIGHT, next to the user — a low-contrast OUTLINE pill so it
-  // is clearly a separate destination and never reads as the selected tab (which
-  // now carries the strong filled highlight). Gated on the user having a default
-  // key — Chat needs one to authenticate. A default is never auto-assigned
-  // (explicit-only), so when none exists the pill is rendered disabled with a hint.
+  // CHAT lives on the RIGHT, next to the user — an accent CTA that clearly reads
+  // as a clickable destination (tinted accent fill + accent border + hover lift +
+  // an open-in-new-tab icon). It stays distinct from the SELECTED nav tab (which
+  // is a mono-uppercase SOLID-fill highlight) via sentence-case sans type, the
+  // soft fill, the shadow, and the external icon. Gated on the user having a
+  // default key — Chat needs one to authenticate; a default is never auto-assigned
+  // (explicit-only), so when none exists it renders disabled with a hint.
   const { data: keys } = useKeys();
   const hasDefault = (keys ?? []).some((k) => k.is_default);
   // Explicit chat URL when the deployment sets CHAT_PUBLIC_URL; otherwise derive
   // chat.<domain> from the gateway host.
   const chatUrl = config.chat_public_url || deriveSubdomainUrl(me.endpoint, 'chat');
   const chatPill =
-    'rounded-md border px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors';
+    'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-sans text-xs font-semibold leading-none transition-all';
   const chatEl = hasDefault ? (
     <a
       href={chatUrl}
@@ -79,18 +82,23 @@ export function AppShell({ me, config }: AppShellProps) {
       rel="noopener noreferrer"
       className={cn(
         chatPill,
-        'border-border text-text-secondary hover:border-primary hover:text-primary'
+        'border border-primary/60 bg-primary/10 text-primary shadow-sm hover:-translate-y-px hover:bg-primary/20 hover:shadow-md'
       )}
     >
       Chat
+      <ExternalLink className="size-3.5" aria-hidden="true" />
     </a>
   ) : (
     <span
       aria-disabled="true"
       title="You need a default key — set one on the Keys tab"
-      className={cn(chatPill, 'cursor-not-allowed border-border text-text-tertiary')}
+      className={cn(
+        chatPill,
+        'cursor-not-allowed border border-border text-text-tertiary'
+      )}
     >
       Chat
+      <ExternalLink className="size-3.5 opacity-50" aria-hidden="true" />
     </span>
   );
 
