@@ -51,7 +51,7 @@ jobs:
 
       # Package and push the Helm chart as an OCI artifact, lockstep with the image.
       # Chart version is bare SemVer (X.Y.Z); appVersion is the v-prefixed image tag.
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - name: Package and push Helm chart (OCI)
         run: |
           V="${{ steps.ver.outputs.v }}"
