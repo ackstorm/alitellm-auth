@@ -299,6 +299,7 @@ def test_build_stats_contract_empty_totals_are_zero_not_null():
 # resolve_key_display — opaque lk- alias → friendly name join (TOP API KEYS fix)
 # ---------------------------------------------------------------------------
 
+
 def _alias_id(opaque: str) -> str:
     """The key-list id for an opaque alias == sha256(alias) (litellm _get_key_id)."""
     return hashlib.sha256(opaque.encode()).hexdigest()

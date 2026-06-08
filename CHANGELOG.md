@@ -2,6 +2,15 @@
 
 ## [unreleased]
 
+## [0.5.7] - 2026-06-08
+
+- feat: new **A2A** tab — a per-user, read-only catalog of the **Agent-to-Agent** agents registered on the gateway, sourced server-side from LiteLLM `GET /v1/agents` (A2A gateway, beta) and projected to a PUBLIC subset (name, version, endpoint, transport, streaming, skills — never headers/params/credentials). Scoped to the signed-in user through the same gateway custom-auth path as Models/MCPs, and gated on a default key. A calm "not enabled" state covers deployments with no A2A gateway. New endpoint: `GET /api/session/a2a`.
+- feat: the topbar **user identity** is now an avatar + name **dropdown menu** (with **Log out**), replacing the inline name + "sign out" link so the identity reads as one affordance. A disabled **MEMORY** nav item (with a small "soon" marker) marks the next surface.
+- feat: the console now ships a **favicon** — the shield-check brand mark (inline SVG, theme-green).
+- fix: **Stats → Top API keys** now shows each key's **friendly name** instead of the opaque `lk-…` spend-log id. The per-key spend rows are joined to your key list server-side, which also collapses the duplicate zero-usage row the table used to render for the same key.
+- change: the ambient **background glow** is anchored to the viewport, so every page renders the same gradient instead of shifting with page height.
+- change: the **Key created** dialog gives the one-time warning more weight (icon + callout) and renders the secret key in high-contrast ink/white on a muted slab for easier copy-and-store.
+
 ## [0.5.6] - 2026-06-08
 
 - change: the **HOW-TO** MCP servers section is now compact tabs — **MCP Access** (full config), **MCP Group access** (`x-mcp-servers` / `/mcp/<group>` scoping), and **Try with curl** (a no-LLM `tools/list` + `tools/call` smoke test over the MCP REST API).
