@@ -384,10 +384,11 @@ qwen`,
         </p>
       </div>
 
-      <div className="grid gap-10 lg:grid-cols-[180px_1fr]">
-        {/* Sticky in-page TOC (desktop only). Buttons, not hash anchors — the
-            hash belongs to the router. */}
-        <aside className="hidden lg:block">
+      <div className="grid gap-10 lg:grid-cols-[1fr_180px]">
+        {/* Sticky in-page TOC (desktop only) — placed on the RIGHT via order
+            (DOM order keeps it readable). Buttons, not hash anchors — the hash
+            belongs to the router. */}
+        <aside className="hidden lg:order-2 lg:block">
           <nav
             aria-label="On this page"
             className="sticky top-8 flex flex-col gap-1"
@@ -409,7 +410,7 @@ qwen`,
         </aside>
 
         {/* Content column */}
-        <div className="flex min-w-0 flex-col gap-12">
+        <div className="flex min-w-0 flex-col gap-12 lg:order-1">
           {/* §1 Quickstart */}
           <Section
             id="quickstart"
