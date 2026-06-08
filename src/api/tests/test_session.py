@@ -1422,3 +1422,64 @@ def test_session_mcp_forwards_email_as_user_id(client):
         resp = client.get("/api/session/mcp", cookies=_authed_cookie())
     assert resp.status_code == 200
     assert mock_mcp.await_args.kwargs.get("user_id") == "alice@example.com"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/session/a2a — configured A2A agents (read-only)
+# ---------------------------------------------------------------------------
+
+
+def test_session_a2a_ok(client):
+    """200 {agents, available:true} from list_litellm_a2a_agents."""
+    sample = [
+        {
+            "id": "research-agent",
+            "name": "Research Agent",
+            "description": "Web research.",
+            "url": "https://a2a.internal/research",
+            "transport": "JSONRPC",
+            "version": "1.2.0",
+            "skills": ["deep_research", "summarize"],
+            "skill_count": 2,
+            "streaming": True,
+        }
+    ]
+    with patch("app.session.list_litellm_a2a_agents", new_callable=AsyncMock) as mock_a2a:
+        mock_a2a.return_value = sample
+        resp = client.get("/api/session/a2a", cookies=_authed_cookie())
+    assert resp.status_code == 200
+    assert resp.json() == {"agents": sample, "available": True}
+
+
+def test_session_a2a_404_degrades_to_unavailable(client):
+    """A 404 (no A2A gateway) -> 200 {agents: [], available: false}, NOT a 502."""
+    req = httpx.Request("GET", "http://litellm.test/v1/agents")
+    err = httpx.HTTPStatusError("404", request=req, response=httpx.Response(404, request=req))
+    with patch("app.session.list_litellm_a2a_agents", new_callable=AsyncMock) as mock_a2a:
+        mock_a2a.side_effect = err
+        resp = client.get("/api/session/a2a", cookies=_authed_cookie())
+    assert resp.status_code == 200
+    assert resp.json() == {"agents": [], "available": False}
+
+
+def test_session_a2a_502_on_5xx(client):
+    req = httpx.Request("GET", "http://litellm.test/v1/agents")
+    err = httpx.HTTPStatusError("500", request=req, response=httpx.Response(500, request=req))
+    with patch("app.session.list_litellm_a2a_agents", new_callable=AsyncMock) as mock_a2a:
+        mock_a2a.side_effect = err
+        resp = client.get("/api/session/a2a", cookies=_authed_cookie())
+    assert resp.status_code == 502
+
+
+def test_session_a2a_401_without_cookie(client):
+    resp = client.get("/api/session/a2a")
+    assert resp.status_code == 401
+
+
+def test_session_a2a_forwards_email_as_user_id(client):
+    """The handler scopes the A2A catalog to the session user via user_id (x-user-id)."""
+    with patch("app.session.list_litellm_a2a_agents", new_callable=AsyncMock) as mock_a2a:
+        mock_a2a.return_value = []
+        resp = client.get("/api/session/a2a", cookies=_authed_cookie())
+    assert resp.status_code == 200
+    assert mock_a2a.await_args.kwargs.get("user_id") == "alice@example.com"

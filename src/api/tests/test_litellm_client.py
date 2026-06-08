@@ -1385,6 +1385,85 @@ async def test_list_litellm_mcp_servers_404_raises():
     assert exc.value.response.status_code == 404
 
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_litellm_a2a_agents_strips_secrets():
+    """/v1/agents bare array → PUBLIC subset from agent_card_params (no headers/params)."""
+    from app.litellm_client import list_litellm_a2a_agents
+
+    settings = make_settings()
+    respx.get("http://litellm.test/v1/agents").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "agent_id": "research-agent",
+                    "agent_name": "Research Agent",
+                    "agent_card_params": {
+                        "name": "Research Agent",
+                        "description": "Web research.",
+                        "url": "https://a2a.internal/research",
+                        "version": "1.2.0",
+                        "preferredTransport": "JSONRPC",
+                        "capabilities": {"streaming": True},
+                        "skills": [
+                            {"id": "deep_research", "name": "deep_research"},
+                            {"id": "summarize", "name": "summarize"},
+                        ],
+                        "securitySchemes": {"oauth2": {"token": "SHOULD-NOT-LEAK"}},
+                    },
+                    "litellm_params": {"api_key": "SHOULD-NOT-LEAK"},
+                    "static_headers": {"x": "SHOULD-NOT-LEAK"},
+                    "extra_headers": ["x-secret"],
+                    "spend": 1.23,
+                    "created_by": "admin@example.com",
+                }
+            ],
+        )
+    )
+
+    agents = await list_litellm_a2a_agents(settings)
+
+    assert len(agents) == 1
+    a = agents[0]
+    assert a["id"] == "research-agent"
+    assert a["name"] == "Research Agent"
+    assert a["url"] == "https://a2a.internal/research"
+    assert a["transport"] == "JSONRPC"
+    assert a["version"] == "1.2.0"
+    assert a["streaming"] is True
+    assert a["skill_count"] == 2
+    assert a["skills"] == ["deep_research", "summarize"]
+    # No secret-bearing / internal field may survive the projection.
+    blob = _json.dumps(a)
+    assert "SHOULD-NOT-LEAK" not in blob
+    for forbidden in (
+        "litellm_params",
+        "static_headers",
+        "extra_headers",
+        "spend",
+        "created_by",
+        "agent_card_params",
+        "securitySchemes",
+    ):
+        assert forbidden not in a
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_litellm_a2a_agents_404_raises():
+    """A 404 (no A2A gateway) raises HTTPStatusError for the route to map to unavailable."""
+    from app.litellm_client import list_litellm_a2a_agents
+
+    settings = make_settings()
+    respx.get("http://litellm.test/v1/agents").mock(
+        return_value=httpx.Response(404, json={"error": {"message": "not found"}})
+    )
+    with pytest.raises(httpx.HTTPStatusError) as exc:
+        await list_litellm_a2a_agents(settings)
+    assert exc.value.response.status_code == 404
+
+
 # ---------------------------------------------------------------------------
 # Default-key flag (is_default) — A1: surfaced in the session-key projection
 # ---------------------------------------------------------------------------

@@ -36,6 +36,7 @@ from app.litellm_client import (
     delete_litellm_key,
     generate_litellm_key,
     get_litellm_user,
+    list_litellm_a2a_agents,
     list_litellm_mcp_servers,
     list_litellm_models,
     list_session_keys,
@@ -729,3 +730,33 @@ async def session_mcp(
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
     return JSONResponse({"servers": servers, "available": True})
+
+
+@router.get("/a2a", response_model=None)
+async def session_a2a(
+    request: Request,
+    user: dict = Depends(require_session_user),
+) -> JSONResponse:
+    """Return the configured A2A agents for the session user (read-only).
+
+    Server-side master-key call to LiteLLM /v1/agents, projected to a PUBLIC subset
+    (no headers/params — see _project_a2a_agent). Scoped to the session user via an
+    x-user-id header (resolved by the gateway's custom auth, the same swap as MCP);
+    the value is the authenticated email, NEVER client input. Read-only GET.
+
+    A 404 means the deployment's LiteLLM has no A2A gateway -> a calm
+    {agents: [], available: false} 200 (the page shows a "not enabled" state).
+    A 5xx / unreachable backend -> 502.
+    """
+    settings: Settings = request.app.state.settings
+    try:
+        agents = await list_litellm_a2a_agents(settings, user_id=user["email"])
+    except httpx.HTTPStatusError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            logger.info("session_a2a: A2A gateway unavailable (404), degrading")
+            return JSONResponse({"agents": [], "available": False})
+        logger.error("session_a2a: agent list failed: %s", exc)
+        raise HTTPException(status_code=502, detail="A2A catalog unavailable")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    return JSONResponse({"agents": agents, "available": True})

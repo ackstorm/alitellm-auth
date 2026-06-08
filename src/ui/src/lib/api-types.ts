@@ -312,6 +312,34 @@ export interface McpResponse {
   available: boolean;
 }
 
+/**
+ * One configured A2A (Agent-to-Agent) agent (public projection). Display fields
+ * come from the agent card: `transport` is the preferred transport, `version` the
+ * card version, `skills` the agent's skill names (`skill_count` mirrors length),
+ * `streaming` the card's streaming capability. No secret/header field is surfaced.
+ */
+export interface A2aAgentRow {
+  id: string | null;
+  name: string | null;
+  description: string | null;
+  url: string | null;
+  transport: string | null;
+  version: string | null;
+  skills: string[];
+  skill_count: number;
+  streaming: boolean;
+}
+
+/**
+ * GET /api/session/a2a response. session.py::session_a2a. `available` is false
+ * when the deployment's LiteLLM has no A2A gateway (a 404 the backend degrades to
+ * an empty, available:false 200) — the page shows a calm "not enabled" state.
+ */
+export interface A2aResponse {
+  agents: A2aAgentRow[];
+  available: boolean;
+}
+
 /** One BACKED-BY provider chip. public.py::_PROVIDERS. */
 export interface ConfigProvider {
   label: string;

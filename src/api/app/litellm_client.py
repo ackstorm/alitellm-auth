@@ -1299,6 +1299,92 @@ async def list_litellm_mcp_servers(settings: Settings, user_id: str | None = Non
     return out
 
 
+def _project_a2a_agent(a: dict) -> dict:
+    """Allow-listed PUBLIC projection of one A2A agent row (LiteLLM AgentResponse).
+
+    SECURITY: an EXPLICIT allow-list mirroring _project_mcp_server. It deliberately
+    DROPS every secret-bearing or internal field (static_headers, extra_headers,
+    litellm_params, object_permission, *_by, spend, limits). Only public agent-card
+    presentation fields are surfaced.
+
+    The rich metadata lives under ``agent_card_params`` (the A2A AgentCard):
+    name/description/url/version/skills/capabilities. Skills are flattened to their
+    names; ``streaming`` is read from capabilities. NEVER surface securitySchemes.
+    """
+    card = a.get("agent_card_params")
+    card = card if isinstance(card, dict) else {}
+
+    raw_skills = card.get("skills")
+    skills: list[str] = []
+    if isinstance(raw_skills, list):
+        for s in raw_skills:
+            if isinstance(s, dict):
+                name = s.get("name") or s.get("id")
+                if name:
+                    skills.append(str(name))
+            elif s:
+                skills.append(str(s))
+
+    caps = card.get("capabilities")
+    streaming = bool(caps.get("streaming")) if isinstance(caps, dict) else False
+
+    return {
+        "id": a.get("agent_id"),
+        "name": a.get("agent_name") or card.get("name"),
+        "description": card.get("description"),
+        "url": card.get("url"),
+        "transport": card.get("preferredTransport"),
+        "version": card.get("version"),
+        "skills": skills,
+        "skill_count": len(skills),
+        "streaming": streaming,
+    }
+
+
+async def list_litellm_a2a_agents(settings: Settings, user_id: str | None = None) -> list[dict]:
+    """List configured A2A agents from the LiteLLM agent gateway (GET /v1/agents).
+
+    Returns a BARE JSON array of agent objects (a {"data"|"agents": [...]} wrapper is
+    tolerated defensively). Each row is run through the allow-list _project_a2a_agent
+    — public agent-card fields only, NEVER headers/litellm_params/object_permission.
+    Sorted by name.
+
+    When ``user_id`` is set, sends ``x-user-id: <user_id>`` alongside the master-key
+    Authorization. The /v1/agents endpoint itself does not read x-user-id, but the
+    deployment's gateway custom auth (sso_key_swapper) resolves master+x-user-id to
+    the user's default key BEFORE the endpoint runs, so /v1/agents then filters by
+    that key's agent access groups — the same per-user scoping path as MCP. The
+    value MUST come from the authenticated session, never client input.
+
+    Raises httpx.HTTPStatusError on a non-2xx (the caller maps a 404 — a LiteLLM with
+    no A2A gateway, A2A is beta since v1.80.8 — to an "unavailable" empty state) and
+    httpx.RequestError when unreachable. Used by GET /api/session/a2a.
+    """
+    headers = _admin_headers(settings)
+    if user_id:
+        headers["x-user-id"] = user_id
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
+        resp = await client.get("/v1/agents", headers=headers)
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM /v1/agents failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+    data = resp.json()
+    if isinstance(data, dict):
+        rows = data.get("data") or data.get("agents") or []
+    else:
+        rows = data
+    if not isinstance(rows, list):
+        logger.warning("LiteLLM /v1/agents returned unexpected shape: %r", rows)
+        return []
+    out = [_project_a2a_agent(a) for a in rows if isinstance(a, dict)]
+    out.sort(key=lambda x: (x.get("name") or "").lower())
+    return out
+
+
 # ---------------------------------------------------------------------------
 # User-scoping contract probe (sso_key_swapper custom auth)
 # ---------------------------------------------------------------------------

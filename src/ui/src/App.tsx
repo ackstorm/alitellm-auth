@@ -31,6 +31,7 @@ import { Dashboard } from '@/routes/Dashboard';
 import { Stats } from '@/routes/Stats';
 import { Models } from '@/routes/Models';
 import { Mcp } from '@/routes/Mcp';
+import { A2a } from '@/routes/A2a';
 import { HowTo } from '@/routes/HowTo';
 
 // Mid-session expiry redirects to the BARE login (no landing card) — FIXED
@@ -50,6 +51,7 @@ function makeRouter(me: SessionMe, config: AppConfig) {
         { path: 'stats', element: <Stats /> },
         { path: 'models', element: <Models /> },
         { path: 'mcp', element: <Mcp /> },
+        { path: 'a2a', element: <A2a /> },
         { path: 'howto', element: <HowTo /> },
       ],
     },

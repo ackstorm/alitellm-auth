@@ -485,6 +485,72 @@ _MCP_SERVERS = [
 ]
 
 
+# Canned /v1/agents rows (LiteLLM AgentResponse shape). Display metadata lives in
+# `agent_card_params` (the A2A AgentCard). Each carries `litellm_params`/
+# `static_headers`/`extra_headers`/`securitySchemes` ON PURPOSE — the backend
+# projection (_project_a2a_agent) MUST strip them, so seeding them proves they
+# never reach the browser.
+_A2A_AGENTS = [
+    {
+        "agent_id": "research-agent",
+        "agent_name": "Research Agent",
+        "agent_card_params": {
+            "name": "Research Agent",
+            "description": "Multi-step web research with inline citations.",
+            "url": "https://a2a.internal.ackstorm.ai/research",
+            "version": "1.2.0",
+            "preferredTransport": "JSONRPC",
+            "capabilities": {"streaming": True, "pushNotifications": False},
+            "skills": [
+                {"id": "deep_research", "name": "deep_research"},
+                {"id": "summarize", "name": "summarize"},
+                {"id": "cite_sources", "name": "cite_sources"},
+            ],
+            "securitySchemes": {"oauth2": {"token": "SHOULD-NOT-LEAK"}},
+        },
+        "litellm_params": {"api_key": "SHOULD-NOT-LEAK"},
+        "static_headers": {"x-internal": "SHOULD-NOT-LEAK"},
+        "extra_headers": ["x-secret"],
+        "spend": 1.2345,
+        "created_by": "admin@example.com",
+    },
+    {
+        "agent_id": "coder-agent",
+        "agent_name": "Coder Agent",
+        "agent_card_params": {
+            "name": "Coder Agent",
+            "description": "Writes and reviews code changes across a repository.",
+            "url": "https://a2a.internal.ackstorm.ai/coder",
+            "version": "0.9.1",
+            "preferredTransport": "GRPC",
+            "capabilities": {"streaming": False},
+            "skills": [
+                {"id": "write_patch", "name": "write_patch"},
+                {"id": "review_pr", "name": "review_pr"},
+            ],
+        },
+        "litellm_params": {"api_key": "SHOULD-NOT-LEAK"},
+    },
+    {
+        "agent_id": "ops-agent",
+        "agent_name": "Ops Agent",
+        "agent_card_params": {
+            "name": "Ops Agent",
+            "description": "Runbook automation and incident triage.",
+            "url": "https://a2a.internal.ackstorm.ai/ops",
+            "version": "2.0.0",
+            "preferredTransport": "JSONRPC",
+            "capabilities": {"streaming": True},
+            "skills": [
+                {"id": "triage", "name": "triage"},
+                {"id": "rollback", "name": "rollback"},
+                {"id": "page_oncall", "name": "page_oncall"},
+            ],
+        },
+    },
+]
+
+
 @app.get("/model_group/info")
 async def model_group_info(
     model_group: str | None = None,
@@ -509,6 +575,17 @@ async def mcp_server_list(
         log.info("v1/mcp/server scoped to x-user-id=%s", x_user_id)
     # Bare JSON array (matches LiteLLM's response_model=List[LiteLLM_MCPServerTable]).
     return [copy.deepcopy(s) for s in _MCP_SERVERS]
+
+
+@app.get("/v1/agents")
+async def a2a_agent_list(
+    health_check: bool = False,
+    x_user_id: str | None = Header(default=None),
+):
+    if x_user_id:
+        log.info("v1/agents scoped to x-user-id=%s", x_user_id)
+    # Bare JSON array (matches LiteLLM's response_model=List[AgentResponse]).
+    return [copy.deepcopy(a) for a in _A2A_AGENTS]
 
 
 # ── Helpers + catch-all ─────────────────────────────────────────────────────
