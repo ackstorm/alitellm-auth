@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+- change: the **HOW-TO** MCP servers section is now compact — two tabs, **MCP Access** (full config) and **MCP Group access** (`x-mcp-servers` / `/mcp/<group>` scoping), matching the Editors & CLIs tab style.
+
 ## [0.5.5] - 2026-06-08
 
 - change: the dashboard **Account budget** now shows the budget **period** (e.g. `$0.17 of $100.00 / 30d`) so the cap is unambiguous.

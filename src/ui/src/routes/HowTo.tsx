@@ -325,6 +325,7 @@ qwen`,
     },
   ];
   const [tool, setTool] = useState<string>('claude');
+  const [mcpTab, setMcpTab] = useState<string>('access');
 
   return (
     <div className="flex flex-col gap-8">
@@ -478,33 +479,35 @@ qwen`,
             title="MCP servers"
             sub="Give MCP-capable clients (Cursor, Claude Desktop, …) access to the gateway's tool servers. The MCP endpoint lives on the same gateway host, under /mcp, and uses your same virtual key."
           >
-            <div className="flex flex-col gap-5">
-              <div>
+            <Tabs value={mcpTab} onValueChange={setMcpTab}>
+              <TabsList variant="line">
+                <TabsTrigger value="access">MCP Access</TabsTrigger>
+                <TabsTrigger value="group">MCP Group access</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="access" className="mt-4">
                 <p className="mb-3 font-sans text-sm leading-relaxed text-text-secondary">
-                  Add this to your client's MCP config. The URL is{' '}
-                  <span className="font-mono text-text-primary">{mcpUrl}</span>{' '}
-                  and the auth header is the same{' '}
+                  Every tool you can reach. URL{' '}
+                  <span className="font-mono text-text-primary">{mcpUrl}</span>,
+                  auth header{' '}
                   <span className="font-mono text-text-primary">
                     {AUTH_HEADER}
                   </span>{' '}
-                  Bearer key you use for chat completions.
+                  (the same Bearer key as chat).
                 </p>
                 <CodeBlock code={mcpConfig} caption="MCP client config" />
-              </div>
+              </TabsContent>
 
-              <div>
-                <div className="font-sans text-sm font-medium text-text-primary">
-                  Limit the exposed tools
-                </div>
-                <p className="mt-1 mb-3 font-sans text-sm leading-relaxed text-text-secondary">
-                  By default the client sees every tool you can reach. Pass an{' '}
+              <TabsContent value="group" className="mt-4">
+                <p className="mb-3 font-sans text-sm leading-relaxed text-text-secondary">
+                  Scope to specific servers and/or groups with the{' '}
                   <span className="font-mono text-text-primary">
                     x-mcp-servers
                   </span>{' '}
-                  header (comma-separated) to expose only specific MCP servers
-                  and/or groups — e.g.{' '}
+                  header (comma-separated) — or target a group straight from the
+                  URL,{' '}
                   <span className="font-mono text-text-primary">
-                    Zapier_Gmail,dev-group
+                    {`${mcpUrl}/dev-group`}
                   </span>
                   .
                 </p>
@@ -512,30 +515,18 @@ qwen`,
                   code={mcpFilteredConfig}
                   caption="MCP client config · scoped"
                 />
-              </div>
+              </TabsContent>
+            </Tabs>
 
-              <p className="font-sans text-sm leading-relaxed text-text-secondary">
-                You can also target a single MCP group straight from the URL —{' '}
-                <span className="font-mono text-text-primary">
-                  {`${mcpUrl}/dev-group`}
-                </span>{' '}
-                — instead of the{' '}
-                <span className="font-mono text-text-primary">
-                  x-mcp-servers
-                </span>{' '}
-                header.
-              </p>
-
-              <a
-                href="https://docs.litellm.ai/docs/mcp"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 font-sans text-xs font-medium text-primary hover:underline"
-              >
-                LiteLLM MCP gateway guide
-                <ExternalLink className="size-3" aria-hidden="true" />
-              </a>
-            </div>
+            <a
+              href="https://docs.litellm.ai/docs/mcp"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1 font-sans text-xs font-medium text-primary hover:underline"
+            >
+              LiteLLM MCP gateway guide
+              <ExternalLink className="size-3" aria-hidden="true" />
+            </a>
           </Section>
 
           {/* §4 No terminal? */}
