@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.10] - 2026-06-10
+
 ### Changed
 
 - Stats: each KPI card shows its failed/cached figure inline in smaller muted parentheses next to the value (e.g. `77 (5 failed · 6.5%)`), with the period-over-period chip on its own line below; the no-baseline chip reads `▲ 100% (no info)`.
