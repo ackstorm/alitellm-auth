@@ -76,6 +76,18 @@ describe('RequestsChart', () => {
     expect(tokensBtn.className).toContain('border-primary');
   });
 
+  it('renders real bars in requests mode (regression: no Fragment-wrapped bars)', () => {
+    const { container } = render(<RequestsChart series={SERIES} metric="requests" />);
+    // Recharts only emits .recharts-bar layers when it detects <Bar> as DIRECT
+    // children — a Fragment wrapper would suppress them and blank the chart.
+    expect(container.querySelectorAll('.recharts-bar').length).toBeGreaterThan(0);
+  });
+
+  it('renders a real bar in tokens mode', () => {
+    const { container } = render(<RequestsChart series={SERIES} metric="tokens" />);
+    expect(container.querySelectorAll('.recharts-bar').length).toBeGreaterThan(0);
+  });
+
   it('does NOT render the inline toggle when the metric is controlled', () => {
     const { container } = render(
       <RequestsChart series={SERIES} metric="tokens" />

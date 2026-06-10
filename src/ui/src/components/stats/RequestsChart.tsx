@@ -134,18 +134,23 @@ export function RequestsChart({
           formatter={makeTooltipFormatter(fmt)}
           cursor={{ fill: 'var(--border)', opacity: 0.3 }}
         />
-        {metric === 'requests' ? (
-          <>
-            <Bar dataKey="success" stackId="req" fill={SERIES_COLOR} />
-            <Bar
-              dataKey="failed"
-              stackId="req"
-              fill="var(--destructive)"
-              radius={[3, 3, 0, 0]}
-            />
-          </>
-        ) : (
-          <Bar dataKey="tokens" fill={SERIES_COLOR} radius={[3, 3, 0, 0]} />
+        {/* Flat children — Recharts scans its DIRECT children for <Bar> and does
+            NOT flatten a React Fragment, so a <>…</> wrapper makes the stacked
+            bars vanish. Keep each Bar as its own conditional child. */}
+        {metric === 'requests' && (
+          <Bar key="success" dataKey="success" stackId="req" fill={SERIES_COLOR} />
+        )}
+        {metric === 'requests' && (
+          <Bar
+            key="failed"
+            dataKey="failed"
+            stackId="req"
+            fill="var(--destructive)"
+            radius={[3, 3, 0, 0]}
+          />
+        )}
+        {metric === 'tokens' && (
+          <Bar key="tokens" dataKey="tokens" fill={SERIES_COLOR} radius={[3, 3, 0, 0]} />
         )}
       </BarChart>
     </ResponsiveContainer>
