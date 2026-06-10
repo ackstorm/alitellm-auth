@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.9] - 2026-06-10
+
 ### Added
 
 - Stats: period-over-period delta chips on the four KPI cards (green/red by direction; spend deltas inverted). When the prior period had no baseline (e.g. 0 tokens), the chip shows a neutral grey "▲ no previous info" instead of disappearing — so every active metric shows the comparison state.
