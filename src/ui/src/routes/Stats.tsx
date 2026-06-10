@@ -27,7 +27,11 @@ import { BudgetPanel } from '@/components/stats/BudgetPanel';
 import { DateRange } from '@/components/stats/DateRange';
 import { KpiRow } from '@/components/stats/KpiRow';
 import { ModelTable } from '@/components/stats/ModelTable';
-import { RequestsChart } from '@/components/stats/RequestsChart';
+import {
+  RequestsChart,
+  RequestsMetricToggle,
+  type RequestsMetric,
+} from '@/components/stats/RequestsChart';
 import { SpendChart } from '@/components/stats/SpendChart';
 import { TopKeys } from '@/components/stats/TopKeys';
 import { UsageDonut } from '@/components/stats/UsageDonut';
@@ -57,16 +61,24 @@ const SECTION_LABEL_CLASS =
   'font-mono text-[11px] font-semibold uppercase tracking-widest text-text-secondary';
 
 // A titled surface-card panel: the section label above its body (chart / table).
+// An optional `action` is rendered on the label row, right-aligned — used to host
+// per-panel controls (e.g. the REQUESTS/TOKENS toggle) in the otherwise-empty
+// header space instead of stealing a row above the body.
 function Panel({
   label,
+  action,
   children,
 }: {
   label: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex h-full min-w-0 flex-col rounded-xl border border-border bg-surface p-5">
-      <div className={`${SECTION_LABEL_CLASS} mb-3`}>{label}</div>
+      <div className="mb-3 flex min-h-6 items-center justify-between gap-3">
+        <div className={SECTION_LABEL_CLASS}>{label}</div>
+        {action}
+      </div>
       {children}
     </div>
   );
@@ -79,6 +91,9 @@ export function Stats() {
   const [range, setRange] = useState<{ start: string; end: string }>(() =>
     presetToRange(DEFAULT_PRESET, new Date()),
   );
+  // REQUESTS BY DAY metric, hoisted so the toggle lives in the panel header row.
+  const [requestsMetric, setRequestsMetric] =
+    useState<RequestsMetric>('requests');
 
   const query = useStats(range);
   // The user's full key list — merged into the TOP API KEYS panel so idle keys
@@ -183,11 +198,21 @@ export function Stats() {
         <Panel label={SECTION_DAILY_SPEND}>
           {loading ? <Skeleton variant="chart" /> : <SpendChart series={series} />}
         </Panel>
-        <Panel label={SECTION_REQUESTS}>
+        <Panel
+          label={SECTION_REQUESTS}
+          action={
+            loading ? undefined : (
+              <RequestsMetricToggle
+                metric={requestsMetric}
+                onChange={setRequestsMetric}
+              />
+            )
+          }
+        >
           {loading ? (
             <Skeleton variant="chart" />
           ) : (
-            <RequestsChart series={series} />
+            <RequestsChart series={series} metric={requestsMetric} />
           )}
         </Panel>
       </div>

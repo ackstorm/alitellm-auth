@@ -28,7 +28,7 @@ vi.mock('recharts', async (importOriginal) => {
   };
 });
 
-import { RequestsChart } from './RequestsChart';
+import { RequestsChart, RequestsMetricToggle } from './RequestsChart';
 
 const SERIES: StatsSeriesPoint[] = [
   { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234, failed: 2 },
@@ -67,12 +67,35 @@ describe('RequestsChart', () => {
     expect(surface).not.toBeNull();
   });
 
-  it('renders the REQUESTS/TOKENS toggle and switches metric', () => {
+  it('renders the inline REQUESTS/TOKENS toggle and switches metric (uncontrolled)', () => {
     const { getByText } = render(<RequestsChart series={SERIES} />);
     const tokensBtn = getByText('tokens');
     expect(getByText('requests')).toBeInTheDocument();
     fireEvent.click(tokensBtn);
     // after the switch the tokens button carries the active border class
     expect(tokensBtn.className).toContain('border-primary');
+  });
+
+  it('does NOT render the inline toggle when the metric is controlled', () => {
+    const { container } = render(
+      <RequestsChart series={SERIES} metric="tokens" />
+    );
+    // the toggle is hoisted to the panel header by the container, so the chart
+    // itself renders no metric buttons.
+    expect(
+      container.querySelector('[data-slot="requests-metric-tokens"]')
+    ).toBeNull();
+  });
+});
+
+describe('RequestsMetricToggle', () => {
+  it('marks the active metric and calls onChange on click', () => {
+    const onChange = vi.fn();
+    const { getByText } = render(
+      <RequestsMetricToggle metric="requests" onChange={onChange} />
+    );
+    expect(getByText('requests').className).toContain('border-primary');
+    fireEvent.click(getByText('tokens'));
+    expect(onChange).toHaveBeenCalledWith('tokens');
   });
 });
