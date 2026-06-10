@@ -119,6 +119,12 @@ export function TopKeys({
   capabilities,
 }: TopKeysProps): React.ReactElement {
   const rows = Array.isArray(keys) ? keys : [];
+  // Idle = no in-window activity (padded by mergeTopKeys so the panel lists every
+  // key). Hidden by default — they are noise — behind an explicit count toggle.
+  const [showIdle, setShowIdle] = React.useState(false);
+  const active = rows.filter((k) => (k.requests ?? 0) > 0 || (k.spend ?? 0) > 0);
+  const idleCount = rows.length - active.length;
+  const visible = showIdle ? rows : active;
   // StatsCapabilities is a fixed boolean record; capabilityRenderMode wants the
   // open Record<string, boolean> shape, so we read it through that view.
   const mode = capabilityRenderMode(
@@ -158,7 +164,20 @@ export function TopKeys({
     );
   }
 
-  const ranked = rows.slice(0, TOP_N);
+  // Cap at TOP_N in the default view; "show idle" reveals the full list.
+  const ranked = showIdle ? visible : visible.slice(0, TOP_N);
+
+  const toggle =
+    idleCount > 0 ? (
+      <button
+        type="button"
+        data-slot="top-keys-toggle"
+        onClick={() => setShowIdle((v) => !v)}
+        className="cursor-pointer self-start font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary transition-colors hover:text-text-primary"
+      >
+        {showIdle ? 'Hide idle keys' : `Show idle keys (${idleCount})`}
+      </button>
+    ) : null;
 
   return (
     <Panel>
@@ -172,10 +191,17 @@ export function TopKeys({
           <span className="text-right">{COL_SPEND}</span>
           <span className="text-right">{COL_PCT}</span>
         </div>
-        {ranked.map((k, i) => (
-          <KeyRowItem key={k.id ?? i} item={k} />
-        ))}
+        {ranked.length === 0 ? (
+          <div data-slot="top-keys-state" className="px-4 py-8 text-center">
+            <div className="font-sans text-sm text-text-secondary">
+              {EMPTY_COPY}
+            </div>
+          </div>
+        ) : (
+          ranked.map((k, i) => <KeyRowItem key={k.id ?? i} item={k} />)
+        )}
       </div>
+      {toggle}
     </Panel>
   );
 }

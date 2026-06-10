@@ -5,7 +5,7 @@
 // per_key_spend coming-soon gate.
 
 import { describe, expect, it } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 
 import type { StatsCapabilities, StatsKeyRow } from '@/lib/api-types';
 import { TopKeys } from './TopKeys';
@@ -54,5 +54,39 @@ describe('TopKeys', () => {
     const caps: StatsCapabilities = { ...CAPS, per_key_spend: false };
     const { getByText } = render(<TopKeys keys={KEYS} capabilities={caps} />);
     expect(getByText('Coming soon')).toBeInTheDocument();
+  });
+});
+
+const MIXED: StatsKeyRow[] = [
+  ...KEYS,
+  { id: 'key-idle1', key_alias: 'idle-one', requests: 0, spend: 0, spend_pct: 0 },
+  { id: 'key-idle2', key_alias: 'idle-two', requests: 0, spend: 0, spend_pct: 0 },
+];
+
+describe('TopKeys idle filtering', () => {
+  it('hides idle (0 req / $0) keys by default, with a count toggle', () => {
+    const { getByText, queryByText } = render(
+      <TopKeys keys={MIXED} capabilities={CAPS} />
+    );
+    expect(getByText('prod-key')).toBeInTheDocument();
+    expect(queryByText('idle-one')).toBeNull();
+    expect(getByText('Show idle keys (2)')).toBeInTheDocument();
+  });
+
+  it('reveals idle keys on toggle click and can hide them again', () => {
+    const { getByText, queryByText } = render(
+      <TopKeys keys={MIXED} capabilities={CAPS} />
+    );
+    fireEvent.click(getByText('Show idle keys (2)'));
+    expect(getByText('idle-one')).toBeInTheDocument();
+    fireEvent.click(getByText('Hide idle keys'));
+    expect(queryByText('idle-one')).toBeNull();
+  });
+
+  it('shows the empty copy + toggle when ALL keys are idle', () => {
+    const allIdle = MIXED.slice(2);
+    const { getByText } = render(<TopKeys keys={allIdle} capabilities={CAPS} />);
+    expect(getByText('No usage in this range')).toBeInTheDocument();
+    expect(getByText('Show idle keys (2)')).toBeInTheDocument();
   });
 });

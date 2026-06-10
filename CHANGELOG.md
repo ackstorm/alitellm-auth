@@ -7,6 +7,10 @@
 - Stats: period-over-period delta chips on the four KPI cards (green/red by direction; spend deltas inverted).
 - Stats: per-model $/1M TOK efficiency column in Model Breakdown.
 
+### Changed
+
+- Stats: TOP API KEYS hides idle (zero-usage) keys by default behind a "Show idle keys (N)" toggle.
+
 ## [0.5.8] - 2026-06-10
 
 - fix: the **Stats** time-series charts (Daily spend, Requests by day) now plot **oldest → newest left-to-right** (chronological). They previously rendered newest-first, so the x-axis ran backwards.
