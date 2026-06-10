@@ -48,7 +48,9 @@ import {
 export type RequestsMetric = 'requests' | 'tokens';
 
 // The REQUESTS/TOKENS segmented toggle. Controlled — the owner holds the metric
-// state so it can place this control anywhere (e.g. the panel header row).
+// state so it can place this control anywhere (e.g. the panel header row). A
+// SINGLE bordered pill with both segments inside it (the active one tinted) so
+// the two read as one aligned control, not a box-next-to-plain-text.
 export function RequestsMetricToggle({
   metric,
   onChange,
@@ -57,17 +59,18 @@ export function RequestsMetricToggle({
   onChange: (m: RequestsMetric) => void;
 }): React.ReactElement {
   return (
-    <div className="flex gap-1">
+    <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
       {(['requests', 'tokens'] as const).map((m) => (
         <button
           key={m}
           type="button"
           data-slot={`requests-metric-${m}`}
+          aria-pressed={metric === m}
           onClick={() => onChange(m)}
-          className={`cursor-pointer rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+          className={`cursor-pointer rounded px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider transition-colors ${
             metric === m
-              ? 'border-primary text-primary'
-              : 'border-border text-text-secondary hover:text-text-primary'
+              ? 'bg-primary/15 text-primary'
+              : 'text-text-secondary hover:text-text-primary'
           }`}
         >
           {m}

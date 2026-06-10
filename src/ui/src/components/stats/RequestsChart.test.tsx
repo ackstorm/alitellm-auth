@@ -72,8 +72,8 @@ describe('RequestsChart', () => {
     const tokensBtn = getByText('tokens');
     expect(getByText('requests')).toBeInTheDocument();
     fireEvent.click(tokensBtn);
-    // after the switch the tokens button carries the active border class
-    expect(tokensBtn.className).toContain('border-primary');
+    // after the switch the tokens segment is the pressed one
+    expect(tokensBtn).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('renders real bars in requests mode (regression: no Fragment-wrapped bars)', () => {
@@ -106,7 +106,8 @@ describe('RequestsMetricToggle', () => {
     const { getByText } = render(
       <RequestsMetricToggle metric="requests" onChange={onChange} />
     );
-    expect(getByText('requests').className).toContain('border-primary');
+    expect(getByText('requests')).toHaveAttribute('aria-pressed', 'true');
+    expect(getByText('tokens')).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(getByText('tokens'));
     expect(onChange).toHaveBeenCalledWith('tokens');
   });
