@@ -20,6 +20,7 @@
 ### Fixed
 
 - Stats: charts no longer interpolate across days with no usage — missing days are zero-filled server-side.
+- Stats: the AVG COST KPI is now cost per 1M tokens (previously computed per 1K requests).
 
 ## [0.5.8] - 2026-06-10
 
