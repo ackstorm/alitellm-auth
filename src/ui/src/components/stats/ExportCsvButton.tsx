@@ -21,7 +21,7 @@ export function ExportCsvButton<T>({
       type="button"
       data-slot="export-csv"
       onClick={() => downloadCsv(filename, toCsv(rows, columns))}
-      className="cursor-pointer font-mono text-[10px] font-semibold uppercase tracking-wider text-text-secondary transition-colors hover:text-text-primary"
+      className="cursor-pointer rounded-md border border-border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-text-secondary transition-colors hover:border-text-secondary hover:text-text-primary"
     >
       export csv
     </button>
