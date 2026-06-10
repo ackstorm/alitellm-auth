@@ -353,6 +353,16 @@ def _expand_days(fixture: dict, start_date: str | None, end_date: str | None) ->
         _scale_metrics(day, f)
         results.append(day)
         m = day.get("metrics") or {}
+        # DEV-ONLY synthetic signals so the Stats "failed requests" + "cached
+        # input" UI is visible on localhost — the LOCKED repo fixtures carry 0 for
+        # both (never edited). Deterministic per day; mutating `m` (a reference to
+        # day["metrics"]) also feeds the per-day series, and the sums below roll up
+        # into metadata.total_*.
+        reqs = int(m.get("api_requests", 0) or 0)
+        prompt = int(m.get("prompt_tokens", 0) or 0)
+        m["failed_requests"] = max(0, round(reqs * 0.06))  # ~6% failed
+        m["successful_requests"] = max(0, reqs - m["failed_requests"])
+        m["cache_read_input_tokens"] = round(prompt * 0.4)  # ~40% cached input
         totals["total_spend"] += m.get("spend", 0)
         totals["total_prompt_tokens"] += m.get("prompt_tokens", 0)
         totals["total_completion_tokens"] += m.get("completion_tokens", 0)
