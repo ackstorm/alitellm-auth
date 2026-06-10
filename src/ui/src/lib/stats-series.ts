@@ -22,6 +22,8 @@ export interface SpendRequestsPoint {
   spend: number;
   requests: number;
   tokens: number;
+  failed: number;
+  success: number;
 }
 
 // Coerce to a finite number, or 0. Mirrors seriesToUplot's defensive guard
@@ -49,11 +51,16 @@ export function seriesToRecharts(
   const rows = new Array<SpendRequestsPoint>(series.length);
   for (let i = 0; i < series.length; i++) {
     const point = series[i] ?? ({} as StatsSeriesPoint);
+    const requests = asNumber(point.requests);
+    const failed = Math.min(requests, asNumber(point.failed));
     rows[i] = {
       date: point.date ?? '',
       spend: asNumber(point.spend),
-      requests: asNumber(point.requests),
+      requests,
       tokens: asNumber(point.tokens),
+      failed,
+      // Stacked-bar split: success + failed always re-sums to requests.
+      success: Math.max(0, requests - failed),
     };
   }
   return rows;

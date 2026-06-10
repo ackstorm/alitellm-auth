@@ -63,6 +63,7 @@ function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse {
       requests: 1234,
       tokens: 567890,
       spend: 12.5,
+      failed_requests: 0,
       avg_cost_per_1m_tokens: 0.01,
       deltas: {
         requests_pct: null,
@@ -72,8 +73,8 @@ function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse {
       },
     },
     series: [
-      { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234 },
-      { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678 },
+      { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234, failed: 2 },
+      { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678, failed: 0 },
     ],
     models: [
       {

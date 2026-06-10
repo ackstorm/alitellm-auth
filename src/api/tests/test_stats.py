@@ -61,6 +61,24 @@ def test_aggregate_window_series_includes_tokens():
     assert agg["series"][0]["tokens"] == int(day0["metrics"]["total_tokens"])
 
 
+def test_aggregate_window_failed_requests_total_and_per_day():
+    data = _load("daily_activity_current.json")
+    agg = aggregate_window(data)
+    assert agg["failed_requests"] == int(
+        data["metadata"]["total_failed_requests"]
+    )
+    day0 = data["results"][0]
+    assert agg["series"][0]["failed"] == int(day0["metrics"]["failed_requests"])
+
+
+def test_build_stats_contract_totals_include_failed_requests():
+    cur = aggregate_window(_load("daily_activity_current.json"))
+    contract = build_stats_contract(
+        cur, cur, {"current": 0, "max_budget": None}, {}, dict(_CAPABILITIES), _RANGE
+    )
+    assert contract["totals"]["failed_requests"] == cur["failed_requests"]
+
+
 def test_aggregate_window_models_summed_across_days():
     """A model appearing on 2 days has its metrics ADDED (the core fold)."""
     data = _load("daily_activity_current.json")

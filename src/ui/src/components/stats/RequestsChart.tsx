@@ -104,7 +104,19 @@ export function RequestsChart({ series, loading }: RequestsChartProps): React.Re
             formatter={makeTooltipFormatter(fmt)}
             cursor={{ fill: 'var(--border)', opacity: 0.3 }}
           />
-          <Bar dataKey={metric} fill={SERIES_COLOR} radius={[3, 3, 0, 0]} />
+          {metric === 'requests' ? (
+            <>
+              <Bar dataKey="success" stackId="req" fill={SERIES_COLOR} />
+              <Bar
+                dataKey="failed"
+                stackId="req"
+                fill="var(--destructive)"
+                radius={[3, 3, 0, 0]}
+              />
+            </>
+          ) : (
+            <Bar dataKey="tokens" fill={SERIES_COLOR} radius={[3, 3, 0, 0]} />
+          )}
         </BarChart>
       </ResponsiveContainer>
     </div>

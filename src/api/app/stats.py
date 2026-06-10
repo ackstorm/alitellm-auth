@@ -10,10 +10,11 @@ Contract shape produced by ``build_stats_contract`` (RESEARCH §4):
 
     {
       "range":   {start, end, days, compare:{start, end}},
-      "totals":  {requests, tokens, spend, avg_cost_per_1m_tokens,
+      "totals":  {requests, tokens, spend, failed_requests,
+                  avg_cost_per_1m_tokens,
                   deltas:{requests_pct, tokens_pct, spend_pct,
                           avg_cost_per_1m_tokens_pct}},
-      "series":  [{date, spend, requests, tokens}, ...],
+      "series":  [{date, spend, requests, tokens, failed}, ...],
       "models":  [{model, requests, input_tokens, output_tokens, total_tokens,
                    spend, spend_pct, last_used}, ...],
       "keys":    [{id, key_alias, requests, spend, spend_pct}, ...],  # spend desc
@@ -51,6 +52,7 @@ class WindowAggregate(TypedDict):
     requests: int
     tokens: int
     spend: float
+    failed_requests: int
     series: list[dict[str, Any]]
     models: list[dict[str, Any]]
     keys: list[dict[str, Any]]
@@ -124,7 +126,7 @@ def _zero_fill_series(
         key = d.isoformat()
         filled.append(
             by_day.get(key)
-            or {"date": key, "spend": 0.0, "requests": 0, "tokens": 0}
+            or {"date": key, "spend": 0.0, "requests": 0, "tokens": 0, "failed": 0}
         )
         d += timedelta(days=1)
     return filled
@@ -159,6 +161,7 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     requests = int(_num(metadata.get("total_api_requests")))
     tokens = int(_num(metadata.get("total_tokens")))
     spend = _num(metadata.get("total_spend"))
+    failed = int(_num(metadata.get("total_failed_requests")))
 
     series: list[dict[str, Any]] = []
     model_acc: dict[str, dict[str, Any]] = {}
@@ -174,6 +177,7 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
                 "spend": _num(day_metrics.get("spend")),
                 "requests": int(_num(day_metrics.get("api_requests"))),
                 "tokens": int(_num(day_metrics.get("total_tokens"))),
+                "failed": int(_num(day_metrics.get("failed_requests"))),
             }
         )
 
@@ -233,6 +237,7 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
         "requests": requests,
         "tokens": tokens,
         "spend": spend,
+        "failed_requests": failed,
         "series": series,
         "models": list(model_acc.values()),
         "keys": list(key_acc.values()),
@@ -360,6 +365,7 @@ def build_stats_contract(
         "requests": total_requests,
         "tokens": total_tokens,
         "spend": total_spend,
+        "failed_requests": int(_num(cur_agg.get("failed_requests"))),
         "avg_cost_per_1m_tokens": _avg_cost_per_1m_tokens(total_spend, total_tokens),
         "deltas": compute_deltas(cur_agg, prev_agg),
     }

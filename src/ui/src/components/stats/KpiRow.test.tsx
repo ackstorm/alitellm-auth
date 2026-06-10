@@ -13,6 +13,7 @@ const TOTALS: StatsTotals = {
   requests: 2_450_000,
   tokens: 1_000_000,
   spend: 1249.5,
+  failed_requests: 3,
   avg_cost_per_1m_tokens: 0.51,
   deltas: {
     requests_pct: 0.182,
@@ -61,5 +62,17 @@ describe('KpiRow', () => {
     };
     const { container } = render(<KpiRow totals={totals} />);
     expect(container.querySelectorAll('[data-slot="kpi-delta"]')).toHaveLength(0);
+  });
+
+  it('renders a failed-requests sub-line when failed_requests > 0', () => {
+    const { getByText } = render(<KpiRow totals={TOTALS} />);
+    // 3 failed; 3 / 2_450_000 -> 0.0%.
+    expect(getByText(/3 failed/)).toBeInTheDocument();
+  });
+
+  it('renders NO failed sub-line when failed_requests is 0', () => {
+    const totals: StatsTotals = { ...TOTALS, failed_requests: 0 };
+    const { container } = render(<KpiRow totals={totals} />);
+    expect(container.querySelector('[data-slot="kpi-failed"]')).toBeNull();
   });
 });

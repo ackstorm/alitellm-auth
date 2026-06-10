@@ -37,6 +37,7 @@ const STATS: StatsResponse = {
     requests: 0,
     tokens: 0,
     spend: 0,
+    failed_requests: 0,
     avg_cost_per_1m_tokens: null,
     deltas: {
       requests_pct: null,

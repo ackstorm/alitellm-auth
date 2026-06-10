@@ -166,6 +166,8 @@ export interface StatsTotals {
   requests: number;
   tokens: number;
   spend: number;
+  /** Total failed requests in the window (metadata.total_failed_requests). */
+  failed_requests: number;
   avg_cost_per_1m_tokens: number | null;
   deltas: StatsDeltas;
 }
@@ -177,6 +179,8 @@ export interface StatsSeriesPoint {
   requests: number;
   /** Per-day total tokens (prompt + completion). */
   tokens: number;
+  /** Per-day failed requests (metrics.failed_requests). */
+  failed: number;
 }
 
 /**

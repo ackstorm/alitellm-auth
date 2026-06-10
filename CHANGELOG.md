@@ -12,6 +12,7 @@
 - Stats: TOP API KEYS hides idle (zero-usage) keys by default behind a "Show idle keys (N)" toggle.
 - Stats: usage donut legend strips the shared provider/ prefix (full model name on hover).
 - Stats: per-day token counts in the series + REQUESTS/TOKENS toggle on the daily chart.
+- Stats: failed requests surfaced — destructive sub-line on TOTAL REQUESTS + red failed segment stacked on the daily requests bars.
 
 ### Fixed
 

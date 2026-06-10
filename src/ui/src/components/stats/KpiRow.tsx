@@ -10,7 +10,7 @@
 import * as React from 'react';
 
 import type { StatsTotals } from '@/lib/api-types';
-import { abbreviate, formatCurrency } from '@/lib/format';
+import { abbreviate, formatCurrency, formatInt } from '@/lib/format';
 
 // Signed one-decimal percent: 0.182 -> "+18.2%", -0.05 -> "-5.0%".
 function formatSignedPct(fraction: number): string {
@@ -45,17 +45,20 @@ function DeltaChip({
   );
 }
 
-// One of the four cards: an 11px caption label above a 24px heading value.
+// One of the four cards: an 11px caption label above a 24px heading value, an
+// optional sub-line (e.g. failed-requests), then the period-over-period chip.
 function KpiCard({
   label,
   value,
   deltaPct,
   invert,
+  sub,
 }: {
   label: string;
   value: string;
   deltaPct: number | null | undefined;
   invert?: boolean;
+  sub?: React.ReactNode;
 }): React.ReactElement {
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-5">
@@ -65,6 +68,7 @@ function KpiCard({
       <div className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
         {value}
       </div>
+      {sub}
       <DeltaChip pct={deltaPct} invert={invert} />
     </div>
   );
@@ -87,6 +91,18 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: abbreviate(t?.requests),
       deltaPct: d?.requests_pct,
       invert: false,
+      sub:
+        typeof t?.failed_requests === 'number' && t.failed_requests > 0 ? (
+          <div
+            data-slot="kpi-failed"
+            className="font-mono text-[11px] text-destructive"
+          >
+            {formatInt(t.failed_requests)} failed
+            {t.requests > 0
+              ? ` · ${((t.failed_requests / t.requests) * 100).toFixed(1)}%`
+              : ''}
+          </div>
+        ) : null,
     },
     {
       label: 'TOTAL TOKENS',
@@ -118,6 +134,7 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
             value={c.value}
             deltaPct={c.deltaPct}
             invert={c.invert}
+            sub={c.sub}
           />
         ))}
       </div>
