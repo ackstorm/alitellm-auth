@@ -184,6 +184,11 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
                 acc["requests"] += int(_num(k.get("api_requests")))
                 acc["spend"] += _num(k.get("spend"))
 
+    # Chart x-axis runs oldest → newest (left → right). LiteLLM may return
+    # ``results[]`` newest-first, so sort the series chronologically by date
+    # (None dates sink to the front via the empty-string fallback).
+    series.sort(key=lambda s: s.get("date") or "")
+
     return {
         "requests": requests,
         "tokens": tokens,

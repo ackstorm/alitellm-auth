@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+- fix: the **Stats** time-series charts (Daily spend, Requests by day) now plot **oldest → newest left-to-right** (chronological). They previously rendered newest-first, so the x-axis ran backwards.
+- change: the **Key created** dialog is reworked for clarity — the one-time notice is now plain professional prose mirroring the upstream LiteLLM dialog (no tinted callout), with the **"you won't be able to view it again."** clause bold inline; the secret key itself is no longer bold and is sized to match the body text.
+- change: **HOW-TO → Codex** now documents the `~/.codex/config.toml` provider block (`model_provider` + `base_url` + `env_key`) instead of `OPENAI_*` env vars, with the env-var approach kept as a fallback.
+
 ## [0.5.7] - 2026-06-08
 
 - feat: new **A2A** tab — a per-user, read-only catalog of the **Agent-to-Agent** agents registered on the gateway, sourced server-side from LiteLLM `GET /v1/agents` (A2A gateway, beta) and projected to a PUBLIC subset (name, version, endpoint, transport, streaming, skills — never headers/params/credentials). Scoped to the signed-in user through the same gateway custom-auth path as Models/MCPs, and gated on a default key. A calm "not enabled" state covers deployments with no A2A gateway. New endpoint: `GET /api/session/a2a`.

@@ -22,7 +22,7 @@ import json
 import logging
 import random
 import string
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -285,6 +285,88 @@ async def key_unblock(request: Request):
 
 # ── Usage / spend ───────────────────────────────────────────────────────────
 
+# The repo fixtures carry a SINGLE day. For a usable dev chart we expand that one
+# day's shape across the whole requested window, varying each day's metrics by a
+# deterministic factor so the line/bar charts show real movement (not one point).
+_MAX_MOCK_DAYS = 92  # payload cap for very wide custom ranges
+
+
+def _scale_metrics(node: Any, f: float) -> None:
+    """Recursively scale every numeric metric leaf in a day node IN PLACE by ``f``.
+
+    Ints (tokens / requests) round to a non-negative int; floats (spend) scale as
+    floats. Bools and strings (``date``, null ``key_alias``) are left untouched.
+    Every numeric leaf in a day node is a metric, so a blanket walk is safe.
+    """
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if isinstance(v, (dict, list)):
+                _scale_metrics(v, f)
+            elif isinstance(v, bool):
+                continue
+            elif isinstance(v, int):
+                node[k] = max(0, round(v * f))
+            elif isinstance(v, float):
+                node[k] = v * f
+    elif isinstance(node, list):
+        for item in node:
+            _scale_metrics(item, f)
+
+
+def _expand_days(fixture: dict, start_date: str | None, end_date: str | None) -> dict:
+    """Replicate the fixture's single template day across [start_date, end_date].
+
+    Returns the fixture unchanged when no/invalid window or no template day. The
+    metadata ``total_*`` are recomputed as the SUM of the generated per-day metrics
+    so the KPI headline matches the chart series.
+    """
+    results_tmpl = fixture.get("results") or []
+    if not results_tmpl or not (start_date and end_date):
+        return copy.deepcopy(fixture)
+    try:
+        sd = date.fromisoformat(start_date)
+        ed = date.fromisoformat(end_date)
+    except ValueError:
+        return copy.deepcopy(fixture)
+    if ed < sd:
+        sd, ed = ed, sd
+    span = min((ed - sd).days + 1, _MAX_MOCK_DAYS)
+    template = results_tmpl[0]
+
+    results: list[dict] = []
+    totals = {
+        "total_spend": 0.0,
+        "total_prompt_tokens": 0,
+        "total_completion_tokens": 0,
+        "total_tokens": 0,
+        "total_api_requests": 0,
+        "total_successful_requests": 0,
+        "total_failed_requests": 0,
+        "total_cache_read_input_tokens": 0,
+        "total_cache_creation_input_tokens": 0,
+    }
+    for i in range(span):
+        # Deterministic jagged factor in [0.2, 2.0] → a visibly varied chart.
+        f = ((i * 7 + 3) % 10 + 1) / 5.0
+        day = copy.deepcopy(template)
+        day["date"] = (sd + timedelta(days=i)).isoformat()
+        _scale_metrics(day, f)
+        results.append(day)
+        m = day.get("metrics") or {}
+        totals["total_spend"] += m.get("spend", 0)
+        totals["total_prompt_tokens"] += m.get("prompt_tokens", 0)
+        totals["total_completion_tokens"] += m.get("completion_tokens", 0)
+        totals["total_tokens"] += m.get("total_tokens", 0)
+        totals["total_api_requests"] += m.get("api_requests", 0)
+        totals["total_successful_requests"] += m.get("successful_requests", 0)
+        totals["total_failed_requests"] += m.get("failed_requests", 0)
+        totals["total_cache_read_input_tokens"] += m.get("cache_read_input_tokens", 0)
+        totals["total_cache_creation_input_tokens"] += m.get(
+            "cache_creation_input_tokens", 0
+        )
+
+    return {"results": results, "metadata": dict(totals)}
+
 
 @app.get("/user/daily/activity")
 async def daily_activity(
@@ -311,7 +393,7 @@ async def daily_activity(
                 fixture = _DAILY_PRIOR
         except ValueError:
             pass
-    out = copy.deepcopy(fixture)
+    out = _expand_days(fixture, start_date, end_date)
     # Always force has_more=false so the backend's page loop terminates after one page.
     out.setdefault("metadata", {})["has_more"] = False
     out["metadata"]["page"] = 1
