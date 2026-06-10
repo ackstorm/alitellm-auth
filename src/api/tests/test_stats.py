@@ -64,9 +64,7 @@ def test_aggregate_window_series_includes_tokens():
 def test_aggregate_window_failed_requests_total_and_per_day():
     data = _load("daily_activity_current.json")
     agg = aggregate_window(data)
-    assert agg["failed_requests"] == int(
-        data["metadata"]["total_failed_requests"]
-    )
+    assert agg["failed_requests"] == int(data["metadata"]["total_failed_requests"])
     day0 = data["results"][0]
     assert agg["series"][0]["failed"] == int(day0["metrics"]["failed_requests"])
 
@@ -260,9 +258,7 @@ def test_build_stats_contract_cache_hit_pct():
     )
     md = data["metadata"]
     expected = md["total_cache_read_input_tokens"] / md["total_prompt_tokens"]
-    assert contract["totals"]["cache_read_tokens"] == int(
-        md["total_cache_read_input_tokens"]
-    )
+    assert contract["totals"]["cache_read_tokens"] == int(md["total_cache_read_input_tokens"])
     assert contract["totals"]["cache_hit_pct"] == pytest.approx(expected)
 
 

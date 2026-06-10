@@ -127,8 +127,7 @@ def _zero_fill_series(
     while d <= end:
         key = d.isoformat()
         filled.append(
-            by_day.get(key)
-            or {"date": key, "spend": 0.0, "requests": 0, "tokens": 0, "failed": 0}
+            by_day.get(key) or {"date": key, "spend": 0.0, "requests": 0, "tokens": 0, "failed": 0}
         )
         d += timedelta(days=1)
     return filled
