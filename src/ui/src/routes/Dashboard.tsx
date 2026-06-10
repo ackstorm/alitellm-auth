@@ -32,6 +32,7 @@ import type {
   SessionMe,
   SessionSpend,
 } from '@/lib/api-types';
+import { budgetFillClass } from '@/lib/budget';
 import { abbreviate, formatCurrency, formatInt } from '@/lib/format';
 import { isRevoked, selectKeyRows } from '@/lib/keys';
 import { presetToRange } from '@/lib/stats-presets';
@@ -148,7 +149,6 @@ function BudgetBar({
 
   const ratio = current / maxBudget;
   const fillPct = Math.max(0, Math.min(1, ratio)) * 100;
-  const over = ratio > 1;
 
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-5">
@@ -166,7 +166,8 @@ function BudgetBar({
       </div>
       <div className="flex h-2 overflow-hidden rounded-full border border-border bg-background">
         <div
-          className={over ? 'h-full bg-destructive' : 'h-full bg-primary'}
+          data-slot="budget-fill"
+          className={`h-full ${budgetFillClass(ratio)}`}
           style={{ width: `${fillPct}%` }}
         />
       </div>

@@ -28,9 +28,9 @@ describe('BudgetPanel', () => {
         (_content, el) => el?.textContent === '$12.50 of $50.00 / 30d',
       ),
     ).toBeInTheDocument();
-    // Under budget -> primary fill, not destructive.
+    // Under 80% -> neutral grey fill (not primary, not warning/destructive).
     const fill = container.querySelector('[data-slot="budget-fill"]');
-    expect(fill?.className).toContain('bg-primary');
+    expect(fill?.className).toContain('bg-text-secondary');
     // 12.5/50 -> a 25%-wide bar (regression: was rendered as 0.25% sliver).
     expect((fill as HTMLElement).style.width).toBe('25%');
     expect(container.querySelector('[data-slot="budget-panel"]')).toHaveAttribute(
@@ -57,6 +57,36 @@ describe('BudgetPanel', () => {
       'data-state',
       'none'
     );
+  });
+
+  it('switches the fill to warning orange in [80%, 90%)', () => {
+    const budget: StatsBudget = {
+      current: 42, // 42/50 = 84%
+      max_budget: 50,
+      budget_duration: '30d',
+      source: 'user',
+      pct: 0.84,
+      has_budget: true,
+    };
+    const { container } = render(<BudgetPanel budget={budget} />);
+    expect(
+      container.querySelector('[data-slot="budget-fill"]')?.className,
+    ).toContain('bg-warning');
+  });
+
+  it('switches the fill to destructive at/above 90%', () => {
+    const budget: StatsBudget = {
+      current: 46, // 46/50 = 92%
+      max_budget: 50,
+      budget_duration: '30d',
+      source: 'user',
+      pct: 0.92,
+      has_budget: true,
+    };
+    const { container } = render(<BudgetPanel budget={budget} />);
+    expect(
+      container.querySelector('[data-slot="budget-fill"]')?.className,
+    ).toContain('bg-destructive');
   });
 
   it('switches the fill to destructive when over budget', () => {

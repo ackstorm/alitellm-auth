@@ -22,6 +22,7 @@
 import * as React from 'react';
 
 import type { StatsBudget } from '@/lib/api-types';
+import { budgetFillClass } from '@/lib/budget';
 import { formatCurrency } from '@/lib/format';
 
 // Locked copy (13-UI-SPEC §Copywriting Contract / §7).
@@ -92,7 +93,7 @@ export function BudgetPanel({ budget }: BudgetPanelProps): React.ReactElement {
       <div className="flex h-2 overflow-hidden rounded-full border border-border bg-background">
         <div
           data-slot="budget-fill"
-          className={over ? 'h-full bg-destructive' : 'h-full bg-primary'}
+          className={`h-full ${budgetFillClass(ratio)}`}
           style={{ width: `${fillPct}%` }}
         />
       </div>

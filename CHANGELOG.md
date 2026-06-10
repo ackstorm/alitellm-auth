@@ -15,6 +15,7 @@
 - Stats: failed requests surfaced — destructive sub-line on TOTAL REQUESTS + red failed segment stacked on the daily requests bars.
 - Stats: CSV export for the model breakdown.
 - Stats: cached-input percentage on the TOTAL TOKENS card.
+- Stats & Dashboard: the account budget bar colors by usage — neutral grey under 80%, warning orange from 80%, red from 90% (and over budget) — so it stays legible even in the red theme.
 
 ### Fixed
 
