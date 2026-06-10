@@ -18,17 +18,40 @@ function formatSignedPct(fraction: number): string {
   return fraction >= 0 ? `+${pct}%` : `${pct}%`;
 }
 
-// The per-card delta chip. Null/non-finite pct (degraded deltas) -> nothing.
+// The per-card delta chip. Three states:
+//   • finite pct          -> signed percent + direction arrow/color;
+//   • pct null but isNew  -> a "new" chip (prior baseline was 0, current > 0 —
+//                            an undefined %, NOT an infinite one);
+//   • otherwise           -> nothing (no prior AND no current activity).
 function DeltaChip({
   pct,
   invert,
+  isNew,
 }: {
   pct: number | null | undefined;
   invert?: boolean;
+  isNew?: boolean;
 }): React.ReactElement | null {
-  if (typeof pct !== 'number' || !Number.isFinite(pct)) return null;
-  const up = pct > 0;
-  const flat = pct === 0;
+  const hasPct = typeof pct === 'number' && Number.isFinite(pct);
+
+  if (!hasPct) {
+    if (!isNew) return null;
+    // Prior baseline was 0/absent: the jump from nothing is a full +100%, but
+    // there is no real trend to judge — a NEUTRAL grey note, not a good/bad
+    // colored delta.
+    return (
+      <div
+        data-slot="kpi-delta"
+        className="font-mono text-[11px] text-text-secondary"
+      >
+        ▲ 100% <span className="text-text-tertiary">(no previous info)</span>
+      </div>
+    );
+  }
+
+  const value = pct as number;
+  const up = value > 0;
+  const flat = value === 0;
   const good = flat ? null : invert ? !up : up;
   const color = flat
     ? 'text-text-secondary'
@@ -39,9 +62,25 @@ function DeltaChip({
   return (
     <div data-slot="kpi-delta" className={`font-mono text-[11px] ${color}`}>
       {arrow}
-      {formatSignedPct(pct)}{' '}
+      {formatSignedPct(value)}{' '}
       <span className="text-text-tertiary">vs prev</span>
     </div>
+  );
+}
+
+// "new" = the prior-period baseline was 0/undefined (so no % change exists) yet
+// the current window has real activity. Distinguishes genuinely-new usage from a
+// fully-idle metric (where both windows are 0 → no chip at all).
+function isNewMetric(
+  pct: number | null | undefined,
+  current: number | null | undefined,
+): boolean {
+  const hasPct = typeof pct === 'number' && Number.isFinite(pct);
+  return (
+    !hasPct &&
+    typeof current === 'number' &&
+    Number.isFinite(current) &&
+    current > 0
   );
 }
 
@@ -52,12 +91,14 @@ function KpiCard({
   value,
   deltaPct,
   invert,
+  isNew,
   sub,
 }: {
   label: string;
   value: string;
   deltaPct: number | null | undefined;
   invert?: boolean;
+  isNew?: boolean;
   sub?: React.ReactNode;
 }): React.ReactElement {
   return (
@@ -69,7 +110,7 @@ function KpiCard({
         {value}
       </div>
       {sub}
-      <DeltaChip pct={deltaPct} invert={invert} />
+      <DeltaChip pct={deltaPct} invert={invert} isNew={isNew} />
     </div>
   );
 }
@@ -91,6 +132,7 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: abbreviate(t?.requests),
       deltaPct: d?.requests_pct,
       invert: false,
+      isNew: isNewMetric(d?.requests_pct, t?.requests),
       sub:
         typeof t?.failed_requests === 'number' && t.failed_requests > 0 ? (
           <div
@@ -109,6 +151,7 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: abbreviate(t?.tokens),
       deltaPct: d?.tokens_pct,
       invert: false,
+      isNew: isNewMetric(d?.tokens_pct, t?.tokens),
       sub:
         typeof t?.cache_hit_pct === 'number' && t.cache_hit_pct > 0 ? (
           <div
@@ -124,12 +167,17 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: formatCurrency(t?.spend),
       deltaPct: d?.spend_pct,
       invert: true,
+      isNew: isNewMetric(d?.spend_pct, t?.spend),
     },
     {
       label: 'AVG COST / 1M TOKENS',
       value: formatCurrency(t?.avg_cost_per_1m_tokens),
       deltaPct: d?.avg_cost_per_1m_tokens_pct,
       invert: true,
+      isNew: isNewMetric(
+        d?.avg_cost_per_1m_tokens_pct,
+        t?.avg_cost_per_1m_tokens,
+      ),
     },
   ];
 
@@ -143,7 +191,8 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
             value={c.value}
             deltaPct={c.deltaPct}
             invert={c.invert}
-            sub={c.sub}
+            isNew={c.isNew}
+            sub={'sub' in c ? c.sub : undefined}
           />
         ))}
       </div>

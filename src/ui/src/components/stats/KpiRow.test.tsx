@@ -52,9 +52,38 @@ describe('KpiRow', () => {
     expect(chips[2].className).toContain('text-destructive');
   });
 
-  it('renders NO chip when a delta pct is null (degraded prior window)', () => {
+  it('renders a neutral "no previous info" chip when pct is null but current > 0', () => {
+    // Prior baseline empty (e.g. prior window had 0 tokens) -> no % to compute and
+    // no up/down to judge: a NEUTRAL grey note, never green/red.
     const totals: StatsTotals = {
       ...TOTALS,
+      deltas: {
+        requests_pct: null,
+        tokens_pct: null,
+        spend_pct: null,
+        avg_cost_per_1m_tokens_pct: null,
+      },
+    };
+    const { container } = render(<KpiRow totals={totals} />);
+    const chips = container.querySelectorAll('[data-slot="kpi-delta"]');
+    expect(chips).toHaveLength(4);
+    chips.forEach((c) => {
+      expect(c.textContent).toContain('100%');
+      expect(c.textContent).toContain('no previous info');
+      // neutral grey — not the good (primary) / bad (destructive) delta colors.
+      expect(c.className).toContain('text-text-secondary');
+      expect(c.className).not.toContain('text-primary');
+      expect(c.className).not.toContain('text-destructive');
+    });
+  });
+
+  it('renders NO chip when pct is null AND the current value is 0/absent', () => {
+    const totals: StatsTotals = {
+      ...TOTALS,
+      requests: 0,
+      tokens: 0,
+      spend: 0,
+      avg_cost_per_1m_tokens: null,
       deltas: {
         requests_pct: null,
         tokens_pct: null,

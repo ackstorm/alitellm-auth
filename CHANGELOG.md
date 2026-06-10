@@ -4,7 +4,7 @@
 
 ### Added
 
-- Stats: period-over-period delta chips on the four KPI cards (green/red by direction; spend deltas inverted).
+- Stats: period-over-period delta chips on the four KPI cards (green/red by direction; spend deltas inverted). When the prior period had no baseline (e.g. 0 tokens), the chip shows a neutral grey "▲ no previous info" instead of disappearing — so every active metric shows the comparison state.
 - Stats: per-model $/1M TOK efficiency column in Model Breakdown.
 
 ### Changed
