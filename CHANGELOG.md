@@ -13,6 +13,10 @@
 - Stats: usage donut legend strips the shared provider/ prefix (full model name on hover).
 - Stats: per-day token counts in the series + REQUESTS/TOKENS toggle on the daily chart.
 
+### Fixed
+
+- Stats: charts no longer interpolate across days with no usage — missing days are zero-filled server-side.
+
 ## [0.5.8] - 2026-06-10
 
 - fix: the **Stats** time-series charts (Daily spend, Requests by day) now plot **oldest → newest left-to-right** (chronological). They previously rendered newest-first, so the x-axis ran backwards.

@@ -209,6 +209,31 @@ def test_build_stats_contract_shape_and_capabilities():
     assert "deltas" in contract["totals"]
 
 
+def test_build_stats_contract_zero_fills_missing_days():
+    cur = aggregate_window(_load("daily_activity_current.json"))  # day: 2026-04-01
+    rng = {
+        "start": "2026-03-31",
+        "end": "2026-04-02",
+        "days": 3,
+        "compare": {"start": "2026-03-28", "end": "2026-03-30"},
+    }
+    contract = build_stats_contract(
+        cur, cur, {"current": 0, "max_budget": None}, {}, dict(_CAPABILITIES), rng
+    )
+    series = contract["series"]
+    assert [str(p["date"])[:10] for p in series] == [
+        "2026-03-31",
+        "2026-04-01",
+        "2026-04-02",
+    ]
+    # Filled days are REAL zeros (D-08: in-window absence of usage IS zero usage).
+    assert series[0]["spend"] == 0.0
+    assert series[0]["requests"] == 0
+    assert series[0]["tokens"] == 0
+    # The real day keeps its figures.
+    assert series[1]["requests"] > 0
+
+
 def test_build_stats_contract_keys_ranked_by_spend_desc():
     data = _load("daily_activity_prior.json")
     cur = aggregate_window(data)

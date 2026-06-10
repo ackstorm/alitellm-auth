@@ -34,6 +34,7 @@ window stays ``0``/``0.0``. Every denominator is guarded.
 from __future__ import annotations
 
 import hashlib
+from datetime import date, timedelta
 from typing import Any, TypedDict
 
 __all__ = [
@@ -89,6 +90,44 @@ def _safe_pct(numerator: float | None, denominator: float | None) -> float | Non
     if numerator is None:
         return None
     return numerator / denominator
+
+
+def _zero_fill_series(
+    series: list[dict[str, Any]],
+    start_iso: Any,
+    end_iso: Any,
+) -> list[dict[str, Any]]:
+    """Fill missing in-window days with zero rows, in chronological order.
+
+    LiteLLM's ``results[]`` omits days with no activity, so a line chart
+    interpolates across the gap — which reads as usage that never happened. An
+    in-window day with no usage IS a real zero (D-08), so fabricate
+    ``{date, spend: 0.0, requests: 0, tokens: 0}`` for each missing day.
+
+    Dates are matched on the YYYY-MM-DD prefix. Defensive (D-09): an absent /
+    unparseable bound, an inverted range, or a span wider than the route's
+    366-day cap returns the series unchanged. Entries with a null date are
+    dropped by the fill (they were unplottable on the category axis anyway).
+    """
+    try:
+        start = date.fromisoformat(str(start_iso)[:10])
+        end = date.fromisoformat(str(end_iso)[:10])
+    except (TypeError, ValueError):
+        return series
+    if end < start or (end - start).days + 1 > 400:
+        return series
+
+    by_day = {str(p.get("date"))[:10]: p for p in series if p.get("date")}
+    filled: list[dict[str, Any]] = []
+    d = start
+    while d <= end:
+        key = d.isoformat()
+        filled.append(
+            by_day.get(key)
+            or {"date": key, "spend": 0.0, "requests": 0, "tokens": 0}
+        )
+        d += timedelta(days=1)
+    return filled
 
 
 def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
@@ -328,7 +367,11 @@ def build_stats_contract(
     return {
         "range": range_meta,
         "totals": totals,
-        "series": cur_agg.get("series") or [],
+        "series": _zero_fill_series(
+            cur_agg.get("series") or [],
+            range_meta.get("start"),
+            range_meta.get("end"),
+        ),
         "models": models,
         "keys": keys,
         "budget": budget_block,
