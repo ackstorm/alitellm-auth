@@ -36,6 +36,23 @@ function formatPct(fraction: number | null | undefined): string {
   return `${(fraction * 100).toFixed(1)}%`;
 }
 
+// Per-model efficiency: spend / total_tokens * 1e6 as currency (the same unit as
+// the AVG COST / 1M TOKENS KPI). Absent/zero tokens -> em-dash (D-08), never ∞.
+function costPer1mTokens(m: StatsModelRow): string {
+  const tokens = m.total_tokens;
+  const spend = m.spend;
+  if (
+    typeof tokens !== 'number' ||
+    !Number.isFinite(tokens) ||
+    tokens <= 0 ||
+    typeof spend !== 'number' ||
+    !Number.isFinite(spend)
+  ) {
+    return EM_DASH;
+  }
+  return formatCurrency((spend / tokens) * 1e6);
+}
+
 export interface ModelTableProps {
   /** The Phase-12 `models[]` slice. */
   models: StatsModelRow[] | null | undefined;
@@ -61,7 +78,7 @@ export function ModelTable({
     typeof m.spend === 'number' && Number.isFinite(m.spend) ? m.spend : -Infinity;
   const sorted = rows.slice().sort((a, b) => spendOf(b) - spendOf(a));
 
-  // The LOCKED 8-column order (UI-SPEC §6). Numeric columns right-aligned; MODEL
+  // The LOCKED 9-column order (UI-SPEC §6). Numeric columns right-aligned; MODEL
   // and LAST USED left-aligned (mirrors the old smt-cell-model/lastused idiom).
   const columns: DataTableColumn<StatsModelRow>[] = [
     {
@@ -111,6 +128,13 @@ export function ModelTable({
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => formatPct(m.spend_pct),
+    },
+    {
+      key: 'per1m',
+      header: '$/1M TOK',
+      headerClassName: 'text-right',
+      className: 'font-mono text-xs text-right whitespace-nowrap',
+      cell: (m) => costPer1mTokens(m),
     },
     {
       key: 'lastused',

@@ -5,6 +5,7 @@
 ### Added
 
 - Stats: period-over-period delta chips on the four KPI cards (green/red by direction; spend deltas inverted).
+- Stats: per-model $/1M TOK efficiency column in Model Breakdown.
 
 ## [0.5.8] - 2026-06-10
 
