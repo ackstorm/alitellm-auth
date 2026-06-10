@@ -21,8 +21,13 @@ export const ALIAS_ERROR =
   'Name may only contain letters, numbers, dash, underscore, dot (max 128).';
 export const DURATION_ERROR = 'Expiry must look like 90d, 24h, or 30m.';
 export const CREATE_502_ERROR = "Couldn't create the key. Try again in a moment.";
-export const SHOWN_ONCE_WARNING =
-  "This key is shown once. Copy and store it now — you won't see it again.";
+// The shown-once notice, split so the key-visibility clause renders bold inline
+// (mirrors LiteLLM's own dialog). The three parts concatenate to the full copy.
+export const SHOWN_ONCE_WARNING_PRE =
+  'Save this secret key somewhere safe and accessible. For security reasons, ';
+export const SHOWN_ONCE_WARNING_EMPHASIS = "you won't be able to view it again.";
+export const SHOWN_ONCE_WARNING_POST =
+  " If you lose it, you'll need to generate a new one.";
 
 /**
  * Validate a trimmed alias against the session.py rules. Empty is allowed (the

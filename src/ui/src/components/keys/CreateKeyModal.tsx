@@ -19,7 +19,7 @@
 //   - useCreateKey.onSuccess ALREADY stashes the fresh sk- and invalidates the
 //     keys query; this modal only DISPLAYS the returned key once.
 
-import { Check, Copy, TriangleAlert } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,9 @@ import { useCreateKey } from '@/hooks/use-keys';
 import type { CreateKeyBody } from '@/lib/api-types';
 import {
   CREATE_502_ERROR,
-  SHOWN_ONCE_WARNING,
+  SHOWN_ONCE_WARNING_EMPHASIS,
+  SHOWN_ONCE_WARNING_POST,
+  SHOWN_ONCE_WARNING_PRE,
   validateAlias,
   validateDuration,
 } from '@/lib/key-validation';
@@ -139,18 +141,19 @@ export function CreateKeyModal() {
               <DialogTitle>Key created</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-4">
-              {/* One-time warning — high-emphasis callout (icon + tinted slab) so
-                  it cannot be skimmed past. The copy is the locked shown-once
-                  string, kept as ONE text node. */}
-              <div
+              {/* One-time notice — plain professional prose (no tinted callout,
+                  mirroring LiteLLM's own dialog), with the key-visibility clause
+                  bold inline. The three parts are the locked shown-once copy. */}
+              <p
                 role="alert"
-                className="flex items-start gap-2.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-2.5 text-primary"
+                className="text-sm leading-relaxed text-text-secondary"
               >
-                <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                <p className="text-sm font-semibold leading-relaxed">
-                  {SHOWN_ONCE_WARNING}
-                </p>
-              </div>
+                {SHOWN_ONCE_WARNING_PRE}
+                <strong className="font-semibold text-text-primary">
+                  {SHOWN_ONCE_WARNING_EMPHASIS}
+                </strong>
+                {SHOWN_ONCE_WARNING_POST}
+              </p>
 
               {/* The secret key — the focal point. Max-contrast mono (ink in
                   light, near-white in dark via text-text-primary) on a muted slab;
@@ -181,7 +184,7 @@ export function CreateKeyModal() {
                     {copied ? 'copied!' : 'copy'}
                   </Button>
                 </div>
-                <div className="break-all rounded-md border border-border bg-muted px-3.5 py-3 font-mono text-[15px] font-semibold leading-relaxed text-text-primary select-all">
+                <div className="break-all rounded-md border border-border bg-muted px-3.5 py-3 font-mono text-sm leading-relaxed text-text-primary select-all">
                   {result.key}
                 </div>
               </div>

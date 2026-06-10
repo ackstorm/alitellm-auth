@@ -127,11 +127,19 @@ describe('CreateKeyModal — valid submit + one-time reveal', () => {
 
     // The view switches to the shown-once result.
     expect(await screen.findByText('Key created')).toBeInTheDocument();
+    // The full shown-once copy assembles on the <p> (across the bold clause).
     expect(
       screen.getByText(
-        "This key is shown once. Copy and store it now — you won't see it again.",
+        (_content, el) =>
+          el?.tagName === 'P' &&
+          el.textContent ===
+            "Save this secret key somewhere safe and accessible. For security reasons, you won't be able to view it again. If you lose it, you'll need to generate a new one.",
       ),
     ).toBeInTheDocument();
+    // The key-visibility clause is emphasized (bold inline).
+    const emphasis = screen.getByText("you won't be able to view it again.");
+    expect(emphasis.tagName).toBe('STRONG');
+    expect(emphasis).toHaveClass('font-semibold');
     expect(screen.getByText('sk-secret')).toBeInTheDocument();
 
     // Copy writes the FULL sk- to the clipboard stub.
