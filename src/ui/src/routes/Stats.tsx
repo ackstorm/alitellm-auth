@@ -25,6 +25,7 @@ import { useState } from 'react';
 
 import { BudgetPanel } from '@/components/stats/BudgetPanel';
 import { DateRange } from '@/components/stats/DateRange';
+import { ExportCsvButton } from '@/components/stats/ExportCsvButton';
 import { KpiRow } from '@/components/stats/KpiRow';
 import { ModelTable } from '@/components/stats/ModelTable';
 import {
@@ -37,6 +38,8 @@ import { TopKeys } from '@/components/stats/TopKeys';
 import { UsageDonut } from '@/components/stats/UsageDonut';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useKeys } from '@/hooks/use-keys';
+import type { StatsModelRow, StatsSeriesPoint } from '@/lib/api-types';
+import type { CsvColumn } from '@/lib/csv';
 import { useStats } from '@/hooks/use-stats';
 import { selectKeyRows } from '@/lib/keys';
 import { presetToRange } from '@/lib/stats-presets';
@@ -55,6 +58,27 @@ const ERR_BODY =
 
 // The default preset (default window — 7d).
 const DEFAULT_PRESET = '7d';
+
+// CSV column definitions for the two stats exports (Task 8). The `key`s must be
+// real fields on the row type so the serializer reads them directly.
+const SERIES_CSV_COLS = [
+  { key: 'date', header: 'date' },
+  { key: 'requests', header: 'requests' },
+  { key: 'tokens', header: 'tokens' },
+  { key: 'failed', header: 'failed' },
+  { key: 'spend', header: 'spend' },
+] satisfies CsvColumn<StatsSeriesPoint>[];
+
+const MODELS_CSV_COLS = [
+  { key: 'model', header: 'model' },
+  { key: 'requests', header: 'requests' },
+  { key: 'input_tokens', header: 'input_tokens' },
+  { key: 'output_tokens', header: 'output_tokens' },
+  { key: 'total_tokens', header: 'total_tokens' },
+  { key: 'spend', header: 'spend' },
+  { key: 'spend_pct', header: 'spend_pct' },
+  { key: 'last_used', header: 'last_used' },
+] satisfies CsvColumn<StatsModelRow>[];
 
 // Shared 11px mono-caption section label (the UI-SPEC §Typography caption role).
 const SECTION_LABEL_CLASS =
@@ -195,7 +219,18 @@ export function Stats() {
 
       {/* §3 the two time-series charts, side-by-side (stack on narrow) */}
       <div className="grid grid-cols-2 gap-3 max-[880px]:grid-cols-1">
-        <Panel label={SECTION_DAILY_SPEND}>
+        <Panel
+          label={SECTION_DAILY_SPEND}
+          action={
+            loading ? undefined : (
+              <ExportCsvButton
+                rows={series}
+                columns={SERIES_CSV_COLS}
+                filename={`daily-${range.start}-${range.end}.csv`}
+              />
+            )
+          }
+        >
           {loading ? <Skeleton variant="chart" /> : <SpendChart series={series} />}
         </Panel>
         <Panel
@@ -243,8 +278,15 @@ export function Stats() {
 
       {/* §4 Model Breakdown */}
       <div className="min-w-0">
-        <div className={`${SECTION_LABEL_CLASS} mb-3`}>
-          {SECTION_MODEL_BREAKDOWN}
+        <div className="mb-3 flex min-h-6 items-center justify-between gap-3">
+          <div className={SECTION_LABEL_CLASS}>{SECTION_MODEL_BREAKDOWN}</div>
+          {loading ? null : (
+            <ExportCsvButton
+              rows={models}
+              columns={MODELS_CSV_COLS}
+              filename={`models-${range.start}-${range.end}.csv`}
+            />
+          )}
         </div>
         {loading ? (
           <Skeleton variant="table-rows" rows={6} />

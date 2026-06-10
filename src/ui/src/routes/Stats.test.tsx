@@ -239,6 +239,13 @@ describe('Stats — success', () => {
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBe(0);
     expect(screen.queryByText("Couldn't load usage")).not.toBeInTheDocument();
   });
+
+  it('renders two CSV export buttons (daily series + model breakdown)', () => {
+    const { container } = render(<Stats />);
+    expect(
+      container.querySelectorAll('[data-slot="export-csv"]').length
+    ).toBe(2);
+  });
 });
 
 describe('Stats — preset interaction', () => {
