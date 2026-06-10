@@ -72,8 +72,8 @@ function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse {
       },
     },
     series: [
-      { date: '2026-03-01', spend: 1.5, requests: 10 },
-      { date: '2026-03-02', spend: 2.25, requests: 20 },
+      { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234 },
+      { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678 },
     ],
     models: [
       {

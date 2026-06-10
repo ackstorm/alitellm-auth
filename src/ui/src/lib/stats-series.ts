@@ -21,6 +21,7 @@ export interface SpendRequestsPoint {
   date: string;
   spend: number;
   requests: number;
+  tokens: number;
 }
 
 // Coerce to a finite number, or 0. Mirrors seriesToUplot's defensive guard
@@ -52,6 +53,7 @@ export function seriesToRecharts(
       date: point.date ?? '',
       spend: asNumber(point.spend),
       requests: asNumber(point.requests),
+      tokens: asNumber(point.tokens),
     };
   }
   return rows;

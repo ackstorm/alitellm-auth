@@ -13,7 +13,7 @@ Contract shape produced by ``build_stats_contract`` (RESEARCH §4):
       "totals":  {requests, tokens, spend, avg_cost_per_1m_tokens,
                   deltas:{requests_pct, tokens_pct, spend_pct,
                           avg_cost_per_1m_tokens_pct}},
-      "series":  [{date, spend, requests}, ...],
+      "series":  [{date, spend, requests, tokens}, ...],
       "models":  [{model, requests, input_tokens, output_tokens, total_tokens,
                    spend, spend_pct, last_used}, ...],
       "keys":    [{id, key_alias, requests, spend, spend_pct}, ...],  # spend desc
@@ -134,6 +134,7 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
                 "date": day.get("date"),
                 "spend": _num(day_metrics.get("spend")),
                 "requests": int(_num(day_metrics.get("api_requests"))),
+                "tokens": int(_num(day_metrics.get("total_tokens"))),
             }
         )
 

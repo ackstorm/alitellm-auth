@@ -54,6 +54,13 @@ def test_aggregate_window_series_one_entry_per_day():
     assert entry["requests"] == 11
 
 
+def test_aggregate_window_series_includes_tokens():
+    data = _load("daily_activity_current.json")
+    agg = aggregate_window(data)
+    day0 = data["results"][0]
+    assert agg["series"][0]["tokens"] == int(day0["metrics"]["total_tokens"])
+
+
 def test_aggregate_window_models_summed_across_days():
     """A model appearing on 2 days has its metrics ADDED (the core fold)."""
     data = _load("daily_activity_current.json")

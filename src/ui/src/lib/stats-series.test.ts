@@ -17,24 +17,25 @@ import type { StatsSeriesPoint } from './api-types';
 // charts.test.js). Typed as StatsSeriesPoint[] so the literals satisfy the
 // contract (date string, spend/requests number) with no casts.
 const SERIES: StatsSeriesPoint[] = [
-  { date: '2026-03-01', spend: 1.5, requests: 10 },
-  { date: '2026-03-02', spend: 2.25, requests: 20 },
-  { date: '2026-03-03', spend: 0, requests: 0 },
+  { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234 },
+  { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678 },
+  { date: '2026-03-03', spend: 0, requests: 0, tokens: 0 },
 ];
 
 describe('seriesToRecharts — row-object mapping', () => {
   it('maps to row objects aligned and IN ORDER', () => {
     expect(seriesToRecharts(SERIES)).toEqual([
-      { date: '2026-03-01', spend: 1.5, requests: 10 },
-      { date: '2026-03-02', spend: 2.25, requests: 20 },
-      { date: '2026-03-03', spend: 0, requests: 0 },
+      { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234 },
+      { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678 },
+      { date: '2026-03-03', spend: 0, requests: 0, tokens: 0 },
     ]);
   });
 
-  it('keeps a real zero as 0 for both spend and requests (not dropped, not null)', () => {
+  it('keeps a real zero as 0 for spend/requests/tokens (not dropped, not null)', () => {
     const rows = seriesToRecharts(SERIES);
     expect(rows[2].spend).toBe(0);
     expect(rows[2].requests).toBe(0);
+    expect(rows[2].tokens).toBe(0);
   });
 });
 
@@ -51,7 +52,9 @@ describe('seriesToRecharts — empty / no-data shape', () => {
 
 describe('seriesToRecharts — purity', () => {
   it('does not mutate the input series', () => {
-    const input: StatsSeriesPoint[] = [{ date: '2026-03-01', spend: 1, requests: 2 }];
+    const input: StatsSeriesPoint[] = [
+      { date: '2026-03-01', spend: 1, requests: 2, tokens: 3 },
+    ];
     const snapshot = JSON.stringify(input);
     seriesToRecharts(input);
     expect(JSON.stringify(input)).toBe(snapshot);

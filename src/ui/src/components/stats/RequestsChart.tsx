@@ -22,7 +22,7 @@ import {
 } from 'recharts';
 
 import type { StatsSeriesPoint } from '@/lib/api-types';
-import { formatDate, formatInt } from '@/lib/format';
+import { abbreviate, formatDate, formatInt } from '@/lib/format';
 import { seriesToRecharts } from '@/lib/stats-series';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -45,6 +45,8 @@ export interface RequestsChartProps {
 }
 
 export function RequestsChart({ series, loading }: RequestsChartProps): React.ReactElement {
+  const [metric, setMetric] = React.useState<'requests' | 'tokens'>('requests');
+
   if (loading) {
     return <Skeleton variant="chart" />;
   }
@@ -54,36 +56,57 @@ export function RequestsChart({ series, loading }: RequestsChartProps): React.Re
     return <ChartEmpty />;
   }
 
+  const fmt = metric === 'tokens' ? abbreviate : formatInt;
+
   return (
-    <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-      <BarChart data={rows}>
-        <CartesianGrid stroke={AXIS_LINE_STROKE} strokeDasharray="3 3" vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickFormatter={formatDate}
-          tick={AXIS_TICK}
-          axisLine={{ stroke: AXIS_LINE_STROKE }}
-          tickLine={{ stroke: AXIS_LINE_STROKE }}
-          minTickGap={24}
-          interval="preserveStartEnd"
-        />
-        <YAxis
-          width={64}
-          tickFormatter={formatInt}
-          tick={AXIS_TICK}
-          axisLine={{ stroke: AXIS_LINE_STROKE }}
-          tickLine={{ stroke: AXIS_LINE_STROKE }}
-        />
-        <Tooltip
-          contentStyle={TOOLTIP_CONTENT_STYLE}
-          labelStyle={TOOLTIP_LABEL_STYLE}
-          itemStyle={TOOLTIP_ITEM_STYLE}
-          labelFormatter={tooltipLabelFormatter}
-          formatter={makeTooltipFormatter(formatInt)}
-          cursor={{ fill: 'var(--border)', opacity: 0.3 }}
-        />
-        <Bar dataKey="requests" fill={SERIES_COLOR} radius={[3, 3, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="flex flex-col">
+      <div className="mb-2 flex justify-end gap-1">
+        {(['requests', 'tokens'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            data-slot={`requests-metric-${m}`}
+            onClick={() => setMetric(m)}
+            className={`cursor-pointer rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+              metric === m
+                ? 'border-primary text-primary'
+                : 'border-border text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+      <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+        <BarChart data={rows}>
+          <CartesianGrid stroke={AXIS_LINE_STROKE} strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={formatDate}
+            tick={AXIS_TICK}
+            axisLine={{ stroke: AXIS_LINE_STROKE }}
+            tickLine={{ stroke: AXIS_LINE_STROKE }}
+            minTickGap={24}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            width={64}
+            tickFormatter={fmt}
+            tick={AXIS_TICK}
+            axisLine={{ stroke: AXIS_LINE_STROKE }}
+            tickLine={{ stroke: AXIS_LINE_STROKE }}
+          />
+          <Tooltip
+            contentStyle={TOOLTIP_CONTENT_STYLE}
+            labelStyle={TOOLTIP_LABEL_STYLE}
+            itemStyle={TOOLTIP_ITEM_STYLE}
+            labelFormatter={tooltipLabelFormatter}
+            formatter={makeTooltipFormatter(fmt)}
+            cursor={{ fill: 'var(--border)', opacity: 0.3 }}
+          />
+          <Bar dataKey={metric} fill={SERIES_COLOR} radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

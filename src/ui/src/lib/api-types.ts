@@ -175,6 +175,8 @@ export interface StatsSeriesPoint {
   date: string | null;
   spend: number;
   requests: number;
+  /** Per-day total tokens (prompt + completion). */
+  tokens: number;
 }
 
 /**

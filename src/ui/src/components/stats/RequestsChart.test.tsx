@@ -9,7 +9,7 @@
 
 import { cloneElement, isValidElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 
 import type { StatsSeriesPoint } from '@/lib/api-types';
 import { CHART_EMPTY_COPY, CHART_HEIGHT } from './chart-common';
@@ -31,9 +31,9 @@ vi.mock('recharts', async (importOriginal) => {
 import { RequestsChart } from './RequestsChart';
 
 const SERIES: StatsSeriesPoint[] = [
-  { date: '2026-03-01', spend: 1.5, requests: 10 },
-  { date: '2026-03-02', spend: 2.25, requests: 20 },
-  { date: '2026-03-03', spend: 0, requests: 0 },
+  { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234 },
+  { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678 },
+  { date: '2026-03-03', spend: 0, requests: 0, tokens: 0 },
 ];
 
 describe('RequestsChart', () => {
@@ -65,5 +65,14 @@ describe('RequestsChart', () => {
     const surface =
       container.querySelector('.recharts-surface') ?? container.querySelector('svg');
     expect(surface).not.toBeNull();
+  });
+
+  it('renders the REQUESTS/TOKENS toggle and switches metric', () => {
+    const { getByText } = render(<RequestsChart series={SERIES} />);
+    const tokensBtn = getByText('tokens');
+    expect(getByText('requests')).toBeInTheDocument();
+    fireEvent.click(tokensBtn);
+    // after the switch the tokens button carries the active border class
+    expect(tokensBtn.className).toContain('border-primary');
   });
 });
