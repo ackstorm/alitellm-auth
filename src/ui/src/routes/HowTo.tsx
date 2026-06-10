@@ -326,11 +326,23 @@ gemini`,
       id: 'codex',
       label: 'Codex',
       ready: true,
-      code: `# Codex → LiteLLM (OpenAI-compatible)
-export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
-export OPENAI_BASE_URL="${apiBase}/v1"
+      caption: '~/.codex/config.toml',
+      // Codex is configured by a TOML provider (NOT endpoint env vars): a named
+      // OpenAI-compatible provider pointed at the gateway. The key is read from the
+      // env var named by `env_key`, so export it before running `codex`.
+      code: `model_provider = "ackstorm"
+model = "${MODEL_ALIAS}"
+model_reasoning_effort = "high"
 
-codex --model ${MODEL_ALIAS}`,
+[model_providers.ackstorm]
+name = "ackstorm"
+base_url = "${apiBase}/v1"
+env_key = "LITELLM_API_KEY"`,
+      note: 'Export the key named by env_key first: `export LITELLM_API_KEY="sk-..."`, then run `codex`. Fallback (no config file): `export OPENAI_API_KEY=… OPENAI_BASE_URL=…/v1` then `codex --model …`.',
+      guide: {
+        url: 'https://openrouter.ai/docs/cookbook/coding-agents/codex-cli',
+        label: 'Codex CLI provider config',
+      },
     },
     {
       id: 'copilot',
