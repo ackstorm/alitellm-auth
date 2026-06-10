@@ -36,7 +36,7 @@ export interface KpiRowProps {
 }
 
 // Renders exactly four cards (TOTAL REQUESTS / TOTAL TOKENS / SPEND /
-// AVG COST / 1K REQ) in a 4->2->1 responsive grid.
+// AVG COST / 1M TOKENS) in a 4->2->1 responsive grid.
 export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
   const t = totals ?? null;
 
@@ -44,7 +44,10 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
     { label: 'TOTAL REQUESTS', value: abbreviate(t?.requests) },
     { label: 'TOTAL TOKENS', value: abbreviate(t?.tokens) },
     { label: 'SPEND', value: formatCurrency(t?.spend) },
-    { label: 'AVG COST / 1K REQ', value: formatCurrency(t?.avg_cost_per_1k_req) },
+    {
+      label: 'AVG COST / 1M TOKENS',
+      value: formatCurrency(t?.avg_cost_per_1m_tokens),
+    },
   ];
 
   return (

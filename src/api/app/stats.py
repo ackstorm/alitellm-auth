@@ -10,9 +10,9 @@ Contract shape produced by ``build_stats_contract`` (RESEARCH §4):
 
     {
       "range":   {start, end, days, compare:{start, end}},
-      "totals":  {requests, tokens, spend, avg_cost_per_1k_req,
+      "totals":  {requests, tokens, spend, avg_cost_per_1m_tokens,
                   deltas:{requests_pct, tokens_pct, spend_pct,
-                          avg_cost_per_1k_req_pct}},
+                          avg_cost_per_1m_tokens_pct}},
       "series":  [{date, spend, requests}, ...],
       "models":  [{model, requests, input_tokens, output_tokens, total_tokens,
                    spend, spend_pct, last_used}, ...],
@@ -199,11 +199,11 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     }
 
 
-def _avg_cost_per_1k_req(spend: float | None, requests: float | None) -> float | None:
-    """spend / requests * 1000, guarded for 0 requests → None (D-08)."""
-    if not requests:
+def _avg_cost_per_1m_tokens(spend: float | None, tokens: float | None) -> float | None:
+    """spend / tokens * 1_000_000, guarded for 0 tokens → None (D-08)."""
+    if not tokens:
         return None
-    return _num(spend) / requests * 1000
+    return _num(spend) / tokens * 1_000_000
 
 
 def compute_deltas(cur: dict[str, Any], prev: dict[str, Any]) -> dict[str, float | None]:
@@ -211,7 +211,7 @@ def compute_deltas(cur: dict[str, Any], prev: dict[str, Any]) -> dict[str, float
 
     pct = (cur - prev) / prev. When ``prev`` is 0 (or missing) the change is
     undefined → ``None`` (not a crash, not +inf). The avg-cost delta compares the
-    derived avg_cost_per_1k_req of each window (also guarded).
+    derived avg_cost_per_1m_tokens of each window (also guarded).
     """
     cur_req = _num(cur.get("requests"))
     prev_req = _num(prev.get("requests"))
@@ -220,14 +220,14 @@ def compute_deltas(cur: dict[str, Any], prev: dict[str, Any]) -> dict[str, float
     cur_spend = _num(cur.get("spend"))
     prev_spend = _num(prev.get("spend"))
 
-    cur_avg = _avg_cost_per_1k_req(cur_spend, cur_req)
-    prev_avg = _avg_cost_per_1k_req(prev_spend, prev_req)
+    cur_avg = _avg_cost_per_1m_tokens(cur_spend, cur_tok)
+    prev_avg = _avg_cost_per_1m_tokens(prev_spend, prev_tok)
 
     return {
         "requests_pct": _safe_pct(cur_req - prev_req, prev_req),
         "tokens_pct": _safe_pct(cur_tok - prev_tok, prev_tok),
         "spend_pct": _safe_pct(cur_spend - prev_spend, prev_spend),
-        "avg_cost_per_1k_req_pct": (
+        "avg_cost_per_1m_tokens_pct": (
             _safe_pct((cur_avg - prev_avg), prev_avg)
             if cur_avg is not None and prev_avg is not None
             else None
@@ -320,7 +320,7 @@ def build_stats_contract(
         "requests": total_requests,
         "tokens": total_tokens,
         "spend": total_spend,
-        "avg_cost_per_1k_req": _avg_cost_per_1k_req(total_spend, total_requests),
+        "avg_cost_per_1m_tokens": _avg_cost_per_1m_tokens(total_spend, total_tokens),
         "deltas": compute_deltas(cur_agg, prev_agg),
     }
 

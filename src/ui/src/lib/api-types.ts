@@ -158,15 +158,15 @@ export interface StatsDeltas {
   requests_pct: number | null;
   tokens_pct: number | null;
   spend_pct: number | null;
-  avg_cost_per_1k_req_pct: number | null;
+  avg_cost_per_1m_tokens_pct: number | null;
 }
 
-/** stats.py totals block. avg_cost_per_1k_req is null when requests===0 (D-08). */
+/** stats.py totals block. avg_cost_per_1m_tokens is null when tokens===0 (D-08). */
 export interface StatsTotals {
   requests: number;
   tokens: number;
   spend: number;
-  avg_cost_per_1k_req: number | null;
+  avg_cost_per_1m_tokens: number | null;
   deltas: StatsDeltas;
 }
 

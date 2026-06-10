@@ -13,12 +13,12 @@ const TOTALS: StatsTotals = {
   requests: 2_450_000,
   tokens: 1_000_000,
   spend: 1249.5,
-  avg_cost_per_1k_req: 0.51,
+  avg_cost_per_1m_tokens: 0.51,
   deltas: {
     requests_pct: 0.182,
     tokens_pct: -0.05,
     spend_pct: 0.1,
-    avg_cost_per_1k_req_pct: 0.2,
+    avg_cost_per_1m_tokens_pct: 0.2,
   },
 };
 
@@ -28,7 +28,7 @@ describe('KpiRow', () => {
     expect(getByText('TOTAL REQUESTS')).toBeInTheDocument();
     expect(getByText('TOTAL TOKENS')).toBeInTheDocument();
     expect(getByText('SPEND')).toBeInTheDocument();
-    expect(getByText('AVG COST / 1K REQ')).toBeInTheDocument();
+    expect(getByText('AVG COST / 1M TOKENS')).toBeInTheDocument();
     // abbreviate(2_450_000) -> "2.45M"; formatCurrency(1249.5) -> "$1,249.50"
     expect(getByText('2.45M')).toBeInTheDocument();
     expect(getByText('$1,249.50')).toBeInTheDocument();

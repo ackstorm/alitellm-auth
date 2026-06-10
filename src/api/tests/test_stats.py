@@ -157,7 +157,7 @@ def test_compute_deltas_zero_prior_is_null():
     assert deltas["requests_pct"] is None
     assert deltas["tokens_pct"] is None
     assert deltas["spend_pct"] is None
-    assert deltas["avg_cost_per_1k_req_pct"] is None
+    assert deltas["avg_cost_per_1m_tokens_pct"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -197,8 +197,8 @@ def test_build_stats_contract_shape_and_capabilities():
     }
     assert contract["capabilities"]["per_key_spend"] is True
     assert contract["range"]["days"] == 30
-    # avg_cost_per_1k_req = spend / requests * 1000, guarded.
-    assert contract["totals"]["avg_cost_per_1k_req"] is not None
+    # avg_cost_per_1m_tokens = spend / tokens * 1_000_000, guarded.
+    assert contract["totals"]["avg_cost_per_1m_tokens"] is not None
     assert "deltas" in contract["totals"]
 
 
@@ -291,8 +291,8 @@ def test_build_stats_contract_empty_totals_are_zero_not_null():
     assert t["requests"] == 0
     assert t["tokens"] == 0
     assert t["spend"] == 0
-    # avg_cost guarded for 0 requests → None (unavailable, not 0).
-    assert t["avg_cost_per_1k_req"] is None
+    # avg_cost guarded for 0 tokens → None (unavailable, not 0).
+    assert t["avg_cost_per_1m_tokens"] is None
 
 
 # ---------------------------------------------------------------------------

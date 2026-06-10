@@ -63,12 +63,12 @@ function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse {
       requests: 1234,
       tokens: 567890,
       spend: 12.5,
-      avg_cost_per_1k_req: 0.01,
+      avg_cost_per_1m_tokens: 0.01,
       deltas: {
         requests_pct: null,
         tokens_pct: null,
         spend_pct: null,
-        avg_cost_per_1k_req_pct: null,
+        avg_cost_per_1m_tokens_pct: null,
       },
     },
     series: [
@@ -222,7 +222,7 @@ describe('Stats — success', () => {
     expect(screen.getByText('TOTAL TOKENS')).toBeInTheDocument();
     // SPEND appears as both a KPI label and a column header; assert presence.
     expect(screen.getAllByText('SPEND').length).toBeGreaterThan(0);
-    expect(screen.getByText('AVG COST / 1K REQ')).toBeInTheDocument();
+    expect(screen.getByText('AVG COST / 1M TOKENS')).toBeInTheDocument();
   });
 
   it('renders a model row and the budget copy', () => {
