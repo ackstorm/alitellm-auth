@@ -13,7 +13,7 @@
 - Stats: usage donut legend strips the shared provider/ prefix (full model name on hover).
 - Stats: per-day token counts in the series + REQUESTS/TOKENS toggle on the daily chart.
 - Stats: failed requests surfaced — destructive sub-line on TOTAL REQUESTS + red failed segment stacked on the daily requests bars.
-- Stats: CSV export for the daily series and the model breakdown.
+- Stats: CSV export for the model breakdown.
 - Stats: cached-input percentage on the TOTAL TOKENS card.
 
 ### Fixed

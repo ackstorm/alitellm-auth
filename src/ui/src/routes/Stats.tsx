@@ -38,7 +38,7 @@ import { TopKeys } from '@/components/stats/TopKeys';
 import { UsageDonut } from '@/components/stats/UsageDonut';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useKeys } from '@/hooks/use-keys';
-import type { StatsModelRow, StatsSeriesPoint } from '@/lib/api-types';
+import type { StatsModelRow } from '@/lib/api-types';
 import type { CsvColumn } from '@/lib/csv';
 import { useStats } from '@/hooks/use-stats';
 import { selectKeyRows } from '@/lib/keys';
@@ -59,16 +59,8 @@ const ERR_BODY =
 // The default preset (default window — 7d).
 const DEFAULT_PRESET = '7d';
 
-// CSV column definitions for the two stats exports (Task 8). The `key`s must be
-// real fields on the row type so the serializer reads them directly.
-const SERIES_CSV_COLS = [
-  { key: 'date', header: 'date' },
-  { key: 'requests', header: 'requests' },
-  { key: 'tokens', header: 'tokens' },
-  { key: 'failed', header: 'failed' },
-  { key: 'spend', header: 'spend' },
-] satisfies CsvColumn<StatsSeriesPoint>[];
-
+// CSV column definitions for the MODEL BREAKDOWN export (Task 8). The `key`s must
+// be real fields on the row type so the serializer reads them directly.
 const MODELS_CSV_COLS = [
   { key: 'model', header: 'model' },
   { key: 'requests', header: 'requests' },
@@ -219,18 +211,7 @@ export function Stats() {
 
       {/* §3 the two time-series charts, side-by-side (stack on narrow) */}
       <div className="grid grid-cols-2 gap-3 max-[880px]:grid-cols-1">
-        <Panel
-          label={SECTION_DAILY_SPEND}
-          action={
-            loading ? undefined : (
-              <ExportCsvButton
-                rows={series}
-                columns={SERIES_CSV_COLS}
-                filename={`daily-${range.start}-${range.end}.csv`}
-              />
-            )
-          }
-        >
+        <Panel label={SECTION_DAILY_SPEND}>
           {loading ? <Skeleton variant="chart" /> : <SpendChart series={series} />}
         </Panel>
         <Panel
