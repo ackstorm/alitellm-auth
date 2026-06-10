@@ -173,9 +173,13 @@ export function TopKeys({
         type="button"
         data-slot="top-keys-toggle"
         onClick={() => setShowIdle((v) => !v)}
-        className="cursor-pointer self-start font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary transition-colors hover:text-text-primary"
+        className="flex cursor-pointer items-center gap-1 self-start font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary transition-colors hover:text-text-primary"
       >
-        {showIdle ? 'Hide idle keys' : `Show idle keys (${idleCount})`}
+        <span
+          aria-hidden="true"
+          className={`inline-block size-0 border-y-[4px] border-l-[6px] border-y-transparent border-l-current transition-transform ${showIdle ? 'rotate-90' : ''}`}
+        />
+        <span>{showIdle ? 'Hide idle keys' : `Show idle keys (${idleCount})`}</span>
       </button>
     ) : null;
 
