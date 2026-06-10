@@ -252,6 +252,33 @@ def test_build_stats_contract_zero_fills_missing_days():
     assert series[1]["requests"] > 0
 
 
+def test_build_stats_contract_cache_hit_pct():
+    data = _load("daily_activity_current.json")
+    cur = aggregate_window(data)
+    contract = build_stats_contract(
+        cur, cur, {"current": 0, "max_budget": None}, {}, dict(_CAPABILITIES), _RANGE
+    )
+    md = data["metadata"]
+    expected = md["total_cache_read_input_tokens"] / md["total_prompt_tokens"]
+    assert contract["totals"]["cache_read_tokens"] == int(
+        md["total_cache_read_input_tokens"]
+    )
+    assert contract["totals"]["cache_hit_pct"] == pytest.approx(expected)
+
+
+def test_build_stats_contract_cache_hit_pct_none_when_no_prompt_tokens():
+    contract = build_stats_contract(
+        aggregate_window({}),
+        {},
+        {"current": 0, "max_budget": None},
+        {},
+        dict(_CAPABILITIES),
+        _RANGE,
+    )
+    assert contract["totals"]["cache_hit_pct"] is None  # D-08: 0/0 is unavailable
+    assert contract["totals"]["cache_read_tokens"] == 0
+
+
 def test_build_stats_contract_keys_ranked_by_spend_desc():
     data = _load("daily_activity_prior.json")
     cur = aggregate_window(data)

@@ -109,6 +109,15 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: abbreviate(t?.tokens),
       deltaPct: d?.tokens_pct,
       invert: false,
+      sub:
+        typeof t?.cache_hit_pct === 'number' && t.cache_hit_pct > 0 ? (
+          <div
+            data-slot="kpi-cache"
+            className="font-mono text-[11px] text-text-secondary"
+          >
+            {(t.cache_hit_pct * 100).toFixed(1)}% cached input
+          </div>
+        ) : null,
     },
     {
       label: 'SPEND',

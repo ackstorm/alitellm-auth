@@ -11,7 +11,7 @@ Contract shape produced by ``build_stats_contract`` (RESEARCH §4):
     {
       "range":   {start, end, days, compare:{start, end}},
       "totals":  {requests, tokens, spend, failed_requests,
-                  avg_cost_per_1m_tokens,
+                  cache_read_tokens, cache_hit_pct, avg_cost_per_1m_tokens,
                   deltas:{requests_pct, tokens_pct, spend_pct,
                           avg_cost_per_1m_tokens_pct}},
       "series":  [{date, spend, requests, tokens, failed}, ...],
@@ -53,6 +53,8 @@ class WindowAggregate(TypedDict):
     tokens: int
     spend: float
     failed_requests: int
+    prompt_tokens: int
+    cache_read_tokens: int
     series: list[dict[str, Any]]
     models: list[dict[str, Any]]
     keys: list[dict[str, Any]]
@@ -162,6 +164,8 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     tokens = int(_num(metadata.get("total_tokens")))
     spend = _num(metadata.get("total_spend"))
     failed = int(_num(metadata.get("total_failed_requests")))
+    prompt_tokens = int(_num(metadata.get("total_prompt_tokens")))
+    cache_read_tokens = int(_num(metadata.get("total_cache_read_input_tokens")))
 
     series: list[dict[str, Any]] = []
     model_acc: dict[str, dict[str, Any]] = {}
@@ -238,6 +242,8 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
         "tokens": tokens,
         "spend": spend,
         "failed_requests": failed,
+        "prompt_tokens": prompt_tokens,
+        "cache_read_tokens": cache_read_tokens,
         "series": series,
         "models": list(model_acc.values()),
         "keys": list(key_acc.values()),
@@ -366,6 +372,11 @@ def build_stats_contract(
         "tokens": total_tokens,
         "spend": total_spend,
         "failed_requests": int(_num(cur_agg.get("failed_requests"))),
+        "cache_read_tokens": int(_num(cur_agg.get("cache_read_tokens"))),
+        "cache_hit_pct": _safe_pct(
+            _num(cur_agg.get("cache_read_tokens")),
+            _num(cur_agg.get("prompt_tokens")),
+        ),
         "avg_cost_per_1m_tokens": _avg_cost_per_1m_tokens(total_spend, total_tokens),
         "deltas": compute_deltas(cur_agg, prev_agg),
     }

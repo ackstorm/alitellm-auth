@@ -14,6 +14,8 @@ const TOTALS: StatsTotals = {
   tokens: 1_000_000,
   spend: 1249.5,
   failed_requests: 3,
+  cache_read_tokens: 124_000,
+  cache_hit_pct: 0.124,
   avg_cost_per_1m_tokens: 0.51,
   deltas: {
     requests_pct: 0.182,
@@ -74,5 +76,17 @@ describe('KpiRow', () => {
     const totals: StatsTotals = { ...TOTALS, failed_requests: 0 };
     const { container } = render(<KpiRow totals={totals} />);
     expect(container.querySelector('[data-slot="kpi-failed"]')).toBeNull();
+  });
+
+  it('renders a cached-input sub-line when cache_hit_pct > 0', () => {
+    const { getByText } = render(<KpiRow totals={TOTALS} />);
+    // 0.124 -> "12.4% cached input"
+    expect(getByText('12.4% cached input')).toBeInTheDocument();
+  });
+
+  it('renders NO cached-input sub-line when cache_hit_pct is null', () => {
+    const totals: StatsTotals = { ...TOTALS, cache_hit_pct: null };
+    const { container } = render(<KpiRow totals={totals} />);
+    expect(container.querySelector('[data-slot="kpi-cache"]')).toBeNull();
   });
 });

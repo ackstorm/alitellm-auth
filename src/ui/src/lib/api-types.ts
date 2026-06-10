@@ -168,6 +168,10 @@ export interface StatsTotals {
   spend: number;
   /** Total failed requests in the window (metadata.total_failed_requests). */
   failed_requests: number;
+  /** Cache-read input tokens in the window. */
+  cache_read_tokens: number;
+  /** cache_read/prompt fraction; null when prompt_tokens===0 (D-08). */
+  cache_hit_pct: number | null;
   avg_cost_per_1m_tokens: number | null;
   deltas: StatsDeltas;
 }
