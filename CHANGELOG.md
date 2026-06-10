@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.8] - 2026-06-10
+
 - fix: the **Stats** time-series charts (Daily spend, Requests by day) now plot **oldest → newest left-to-right** (chronological). They previously rendered newest-first, so the x-axis ran backwards.
 - change: the **Key created** dialog is reworked for clarity — the one-time notice is now plain professional prose mirroring the upstream LiteLLM dialog (no tinted callout), with the **"you won't be able to view it again."** clause bold inline; the secret key itself is no longer bold and is sized to match the body text.
 - change: **HOW-TO → Codex** now documents the `~/.codex/config.toml` provider block (`model_provider` + `base_url` + `env_key`) instead of `OPENAI_*` env vars, with the env-var approach kept as a fallback.
