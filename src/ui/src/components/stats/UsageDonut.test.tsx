@@ -27,7 +27,7 @@ vi.mock('recharts', async (importOriginal) => {
   };
 });
 
-import { UsageDonut } from './UsageDonut';
+import { displayNames, UsageDonut } from './UsageDonut';
 
 const CAPS: StatsCapabilities = {
   token_split: true,
@@ -153,5 +153,46 @@ describe('UsageDonut', () => {
     // The coming-soon panel still shows the TOTAL caption + an em-dash total.
     expect(getByText('TOTAL')).toBeInTheDocument();
     expect(container.querySelector('svg')).toBeNull();
+  });
+});
+
+describe('displayNames', () => {
+  const slice = (model: string, isOther = false) => ({
+    model, spend: 1, spend_pct: 0.5, isOther,
+  });
+
+  it('strips the shared provider/ prefix when ALL named slices share it', () => {
+    const slices = [slice('gemini/gemini-3-pro'), slice('gemini/gemini-flash')];
+    expect(displayNames(slices)).toEqual(['gemini-3-pro', 'gemini-flash']);
+  });
+
+  it('keeps full names when prefixes differ or are absent', () => {
+    expect(
+      displayNames([slice('gemini/gemini-3-pro'), slice('gpt-4o')])
+    ).toEqual(['gemini/gemini-3-pro', 'gpt-4o']);
+  });
+
+  it('never strips the Other slice and ignores it for prefix detection', () => {
+    const slices = [slice('gemini/a'), slice('gemini/b'), slice('Other', true)];
+    expect(displayNames(slices)).toEqual(['a', 'b', 'Other']);
+  });
+});
+
+describe('legend tooltip', () => {
+  it('puts the FULL model name in the legend title attribute', () => {
+    const models: StatsModelRow[] = [
+      {
+        model: 'gemini/gemini-3-pro-preview',
+        requests: 1, input_tokens: 1, output_tokens: 1, total_tokens: 2,
+        spend: 5, spend_pct: 1, last_used: null,
+      },
+    ];
+    const { container } = render(
+      <UsageDonut models={models} totalSpend={5} capabilities={CAPS} />
+    );
+    const item = container.querySelector(
+      '[data-slot="usage-donut-legend"] [title="gemini/gemini-3-pro-preview"]'
+    );
+    expect(item).not.toBeNull();
   });
 });

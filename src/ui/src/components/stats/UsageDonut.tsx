@@ -111,6 +111,31 @@ export function rankSlices(
   return top;
 }
 
+// displayNames(slices) -> the legend display string per slice. When EVERY named
+// (non-Other) slice shares the same `provider/` prefix (e.g. "gemini/..."), the
+// prefix is stripped — the legend column is narrow and a constant prefix is pure
+// noise. The FULL name is preserved in the legend item's `title` tooltip. Pure.
+export function displayNames(slices: Slice[]): string[] {
+  const named = slices.filter((s) => !s.isOther);
+  let prefix: string | null = null;
+  for (const s of named) {
+    const i = s.model.indexOf('/');
+    const p = i > 0 ? s.model.slice(0, i + 1) : null;
+    if (p === null) {
+      prefix = null;
+      break;
+    }
+    if (prefix === null) prefix = p;
+    else if (prefix !== p) {
+      prefix = null;
+      break;
+    }
+  }
+  return slices.map((s) =>
+    !s.isOther && prefix ? s.model.slice(prefix.length) : s.model
+  );
+}
+
 // The fill token for a slice: the neutral token for `Other`, else the accent.
 function sliceFill(slice: Slice): string {
   return slice.isOther ? OTHER_FILL : SLICE_FILL;
@@ -186,6 +211,7 @@ export function UsageDonut({
   }
 
   const slices = rankSlices(models);
+  const names = displayNames(slices);
   // total = totalSpend when a number, else the sum of slice spends.
   const total =
     typeof totalSpend === 'number'
@@ -239,6 +265,7 @@ export function UsageDonut({
         {slices.map((s, i) => (
           <li
             key={`${s.model}-${i}`}
+            title={s.model}
             className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 rounded-lg px-2 py-1"
           >
             <span
@@ -247,7 +274,7 @@ export function UsageDonut({
               aria-hidden="true"
             />
             <span className="truncate font-mono text-xs text-text-primary">
-              {s.model}
+              {names[i]}
             </span>
             <span className="font-mono text-xs text-text-primary">
               {formatCurrency(s.spend)}
