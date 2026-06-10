@@ -1,7 +1,7 @@
 // KpiRow.test.tsx — jsdom smoke/contract suite for the STATS-02 KPI row.
 //
-// Asserts the 4 EXACT labels + representative formatted values. The Compare /
-// delta-chip surface was removed, so the row renders headline metrics only.
+// Asserts the 4 EXACT labels + representative formatted values, plus the
+// period-over-period delta chips (rendered from totals.deltas; null pct -> no chip).
 
 import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
@@ -34,9 +34,32 @@ describe('KpiRow', () => {
     expect(getByText('$1,249.50')).toBeInTheDocument();
   });
 
-  it('renders NO delta chip (Compare removed)', () => {
-    const { container, queryByText } = render(<KpiRow totals={TOTALS} />);
-    expect(container.querySelector('[data-slot="kpi-delta"]')).toBeNull();
-    expect(queryByText(/vs prior/)).toBeNull();
+  it('renders one delta chip per card with signed pct + direction color', () => {
+    const { container } = render(<KpiRow totals={TOTALS} />);
+    const chips = container.querySelectorAll('[data-slot="kpi-delta"]');
+    expect(chips).toHaveLength(4);
+    // requests +18.2% up = good -> primary
+    expect(chips[0].textContent).toContain('+18.2%');
+    expect(chips[0].className).toContain('text-primary');
+    // tokens -5.0% down = bad -> destructive
+    expect(chips[1].textContent).toContain('-5.0%');
+    expect(chips[1].className).toContain('text-destructive');
+    // spend +10.0% up = bad (inverted) -> destructive
+    expect(chips[2].textContent).toContain('+10.0%');
+    expect(chips[2].className).toContain('text-destructive');
+  });
+
+  it('renders NO chip when a delta pct is null (degraded prior window)', () => {
+    const totals: StatsTotals = {
+      ...TOTALS,
+      deltas: {
+        requests_pct: null,
+        tokens_pct: null,
+        spend_pct: null,
+        avg_cost_per_1m_tokens_pct: null,
+      },
+    };
+    const { container } = render(<KpiRow totals={totals} />);
+    expect(container.querySelectorAll('[data-slot="kpi-delta"]')).toHaveLength(0);
   });
 });

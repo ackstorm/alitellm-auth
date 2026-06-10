@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Added
+
+- Stats: period-over-period delta chips on the four KPI cards (green/red by direction; spend deltas inverted).
+
 ## [0.5.8] - 2026-06-10
 
 - fix: the **Stats** time-series charts (Daily spend, Requests by day) now plot **oldest → newest left-to-right** (chronological). They previously rendered newest-first, so the x-axis ran backwards.
