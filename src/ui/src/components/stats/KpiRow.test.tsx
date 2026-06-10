@@ -52,7 +52,7 @@ describe('KpiRow', () => {
     expect(chips[2].className).toContain('text-destructive');
   });
 
-  it('renders a neutral "no previous info" chip when pct is null but current > 0', () => {
+  it('renders a neutral "no info" chip when pct is null but current > 0', () => {
     // Prior baseline empty (e.g. prior window had 0 tokens) -> no % to compute and
     // no up/down to judge: a NEUTRAL grey note, never green/red.
     const totals: StatsTotals = {
@@ -69,7 +69,7 @@ describe('KpiRow', () => {
     expect(chips).toHaveLength(4);
     chips.forEach((c) => {
       expect(c.textContent).toContain('100%');
-      expect(c.textContent).toContain('no previous info');
+      expect(c.textContent).toContain('no info');
       // neutral grey — not the good (primary) / bad (destructive) delta colors.
       expect(c.className).toContain('text-text-secondary');
       expect(c.className).not.toContain('text-primary');
@@ -109,8 +109,8 @@ describe('KpiRow', () => {
 
   it('renders a cached-input sub-line when cache_hit_pct > 0', () => {
     const { getByText } = render(<KpiRow totals={TOTALS} />);
-    // 0.124 -> "12.4% cached input"
-    expect(getByText('12.4% cached input')).toBeInTheDocument();
+    // 0.124 -> "12.4% cached"
+    expect(getByText('12.4% cached')).toBeInTheDocument();
   });
 
   it('renders NO cached-input sub-line when cache_hit_pct is null', () => {

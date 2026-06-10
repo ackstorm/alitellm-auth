@@ -44,7 +44,7 @@ function DeltaChip({
         data-slot="kpi-delta"
         className="font-mono text-[11px] text-text-secondary"
       >
-        ▲ 100% <span className="text-text-tertiary">(no previous info)</span>
+        ▲ 100% <span className="text-text-tertiary">(no info)</span>
       </div>
     );
   }
@@ -84,8 +84,10 @@ function isNewMetric(
   );
 }
 
-// One of the four cards: an 11px caption label above a 24px heading value, an
-// optional sub-line (e.g. failed-requests), then the period-over-period chip.
+// One of the four cards: an 11px caption label, then the 24px heading value with
+// the optional sub (failed-requests / cached-input) inlined in muted parentheses
+// next to it (baseline-aligned), and the period-over-period chip on its own line
+// below. `sub` must be inline (a <span>) so it nests inside the parens.
 function KpiCard({
   label,
   value,
@@ -101,16 +103,26 @@ function KpiCard({
   isNew?: boolean;
   sub?: React.ReactNode;
 }): React.ReactElement {
+  // DeltaChip holds no hooks, so call it directly to render the chip below.
+  const chip = DeltaChip({ pct: deltaPct, invert, isNew });
+  const hasSub = sub != null && sub !== false;
+
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-5">
       <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
         {label}
       </div>
-      <div className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
-        {value}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
+          {value}
+        </span>
+        {hasSub ? (
+          <span className="font-mono text-[10px] text-text-tertiary">
+            ({sub})
+          </span>
+        ) : null}
       </div>
-      {sub}
-      <DeltaChip pct={deltaPct} invert={invert} isNew={isNew} />
+      {chip}
     </div>
   );
 }
@@ -135,15 +147,12 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       isNew: isNewMetric(d?.requests_pct, t?.requests),
       sub:
         typeof t?.failed_requests === 'number' && t.failed_requests > 0 ? (
-          <div
-            data-slot="kpi-failed"
-            className="font-mono text-[11px] text-destructive"
-          >
+          <span data-slot="kpi-failed" className="text-destructive">
             {formatInt(t.failed_requests)} failed
             {t.requests > 0
               ? ` · ${((t.failed_requests / t.requests) * 100).toFixed(1)}%`
               : ''}
-          </div>
+          </span>
         ) : null,
     },
     {
@@ -154,12 +163,9 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       isNew: isNewMetric(d?.tokens_pct, t?.tokens),
       sub:
         typeof t?.cache_hit_pct === 'number' && t.cache_hit_pct > 0 ? (
-          <div
-            data-slot="kpi-cache"
-            className="font-mono text-[11px] text-text-secondary"
-          >
-            {(t.cache_hit_pct * 100).toFixed(1)}% cached input
-          </div>
+          <span data-slot="kpi-cache" className="text-text-secondary">
+            {(t.cache_hit_pct * 100).toFixed(1)}% cached
+          </span>
         ) : null,
     },
     {
