@@ -213,6 +213,10 @@ async def ensure_team_and_user(
     user-level max_budget does NOT enforce for team-scoped keys on LiteLLM v1.85.1;
     max_budget_in_team via /team/member_add does enforce. H3: only called when a
     budget value exists (never send null/None).
+
+    D-21: Step A3 runs ONLY when the user is first created (user_result not existed).
+    On subsequent logins/key-mints the cap is left untouched so a manually-raised
+    max_budget_in_team is not silently clobbered back to the factory default.
     """
     team_id = f"team-{settings.oauth_client_id}"
     headers = _admin_headers(settings)
@@ -293,9 +297,17 @@ async def ensure_team_and_user(
     # Step A3 (D-14 USER-V2-01 re-scope): set per-member budget cap via /team/member_add.
     # Adopts max_budget_in_team because the RQ-1 spike proved user-level max_budget does
     # NOT enforce for team-scoped keys on LiteLLM v1.85.1 (KEY_A=200 beyond cap; KEY_B=429).
+    # D-21: set the cap ONLY when the user is first created — never overwrite on subsequent
+    # logins/key-mints. Mirrors the D-16 "never clobber a manually-set value" philosophy so an
+    # admin/gitops bump to max_budget_in_team survives re-logins (a re-applied factory value
+    # would silently re-block a user who had a higher cap set by hand).
     # H3: only call when the factory provides a non-None, non-zero max_budget value.
     factory_user_budget = factory.get("user", {}).get("max_budget")
-    if factory_user_budget is not None and factory_user_budget > 0:
+    if (
+        not user_result.get("existed")
+        and factory_user_budget is not None
+        and factory_user_budget > 0
+    ):
         await ensure_team_member_budget(email, team_id, factory_user_budget, settings)
 
     return team_id

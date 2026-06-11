@@ -1075,6 +1075,68 @@ async def test_ensure_team_member_budget_wired_into_ensure_team_and_user():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_step_a3_skipped_when_user_exists():
+    """D-21: Step A3 sets max_budget_in_team ONLY at user creation.
+
+    When /user/new reports the user already exists, ensure_team_and_user must NOT
+    call /team/member_add or /team/member_update — a manually-raised
+    max_budget_in_team must survive re-logins (never clobbered to the factory value).
+    """
+    factory_path = _make_factory_config(None)
+    try:
+        settings = make_settings(factory_config_path=factory_path)
+
+        respx.post("http://litellm.test/team/new").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+        respx.post("http://litellm.test/v1/access_group").mock(
+            return_value=httpx.Response(200, json={"access_group_id": "group-1"})
+        )
+        # user already exists -> existed=True
+        respx.post("http://litellm.test/user/new").mock(
+            return_value=httpx.Response(400, json={"error": {"message": "User already exists"}})
+        )
+        # user already has every factory budget field set -> D-16 backfill is a no-op
+        respx.get("http://litellm.test/user/info").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_info": {
+                        "user_id": "alice@example.com",
+                        "user_email": "alice@example.com",
+                        "max_budget": 10,
+                        "budget_duration": "24h",
+                        "tpm_limit": 100,
+                        "rpm_limit": 10,
+                        "max_parallel_requests": None,
+                    }
+                },
+            )
+        )
+        respx.post("http://litellm.test/user/update").mock(
+            return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+        )
+        member_add_route = respx.post("http://litellm.test/team/member_add").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+        member_update_route = respx.post("http://litellm.test/team/member_update").mock(
+            return_value=httpx.Response(200, json={"team_id": "team-platform"})
+        )
+
+        await ensure_team_and_user("alice@example.com", settings, name="Alice")
+
+        assert (
+            not member_add_route.called
+        ), "D-21: /team/member_add must NOT be called when the user already exists"
+        assert (
+            not member_update_route.called
+        ), "D-21: /team/member_update must NOT be called when the user already exists"
+    finally:
+        os.unlink(factory_path)
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_user_daily_activity():
     """D-09b: user_daily_activity fetches /user/daily/activity and returns the breakdown."""
     from app.litellm_client import user_daily_activity
