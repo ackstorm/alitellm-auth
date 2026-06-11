@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.15] - 2026-06-11
+
 ### Changed
 
 - Sortable tables: the **Models** catalog and the dashboard **API Keys** table now carry an explicit default sort (Models by name; API Keys newest-created first), so the active sort column is always marked on load — matching the Stats tables.
