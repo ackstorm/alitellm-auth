@@ -280,6 +280,7 @@ export function Models() {
           data-slot="models-table"
           columns={COLUMNS}
           rows={models}
+          defaultSort={{ key: 'model', dir: 'asc' }}
           getRowId={(row) => row.name ?? ''}
           empty={
             <div data-slot="models-table-empty" className="py-6">

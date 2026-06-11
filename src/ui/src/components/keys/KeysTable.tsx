@@ -216,6 +216,9 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         data-slot="keys-table"
         columns={columns}
         rows={rows}
+        // Default sort so the active-sort marker shows on load (newest keys first);
+        // every other column header stays click-to-sort.
+        defaultSort={{ key: 'created', dir: 'desc' }}
         getRowId={(row) => row.id ?? ''}
         // Dim a disabled (blocked) row so it reads as inactive at a glance. The
         // kebab content is portaled to <body>, so its Enable item stays full

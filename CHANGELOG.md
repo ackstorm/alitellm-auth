@@ -2,6 +2,14 @@
 
 ## [unreleased]
 
+### Changed
+
+- Sortable tables: the **Models** catalog and the dashboard **API Keys** table now carry an explicit default sort (Models by name; API Keys newest-created first), so the active sort column is always marked on load — matching the Stats tables.
+
+### Removed
+
+- Removed the disabled "Memory (soon)" placeholder from the top navigation.
+
 ## [0.5.14] - 2026-06-11
 
 ### Fixed

@@ -183,19 +183,6 @@ export function AppShell({ me, config }: AppShellProps) {
           <NavSep />
           {gatedNav('/a2a', 'A2A')}
           <NavSep />
-          {/* MEMORY — not shipped yet: a disabled item with a tiny "soon" marker
-              (and a hover title) so the slot is visible without being navigable. */}
-          <span
-            aria-disabled="true"
-            title="Memory — coming soon"
-            className="inline-flex cursor-not-allowed items-center gap-1 rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider text-text-tertiary"
-          >
-            Memory
-            <span className="relative -top-[3px] rounded-full border border-primary/30 bg-primary/10 px-[3px] py-0 text-[4px] font-semibold uppercase leading-none tracking-wide text-primary/70">
-              soon
-            </span>
-          </span>
-          <NavSep />
           <NavLink to="/stats" className={navLinkClass}>
             Stats
           </NavLink>
