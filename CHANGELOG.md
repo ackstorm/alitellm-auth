@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.14] - 2026-06-11
+
 ### Fixed
 
 - Docker: install uv from the pinned official image (`ghcr.io/astral-sh/uv`) instead of `pip install uv`. On `python:3.14-slim`, an uv release with no cp314 wheel made pip fall back to building uv from source, which fails on the slim image (no C toolchain → `linker cc not found`) and broke the release image build. The prebuilt static binary is reproducible and never compiles.
