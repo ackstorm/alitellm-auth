@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.12] - 2026-06-11
+
 ### Changed
 
 - Budget: the per-user cap (`max_budget_in_team`) is now applied only when a user is first created, never overwritten on later logins or key creation. A manually- or GitOps-raised per-user cap now survives re-logins instead of being silently reset to the factory `user.max_budget` default (which would re-block a user who had a higher cap). The factory value seeds new users only; existing users keep their cap until changed explicitly.
