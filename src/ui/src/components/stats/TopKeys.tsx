@@ -15,8 +15,10 @@
 
 import * as React from 'react';
 
+import { SortIndicator } from '@/components/ui/data-table';
 import type { StatsCapabilities, StatsKeyRow } from '@/lib/api-types';
 import { formatCurrency, formatInt, maskKey } from '@/lib/format';
+import { sortRows, type SortDir } from '@/lib/sort';
 import { capabilityRenderMode } from '@/lib/stats-presets';
 
 // The em-dash placeholder (matches format.ts EM_DASH).
@@ -50,6 +52,48 @@ function formatPct(fraction: number | null | undefined): string {
 function barWidthPct(fraction: number | null | undefined): number {
   if (typeof fraction !== 'number' || !Number.isFinite(fraction)) return 0;
   return Math.max(0, Math.min(100, fraction * 100));
+}
+
+// The sortable columns and how each maps to a comparable value (null sorts last).
+type KeySortKey = 'key' | 'requests' | 'spend' | 'pct';
+const KEY_SORT_ACCESSORS: Record<
+  KeySortKey,
+  (k: StatsKeyRow) => number | string | null | undefined
+> = {
+  key: (k) => k.key_alias || maskKey(k.id),
+  requests: (k) => k.requests,
+  spend: (k) => k.spend,
+  pct: (k) => k.spend_pct,
+};
+
+// A clickable column header for the hand-rolled grid — reuses the DataTable sort
+// triangle so the two tables read identically. KEY left-aligned, figures right.
+function SortHeader({
+  label,
+  sortKey,
+  active,
+  dir,
+  onSort,
+  align = 'left',
+}: {
+  label: string;
+  sortKey: KeySortKey;
+  active: boolean;
+  dir: SortDir;
+  onSort: (key: KeySortKey) => void;
+  align?: 'left' | 'right';
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      data-slot="top-keys-sort"
+      onClick={() => onSort(sortKey)}
+      className={`flex w-full cursor-pointer items-center gap-1 uppercase tracking-wider transition-colors hover:text-text-primary ${align === 'right' ? 'justify-end' : 'justify-start'} ${active ? 'text-text-primary' : ''}`}
+    >
+      <span>{label}</span>
+      <SortIndicator active={active} dir={active ? dir : 'desc'} />
+    </button>
+  );
 }
 
 // One ranked key row: the label, the hand-rolled horizontal spend-share bar, the
@@ -122,9 +166,24 @@ export function TopKeys({
   // Idle = no in-window activity (padded by mergeTopKeys so the panel lists every
   // key). Hidden by default — they are noise — behind an explicit count toggle.
   const [showIdle, setShowIdle] = React.useState(false);
+  // Interactive column sort; default SPEND desc (the contract's incoming order).
+  const [sort, setSort] = React.useState<{ key: KeySortKey; dir: SortDir }>({
+    key: 'spend',
+    dir: 'desc',
+  });
+  const onSort = (key: KeySortKey) =>
+    setSort((cur) =>
+      cur.key === key
+        ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: 'desc' }
+    );
   const active = rows.filter((k) => (k.requests ?? 0) > 0 || (k.spend ?? 0) > 0);
   const idleCount = rows.length - active.length;
-  const visible = showIdle ? rows : active;
+  const visible = sortRows(
+    showIdle ? rows : active,
+    KEY_SORT_ACCESSORS[sort.key],
+    sort.dir
+  );
   // StatsCapabilities is a fixed boolean record; capabilityRenderMode wants the
   // open Record<string, boolean> shape, so we read it through that view.
   const mode = capabilityRenderMode(
@@ -189,11 +248,38 @@ export function TopKeys({
         <div
           className={`${GRID_COLS} border-b border-border pb-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary`}
         >
-          <span>{COL_KEY}</span>
+          <SortHeader
+            label={COL_KEY}
+            sortKey="key"
+            active={sort.key === 'key'}
+            dir={sort.dir}
+            onSort={onSort}
+          />
           <span aria-hidden="true" />
-          <span className="text-right">{COL_REQUESTS}</span>
-          <span className="text-right">{COL_SPEND}</span>
-          <span className="text-right">{COL_PCT}</span>
+          <SortHeader
+            label={COL_REQUESTS}
+            sortKey="requests"
+            active={sort.key === 'requests'}
+            dir={sort.dir}
+            onSort={onSort}
+            align="right"
+          />
+          <SortHeader
+            label={COL_SPEND}
+            sortKey="spend"
+            active={sort.key === 'spend'}
+            dir={sort.dir}
+            onSort={onSort}
+            align="right"
+          />
+          <SortHeader
+            label={COL_PCT}
+            sortKey="pct"
+            active={sort.key === 'pct'}
+            dir={sort.dir}
+            onSort={onSort}
+            align="right"
+          />
         </div>
         {ranked.length === 0 ? (
           <div data-slot="top-keys-state" className="px-4 py-8 text-center">

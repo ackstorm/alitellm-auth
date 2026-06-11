@@ -74,6 +74,15 @@ function statusFor(row: KeyRow): {
   return { label: 'Active', variant: 'default' };
 }
 
+// Sort precedence for the Status column (ascending = Active first, Revoked last;
+// mirrors the status badge precedence rather than alphabetical order).
+const STATUS_RANK: Record<ReturnType<typeof statusFor>['label'], number> = {
+  Active: 0,
+  Expired: 1,
+  Disabled: 2,
+  Revoked: 3,
+};
+
 export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
   const query = useKeys();
   const makeDefault = useMakeDefault();
@@ -152,24 +161,28 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
           </div>
         );
       },
+      sortAccessor: (row) => row.key_alias || row.id,
     },
     {
       key: 'created',
       header: 'Created',
       className: 'font-mono text-xs whitespace-nowrap',
       cell: (row) => formatDate(row.created_at),
+      sortAccessor: (row) => row.created_at,
     },
     {
       key: 'lastused',
       header: 'Last used',
       className: 'font-mono text-xs whitespace-nowrap',
       cell: (row) => (row.last_used == null ? EM_DASH : formatDate(row.last_used)),
+      sortAccessor: (row) => row.last_used,
     },
     {
       key: 'expires',
       header: 'Expires',
       className: 'font-mono text-xs whitespace-nowrap',
       cell: (row) => (row.expires == null ? 'Never' : formatDate(row.expires)),
+      sortAccessor: (row) => row.expires,
     },
     {
       key: 'status',
@@ -178,6 +191,7 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         const { label, variant } = statusFor(row);
         return <Badge variant={variant}>{label}</Badge>;
       },
+      sortAccessor: (row) => STATUS_RANK[statusFor(row).label],
     },
   ];
 

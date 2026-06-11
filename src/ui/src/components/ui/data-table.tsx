@@ -1,5 +1,6 @@
 import * as React from 'react';
 
+import { sortRows, type SortDir } from '@/lib/sort';
 import { cn } from '@/lib/utils';
 
 export type DataTableColumn<T> = {
@@ -13,7 +14,16 @@ export type DataTableColumn<T> = {
   className?: string;
   /** Optional <th> className. */
   headerClassName?: string;
+  /**
+   * When set, this column's header becomes an interactive sort toggle keyed on
+   * the value this accessor returns (null/undefined sort last). Columns without
+   * an accessor stay plain, non-clickable headers — sort is fully opt-in, so
+   * existing tables are unchanged until they declare accessors.
+   */
+  sortAccessor?: (row: T) => number | string | null | undefined;
 };
+
+export type DataTableSort = { key: string; dir: SortDir };
 
 export type DataTableProps<T> = {
   columns: DataTableColumn<T>[];
@@ -34,9 +44,41 @@ export type DataTableProps<T> = {
   actionsHeader?: React.ReactNode;
   /** Optional footer/caption region rendered below the table. */
   caption?: React.ReactNode;
+  /**
+   * Initial sort (must reference a column whose `sortAccessor` is set). When
+   * omitted, rows render in the order given until the user clicks a sortable
+   * header. Clicking the active column toggles direction; a new column starts
+   * descending.
+   */
+  defaultSort?: DataTableSort;
   /** Wrapper className. */
   className?: string;
 } & Omit<React.ComponentProps<'div'>, 'children'>;
+
+// A tiny CSS-triangle sort indicator (no text glyph, so getByText on the header
+// label still matches). Points down for desc, up for asc; dimmed when the column
+// is sortable but not the active sort key.
+export function SortIndicator({
+  active,
+  dir,
+}: {
+  active: boolean;
+  dir: SortDir;
+}): React.ReactElement {
+  const up = active && dir === 'asc';
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'inline-block size-0 border-x-[3px] border-x-transparent transition-opacity',
+        up
+          ? 'border-b-[4px] border-b-current'
+          : 'border-t-[4px] border-t-current',
+        active ? 'opacity-100' : 'opacity-30'
+      )}
+    />
+  );
+}
 
 export function DataTable<T>({
   columns,
@@ -47,11 +89,30 @@ export function DataTable<T>({
   rowClassName,
   actionsHeader,
   caption,
+  defaultSort,
   className,
   ...rest
 }: DataTableProps<T>): React.ReactElement {
   const hasActions = rowActions !== undefined;
   const colSpan = columns.length + (hasActions ? 1 : 0);
+
+  const [sort, setSort] = React.useState<DataTableSort | null>(
+    defaultSort ?? null
+  );
+
+  const toggleSort = (key: string) =>
+    setSort((cur) =>
+      cur && cur.key === key
+        ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: 'desc' }
+    );
+
+  const display = React.useMemo(() => {
+    if (!sort) return rows;
+    const col = columns.find((c) => c.key === sort.key);
+    if (!col?.sortAccessor) return rows;
+    return sortRows(rows, col.sortAccessor, sort.dir);
+  }, [rows, columns, sort]);
 
   return (
     <div
@@ -65,19 +126,50 @@ export function DataTable<T>({
       <table data-slot="data-table-table" className="w-full border-collapse">
         <thead data-slot="data-table-header">
           <tr className="border-b">
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                scope="col"
-                data-col={column.key}
-                className={cn(
-                  'text-muted-foreground px-4 py-3 text-left text-xs font-semibold tracking-wider uppercase',
-                  column.headerClassName
-                )}
-              >
-                {column.header}
-              </th>
-            ))}
+            {columns.map((column) => {
+              const sortable = column.sortAccessor !== undefined;
+              const isActive = sort?.key === column.key;
+              return (
+                <th
+                  key={column.key}
+                  scope="col"
+                  data-col={column.key}
+                  aria-sort={
+                    sortable
+                      ? isActive
+                        ? sort?.dir === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                      : undefined
+                  }
+                  className={cn(
+                    'text-muted-foreground px-4 py-3 text-left text-xs font-semibold tracking-wider uppercase',
+                    column.headerClassName
+                  )}
+                >
+                  {sortable ? (
+                    <button
+                      type="button"
+                      data-slot="data-table-sort"
+                      onClick={() => toggleSort(column.key)}
+                      className={cn(
+                        'inline-flex cursor-pointer items-center gap-1 uppercase transition-colors hover:text-text-primary',
+                        isActive && 'text-text-primary'
+                      )}
+                    >
+                      {column.header}
+                      <SortIndicator
+                        active={isActive}
+                        dir={isActive && sort ? sort.dir : 'desc'}
+                      />
+                    </button>
+                  ) : (
+                    column.header
+                  )}
+                </th>
+              );
+            })}
             {hasActions ? (
               <th
                 scope="col"
@@ -90,18 +182,18 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody data-slot="data-table-body">
-          {rows.length === 0 ? (
+          {display.length === 0 ? (
             <tr data-slot="data-table-empty">
               <td colSpan={colSpan} className="text-muted-foreground px-4 py-6 text-center text-sm">
                 {empty ?? 'No items'}
               </td>
             </tr>
           ) : (
-            rows.map((row, index) => (
+            display.map((row, index) => (
               <tr
                 key={getRowId(row)}
                 data-slot="data-table-row"
-                className={cn(index < rows.length - 1 && 'border-b', rowClassName?.(row))}
+                className={cn(index < display.length - 1 && 'border-b', rowClassName?.(row))}
               >
                 {columns.map((column) => (
                   <td

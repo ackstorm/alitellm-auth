@@ -90,3 +90,33 @@ describe('TopKeys idle filtering', () => {
     expect(getByText('Show idle keys (2)')).toBeInTheDocument();
   });
 });
+
+describe('TopKeys column sort', () => {
+  const labels = (container: HTMLElement): (string | null | undefined)[] =>
+    Array.from(container.querySelectorAll('[data-slot="top-keys-row"]')).map(
+      (r) => r.firstElementChild?.textContent
+    );
+
+  it('defaults to SPEND descending', () => {
+    const { container } = render(<TopKeys keys={KEYS} capabilities={CAPS} />);
+    expect(labels(container)[0]).toBe('prod-key'); // 9.5 > 2.5
+  });
+
+  it('toggles the active column to ascending on a header click', () => {
+    const { container, getByRole } = render(
+      <TopKeys keys={KEYS} capabilities={CAPS} />
+    );
+    // SPEND is the default-active (desc) column, so one click flips it to asc.
+    fireEvent.click(getByRole('button', { name: /SPEND/ }));
+    const order = labels(container);
+    expect(order[order.length - 1]).toBe('prod-key'); // largest spend now last
+  });
+
+  it('sorts by REQUESTS when its header is clicked', () => {
+    const { container, getByRole } = render(
+      <TopKeys keys={KEYS} capabilities={CAPS} />
+    );
+    fireEvent.click(getByRole('button', { name: /REQUESTS/ })); // desc by requests
+    expect(labels(container)[0]).toBe('prod-key'); // 1000 > 250
+  });
+});

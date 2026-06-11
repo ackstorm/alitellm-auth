@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Added
+
+- Sortable tables: every column header on the **Stats → Model Breakdown** and **Top API Keys** tables, the **Models** catalog, and the dashboard **API Keys** table is now clickable to sort. Numbers sort numerically, text alphabetically, and missing values always sort last; clicking a column toggles ascending/descending with an arrow indicator. The Model Breakdown still defaults to spend-descending.
+
 ## [0.5.12] - 2026-06-11
 
 ### Changed

@@ -168,18 +168,21 @@ const COLUMNS: DataTableColumn<ModelRow>[] = [
         ) : null}
       </div>
     ),
+    sortAccessor: (row) => row.name,
   },
   {
     key: 'mode',
     header: 'Mode',
     className: 'align-top',
     cell: (row) => <ModeBadge mode={row.mode} />,
+    sortAccessor: (row) => row.mode,
   },
   {
     key: 'thinking',
     header: 'Thinking',
     className: 'align-top',
     cell: (row) => <ThinkingCell on={row.supports_reasoning} />,
+    sortAccessor: (row) => (row.supports_reasoning ? 1 : 0),
   },
   {
     key: 'context',
@@ -187,6 +190,7 @@ const COLUMNS: DataTableColumn<ModelRow>[] = [
     headerClassName: 'whitespace-nowrap',
     className: 'align-top whitespace-nowrap',
     cell: (row) => <ContextCell row={row} />,
+    sortAccessor: (row) => row.max_input_tokens,
   },
   {
     key: 'price',
@@ -194,12 +198,22 @@ const COLUMNS: DataTableColumn<ModelRow>[] = [
     headerClassName: 'whitespace-nowrap',
     className: 'align-top whitespace-nowrap',
     cell: (row) => <PriceCell row={row} />,
+    sortAccessor: (row) => row.input_cost_per_token,
   },
   {
     key: 'caps',
     header: 'Capabilities',
     className: 'align-top',
     cell: (row) => <CapabilitiesCell row={row} />,
+    // Sort by how many capabilities the model supports (most-capable first when
+    // descending). Vision + function-calling + reasoning + web-search.
+    sortAccessor: (row) =>
+      [
+        row.supports_vision,
+        row.supports_function_calling,
+        row.supports_reasoning,
+        row.supports_web_search,
+      ].filter(Boolean).length,
   },
 ];
 

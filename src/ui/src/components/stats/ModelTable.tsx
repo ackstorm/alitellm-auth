@@ -36,9 +36,10 @@ function formatPct(fraction: number | null | undefined): string {
   return `${(fraction * 100).toFixed(1)}%`;
 }
 
-// Per-model efficiency: spend / total_tokens * 1e6 as currency (the same unit as
-// the AVG COST / 1M TOKENS KPI). Absent/zero tokens -> em-dash (D-08), never ∞.
-function costPer1mTokens(m: StatsModelRow): string {
+// Per-model efficiency: spend / total_tokens * 1e6 (the same unit as the AVG
+// COST / 1M TOKENS KPI). Absent/zero tokens -> null (the sort accessor treats it
+// as missing → sorts last; the cell renders em-dash, D-08, never ∞).
+function costPer1mValue(m: StatsModelRow): number | null {
   const tokens = m.total_tokens;
   const spend = m.spend;
   if (
@@ -48,9 +49,15 @@ function costPer1mTokens(m: StatsModelRow): string {
     typeof spend !== 'number' ||
     !Number.isFinite(spend)
   ) {
-    return EM_DASH;
+    return null;
   }
-  return formatCurrency((spend / tokens) * 1e6);
+  return (spend / tokens) * 1e6;
+}
+
+// The cell form of costPer1mValue: currency, or em-dash when unavailable.
+function costPer1mTokens(m: StatsModelRow): string {
+  const v = costPer1mValue(m);
+  return v == null ? EM_DASH : formatCurrency(v);
 }
 
 export interface ModelTableProps {
@@ -72,20 +79,17 @@ export function ModelTable({
 
   const rows = Array.isArray(models) ? models : [];
 
-  // Default sort: SPEND descending (UI-SPEC §6). Copy before sorting so the
-  // parent's array is never mutated; a non-numeric spend sorts last (-Infinity).
-  const spendOf = (m: StatsModelRow) =>
-    typeof m.spend === 'number' && Number.isFinite(m.spend) ? m.spend : -Infinity;
-  const sorted = rows.slice().sort((a, b) => spendOf(b) - spendOf(a));
-
   // The LOCKED 9-column order (UI-SPEC §6). Numeric columns right-aligned; MODEL
   // and LAST USED left-aligned (mirrors the old smt-cell-model/lastused idiom).
+  // Every column declares a `sortAccessor` so DataTable can sort on a header
+  // click; the default sort below keeps the original SPEND-descending view.
   const columns: DataTableColumn<StatsModelRow>[] = [
     {
       key: 'model',
       header: 'MODEL',
       className: 'font-mono text-xs text-text-primary',
       cell: (m) => (m.model == null ? EM_DASH : m.model),
+      sortAccessor: (m) => m.model,
     },
     {
       key: 'requests',
@@ -93,6 +97,7 @@ export function ModelTable({
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => formatInt(m.requests),
+      sortAccessor: (m) => m.requests,
     },
     {
       key: 'input',
@@ -100,6 +105,7 @@ export function ModelTable({
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => (tokenSplit === false ? EM_DASH : abbreviate(m.input_tokens)),
+      sortAccessor: (m) => m.input_tokens,
     },
     {
       key: 'output',
@@ -107,6 +113,7 @@ export function ModelTable({
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => (tokenSplit === false ? EM_DASH : abbreviate(m.output_tokens)),
+      sortAccessor: (m) => m.output_tokens,
     },
     {
       key: 'total',
@@ -114,6 +121,7 @@ export function ModelTable({
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => abbreviate(m.total_tokens),
+      sortAccessor: (m) => m.total_tokens,
     },
     {
       key: 'spend',
@@ -121,6 +129,7 @@ export function ModelTable({
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => formatCurrency(m.spend),
+      sortAccessor: (m) => m.spend,
     },
     {
       key: '%spend',
@@ -128,6 +137,7 @@ export function ModelTable({
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => formatPct(m.spend_pct),
+      sortAccessor: (m) => m.spend_pct,
     },
     {
       key: 'per1m',
@@ -135,6 +145,7 @@ export function ModelTable({
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => costPer1mTokens(m),
+      sortAccessor: (m) => costPer1mValue(m),
     },
     {
       key: 'lastused',
@@ -142,6 +153,7 @@ export function ModelTable({
       className: 'font-mono text-xs whitespace-nowrap',
       cell: (m) =>
         perModelLastUsed === false ? EM_DASH : formatDate(m.last_used),
+      sortAccessor: (m) => m.last_used,
     },
   ];
 
@@ -149,7 +161,8 @@ export function ModelTable({
     <DataTable
       data-slot="model-table"
       columns={columns}
-      rows={sorted}
+      rows={rows}
+      defaultSort={{ key: 'spend', dir: 'desc' }}
       getRowId={(m) => m.model ?? ''}
       empty={
         <div data-slot="model-table-empty">
