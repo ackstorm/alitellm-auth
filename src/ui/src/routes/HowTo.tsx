@@ -235,7 +235,7 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
   }[] = [
     {
       id: 'claude',
-      label: 'Claude Code',
+      label: 'Claude Code (API)',
       ready: true,
       code: `# Claude Code → LiteLLM
 export ANTHROPIC_BASE_URL="${apiBase}"
@@ -247,9 +247,31 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL="ackstorm.fast-lite"
 export CLAUDE_CODE_SUBAGENT_MODEL="ackstorm.fast"
 
 claude`,
+      note: 'Bills against your gateway key — no Claude subscription required. Models are LiteLLM aliases.',
+      guide: {
+        url: 'https://docs.litellm.ai/docs/anthropic_completion',
+        label: 'Claude Code + LiteLLM guide',
+      },
+    },
+    {
+      id: 'claude-sub',
+      label: 'Claude Code (Pro/Max)',
+      ready: true,
+      // MAX/Pro subscription flow (NOT an API key): ANTHROPIC_API_KEY is left empty
+      // so Claude Code authenticates with your Claude subscription OAuth token. The
+      // gateway key rides in ANTHROPIC_CUSTOM_HEADERS (x-litellm-api-key) purely for
+      // budget/limit tracking. ANTHROPIC_MODEL must be a real model your gateway maps.
+      code: `# Claude Code → LiteLLM (MAX/Pro subscription)
+export ANTHROPIC_API_KEY=""
+export ANTHROPIC_BASE_URL="${apiBase}"
+export ANTHROPIC_CUSTOM_HEADERS="${AUTH_HEADER}: Bearer ${KEY_PLACEHOLDER}"
+export ANTHROPIC_MODEL="claude-opus-4-8"
+
+claude`,
+      note: 'Uses your Claude MAX/Pro subscription, not an API key. On first run pick "Claude account with subscription" and authorize in the browser — Claude Code sends its OAuth token, while the gateway key only tracks budget/limits.',
       guide: {
         url: 'https://docs.litellm.ai/docs/tutorials/claude_code_max_subscription',
-        label: 'Claude Code + LiteLLM guide',
+        label: 'Claude Code subscription + LiteLLM guide',
       },
     },
     {

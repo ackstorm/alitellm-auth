@@ -22,3 +22,9 @@ src/api/coverage.xml
 
 # git worktrees (superpowers)
 .worktrees/
+
+# BEGIN ach-cli — agent config with embedded credentials, do not commit
+.ach/
+.claude/
+.mcp.json
+# END ach-cli
