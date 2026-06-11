@@ -17,7 +17,11 @@ RUN npm run build      # emits /src/ui/dist (base: /ui/, hash-router shell)
 FROM python:3.14-slim AS builder
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
+# uv as a prebuilt static binary from the official image. `pip install uv` is
+# fragile on python:3.14-slim: when uv has no cp314 wheel yet, pip falls back to
+# the sdist and tries to compile it with cargo, which fails on the slim image
+# (no C toolchain → "linker `cc` not found"). The static binary sidesteps both.
+COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /usr/local/bin/uv
 
 # hatchling needs the package present to install; copy only what's required.
 # No COPY . . — explicit paths only (per CLAUDE.md Docker rules).
