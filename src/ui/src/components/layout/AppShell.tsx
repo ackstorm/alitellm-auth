@@ -166,7 +166,7 @@ export function AppShell({ me, config }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background bg-fixed [background-image:radial-gradient(ellipse_70%_55%_at_12%_-5%,var(--glow-1),transparent),radial-gradient(ellipse_65%_55%_at_88%_8%,var(--glow-2),transparent),radial-gradient(ellipse_80%_65%_at_50%_105%,var(--glow-3),transparent)]">
-      <header className="flex h-14 shrink-0 items-center gap-6 border-b border-border bg-surface px-6">
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-6 border-b border-border bg-surface px-6">
         <BrandLockup config={config} className="text-sm" />
 
         <nav aria-label="Primary" className="flex items-center gap-0.5">

@@ -2,6 +2,11 @@
 
 ## [unreleased]
 
+### Changed
+
+- The top navigation bar is now **sticky** — it stays pinned to the top of the viewport while scrolling long pages (Stats, How-to) instead of scrolling away.
+- Reordered the **How-to → Editors & CLIs** tabs to surface the most-used setups first: OpenCode (Gemini), OpenCode, Claude Code (API), Claude Code (Pro/Max), Gemini CLI, then Codex, GitHub Copilot, Qwen Code. OpenCode (Gemini) is now the default-selected tab.
+
 ## [0.5.15] - 2026-06-11
 
 ### Changed

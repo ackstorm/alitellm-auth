@@ -234,6 +234,65 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
     guide?: { url: string; label: string };
   }[] = [
     {
+      id: 'opencode-gemini',
+      label: 'OpenCode (Gemini)',
+      ready: true,
+      caption: '~/.config/opencode/opencode.json',
+      // OpenCode can instead use its native `google` provider against the gateway's
+      // Gemini-compatible passthrough (/gemini/v1beta). Model names must match the
+      // Gemini models your gateway exposes.
+      code: `{
+  "$schema": "https://opencode.ai/config.json",
+  "enabled_providers": ["google"],
+  "provider": {
+    "google": {
+      "options": {
+        "baseURL": "${apiBase}/gemini/v1beta",
+        "apiKey": "${KEY_PLACEHOLDER}",
+        "timeout": 600000
+      }
+    }
+  },
+  "model": "google/gemini-flash-latest",
+  "small_model": "google/gemini-flash-lite-latest"
+}`,
+      note: 'Save the file, then run `opencode`. Model names must match the Gemini models your gateway exposes.',
+      guide: {
+        url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
+        label: 'OpenCode + LiteLLM guide',
+      },
+    },
+    {
+      id: 'opencode',
+      label: 'OpenCode',
+      ready: true,
+      caption: '~/.config/opencode/opencode.json',
+      // opencode is configured by a JSON file (NOT env vars): an OpenAI-compatible
+      // provider pointed at the gateway. The model keys MUST match LiteLLM aliases.
+      code: `{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LiteLLM",
+      "options": {
+        "baseURL": "${apiBase}/v1",
+        "apiKey": "${KEY_PLACEHOLDER}"
+      },
+      "models": {
+        "ackstorm.fast": { "name": "ACKstorm Fast" },
+        "ackstorm.smart": { "name": "ACKstorm Smart" }
+      }
+    }
+  }
+}`,
+      note: 'Save the file, then run `opencode` and pick a LiteLLM model with `/models`.',
+      guide: {
+        url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
+        label: 'OpenCode + LiteLLM guide',
+      },
+    },
+    {
       id: 'claude',
       label: 'Claude Code (API)',
       ready: true,
@@ -284,65 +343,6 @@ export GEMINI_BASE_URL=${apiBase}/gemini/v1beta
 export GEMINI_API_KEY=${KEY_PLACEHOLDER}
 
 gemini`,
-    },
-    {
-      id: 'opencode',
-      label: 'OpenCode',
-      ready: true,
-      caption: '~/.config/opencode/opencode.json',
-      // opencode is configured by a JSON file (NOT env vars): an OpenAI-compatible
-      // provider pointed at the gateway. The model keys MUST match LiteLLM aliases.
-      code: `{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "litellm": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "LiteLLM",
-      "options": {
-        "baseURL": "${apiBase}/v1",
-        "apiKey": "${KEY_PLACEHOLDER}"
-      },
-      "models": {
-        "ackstorm.fast": { "name": "ACKstorm Fast" },
-        "ackstorm.smart": { "name": "ACKstorm Smart" }
-      }
-    }
-  }
-}`,
-      note: 'Save the file, then run `opencode` and pick a LiteLLM model with `/models`.',
-      guide: {
-        url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
-        label: 'OpenCode + LiteLLM guide',
-      },
-    },
-    {
-      id: 'opencode-gemini',
-      label: 'OpenCode (Gemini)',
-      ready: true,
-      caption: '~/.config/opencode/opencode.json',
-      // OpenCode can instead use its native `google` provider against the gateway's
-      // Gemini-compatible passthrough (/gemini/v1beta). Model names must match the
-      // Gemini models your gateway exposes.
-      code: `{
-  "$schema": "https://opencode.ai/config.json",
-  "enabled_providers": ["google"],
-  "provider": {
-    "google": {
-      "options": {
-        "baseURL": "${apiBase}/gemini/v1beta",
-        "apiKey": "${KEY_PLACEHOLDER}",
-        "timeout": 600000
-      }
-    }
-  },
-  "model": "google/gemini-flash-latest",
-  "small_model": "google/gemini-flash-lite-latest"
-}`,
-      note: 'Save the file, then run `opencode`. Model names must match the Gemini models your gateway exposes.',
-      guide: {
-        url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
-        label: 'OpenCode + LiteLLM guide',
-      },
     },
     {
       id: 'codex',
@@ -401,7 +401,7 @@ qwen`,
       },
     },
   ];
-  const [tool, setTool] = useState<string>('claude');
+  const [tool, setTool] = useState<string>('opencode-gemini');
   const [mcpTab, setMcpTab] = useState<string>('access');
 
   return (
