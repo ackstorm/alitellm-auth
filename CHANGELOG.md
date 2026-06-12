@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.16] - 2026-06-12
+
 ### Changed
 
 - The top navigation bar is now **sticky** — it stays pinned to the top of the viewport while scrolling long pages (Stats, How-to) instead of scrolling away.
