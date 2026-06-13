@@ -1754,3 +1754,12 @@ def test_already_exists_predicate():
     assert _already_exists(_resp(400, "some other 400")) is False
     assert _already_exists(_resp(200)) is False
     assert _already_exists(_resp(500, "already exists")) is False
+
+
+from app.litellm_client import strip_bearer_prefix
+
+
+def test_strip_bearer_prefix():
+    assert strip_bearer_prefix("Bearer sk-abc") == "sk-abc"
+    assert strip_bearer_prefix("sk-abc") == "sk-abc"
+    assert strip_bearer_prefix("  Bearer sk-abc  ") == "sk-abc"

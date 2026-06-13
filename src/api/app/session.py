@@ -212,7 +212,7 @@ async def session_me(
     settings: Settings = request.app.state.settings
     email = user["email"]
     name = user["name"]
-    team_id = f"team-{settings.oauth_client_id}"
+    team_id = settings.team_id
 
     limits: dict | None = None
     spend: dict = {"current": 0, "source": _SPEND_SOURCE_UNKNOWN}

@@ -78,6 +78,11 @@ class Settings(BaseSettings):
             )
         return self
 
+    @property
+    def team_id(self) -> str:
+        """Shared team id, derived from the OIDC client id (one team per deployment)."""
+        return f"team-{self.oauth_client_id}"
+
 
 def get_settings() -> Settings:
     return Settings()

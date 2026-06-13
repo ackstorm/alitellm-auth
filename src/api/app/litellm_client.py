@@ -104,6 +104,13 @@ def _load_factory_config(path: str | None) -> dict:
         return {}
 
 
+def strip_bearer_prefix(value: str) -> str:
+    """Normalize an `x-alitellm-auth-api-key` header value: accept both
+    "sk-..." and "Bearer sk-...". Callers guard the None/empty case first.
+    Strip first so a whitespace-padded "  Bearer sk-...  " also normalizes."""
+    return value.strip().removeprefix("Bearer ").strip()
+
+
 def _already_exists(resp) -> bool:
     """True if a LiteLLM create call reports the resource already exists.
 
@@ -229,7 +236,7 @@ async def ensure_team_and_user(
     On subsequent logins/key-mints the cap is left untouched so a manually-raised
     max_budget_in_team is not silently clobbered back to the factory default.
     """
-    team_id = f"team-{settings.oauth_client_id}"
+    team_id = settings.team_id
     headers = _admin_headers(settings)
 
     factory = _load_factory_config(settings.factory_config_path)
@@ -716,7 +723,7 @@ async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
         # LiteLLM doesn't support filtering /key/list by metadata directly in all versions,
         # but we can filter by team_id and then client-side filter by email metadata.
-        team_id = f"team-{settings.oauth_client_id}"
+        team_id = settings.team_id
         resp = await client.get("/key/list", headers=headers, params={"team_id": team_id})
 
     if not resp.is_success:

@@ -22,6 +22,7 @@ from app.litellm_client import (
     get_litellm_user,
     LiteLLMUserNotFound,
     list_litellm_keys,
+    strip_bearer_prefix,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ async def whoami(
         raise HTTPException(status_code=401, detail="Missing x-alitellm-auth-api-key header")
 
     # Accept both "sk-..." and "Bearer sk-..."
-    api_key = x_alitellm_auth_api_key.removeprefix("Bearer ").strip()
+    api_key = strip_bearer_prefix(x_alitellm_auth_api_key)
 
     settings: Settings = request.app.state.settings
     try:
@@ -241,7 +242,7 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
                 "email": email,
                 "key": None,
                 "key_id": latest["id"],
-                "team_id": f"team-{settings.oauth_client_id}",
+                "team_id": settings.team_id,
                 "api_url": f"{settings.api_public_url}/v1",
             },
         )
@@ -322,7 +323,7 @@ async def delete_token(
     if not x_alitellm_auth_api_key:
         raise HTTPException(status_code=401, detail="Missing x-alitellm-auth-api-key header")
 
-    api_key = x_alitellm_auth_api_key.removeprefix("Bearer ").strip()
+    api_key = strip_bearer_prefix(x_alitellm_auth_api_key)
     settings: Settings = request.app.state.settings
 
     # 1. Authenticate the caller to get their email.
