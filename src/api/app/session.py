@@ -638,12 +638,13 @@ async def session_stats(
     prev_start = prev_end - timedelta(days=span - 1)
 
     # Fetch all figures concurrently; degrade each independently (D-06).
-    cur_res, prev_res, budget_res, last_used_res, keys_res = await asyncio.gather(
+    cur_res, prev_res, budget_res, last_used_res, keys_res, member_res = await asyncio.gather(
         user_daily_activity(email, settings, start.isoformat(), end.isoformat()),
         user_daily_activity(email, settings, prev_start.isoformat(), prev_end.isoformat()),
         get_litellm_user(email, settings),
         spend_logs_last_used(email, settings, start.isoformat(), end.isoformat()),
         list_session_keys(email, settings),
+        get_team_member_budget(email, settings),
         return_exceptions=True,
     )
 
@@ -665,23 +666,15 @@ async def session_stats(
     else:
         prev_agg = aggregate_window(prev_res)
 
-    # BUDGET failure → degrade the budget block (mirrors session_me), do NOT 502.
-    budget: dict[str, Any] = {
-        "current": 0,
-        "max_budget": None,
-        "budget_duration": None,
-        "source": _SPEND_SOURCE_UNKNOWN,
-    }
+    # BUDGET → prefer the ENFORCED per-member cap (#1/RQ-1); degrade to user-level,
+    # never 502 (mirrors session_me). Each read degrades independently.
+    user_obj = {} if isinstance(budget_res, BaseException) else budget_res
+    member = None if isinstance(member_res, BaseException) else member_res
     if isinstance(budget_res, BaseException):
         logger.warning("session_stats: budget fetch failed for %s: %s", email, budget_res)
-    else:
-        spend = _derive_spend(budget_res)
-        budget = {
-            "current": spend["current"],
-            "max_budget": budget_res.get("max_budget"),
-            "budget_duration": budget_res.get("budget_duration"),
-            "source": spend["source"],
-        }
+    if isinstance(member_res, BaseException):
+        logger.warning("session_stats: member-budget fetch failed for %s: %s", email, member_res)
+    budget = _budget_block(user_obj, member)
 
     # LAST-USED failure → degrade to {} (null per model + flag flips in build_stats_contract).
     last_used: dict[str, str] = {}

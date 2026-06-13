@@ -1039,6 +1039,27 @@ def test_stats_budget_degrades(client):
     assert data["budget"]["current"] == 0
 
 
+def test_stats_budget_uses_enforced_member_cap(client):
+    """#1/RQ-1: /stats budget reports the ENFORCED per-member cap, not user-level."""
+    activity, last, budget = _stats_mocks(
+        budget_user={"user_id": "alice@example.com", "spend": 99.0, "max_budget": 50.0}
+    )
+    member = AsyncMock(return_value={"max_budget": 10.0, "current": 3.5, "budget_duration": "30d"})
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget),
+        patch("app.session.get_team_member_budget", member),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 200
+    b = response.json()["budget"]
+    assert b["max_budget"] == 10.0  # enforced cap, not 50.0
+    assert b["current"] == 3.5
+    assert b["source"] == "team_member"
+    assert b["has_budget"] is True
+
+
 def test_stats_prior_window_degrades(client):
     """Prior-window fetch raising → capabilities.deltas false, still 200."""
     request = httpx.Request("GET", "http://litellm.test/user/daily/activity")
