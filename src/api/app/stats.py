@@ -42,6 +42,7 @@ __all__ = [
     "aggregate_window",
     "compute_deltas",
     "build_stats_contract",
+    "last_used_from_window",
     "resolve_key_display",
 ]
 
@@ -249,6 +250,42 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     }
 
 
+def last_used_from_window(data: dict[str, Any]) -> dict[str, str]:
+    """Per-model last-used DATE from one daily-activity window (no extra HTTP).
+
+    LiteLLM's ``/user/daily/activity`` ``results[]`` are per-DAY rows, each carrying
+    a ``breakdown.models`` map. The latest in-window day on which a model appears IS
+    its last-used date (day granularity). This is derived from the SAME current
+    window already fetched for the headline totals, so it costs nothing.
+
+    It replaces the former ``spend_logs_last_used`` sourcing, which called
+    ``GET /spend/logs?summarize=false``. That endpoint ignored the ``user_id`` /
+    ``start_date`` / ``end_date`` filters and returned the ENTIRE spend-logs table
+    (~83 MB even for a single user over 7 days); ``resp.json()`` ballooned it into
+    Python objects and OOM-killed the pod under concurrent requests.
+
+    Returns ``{model: "YYYY-MM-DD"}``. An empty / unparseable window yields ``{}``,
+    which flips ``capabilities.per_model_last_used`` to False in
+    ``build_stats_contract`` (D-08/D-09 — last-used is the one allowed degrade).
+    """
+    results = data.get("results") or []
+    last_used: dict[str, str] = {}
+    for day in results:
+        if not isinstance(day, dict):
+            continue
+        day_date = day.get("date")
+        if not isinstance(day_date, str) or not day_date:
+            continue
+        models = (day.get("breakdown") or {}).get("models") or {}
+        if not isinstance(models, dict):
+            continue
+        for model_name in models:
+            existing = last_used.get(model_name)
+            if existing is None or day_date > existing:
+                last_used[model_name] = day_date
+    return last_used
+
+
 def _avg_cost_per_1m_tokens(spend: float | None, tokens: float | None) -> float | None:
     """spend / tokens * 1_000_000, guarded for 0 tokens → None (D-08)."""
     if not tokens:
@@ -299,7 +336,7 @@ def build_stats_contract(
         cur_agg: ``aggregate_window`` output for the current window.
         prev_agg: ``aggregate_window`` output for the prior (compare) window.
         budget: {current, max_budget, source} from the LiteLLM user block.
-        last_used: {model: iso_timestamp} from ``spend_logs_last_used`` (``{}`` to
+        last_used: {model: "YYYY-MM-DD"} from ``last_used_from_window`` (``{}`` to
             degrade — flips ``capabilities.per_model_last_used`` to False, D-08/D-09).
         capabilities: the {token_split, per_model_last_used, deltas, per_key_spend}
             defaults baked from the spike (12-SPIKE-FINDINGS.md, all True). This

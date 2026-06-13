@@ -859,23 +859,17 @@ def _load_fixture(name: str) -> dict:
 def _stats_mocks(
     current: dict | None = None,
     prior: dict | None = None,
-    last_used: dict | None = None,
     budget_user: dict | None = None,
 ):
-    """Build the three patched session-module dependencies for a /stats call.
+    """Build the patched session-module dependencies for a /stats call.
 
     user_daily_activity is a two-call AsyncMock (current first, prior second —
-    matches the asyncio.gather order in the handler).
+    matches the asyncio.gather order in the handler). Per-model last_used is no
+    longer a separate fetch — the route derives it from the CURRENT window via
+    stats.last_used_from_window, so there is nothing to mock for it.
     """
     current = current if current is not None else _load_fixture("daily_activity_current.json")
     prior = prior if prior is not None else _load_fixture("daily_activity_prior.json")
-    last_used = (
-        last_used
-        if last_used is not None
-        else {
-            "gemini/gemini-flash-latest": "2026-04-01T09:49:44.420000Z",
-        }
-    )
     budget_user = (
         budget_user
         if budget_user is not None
@@ -887,9 +881,8 @@ def _stats_mocks(
         }
     )
     activity = AsyncMock(side_effect=[current, prior])
-    last = AsyncMock(return_value=last_used)
     budget = AsyncMock(return_value=budget_user)
-    return activity, last, budget
+    return activity, budget
 
 
 def test_stats_unauth_401(client):
@@ -901,10 +894,9 @@ def test_stats_unauth_401(client):
 
 def test_stats_happy_path(client):
     """Authed /stats → 200 with the full {range,totals,series,models,keys,budget,capabilities}."""
-    activity, last, budget = _stats_mocks()
+    activity, budget = _stats_mocks()
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last),
         patch("app.session.get_litellm_user", budget),
     ):
         response = client.get("/api/session/stats", cookies=_authed_cookie())
@@ -924,6 +916,10 @@ def test_stats_happy_path(client):
     # totals + deltas present
     assert "deltas" in data["totals"]
     assert data["capabilities"]["deltas"] is True
+    # last_used is derived from the CURRENT window (fixture: every model active on
+    # 2026-04-01) — capability stays true and each model carries that date.
+    assert data["capabilities"]["per_model_last_used"] is True
+    assert all(m["last_used"] == "2026-04-01" for m in data["models"])
 
 
 def test_stats_keys_resolve_friendly_name_from_key_list(client):
@@ -936,7 +932,7 @@ def test_stats_keys_resolve_friendly_name_from_key_list(client):
     the idle padding row). The fixture spend row has key_alias=None + id == the key
     hash, so this exercises the token-hash fallback join.
     """
-    activity, last, budget = _stats_mocks()
+    activity, budget = _stats_mocks()
     key_hash = "195b8b1f2c4e46945209387ec13e08ea7d74714fd088cd118b928630a03f2317"
     key_list = AsyncMock(
         return_value=[
@@ -945,7 +941,6 @@ def test_stats_keys_resolve_friendly_name_from_key_list(client):
     )
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last),
         patch("app.session.get_litellm_user", budget),
         patch("app.session.list_session_keys", key_list),
     ):
@@ -961,11 +956,10 @@ def test_stats_keys_resolve_friendly_name_from_key_list(client):
 
 def test_stats_key_list_failure_degrades_no_502(client):
     """Key-list fetch failure → still 200, per-key rows keep their raw alias (D-09)."""
-    activity, last, budget = _stats_mocks()
+    activity, budget = _stats_mocks()
     failing = AsyncMock(side_effect=RuntimeError("litellm down"))
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last),
         patch("app.session.get_litellm_user", budget),
         patch("app.session.list_session_keys", failing),
     ):
@@ -986,10 +980,9 @@ def test_stats_scoped_to_cookie_email(client):
     There is no route query param a client could use to request another user's data;
     the email is sourced from require_session_user (the verified cookie).
     """
-    activity, last, budget = _stats_mocks()
+    activity, budget = _stats_mocks()
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last),
         patch("app.session.get_litellm_user", budget),
     ):
         # An attacker-supplied user_id/email query param must be ignored.
@@ -1005,30 +998,36 @@ def test_stats_scoped_to_cookie_email(client):
     assert budget.await_args.args[0] == "alice@example.com"
 
 
-def test_stats_last_used_degrades(client):
-    """Last-used unavailable → every models[].last_used == null + capability false, 200."""
-    activity, _, budget = _stats_mocks()
-    # spend_logs_last_used degrades to {} (its D-09 contract).
-    last_empty = AsyncMock(return_value={})
+def test_stats_last_used_derived_from_window_no_extra_fetch(client):
+    """Last-used comes from the CURRENT window — NO separate /spend/logs fetch (OOM fix).
+
+    Regression guard: ``/spend/logs?summarize=false`` ignored its filters and
+    returned the whole spend-logs table (~83 MB), OOM-killing the pod. The route now
+    derives per-model last_used from the daily-activity window it already fetches, so
+    ``user_daily_activity`` is called EXACTLY twice (current + prior) and nothing
+    else hits LiteLLM for last-used. The fixture has every model active on
+    2026-04-01, so each model carries that date and the capability stays true.
+    """
+    activity, budget = _stats_mocks()
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last_empty),
         patch("app.session.get_litellm_user", budget),
     ):
         response = client.get("/api/session/stats", cookies=_authed_cookie())
     assert response.status_code == 200
     data = response.json()
-    assert data["capabilities"]["per_model_last_used"] is False
-    assert all(m["last_used"] is None for m in data["models"])
+    # Only the two daily-activity windows were fetched — no third last-used call.
+    assert activity.await_count == 2
+    assert data["capabilities"]["per_model_last_used"] is True
+    assert all(m["last_used"] == "2026-04-01" for m in data["models"])
 
 
 def test_stats_budget_degrades(client):
     """Budget fetch raising → budget block degraded, still 200 (mirrors /me)."""
-    activity, last, _ = _stats_mocks()
+    activity, _ = _stats_mocks()
     budget_fail = AsyncMock(side_effect=LiteLLMUserNotFound("alice@example.com"))
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last),
         patch("app.session.get_litellm_user", budget_fail),
     ):
         response = client.get("/api/session/stats", cookies=_authed_cookie())
@@ -1041,13 +1040,12 @@ def test_stats_budget_degrades(client):
 
 def test_stats_budget_uses_enforced_member_cap(client):
     """#1/RQ-1: /stats budget reports the ENFORCED per-member cap, not user-level."""
-    activity, last, budget = _stats_mocks(
+    activity, budget = _stats_mocks(
         budget_user={"user_id": "alice@example.com", "spend": 99.0, "max_budget": 50.0}
     )
     member = AsyncMock(return_value={"max_budget": 10.0, "current": 3.5, "budget_duration": "30d"})
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last),
         patch("app.session.get_litellm_user", budget),
         patch("app.session.get_team_member_budget", member),
     ):
@@ -1065,13 +1063,11 @@ def test_stats_prior_window_degrades(client):
     request = httpx.Request("GET", "http://litellm.test/user/daily/activity")
     current = _load_fixture("daily_activity_current.json")
     activity = AsyncMock(side_effect=[current, httpx.RequestError("boom", request=request)])
-    last = AsyncMock(return_value={})
     budget = AsyncMock(
         return_value={"user_id": "alice@example.com", "max_budget": None, "spend": 0.0}
     )
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last),
         patch("app.session.get_litellm_user", budget),
     ):
         response = client.get("/api/session/stats", cookies=_authed_cookie())
@@ -1086,11 +1082,9 @@ def test_stats_current_window_502(client):
     activity = AsyncMock(
         side_effect=httpx.HTTPStatusError("backend down", request=request, response=response_503)
     )
-    last = AsyncMock(return_value={})
     budget = AsyncMock(return_value={"user_id": "alice@example.com", "max_budget": None})
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last),
         patch("app.session.get_litellm_user", budget),
     ):
         response = client.get("/api/session/stats", cookies=_authed_cookie())
@@ -1116,14 +1110,11 @@ def test_stats_empty_window_zero_not_null(client):
     """D-08: an empty window → totals 0 (real zero), while an unavailable figure is null."""
     empty = _load_fixture("daily_activity_empty.json")
     activity = AsyncMock(side_effect=[empty, empty])
-    # last-used unavailable → null + capability false (the "flagged-unavailable" figure).
-    last = AsyncMock(return_value={})
     budget = AsyncMock(
         return_value={"user_id": "alice@example.com", "max_budget": None, "spend": 0.0}
     )
     with (
         patch("app.session.user_daily_activity", activity),
-        patch("app.session.spend_logs_last_used", last),
         patch("app.session.get_litellm_user", budget),
     ):
         response = client.get("/api/session/stats", cookies=_authed_cookie())
@@ -1133,7 +1124,7 @@ def test_stats_empty_window_zero_not_null(client):
     assert data["totals"]["requests"] == 0
     assert data["totals"]["spend"] == 0
     assert data["totals"]["tokens"] == 0
-    # An unavailable figure is null + flagged.
+    # An empty window has no per-model breakdown → last_used {} → flagged unavailable.
     assert data["capabilities"]["per_model_last_used"] is False
     assert data["models"] == []
 

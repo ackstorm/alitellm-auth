@@ -19,6 +19,7 @@ from app.stats import (
     aggregate_window,
     build_stats_contract,
     compute_deltas,
+    last_used_from_window,
     resolve_key_display,
 )
 
@@ -323,6 +324,34 @@ def test_build_stats_contract_last_used_present_keeps_capability():
     assert by_model["gemini/gemini-flash-latest"]["last_used"] == "2026-04-01T09:49:44.420000Z"
     # A model without a last_used entry stays null.
     assert by_model["gemini/gemini-3-pro-preview"]["last_used"] is None
+
+
+def test_last_used_from_window_picks_latest_day_per_model():
+    """Per-model last_used = the latest in-window day the model appears (day grain).
+
+    Replaces the old /spend/logs sourcing (which returned the whole ~83 MB table and
+    OOM-killed the pod). Derived from the SAME daily-activity window: build a
+    synthetic two-day input so a model present on both days reports the LATER date.
+    """
+    day1 = _load("daily_activity_current.json")["results"][0]
+    day1 = copy.deepcopy(day1)
+    day1["date"] = "2026-04-01"
+    day2 = copy.deepcopy(day1)
+    day2["date"] = "2026-04-03"
+    # day2 drops one model so it keeps its earlier (day1) date.
+    day2["breakdown"]["models"].pop("gemini/gemini-3-pro-preview", None)
+
+    out = last_used_from_window({"results": [day2, day1]})  # unordered input
+
+    assert out["gemini/gemini-flash-latest"] == "2026-04-03"  # present both days → later
+    assert out["gemini/gemini-3-pro-preview"] == "2026-04-01"  # only on day1
+
+
+def test_last_used_from_window_empty_window_returns_empty():
+    """An empty / model-less window → {} (flips capability false downstream)."""
+    assert last_used_from_window(_load("daily_activity_empty.json")) == {}
+    assert last_used_from_window({}) == {}
+    assert last_used_from_window({"results": [{"date": "2026-04-01"}]}) == {}
 
 
 def test_build_stats_contract_budget_with_max():

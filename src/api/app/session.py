@@ -42,10 +42,14 @@ from app.litellm_client import (
     list_litellm_models,
     list_session_keys,
     set_litellm_key_default,
-    spend_logs_last_used,
     user_daily_activity,
 )
-from app.stats import aggregate_window, build_stats_contract, resolve_key_display
+from app.stats import (
+    aggregate_window,
+    build_stats_contract,
+    last_used_from_window,
+    resolve_key_display,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -638,11 +642,10 @@ async def session_stats(
     prev_start = prev_end - timedelta(days=span - 1)
 
     # Fetch all figures concurrently; degrade each independently (D-06).
-    cur_res, prev_res, budget_res, last_used_res, keys_res, member_res = await asyncio.gather(
+    cur_res, prev_res, budget_res, keys_res, member_res = await asyncio.gather(
         user_daily_activity(email, settings, start.isoformat(), end.isoformat()),
         user_daily_activity(email, settings, prev_start.isoformat(), prev_end.isoformat()),
         get_litellm_user(email, settings),
-        spend_logs_last_used(email, settings, start.isoformat(), end.isoformat()),
         list_session_keys(email, settings),
         get_team_member_budget(email, settings),
         return_exceptions=True,
@@ -657,6 +660,14 @@ async def session_stats(
             raise HTTPException(status_code=502, detail="Usage data unavailable")
         raise cur_res
     cur_agg = aggregate_window(cur_res)
+
+    # LAST-USED per model is derived from the CURRENT window we already fetched
+    # (day granularity: the latest in-window day a model appears). This replaces
+    # the old /spend/logs?summarize=false sourcing, which returned the ENTIRE
+    # unfiltered spend-logs table (~83 MB even for one user over 7 days, the
+    # user_id/date filters silently ignored) and OOM-killed the pod. An empty
+    # window yields {} → per_model_last_used flips false in build_stats_contract.
+    last_used = last_used_from_window(cur_res)
 
     # PRIOR window failure → degrade deltas, do NOT 502 (RESEARCH §6 landmine 7).
     if isinstance(prev_res, BaseException):
@@ -675,13 +686,6 @@ async def session_stats(
     if isinstance(member_res, BaseException):
         logger.warning("session_stats: member-budget fetch failed for %s: %s", email, member_res)
     budget = _budget_block(user_obj, member)
-
-    # LAST-USED failure → degrade to {} (null per model + flag flips in build_stats_contract).
-    last_used: dict[str, str] = {}
-    if isinstance(last_used_res, BaseException):
-        logger.warning("session_stats: last-used fetch failed for %s: %s", email, last_used_res)
-    elif isinstance(last_used_res, dict):
-        last_used = last_used_res
 
     # KEY-LIST failure → skip friendly-name resolution; per-key rows keep the opaque
     # lk- alias (prior behaviour), never 502. The key list also carries the server-
