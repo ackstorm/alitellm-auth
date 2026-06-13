@@ -5,6 +5,7 @@ auth_user_map.py runs on the LiteLLM proxy (not in this package) and imports
 `litellm`. We stub those imports via sys.modules and load the file by path so the
 import-time PROXY_MASTER_KEY guard can be exercised here.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -14,9 +15,7 @@ from pathlib import Path
 
 import pytest
 
-_AUTH_MAP_PATH = (
-    Path(__file__).resolve().parents[3] / "deploy" / "litellm" / "auth_user_map.py"
-)
+_AUTH_MAP_PATH = Path(__file__).resolve().parents[3] / "deploy" / "litellm" / "auth_user_map.py"
 
 
 def _install_litellm_stubs() -> None:

@@ -2,6 +2,8 @@
 import json as _json
 import os
 import tempfile
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 import respx
@@ -17,9 +19,11 @@ from app.litellm_client import (
     delete_litellm_user,
     list_session_keys,
     block_litellm_key,
+    _already_exists,
     _display_alias,
     _normalize_teams,
     _project_session_key,
+    strip_bearer_prefix,
 )
 
 
@@ -1738,34 +1742,23 @@ async def test_verify_contract_unknown_on_network_error():
     assert await verify_user_scoping_contract(settings) == "unknown"
 
 
-from types import SimpleNamespace
-
-from app.litellm_client import _already_exists
-
-
 def _resp(status_code: int, text: str = ""):
     return SimpleNamespace(status_code=status_code, text=text)
 
 
 def test_already_exists_predicate():
     assert _already_exists(_resp(409)) is True
-    assert _already_exists(_resp(400, "Team already exists")) is True   # case-insensitive
+    assert _already_exists(_resp(400, "Team already exists")) is True  # case-insensitive
     assert _already_exists(_resp(400, "already exists")) is True
     assert _already_exists(_resp(400, "some other 400")) is False
     assert _already_exists(_resp(200)) is False
     assert _already_exists(_resp(500, "already exists")) is False
 
 
-from app.litellm_client import strip_bearer_prefix
-
-
 def test_strip_bearer_prefix():
     assert strip_bearer_prefix("Bearer sk-abc") == "sk-abc"
     assert strip_bearer_prefix("sk-abc") == "sk-abc"
     assert strip_bearer_prefix("  Bearer sk-abc  ") == "sk-abc"
-
-
-from unittest.mock import MagicMock
 
 
 @pytest.mark.asyncio
