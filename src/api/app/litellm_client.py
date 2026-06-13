@@ -211,6 +211,59 @@ async def ensure_team_member_budget(
             )
 
 
+async def get_team_member_budget(email: str, settings: Settings) -> dict | None:
+    """Return the ENFORCED per-member-in-team budget for the user, or None.
+
+    The cap that actually enforces for team-scoped keys is max_budget_in_team
+    (set by ensure_team_member_budget); user-level max_budget does NOT enforce
+    (RQ-1). Returns {"max_budget": float|None, "current": float,
+    "budget_duration": str|None} read from the team membership, or None when no
+    membership budget is available (caller degrades to the user-level figures).
+
+    SOURCE (pinned by Phase-0 spike, LiteLLM v1.87.1): GET /team/info?team_id=
+    team-<client_id>, member matched by user_id, budget read from
+    litellm_budget_table. /key/list does NOT carry the membership budget on
+    v1.87.1 (max_budget_in_team/team_member_spend come back null), so /team/info
+    is the only source — and it works for keyless eager-created users too.
+    H6: user_id/team_id always via httpx params={}, never f-string concat.
+    """
+    headers = _admin_headers(settings)
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+        resp = await client.get(
+            "/team/info", headers=headers, params={"team_id": settings.team_id}
+        )
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM /team/info failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+    data = resp.json()
+    if not isinstance(data, dict):
+        return None
+    memberships = data.get("team_memberships") or []
+    if not isinstance(memberships, list):
+        return None
+    member = next(
+        (m for m in memberships if isinstance(m, dict) and m.get("user_id") == email),
+        None,
+    )
+    if member is None:
+        return None
+    budget_table = member.get("litellm_budget_table")
+    budget_table = budget_table if isinstance(budget_table, dict) else {}
+    max_budget = budget_table.get("max_budget")
+    if max_budget is None and member.get("spend") is None:
+        # No membership budget configured for this user → let the caller degrade.
+        return None
+    return {
+        "max_budget": max_budget,
+        "current": float(member.get("spend") or 0),
+        "budget_duration": budget_table.get("budget_duration"),
+    }
+
+
 async def ensure_team_and_user(
     email: str,
     settings: Settings,

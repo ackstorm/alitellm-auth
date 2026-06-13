@@ -1788,3 +1788,46 @@ async def test_generate_litellm_key_loads_factory_config_once(monkeypatch):
     await lc.generate_litellm_key("alice@example.com", settings, name="Alice")
 
     assert spy.call_count == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_member_budget_reads_enforced_cap():
+    """#1/RQ-1: the ENFORCED per-member cap is read from /team/info
+    (team_memberships[? user_id==email].litellm_budget_table), NOT the
+    user-level max_budget. Source LOCKED by Phase-0 spike (v1.87.1)."""
+    settings = make_settings(oauth_client_id="platform")
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "team_id": "team-platform",
+                "team_memberships": [
+                    {
+                        "user_id": "alice@example.com",
+                        "spend": 3.5,
+                        "litellm_budget_table": {
+                            "max_budget": 10.0,
+                            "budget_duration": "30d",
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    from app.litellm_client import get_team_member_budget
+
+    result = await get_team_member_budget("alice@example.com", settings)
+    assert result == {"max_budget": 10.0, "current": 3.5, "budget_duration": "30d"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_member_budget_none_when_no_membership():
+    settings = make_settings(oauth_client_id="platform")
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(200, json={"team_id": "team-platform", "team_memberships": []})
+    )
+    from app.litellm_client import get_team_member_budget
+
+    assert await get_team_member_budget("nobody@example.com", settings) is None
