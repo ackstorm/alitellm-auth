@@ -14,7 +14,8 @@
 // `me` is GUARANTEED non-null here (App.tsx falls through to ErrorCard when
 // me === null — carry-forward C2), so the shell never renders against a null me.
 
-import { ChevronDown, ExternalLink, LogOut } from 'lucide-react';
+import { Fragment } from 'react';
+import { ChevronDown, ExternalLink, LogOut, Menu } from 'lucide-react';
 import { Outlet, NavLink } from 'react-router';
 import type { AppConfig, SessionMe } from '@/lib/api-types';
 import { CreateKeyModal } from '@/components/keys/CreateKeyModal';
@@ -119,23 +120,23 @@ export function AppShell({ me, config }: AppShellProps) {
     </span>
   );
 
-  // Models/MCPs are per-user catalogs scoped through the default key, so their nav
-  // items are gated on one like CHAT: a normal NavLink when a default exists, else
-  // a disabled, muted span with a hint (the route itself also shows the prompt).
-  const gatedNav = (to: string, label: string) =>
-    hasDefault ? (
-      <NavLink to={to} className={navLinkClass}>
-        {label}
-      </NavLink>
-    ) : (
-      <span
-        aria-disabled="true"
-        title="You need a default key — set one on the Keys tab"
-        className="cursor-not-allowed rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider text-text-tertiary"
-      >
-        {label}
-      </span>
-    );
+  // Single source of truth for the primary nav, rendered two ways: an inline row
+  // on md+ and a collapsed hamburger menu on mobile (so the header never overflows
+  // the viewport — a too-wide header is what silently breaks `position: sticky` on
+  // phones). Models/MCPs/A2A are per-user catalogs scoped through the default key,
+  // so they are gated like CHAT: a real link when a default exists, else a
+  // disabled, muted item with a hint (the route itself also shows the prompt).
+  const navItems: { to: string; label: string; gated: boolean; end?: boolean }[] = [
+    { to: '/', label: 'Keys', gated: false, end: true },
+    { to: '/models', label: 'Models', gated: true },
+    { to: '/mcp', label: 'MCPs', gated: true },
+    { to: '/a2a', label: 'A2A', gated: true },
+    { to: '/stats', label: 'Stats', gated: false },
+    { to: '/howto', label: 'How-to', gated: false },
+  ];
+  const gateTitle = 'You need a default key — set one on the Keys tab';
+  const disabledNavClass =
+    'cursor-not-allowed rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider text-text-tertiary';
 
   // Service-status indicator (D-02/D-03). An external link when config.links.status
   // is set, else a connected pulse-dot "operational" label. Moved OUT of the
@@ -166,33 +167,65 @@ export function AppShell({ me, config }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background bg-fixed [background-image:radial-gradient(ellipse_70%_55%_at_12%_-5%,var(--glow-1),transparent),radial-gradient(ellipse_65%_55%_at_88%_8%,var(--glow-2),transparent),radial-gradient(ellipse_80%_65%_at_50%_105%,var(--glow-3),transparent)]">
-      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-6 border-b border-border bg-surface px-6">
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-4 border-b border-border bg-surface px-4 md:gap-6 md:px-6">
+        {/* Mobile: the nav collapses into a hamburger so the header fits the
+            viewport width (overflow here is what breaks sticky on phones). */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="Open menu"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-text-secondary outline-none transition-colors hover:bg-primary/5 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-ring/50 md:hidden"
+          >
+            <Menu aria-hidden="true" className="size-5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[12rem]">
+            {navItems.map((item) =>
+              item.gated && !hasDefault ? (
+                <DropdownMenuItem
+                  key={item.to}
+                  disabled
+                  title={gateTitle}
+                  className="font-mono text-[11px] font-semibold uppercase tracking-wider"
+                >
+                  {item.label}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  key={item.to}
+                  asChild
+                  className="font-mono text-[11px] font-semibold uppercase tracking-wider"
+                >
+                  <NavLink to={item.to} end={item.end}>
+                    {item.label}
+                  </NavLink>
+                </DropdownMenuItem>
+              )
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <BrandLockup config={config} className="text-sm" />
 
-        <nav aria-label="Primary" className="flex items-center gap-0.5">
-          {/* KEYS returns to the dashboard (`end` so it is active ONLY on the
-              exact "/" route, not for every nested path). Items are joined by a
-              thin "|" so the group reads as one menu, KEYS | MODELS | …. */}
-          <NavLink to="/" end className={navLinkClass}>
-            Keys
-          </NavLink>
-          <NavSep />
-          {gatedNav('/models', 'Models')}
-          <NavSep />
-          {gatedNav('/mcp', 'MCPs')}
-          <NavSep />
-          {gatedNav('/a2a', 'A2A')}
-          <NavSep />
-          <NavLink to="/stats" className={navLinkClass}>
-            Stats
-          </NavLink>
-          <NavSep />
-          <NavLink to="/howto" className={navLinkClass}>
-            How-to
-          </NavLink>
+        {/* Desktop: inline segmented-pill menu. Items are joined by a thin "|"
+            so the group reads as one menu, KEYS | MODELS | …. `end` on Keys
+            keeps it active ONLY on the exact "/" route, not nested paths. */}
+        <nav aria-label="Primary" className="hidden items-center gap-0.5 md:flex">
+          {navItems.map((item, i) => (
+            <Fragment key={item.to}>
+              {i > 0 && <NavSep />}
+              {item.gated && !hasDefault ? (
+                <span aria-disabled="true" title={gateTitle} className={disabledNavClass}>
+                  {item.label}
+                </span>
+              ) : (
+                <NavLink to={item.to} end={item.end} className={navLinkClass}>
+                  {item.label}
+                </NavLink>
+              )}
+            </Fragment>
+          ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 md:gap-3">
           {/* CHAT — separate destination, low-contrast outline pill, just before
               the user menu. Gated on a default key (disabled span otherwise). */}
           {chatEl}
@@ -202,17 +235,19 @@ export function AppShell({ me, config }: AppShellProps) {
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label="User menu"
-              className="group inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-surface pl-1 pr-2 outline-none transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:border-primary/40 data-[state=open]:bg-primary/5"
+              className="group inline-flex items-center gap-2 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 sm:h-8 sm:rounded-lg sm:border sm:border-border sm:bg-surface sm:pl-1 sm:pr-2 sm:hover:border-primary/40 sm:hover:bg-primary/5 sm:data-[state=open]:border-primary/40 sm:data-[state=open]:bg-primary/5"
             >
-              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/15 font-sans text-[10px] font-semibold text-primary">
+              {/* Mobile compacts to JUST the rounded avatar (no pill, name, or
+                  chevron); the full pill returns at sm+. */}
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/15 font-sans text-xs font-semibold text-primary sm:size-6 sm:text-[10px]">
                 {initialsOf(menuLabel)}
               </span>
-              <span className="max-w-[14rem] truncate font-sans text-xs font-medium text-text-primary">
+              <span className="hidden max-w-[14rem] truncate font-sans text-xs font-medium text-text-primary sm:block">
                 {menuLabel}
               </span>
               <ChevronDown
                 aria-hidden="true"
-                className="size-3.5 text-text-secondary transition-transform group-data-[state=open]:rotate-180"
+                className="hidden size-3.5 text-text-secondary transition-transform group-data-[state=open]:rotate-180 sm:block"
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[13rem]">

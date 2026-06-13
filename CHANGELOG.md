@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Fixed
+
+- **Top navigation is now usable on mobile.** The sticky header (0.5.16) overflowed the viewport width on phones: the full nav row made the header wider than the screen, which silently disables `position: sticky`, so it scrolled away instead of staying pinned. On narrow screens the primary nav now collapses into a hamburger menu, and the user menu compacts to just its rounded avatar (the name, chevron, and pill border return at `sm`+). The header fits the viewport again and stays sticky. The desktop layout is unchanged.
+
 ## [0.5.17] - 2026-06-13
 
 ### Fixed
