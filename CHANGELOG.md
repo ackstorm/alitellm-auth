@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.17] - 2026-06-13
+
 ### Fixed
 
 - **Stats no longer OOM-kills the pod.** The per-model "last used" column on `/api/session/stats` was sourced from `GET /spend/logs?summarize=false`, which ignored its `user_id`/date filters and returned the *entire* spend-logs table (~83 MB even for a single user over 7 days). Parsing that JSON into Python objects on every request — multiplied by concurrent requests — exhausted the pod's memory (OOMKilled) and made the Stats page take ~12 s to load. Last-used is now derived from the daily-activity window the route already fetches (day granularity), so the 83 MB call is gone entirely: no extra HTTP, no large parse. The A2A page and other endpoints that were collateral-slow during the OOM thrash recover with it.
