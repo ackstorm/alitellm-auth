@@ -41,6 +41,16 @@ from litellm.proxy._types import ProxyException, UserAPIKeyAuth
 
 MASTER_KEY = os.getenv("PROXY_MASTER_KEY")
 
+if MASTER_KEY is None:
+    # Fail CLOSED: without the master key the `api_key != MASTER_KEY` check below
+    # matches every request, so the master+x-user-id impersonation branch is never
+    # reached and those calls fall through to native auth as full admin — the
+    # per-user scoping contract silently fails open. Refuse to start instead.
+    raise RuntimeError(
+        "PROXY_MASTER_KEY is not set. Refusing to start: the sso_key_swapper "
+        "master-key check requires it, and without it per-user scoping fails open to admin."
+    )
+
 
 def _parse_metadata(meta) -> dict:
     if isinstance(meta, str):
