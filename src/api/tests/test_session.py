@@ -161,6 +161,60 @@ def test_me_unauth_401(client):
 
 
 # ---------------------------------------------------------------------------
+# #1/RQ-1 — _budget_block: prefer the ENFORCED per-member cap over user-level
+# ---------------------------------------------------------------------------
+
+
+def test_budget_block_prefers_enforced_member_budget():
+    from app.session import _budget_block
+
+    user = {"spend": 99.0, "max_budget": 50.0, "budget_duration": "24h"}
+    member = {"max_budget": 10.0, "current": 3.5, "budget_duration": "30d"}
+    assert _budget_block(user, member) == {
+        "current": 3.5,
+        "max_budget": 10.0,
+        "budget_duration": "30d",
+        "source": "team_member",
+    }
+
+
+def test_budget_block_member_falls_back_to_user_budget_duration():
+    """When the membership budget carries no budget_duration (the live deployment
+    has it null), fall back to the user-level budget_duration (informational)."""
+    from app.session import _budget_block
+
+    user = {"spend": 99.0, "max_budget": 50.0, "budget_duration": "24h"}
+    member = {"max_budget": 10.0, "current": 3.5, "budget_duration": None}
+    block = _budget_block(user, member)
+    assert block["max_budget"] == 10.0
+    assert block["budget_duration"] == "24h"
+    assert block["source"] == "team_member"
+
+
+def test_budget_block_falls_back_to_user_when_no_member():
+    from app.session import _budget_block
+
+    user = {"spend": 2.0, "max_budget": 50.0, "budget_duration": "24h"}
+    assert _budget_block(user, None) == {
+        "current": 2.0,
+        "max_budget": 50.0,
+        "budget_duration": "24h",
+        "source": "user",
+    }
+
+
+def test_budget_block_unknown_when_nothing_configured():
+    from app.session import _budget_block
+
+    assert _budget_block({}, None) == {
+        "current": 0.0,
+        "max_budget": None,
+        "budget_duration": None,
+        "source": "unknown",
+    }
+
+
+# ---------------------------------------------------------------------------
 # SAPI-03 — GET /api/session/keys
 # ---------------------------------------------------------------------------
 

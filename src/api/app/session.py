@@ -147,37 +147,47 @@ _SPEND_SOURCE_UNKNOWN = "unknown"
 
 
 def _derive_spend(user: dict[str, Any]) -> dict[str, Any]:
-    """Derive {current, source} from the available LiteLLM user budget fields.
+    """User-level {current, source} from the LiteLLM user budget fields.
 
-    RQ-1: user-level max_budget does NOT enforce for team-scoped keys (it only
-    reports). The per-user-within-team cap is max_budget_in_team. We derive source
-    from which budget field is populated, reading defensively from the user object.
+    The team-member cap is owned by _budget_block (read from the live membership);
+    the prior team_member/team branches here were unreachable because
+    _normalize_user never carried those fields (#1), so they are dropped.
 
-    Priority (most specific to least specific):
-      1. team_member_spend / max_budget_in_team → source="team_member"
-      2. team_spend / team_max_budget → source="team"
-      3. spend / max_budget → source="user"
-      4. nothing → source="unknown"
+    `spend` defaults to 0.0 in _normalize_user even when absent, so it is NOT a
+    reliable "user has budget data" signal on its own. Gate the user branch on a
+    configured budget OR a genuinely non-zero spend; otherwise report "unknown"
+    so "no budget configured" users are not mislabeled as source="user" (WR-01).
     """
-    # /key/list?return_full_object=true rows carry these bonus fields (RQ-2)
-    team_member_spend = user.get("team_member_spend")
-    max_budget_in_team = user.get("max_budget_in_team")
-    team_spend = user.get("team_spend")
-    team_max_budget = user.get("team_max_budget")
     user_spend = user.get("spend", 0.0)
     user_budget = user.get("max_budget")
-
-    if team_member_spend is not None or max_budget_in_team is not None:
-        return {"current": float(team_member_spend or 0), "source": "team_member"}
-    if team_spend is not None or team_max_budget is not None:
-        return {"current": float(team_spend or 0), "source": "team"}
-    # `spend` defaults to 0.0 in _normalize_user even when absent, so it is NOT a
-    # reliable "user has budget data" signal on its own. Gate the user branch on a
-    # configured budget OR a genuinely non-zero spend; otherwise report "unknown"
-    # so "no budget configured" users are not mislabeled as source="user" (WR-01).
     if user_budget is not None or user_spend:
         return {"current": float(user_spend or 0), "source": "user"}
     return {"current": 0.0, "source": _SPEND_SOURCE_UNKNOWN}
+
+
+def _budget_block(user: dict[str, Any], member: dict[str, Any] | None) -> dict[str, Any]:
+    """Canonical {current, max_budget, budget_duration, source} for /me and /stats.
+
+    Prefers the ENFORCED per-member team budget (#1/RQ-1, read via
+    get_team_member_budget); falls back to the reporting-only user-level figures
+    when no membership budget is available. budget_duration on the membership is
+    usually null in this deployment, so it falls back to the user-level value
+    (informational only).
+    """
+    if member is not None:
+        return {
+            "current": float(member.get("current") or 0),
+            "max_budget": member.get("max_budget"),
+            "budget_duration": member.get("budget_duration") or user.get("budget_duration"),
+            "source": "team_member",
+        }
+    spend = _derive_spend(user)
+    return {
+        "current": spend["current"],
+        "max_budget": user.get("max_budget"),
+        "budget_duration": user.get("budget_duration"),
+        "source": spend["source"],
+    }
 
 
 def _build_limits(user: dict[str, Any]) -> dict[str, Any] | None:
