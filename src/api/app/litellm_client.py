@@ -104,14 +104,25 @@ def _load_factory_config(path: str | None) -> dict:
         return {}
 
 
+def _already_exists(resp) -> bool:
+    """True if a LiteLLM create call reports the resource already exists.
+
+    Older LiteLLM returns 409; newer returns 400 + "already exists" in the body
+    (casing varies, e.g. "Team Already Exists" — WR-04). Centralized so all
+    idempotent-create call sites agree (was copy-pasted, and the access-group
+    copy had dropped the `.lower()`).
+    """
+    return resp.status_code == 409 or (
+        resp.status_code == 400 and "already exists" in resp.text.lower()
+    )
+
+
 async def _ensure_access_group(client: httpx.AsyncClient, headers: dict, name: str) -> str | None:
     """Create the named access group if it doesn't exist; return its ID (or None on failure)."""
     resp = await client.post("/v1/access_group", headers=headers, json={"access_group_name": name})
     if resp.is_success:
         return resp.json().get("access_group_id")
-    already_exists = resp.status_code == 409 or (
-        resp.status_code == 400 and "already exists" in resp.text
-    )
+    already_exists = _already_exists(resp)
     if already_exists:
         list_resp = await client.get("/v1/access_group", headers=headers)
         if list_resp.is_success:
@@ -238,9 +249,7 @@ async def ensure_team_and_user(
                 "metadata": {"source": "token-factory", **team_meta_extra},
             },
         )
-        team_exists = team_resp.status_code == 409 or (
-            team_resp.status_code == 400 and "already exists" in team_resp.text.lower()
-        )
+        team_exists = _already_exists(team_resp)
         if team_resp.status_code != 200 and not team_exists:
             msg = _extract_litellm_error(team_resp)
             raise httpx.HTTPStatusError(
@@ -1011,9 +1020,7 @@ async def ensure_litellm_user(
         payload.update(user_budget)
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
         resp = await client.post("/user/new", headers=headers, json=payload)
-    exists = resp.status_code == 409 or (
-        resp.status_code == 400 and "already exists" in resp.text.lower()
-    )
+    exists = _already_exists(resp)
     if not resp.is_success and not exists:
         msg = _extract_litellm_error(resp)
         raise httpx.HTTPStatusError(
