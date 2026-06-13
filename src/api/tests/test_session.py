@@ -558,6 +558,46 @@ def test_make_default_promotes_and_demotes(client):
     assert any(c.args[0] == "tok-a" and c.kwargs["is_default"] is False for c in calls)
 
 
+def test_make_default_demotes_before_promoting(client):
+    """#5: prior default is demoted BEFORE the target is promoted, so a partial
+    failure can never leave two keys is_default=True."""
+    owned = [
+        {
+            "id": "key-old",
+            "token": "tok-old",
+            "key_alias": "old",
+            "is_default": True,
+            "metadata": {"email": "alice@example.com", "is_default": True},
+        },
+        {
+            "id": "key-new",
+            "token": "tok-new",
+            "key_alias": "new",
+            "is_default": False,
+            "metadata": {"email": "alice@example.com"},
+        },
+    ]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
+    ):
+        mock_list.return_value = owned
+        response = client.post(
+            "/api/session/keys/key-new/default",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            content="{}",
+        )
+    assert response.status_code == 200
+    # (token, is_default) call order: demote of the old default must precede the
+    # promote of the target, and the promote must be the LAST call.
+    order = [(c.args[0], c.kwargs["is_default"]) for c in mock_set.await_args_list]
+    assert ("tok-new", True) in order
+    assert ("tok-old", False) in order
+    assert order.index(("tok-old", False)) < order.index(("tok-new", True))
+    assert order[-1] == ("tok-new", True)
+
+
 def test_make_default_foreign_key_403(client):
     """A foreign/unknown id → 403 and NO /key/update call (D-12, no existence leak)."""
     owned = [
