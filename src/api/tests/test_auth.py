@@ -666,3 +666,59 @@ def test_logout_without_session_still_redirects(client):
 
     assert response.status_code == 302
     assert response.headers["location"] == "http://localhost:8080/ui/"
+
+
+def test_auth_callback_keygen_error_does_not_leak_backend_text(client):
+    """#4: a key-gen failure must NOT echo raw LiteLLM resp.text into the page."""
+    mock_token = {"userinfo": {"email": "alice@example.com", "name": "Alice"}}
+    secret = "SECRET-INTERNAL-URL-http://litellm.internal:4000"
+    # Drive the leak through resp.text (what the buggy branch echoes); _make_http_error's
+    # response is a MagicMock whose .text would otherwise not be the secret.
+    resp = MagicMock(status_code=500)
+    resp.text = secret
+    err = httpx.HTTPStatusError(secret, request=MagicMock(), response=resp)
+    with (
+        patch("app.auth.oauth") as mock_oauth,
+        patch("app.auth.generate_litellm_key", new_callable=AsyncMock) as mock_key,
+    ):
+        mock_oauth.oidc.authorize_access_token = AsyncMock(return_value=mock_token)
+        mock_key.side_effect = err
+        response = client.get("/api/oauth/callback")
+    assert response.status_code == 500
+    assert secret not in response.text
+
+
+def test_auth_callback_token_exchange_error_does_not_leak(client):
+    """#4: an OIDC token-exchange exception must NOT render str(exc) into the page."""
+    secret = "https://issuer.internal/secret?error_description=leaked"
+    with patch("app.auth.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_access_token = AsyncMock(side_effect=Exception(secret))
+        response = client.get("/api/oauth/callback")
+    assert response.status_code == 400
+    assert "issuer.internal" not in response.text
+
+
+def test_delete_token_keyinfo_unreachable_returns_502(client):
+    """#3: get_key_info raising a RequestError (backend unreachable) → 502, not 500."""
+    with patch("app.auth.get_key_info", new_callable=AsyncMock) as mock_info:
+        mock_info.side_effect = httpx.ConnectError("backend down")
+        response = client.delete(
+            "/api/oauth/tokens/key-123",
+            headers={"x-alitellm-auth-api-key": "sk-valid-key"},
+        )
+    assert response.status_code == 502
+
+
+def test_delete_token_list_unreachable_returns_502(client):
+    """#3: list_litellm_keys raising a RequestError → 502, not 500."""
+    with (
+        patch("app.auth.get_key_info", new_callable=AsyncMock) as mock_info,
+        patch("app.auth.list_litellm_keys", new_callable=AsyncMock) as mock_list,
+    ):
+        mock_info.return_value = {"email": "alice@example.com"}
+        mock_list.side_effect = httpx.ConnectError("backend down")
+        response = client.delete(
+            "/api/oauth/tokens/key-123",
+            headers={"x-alitellm-auth-api-key": "sk-valid-key"},
+        )
+    assert response.status_code == 502

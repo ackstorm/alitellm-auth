@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +22,7 @@ from app.litellm_client import (
     get_litellm_user,
     LiteLLMUserNotFound,
     list_litellm_keys,
+    strip_bearer_prefix,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ async def whoami(
         raise HTTPException(status_code=401, detail="Missing x-alitellm-auth-api-key header")
 
     # Accept both "sk-..." and "Bearer sk-..."
-    api_key = x_alitellm_auth_api_key.removeprefix("Bearer ").strip()
+    api_key = strip_bearer_prefix(x_alitellm_auth_api_key)
 
     settings: Settings = request.app.state.settings
     try:
@@ -167,8 +167,14 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
     try:
         token = await oauth.oidc.authorize_access_token(request)
     except Exception as exc:
+        # Never render the raw exception (may carry issuer URLs / error_description)
+        # into the page (#4). Log server-side, show a generic message.
+        logger.error("callback: OIDC token exchange failed: %s", exc)
         return templates.TemplateResponse(
-            request, "error.html", {"error": str(exc)}, status_code=400
+            request,
+            "error.html",
+            {"error": "Authentication failed. Please try signing in again."},
+            status_code=400,
         )
 
     # 2. Extract user identity
@@ -236,7 +242,7 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
                 "email": email,
                 "key": None,
                 "key_id": latest["id"],
-                "team_id": f"team-{settings.oauth_client_id}",
+                "team_id": settings.team_id,
                 "api_url": f"{settings.api_public_url}/v1",
             },
         )
@@ -261,17 +267,14 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
     try:
         key_data = await generate_litellm_key(email, settings, name=name)
     except Exception as exc:
-        body = getattr(getattr(exc, "response", None), "text", None)
-        detail = str(exc)
-        if body:
-            try:
-                detail = json.loads(body)["error"]["message"]
-            except Exception:
-                detail = body
+        # Never interpolate the raw backend error body (resp.text via
+        # _extract_litellm_error) into the page (#4) — same non-leak treatment as
+        # the reveal/tokens branches (WR-A). Log server-side, show generic copy.
+        logger.error("login: key generation failed for %s: %s", email, exc)
         return templates.TemplateResponse(
             request,
             "error.html",
-            {"error": f"Key generation failed: {detail}"},
+            {"error": "Could not create your API key. Please try again later."},
             status_code=500,
         )
 
@@ -320,7 +323,7 @@ async def delete_token(
     if not x_alitellm_auth_api_key:
         raise HTTPException(status_code=401, detail="Missing x-alitellm-auth-api-key header")
 
-    api_key = x_alitellm_auth_api_key.removeprefix("Bearer ").strip()
+    api_key = strip_bearer_prefix(x_alitellm_auth_api_key)
     settings: Settings = request.app.state.settings
 
     # 1. Authenticate the caller to get their email.
@@ -334,6 +337,9 @@ async def delete_token(
         if exc.response.status_code in (401, 403, 404):
             raise HTTPException(status_code=401, detail="Invalid or unknown API key")
         raise HTTPException(status_code=502, detail="LiteLLM key lookup failed")
+    except httpx.RequestError:
+        # Backend unreachable on auth → 502, not an uncaught 500 (WR-02/#3).
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
     # An email-less caller cannot own a token-factory key. Mirror the WR-01
     # whoami guard here on the destructive path: without this, email is None and
@@ -368,5 +374,9 @@ async def delete_token(
         logger.error("Delete failed for key %s: %s", key_id, exc)
         code = 404 if exc.response.status_code == 404 else 502
         raise HTTPException(status_code=code, detail="Failed to delete token")
+    except httpx.RequestError:
+        # Backend unreachable on list/delete → 502, not an uncaught 500 (#3).
+        logger.error("Delete unreachable for key %s", key_id)
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
     return JSONResponse({"status": "deleted", "id": key_id})

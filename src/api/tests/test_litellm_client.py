@@ -2,6 +2,8 @@
 import json as _json
 import os
 import tempfile
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 import respx
@@ -17,9 +19,11 @@ from app.litellm_client import (
     delete_litellm_user,
     list_session_keys,
     block_litellm_key,
+    _already_exists,
     _display_alias,
     _normalize_teams,
     _project_session_key,
+    strip_bearer_prefix,
 )
 
 
@@ -1736,3 +1740,51 @@ async def test_verify_contract_unknown_on_network_error():
         side_effect=httpx.ConnectError("unreachable")
     )
     assert await verify_user_scoping_contract(settings) == "unknown"
+
+
+def _resp(status_code: int, text: str = ""):
+    return SimpleNamespace(status_code=status_code, text=text)
+
+
+def test_already_exists_predicate():
+    assert _already_exists(_resp(409)) is True
+    assert _already_exists(_resp(400, "Team already exists")) is True  # case-insensitive
+    assert _already_exists(_resp(400, "already exists")) is True
+    assert _already_exists(_resp(400, "some other 400")) is False
+    assert _already_exists(_resp(200)) is False
+    assert _already_exists(_resp(500, "already exists")) is False
+
+
+def test_strip_bearer_prefix():
+    assert strip_bearer_prefix("Bearer sk-abc") == "sk-abc"
+    assert strip_bearer_prefix("sk-abc") == "sk-abc"
+    assert strip_bearer_prefix("  Bearer sk-abc  ") == "sk-abc"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_generate_litellm_key_loads_factory_config_once(monkeypatch):
+    settings = make_settings()
+    team_id = f"team-{settings.oauth_client_id}"
+
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": team_id})
+    )
+    respx.post("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+    respx.post("http://litellm.test/key/generate").mock(
+        return_value=httpx.Response(200, json={"key": "sk-generated-key", "key_id": "key-123"})
+    )
+
+    import app.litellm_client as lc
+
+    spy = MagicMock(return_value={})
+    monkeypatch.setattr(lc, "_load_factory_config", spy)
+
+    await lc.generate_litellm_key("alice@example.com", settings, name="Alice")
+
+    assert spy.call_count == 1

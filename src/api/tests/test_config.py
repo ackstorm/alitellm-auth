@@ -91,3 +91,19 @@ def test_brand_link_fields_load_from_env():
     assert settings.link_docs == "https://docs.example"
     assert settings.link_privacy == "https://privacy.example"
     assert settings.link_terms == "https://terms.example"
+
+
+def test_settings_team_id_property():
+    from app.config import Settings
+
+    s = Settings(
+        app_base_url="http://localhost:8080",
+        session_secret_key="test-secret-32-chars-padding-xxxx",
+        oauth_issuer_url="http://dex.test/dex",
+        oauth_client_id="platform",
+        oauth_client_secret="test-secret",
+        litellm_url="http://litellm.test",
+        litellm_master_key="sk-test",
+        api_public_url="https://api.test",
+    )
+    assert s.team_id == "team-platform"

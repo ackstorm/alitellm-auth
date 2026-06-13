@@ -17,6 +17,7 @@ from app.litellm_client import (
     get_litellm_user,
     list_litellm_keys,
     list_litellm_users,
+    strip_bearer_prefix,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ async def require_admin(api_key: str, settings: Settings) -> str:
 async def _guard(request: Request, header: str | None) -> Settings:
     if not header:
         raise HTTPException(status_code=401, detail="Missing x-alitellm-auth-api-key header")
-    api_key = header.removeprefix("Bearer ").strip()  # same as auth.py lines 68, 264
+    api_key = strip_bearer_prefix(header)
     settings: Settings = request.app.state.settings  # same as auth.py lines 70, 265
     await require_admin(api_key, settings)
     return settings

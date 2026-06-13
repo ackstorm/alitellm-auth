@@ -212,7 +212,7 @@ async def session_me(
     settings: Settings = request.app.state.settings
     email = user["email"]
     name = user["name"]
-    team_id = f"team-{settings.oauth_client_id}"
+    team_id = settings.team_id
 
     limits: dict | None = None
     spend: dict = {"current": 0, "source": _SPEND_SOURCE_UNKNOWN}
@@ -465,14 +465,10 @@ async def session_make_default(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     try:
-        # Promote target.
-        await set_litellm_key_default(
-            target["token"],
-            settings,
-            is_default=True,
-            existing_metadata=target.get("metadata") or {},
-        )
-        # Demote any other current default.
+        # Demote any OTHER current default FIRST, then promote the target LAST.
+        # Order matters (#5): if a demote fails mid-loop we 502 with the target
+        # not yet promoted (≤1 default remains), never the two-default wedge that
+        # would 409-block deletion of both keys.
         for k in user_keys:
             if k.get("id") != key_id and k.get("is_default"):
                 await set_litellm_key_default(
@@ -481,6 +477,12 @@ async def session_make_default(
                     is_default=False,
                     existing_metadata=k.get("metadata") or {},
                 )
+        await set_litellm_key_default(
+            target["token"],
+            settings,
+            is_default=True,
+            existing_metadata=target.get("metadata") or {},
+        )
     except httpx.HTTPStatusError as exc:
         logger.error("session_make_default: update failed for %s: %s", key_id, exc)
         raise HTTPException(status_code=502, detail="Failed to set default key")

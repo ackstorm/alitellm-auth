@@ -104,14 +104,32 @@ def _load_factory_config(path: str | None) -> dict:
         return {}
 
 
+def strip_bearer_prefix(value: str) -> str:
+    """Normalize an `x-alitellm-auth-api-key` header value: accept both
+    "sk-..." and "Bearer sk-...". Callers guard the None/empty case first.
+    Strip first so a whitespace-padded "  Bearer sk-...  " also normalizes."""
+    return value.strip().removeprefix("Bearer ").strip()
+
+
+def _already_exists(resp) -> bool:
+    """True if a LiteLLM create call reports the resource already exists.
+
+    Older LiteLLM returns 409; newer returns 400 + "already exists" in the body
+    (casing varies, e.g. "Team Already Exists" — WR-04). Centralized so all
+    idempotent-create call sites agree (was copy-pasted, and the access-group
+    copy had dropped the `.lower()`).
+    """
+    return resp.status_code == 409 or (
+        resp.status_code == 400 and "already exists" in resp.text.lower()
+    )
+
+
 async def _ensure_access_group(client: httpx.AsyncClient, headers: dict, name: str) -> str | None:
     """Create the named access group if it doesn't exist; return its ID (or None on failure)."""
     resp = await client.post("/v1/access_group", headers=headers, json={"access_group_name": name})
     if resp.is_success:
         return resp.json().get("access_group_id")
-    already_exists = resp.status_code == 409 or (
-        resp.status_code == 400 and "already exists" in resp.text
-    )
+    already_exists = _already_exists(resp)
     if already_exists:
         list_resp = await client.get("/v1/access_group", headers=headers)
         if list_resp.is_success:
@@ -197,6 +215,7 @@ async def ensure_team_and_user(
     email: str,
     settings: Settings,
     name: str | None = None,
+    factory: dict | None = None,
 ) -> str:
     """Idempotently ensure the shared team, access group, and LiteLLM user exist.
 
@@ -218,10 +237,11 @@ async def ensure_team_and_user(
     On subsequent logins/key-mints the cap is left untouched so a manually-raised
     max_budget_in_team is not silently clobbered back to the factory default.
     """
-    team_id = f"team-{settings.oauth_client_id}"
+    team_id = settings.team_id
     headers = _admin_headers(settings)
 
-    factory = _load_factory_config(settings.factory_config_path)
+    if factory is None:
+        factory = _load_factory_config(settings.factory_config_path)
     team_extra = {k: v for k, v in factory.get("team", {}).items() if k != "metadata"}
     team_meta_extra = factory.get("team", {}).get("metadata", {})
 
@@ -238,9 +258,7 @@ async def ensure_team_and_user(
                 "metadata": {"source": "token-factory", **team_meta_extra},
             },
         )
-        team_exists = team_resp.status_code == 409 or (
-            team_resp.status_code == 400 and "already exists" in team_resp.text.lower()
-        )
+        team_exists = _already_exists(team_resp)
         if team_resp.status_code != 200 and not team_exists:
             msg = _extract_litellm_error(team_resp)
             raise httpx.HTTPStatusError(
@@ -254,7 +272,7 @@ async def ensure_team_and_user(
 
         # Step A2: Ensure user exists with D-15 factory user budget block.
         user_result = await ensure_litellm_user(
-            email, settings, name=name, team_id=team_id, apply_budget=True
+            email, settings, name=name, team_id=team_id, apply_budget=True, factory=factory
         )
 
         # D-16 lazy backfill: if user already existed, patch only null/missing budget fields.
@@ -353,7 +371,8 @@ async def generate_litellm_key(
     factory_key_extra = {k: v for k, v in factory.get("key", {}).items() if k != "metadata"}
 
     # Steps A, B, A2: ensure team → access group → user (shared prerequisite, D-13).
-    team_id = await ensure_team_and_user(email, settings, name=name)
+    # Reuse the factory dict loaded above so the disk read happens once per mint (#11).
+    team_id = await ensure_team_and_user(email, settings, name=name, factory=factory)
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
         # Re-resolve access_group_id for the key payload (needed for access_group_ids field).
@@ -707,7 +726,7 @@ async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
         # LiteLLM doesn't support filtering /key/list by metadata directly in all versions,
         # but we can filter by team_id and then client-side filter by email metadata.
-        team_id = f"team-{settings.oauth_client_id}"
+        team_id = settings.team_id
         resp = await client.get("/key/list", headers=headers, params={"team_id": team_id})
 
     if not resp.is_success:
@@ -980,6 +999,7 @@ async def ensure_litellm_user(
     name: str | None = None,
     team_id: str | None = None,
     apply_budget: bool = False,
+    factory: dict | None = None,
 ) -> dict:
     """Idempotently create a LiteLLM internal user keyed by email (user_id=email).
 
@@ -1004,16 +1024,15 @@ async def ensure_litellm_user(
     if team_id:
         payload["teams"] = [team_id]
     if apply_budget:
-        factory = _load_factory_config(settings.factory_config_path)
+        if factory is None:
+            factory = _load_factory_config(settings.factory_config_path)
         user_budget = {
             k: v for k, v in factory.get("user", {}).items() if k != "metadata" and v is not None
         }
         payload.update(user_budget)
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
         resp = await client.post("/user/new", headers=headers, json=payload)
-    exists = resp.status_code == 409 or (
-        resp.status_code == 400 and "already exists" in resp.text.lower()
-    )
+    exists = _already_exists(resp)
     if not resp.is_success and not exists:
         msg = _extract_litellm_error(resp)
         raise httpx.HTTPStatusError(

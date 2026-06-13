@@ -36,6 +36,7 @@ import type {
   MakeDefaultResponse,
 } from '@/lib/api-types';
 import { useFreshKeysStore } from '@/stores/fresh-keys';
+import { useToast } from '@/hooks/use-toast';
 
 /** Query key for the session keys list. Shared by the query + invalidations. */
 export const KEYS_QUERY_KEY = ['session', 'keys'] as const;
@@ -110,6 +111,7 @@ export function useHasDefaultKey(): boolean {
 export function useCreateKey() {
   const queryClient = useQueryClient();
   const setFresh = useFreshKeysStore((s) => s.setFresh);
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (body: CreateKeyBody) => {
@@ -128,6 +130,9 @@ export function useCreateKey() {
       if (data.id) setFresh(data.id, data.key);
       queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
     },
+    onError: () => {
+      toast({ message: 'Could not create the key.', variant: 'error' });
+    },
   });
 }
 
@@ -139,6 +144,7 @@ export function useCreateKey() {
 export function useDeleteKey() {
   const queryClient = useQueryClient();
   const dropFresh = useFreshKeysStore((s) => s.dropFresh);
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -152,6 +158,9 @@ export function useDeleteKey() {
       dropFresh(id);
       queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
     },
+    onError: () => {
+      toast({ message: 'Could not delete the key.', variant: 'error' });
+    },
   });
 }
 
@@ -163,6 +172,7 @@ export function useDeleteKey() {
  */
 export function useMakeDefault() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -176,6 +186,9 @@ export function useMakeDefault() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
     },
+    onError: () => {
+      toast({ message: 'Could not set the default key. Please try again.', variant: 'error' });
+    },
   });
 }
 
@@ -187,6 +200,7 @@ export function useMakeDefault() {
  */
 export function useToggleKeyBlock() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async ({ id, blocked }: { id: string; blocked: boolean }) => {
@@ -199,6 +213,9 @@ export function useToggleKeyBlock() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
+    },
+    onError: () => {
+      toast({ message: 'Could not update the key.', variant: 'error' });
     },
   });
 }
