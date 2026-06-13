@@ -229,9 +229,7 @@ async def get_team_member_budget(email: str, settings: Settings) -> dict | None:
     """
     headers = _admin_headers(settings)
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
-        resp = await client.get(
-            "/team/info", headers=headers, params={"team_id": settings.team_id}
-        )
+        resp = await client.get("/team/info", headers=headers, params={"team_id": settings.team_id})
     if not resp.is_success:
         msg = _extract_litellm_error(resp)
         raise httpx.HTTPStatusError(
