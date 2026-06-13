@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -167,8 +166,14 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
     try:
         token = await oauth.oidc.authorize_access_token(request)
     except Exception as exc:
+        # Never render the raw exception (may carry issuer URLs / error_description)
+        # into the page (#4). Log server-side, show a generic message.
+        logger.error("callback: OIDC token exchange failed: %s", exc)
         return templates.TemplateResponse(
-            request, "error.html", {"error": str(exc)}, status_code=400
+            request,
+            "error.html",
+            {"error": "Authentication failed. Please try signing in again."},
+            status_code=400,
         )
 
     # 2. Extract user identity
@@ -261,17 +266,14 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
     try:
         key_data = await generate_litellm_key(email, settings, name=name)
     except Exception as exc:
-        body = getattr(getattr(exc, "response", None), "text", None)
-        detail = str(exc)
-        if body:
-            try:
-                detail = json.loads(body)["error"]["message"]
-            except Exception:
-                detail = body
+        # Never interpolate the raw backend error body (resp.text via
+        # _extract_litellm_error) into the page (#4) — same non-leak treatment as
+        # the reveal/tokens branches (WR-A). Log server-side, show generic copy.
+        logger.error("login: key generation failed for %s: %s", email, exc)
         return templates.TemplateResponse(
             request,
             "error.html",
-            {"error": f"Key generation failed: {detail}"},
+            {"error": "Could not create your API key. Please try again later."},
             status_code=500,
         )
 
