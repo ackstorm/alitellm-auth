@@ -358,6 +358,20 @@ Team ID = `"team-{OAUTH_CLIENT_ID}"` (e.g. `"team-platform"`). There is one team
 `ensure_litellm_user(email, settings, name, team_id)` is called on every login before key generation. `user_id = email` (deterministic, debuggable). Keys are scoped to `user_id` via the `user_id` field on `/key/generate`. The user is created idempotently — `400`/`409` "already exists" is treated as success (mirrors team creation).
 **WHERE**: `src/api/app/litellm_client.py` — `ensure_litellm_user()`
 
+**Budget reporting = the ENFORCED per-member cap (RQ-1)**
+`/api/session/me` and `/api/session/stats` report the budget that actually
+*enforces* for team-scoped keys: the per-member-in-team cap `max_budget_in_team`
+plus the member's spend, NOT the user-level `max_budget` (which only reports and
+does not enforce). The cap is read back from `GET /team/info` (member matched by
+`user_id`, budget under `litellm_budget_table`) — it surfaces even for keyless
+eager-created users, and `/key/list` does NOT carry it on v1.87.1. Both routes
+fall back to the user-level figures (and `source="user"`/`"unknown"`) only when
+no membership budget is readable, and the read degrades independently (never a
+502). The budget block shape is unchanged: `{current, max_budget, budget_duration,
+source}` with `source="team_member"` on the enforced path.
+**WHERE**: `litellm_client.py::get_team_member_budget`, `session.py::_budget_block`
+(consumed by `session_me` + `session_stats`).
+
 **OIDC provider is provider-agnostic**
 All env vars use `OAUTH_` prefix (not `DEX_`). Works with Dex, Keycloak, or any OIDC-compliant provider. Only `OAUTH_ISSUER_URL`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` change per provider.
 

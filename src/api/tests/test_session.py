@@ -160,6 +160,102 @@ def test_me_unauth_401(client):
     assert response.status_code == 401
 
 
+def test_me_budget_uses_enforced_member_cap(client):
+    """#1/RQ-1: /me reports the ENFORCED per-member cap (max_budget_in_team) and
+    member spend, NOT the user-level max_budget that only reports."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_member_budget", new_callable=AsyncMock) as mock_member,
+    ):
+        mock_user.return_value = {
+            "user_id": "alice@example.com",
+            "email": "alice@example.com",
+            "spend": 99.0,
+            "max_budget": 50.0,
+            "budget_duration": "24h",
+            "tpm_limit": 1000000,
+            "rpm_limit": 100,
+        }
+        mock_member.return_value = {"max_budget": 10.0, "current": 3.5, "budget_duration": "30d"}
+        response = client.get("/api/session/me", cookies=_authed_cookie())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["spend"] == {"current": 3.5, "source": "team_member"}
+    assert data["limits"]["max_budget"] == 10.0  # enforced cap, not 50.0
+    assert data["limits"]["budget_duration"] == "30d"
+    # tpm/rpm still come from the user object
+    assert data["limits"]["tpm_limit"] == 1000000
+
+
+def test_me_budget_degrades_when_no_member(client):
+    """No membership budget → /me falls back to the user-level figures."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_member_budget", new_callable=AsyncMock) as mock_member,
+    ):
+        mock_user.return_value = _USER_INFO
+        mock_member.return_value = None
+        response = client.get("/api/session/me", cookies=_authed_cookie())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["limits"]["max_budget"] == 10.0
+    assert data["spend"] == {"current": 2.5, "source": "user"}
+
+
+# ---------------------------------------------------------------------------
+# #1/RQ-1 — _budget_block: prefer the ENFORCED per-member cap over user-level
+# ---------------------------------------------------------------------------
+
+
+def test_budget_block_prefers_enforced_member_budget():
+    from app.session import _budget_block
+
+    user = {"spend": 99.0, "max_budget": 50.0, "budget_duration": "24h"}
+    member = {"max_budget": 10.0, "current": 3.5, "budget_duration": "30d"}
+    assert _budget_block(user, member) == {
+        "current": 3.5,
+        "max_budget": 10.0,
+        "budget_duration": "30d",
+        "source": "team_member",
+    }
+
+
+def test_budget_block_member_falls_back_to_user_budget_duration():
+    """When the membership budget carries no budget_duration (the live deployment
+    has it null), fall back to the user-level budget_duration (informational)."""
+    from app.session import _budget_block
+
+    user = {"spend": 99.0, "max_budget": 50.0, "budget_duration": "24h"}
+    member = {"max_budget": 10.0, "current": 3.5, "budget_duration": None}
+    block = _budget_block(user, member)
+    assert block["max_budget"] == 10.0
+    assert block["budget_duration"] == "24h"
+    assert block["source"] == "team_member"
+
+
+def test_budget_block_falls_back_to_user_when_no_member():
+    from app.session import _budget_block
+
+    user = {"spend": 2.0, "max_budget": 50.0, "budget_duration": "24h"}
+    assert _budget_block(user, None) == {
+        "current": 2.0,
+        "max_budget": 50.0,
+        "budget_duration": "24h",
+        "source": "user",
+    }
+
+
+def test_budget_block_unknown_when_nothing_configured():
+    from app.session import _budget_block
+
+    assert _budget_block({}, None) == {
+        "current": 0.0,
+        "max_budget": None,
+        "budget_duration": None,
+        "source": "unknown",
+    }
+
+
 # ---------------------------------------------------------------------------
 # SAPI-03 — GET /api/session/keys
 # ---------------------------------------------------------------------------
@@ -941,6 +1037,27 @@ def test_stats_budget_degrades(client):
     assert data["budget"]["max_budget"] is None
     assert data["budget"]["has_budget"] is False
     assert data["budget"]["current"] == 0
+
+
+def test_stats_budget_uses_enforced_member_cap(client):
+    """#1/RQ-1: /stats budget reports the ENFORCED per-member cap, not user-level."""
+    activity, last, budget = _stats_mocks(
+        budget_user={"user_id": "alice@example.com", "spend": 99.0, "max_budget": 50.0}
+    )
+    member = AsyncMock(return_value={"max_budget": 10.0, "current": 3.5, "budget_duration": "30d"})
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.spend_logs_last_used", last),
+        patch("app.session.get_litellm_user", budget),
+        patch("app.session.get_team_member_budget", member),
+    ):
+        response = client.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 200
+    b = response.json()["budget"]
+    assert b["max_budget"] == 10.0  # enforced cap, not 50.0
+    assert b["current"] == 3.5
+    assert b["source"] == "team_member"
+    assert b["has_budget"] is True
 
 
 def test_stats_prior_window_degrades(client):

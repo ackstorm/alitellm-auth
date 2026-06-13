@@ -36,6 +36,7 @@ from app.litellm_client import (
     delete_litellm_key,
     generate_litellm_key,
     get_litellm_user,
+    get_team_member_budget,
     list_litellm_a2a_agents,
     list_litellm_mcp_servers,
     list_litellm_models,
@@ -147,37 +148,47 @@ _SPEND_SOURCE_UNKNOWN = "unknown"
 
 
 def _derive_spend(user: dict[str, Any]) -> dict[str, Any]:
-    """Derive {current, source} from the available LiteLLM user budget fields.
+    """User-level {current, source} from the LiteLLM user budget fields.
 
-    RQ-1: user-level max_budget does NOT enforce for team-scoped keys (it only
-    reports). The per-user-within-team cap is max_budget_in_team. We derive source
-    from which budget field is populated, reading defensively from the user object.
+    The team-member cap is owned by _budget_block (read from the live membership);
+    the prior team_member/team branches here were unreachable because
+    _normalize_user never carried those fields (#1), so they are dropped.
 
-    Priority (most specific to least specific):
-      1. team_member_spend / max_budget_in_team → source="team_member"
-      2. team_spend / team_max_budget → source="team"
-      3. spend / max_budget → source="user"
-      4. nothing → source="unknown"
+    `spend` defaults to 0.0 in _normalize_user even when absent, so it is NOT a
+    reliable "user has budget data" signal on its own. Gate the user branch on a
+    configured budget OR a genuinely non-zero spend; otherwise report "unknown"
+    so "no budget configured" users are not mislabeled as source="user" (WR-01).
     """
-    # /key/list?return_full_object=true rows carry these bonus fields (RQ-2)
-    team_member_spend = user.get("team_member_spend")
-    max_budget_in_team = user.get("max_budget_in_team")
-    team_spend = user.get("team_spend")
-    team_max_budget = user.get("team_max_budget")
     user_spend = user.get("spend", 0.0)
     user_budget = user.get("max_budget")
-
-    if team_member_spend is not None or max_budget_in_team is not None:
-        return {"current": float(team_member_spend or 0), "source": "team_member"}
-    if team_spend is not None or team_max_budget is not None:
-        return {"current": float(team_spend or 0), "source": "team"}
-    # `spend` defaults to 0.0 in _normalize_user even when absent, so it is NOT a
-    # reliable "user has budget data" signal on its own. Gate the user branch on a
-    # configured budget OR a genuinely non-zero spend; otherwise report "unknown"
-    # so "no budget configured" users are not mislabeled as source="user" (WR-01).
     if user_budget is not None or user_spend:
         return {"current": float(user_spend or 0), "source": "user"}
     return {"current": 0.0, "source": _SPEND_SOURCE_UNKNOWN}
+
+
+def _budget_block(user: dict[str, Any], member: dict[str, Any] | None) -> dict[str, Any]:
+    """Canonical {current, max_budget, budget_duration, source} for /me and /stats.
+
+    Prefers the ENFORCED per-member team budget (#1/RQ-1, read via
+    get_team_member_budget); falls back to the reporting-only user-level figures
+    when no membership budget is available. budget_duration on the membership is
+    usually null in this deployment, so it falls back to the user-level value
+    (informational only).
+    """
+    if member is not None:
+        return {
+            "current": float(member.get("current") or 0),
+            "max_budget": member.get("max_budget"),
+            "budget_duration": member.get("budget_duration") or user.get("budget_duration"),
+            "source": "team_member",
+        }
+    spend = _derive_spend(user)
+    return {
+        "current": spend["current"],
+        "max_budget": user.get("max_budget"),
+        "budget_duration": user.get("budget_duration"),
+        "source": spend["source"],
+    }
 
 
 def _build_limits(user: dict[str, Any]) -> dict[str, Any] | None:
@@ -214,19 +225,42 @@ async def session_me(
     name = user["name"]
     team_id = settings.team_id
 
-    limits: dict | None = None
-    spend: dict = {"current": 0, "source": _SPEND_SOURCE_UNKNOWN}
-
+    # Fetch the user object and the ENFORCED per-member budget concurrently;
+    # each degrades independently and never 502s (D-09). The membership cap
+    # (max_budget_in_team) is what actually enforces for team-scoped keys — it
+    # wins over the user-level max_budget that only reports (#1/RQ-1).
+    litellm_user: dict = {}
+    member_budget: dict | None = None
     try:
-        litellm_user = await get_litellm_user(email, settings)
-        limits = _build_limits(litellm_user)
-        spend = _derive_spend(litellm_user)
-    except LiteLLMUserNotFound:
-        # D-09 graceful degrade — user not yet in LiteLLM; limits/spend degraded
-        logger.info("session_me: user %s not found in LiteLLM, degrading", email)
-    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-        # D-09 graceful degrade — transient backend failure; do not 502
-        logger.error("session_me: enrichment failed for %s: %s", email, exc)
+        user_res, member_res = await asyncio.gather(
+            get_litellm_user(email, settings),
+            get_team_member_budget(email, settings),
+            return_exceptions=True,
+        )
+        if isinstance(user_res, LiteLLMUserNotFound):
+            logger.info("session_me: user %s not found in LiteLLM, degrading", email)
+        elif isinstance(user_res, BaseException):
+            logger.error("session_me: enrichment failed for %s: %s", email, user_res)
+        else:
+            litellm_user = user_res
+        if isinstance(member_res, BaseException):
+            logger.warning("session_me: member-budget fetch failed for %s: %s", email, member_res)
+        else:
+            member_budget = member_res
+    except Exception as exc:  # defensive: gather itself should not raise
+        logger.error("session_me: budget gather failed for %s: %s", email, exc)
+
+    block = _budget_block(litellm_user, member_budget)
+    spend = {"current": block["current"], "source": block["source"]}
+    limits = _build_limits(litellm_user)
+    # When the enforced membership budget is present, override the user-level
+    # max_budget/budget_duration with it (tpm/rpm stay from the user object).
+    if block["max_budget"] is not None or block["budget_duration"] is not None:
+        limits = {
+            **(limits or {"tpm_limit": None, "rpm_limit": None}),
+            "max_budget": block["max_budget"],
+            "budget_duration": block["budget_duration"],
+        }
 
     return JSONResponse(
         {
@@ -604,12 +638,13 @@ async def session_stats(
     prev_start = prev_end - timedelta(days=span - 1)
 
     # Fetch all figures concurrently; degrade each independently (D-06).
-    cur_res, prev_res, budget_res, last_used_res, keys_res = await asyncio.gather(
+    cur_res, prev_res, budget_res, last_used_res, keys_res, member_res = await asyncio.gather(
         user_daily_activity(email, settings, start.isoformat(), end.isoformat()),
         user_daily_activity(email, settings, prev_start.isoformat(), prev_end.isoformat()),
         get_litellm_user(email, settings),
         spend_logs_last_used(email, settings, start.isoformat(), end.isoformat()),
         list_session_keys(email, settings),
+        get_team_member_budget(email, settings),
         return_exceptions=True,
     )
 
@@ -631,23 +666,15 @@ async def session_stats(
     else:
         prev_agg = aggregate_window(prev_res)
 
-    # BUDGET failure → degrade the budget block (mirrors session_me), do NOT 502.
-    budget: dict[str, Any] = {
-        "current": 0,
-        "max_budget": None,
-        "budget_duration": None,
-        "source": _SPEND_SOURCE_UNKNOWN,
-    }
+    # BUDGET → prefer the ENFORCED per-member cap (#1/RQ-1); degrade to user-level,
+    # never 502 (mirrors session_me). Each read degrades independently.
+    user_obj = {} if isinstance(budget_res, BaseException) else budget_res
+    member = None if isinstance(member_res, BaseException) else member_res
     if isinstance(budget_res, BaseException):
         logger.warning("session_stats: budget fetch failed for %s: %s", email, budget_res)
-    else:
-        spend = _derive_spend(budget_res)
-        budget = {
-            "current": spend["current"],
-            "max_budget": budget_res.get("max_budget"),
-            "budget_duration": budget_res.get("budget_duration"),
-            "source": spend["source"],
-        }
+    if isinstance(member_res, BaseException):
+        logger.warning("session_stats: member-budget fetch failed for %s: %s", email, member_res)
+    budget = _budget_block(user_obj, member)
 
     # LAST-USED failure → degrade to {} (null per model + flag flips in build_stats_contract).
     last_used: dict[str, str] = {}
