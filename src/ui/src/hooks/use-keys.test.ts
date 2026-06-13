@@ -29,8 +29,10 @@ import {
   useHasDefaultKey,
   useKeys,
   useMakeDefault,
+  useToggleKeyBlock,
 } from './use-keys';
 import { initialFreshKeysState, useFreshKeysStore } from '@/stores/fresh-keys';
+import { useToastStore } from '@/hooks/use-toast';
 
 const getJsonMock = vi.mocked(getJson);
 const postJsonMock = vi.mocked(postJson);
@@ -226,6 +228,44 @@ describe('useMakeDefault', () => {
     });
 
     await expect(result.current.mutateAsync('key-x')).rejects.toThrow();
+  });
+
+  it('non-200 -> pushes an error toast', async () => {
+    postJsonMock.mockResolvedValue({ status: 502, data: null });
+    const toastSpy = vi.spyOn(useToastStore.getState(), 'toast');
+
+    const { result } = renderHook(() => useMakeDefault(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await expect(result.current.mutateAsync('key-x')).rejects.toThrow();
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'error' }),
+      ),
+    );
+    toastSpy.mockRestore();
+  });
+});
+
+describe('useToggleKeyBlock', () => {
+  it('non-200 -> pushes an error toast', async () => {
+    postJsonMock.mockResolvedValue({ status: 502, data: null });
+    const toastSpy = vi.spyOn(useToastStore.getState(), 'toast');
+
+    const { result } = renderHook(() => useToggleKeyBlock(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await expect(
+      result.current.mutateAsync({ id: 'key-x', blocked: true }),
+    ).rejects.toThrow();
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'error' }),
+      ),
+    );
+    toastSpy.mockRestore();
   });
 });
 
