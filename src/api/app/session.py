@@ -36,6 +36,7 @@ from app.litellm_client import (
     delete_litellm_key,
     generate_litellm_key,
     get_litellm_user,
+    get_team_member_budget,
     list_litellm_a2a_agents,
     list_litellm_mcp_servers,
     list_litellm_models,
@@ -224,19 +225,42 @@ async def session_me(
     name = user["name"]
     team_id = settings.team_id
 
-    limits: dict | None = None
-    spend: dict = {"current": 0, "source": _SPEND_SOURCE_UNKNOWN}
-
+    # Fetch the user object and the ENFORCED per-member budget concurrently;
+    # each degrades independently and never 502s (D-09). The membership cap
+    # (max_budget_in_team) is what actually enforces for team-scoped keys — it
+    # wins over the user-level max_budget that only reports (#1/RQ-1).
+    litellm_user: dict = {}
+    member_budget: dict | None = None
     try:
-        litellm_user = await get_litellm_user(email, settings)
-        limits = _build_limits(litellm_user)
-        spend = _derive_spend(litellm_user)
-    except LiteLLMUserNotFound:
-        # D-09 graceful degrade — user not yet in LiteLLM; limits/spend degraded
-        logger.info("session_me: user %s not found in LiteLLM, degrading", email)
-    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-        # D-09 graceful degrade — transient backend failure; do not 502
-        logger.error("session_me: enrichment failed for %s: %s", email, exc)
+        user_res, member_res = await asyncio.gather(
+            get_litellm_user(email, settings),
+            get_team_member_budget(email, settings),
+            return_exceptions=True,
+        )
+        if isinstance(user_res, LiteLLMUserNotFound):
+            logger.info("session_me: user %s not found in LiteLLM, degrading", email)
+        elif isinstance(user_res, BaseException):
+            logger.error("session_me: enrichment failed for %s: %s", email, user_res)
+        else:
+            litellm_user = user_res
+        if isinstance(member_res, BaseException):
+            logger.warning("session_me: member-budget fetch failed for %s: %s", email, member_res)
+        else:
+            member_budget = member_res
+    except Exception as exc:  # defensive: gather itself should not raise
+        logger.error("session_me: budget gather failed for %s: %s", email, exc)
+
+    block = _budget_block(litellm_user, member_budget)
+    spend = {"current": block["current"], "source": block["source"]}
+    limits = _build_limits(litellm_user)
+    # When the enforced membership budget is present, override the user-level
+    # max_budget/budget_duration with it (tpm/rpm stay from the user object).
+    if block["max_budget"] is not None or block["budget_duration"] is not None:
+        limits = {
+            **(limits or {"tpm_limit": None, "rpm_limit": None}),
+            "max_budget": block["max_budget"],
+            "budget_duration": block["budget_duration"],
+        }
 
     return JSONResponse(
         {

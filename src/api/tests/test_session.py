@@ -160,6 +160,48 @@ def test_me_unauth_401(client):
     assert response.status_code == 401
 
 
+def test_me_budget_uses_enforced_member_cap(client):
+    """#1/RQ-1: /me reports the ENFORCED per-member cap (max_budget_in_team) and
+    member spend, NOT the user-level max_budget that only reports."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_member_budget", new_callable=AsyncMock) as mock_member,
+    ):
+        mock_user.return_value = {
+            "user_id": "alice@example.com",
+            "email": "alice@example.com",
+            "spend": 99.0,
+            "max_budget": 50.0,
+            "budget_duration": "24h",
+            "tpm_limit": 1000000,
+            "rpm_limit": 100,
+        }
+        mock_member.return_value = {"max_budget": 10.0, "current": 3.5, "budget_duration": "30d"}
+        response = client.get("/api/session/me", cookies=_authed_cookie())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["spend"] == {"current": 3.5, "source": "team_member"}
+    assert data["limits"]["max_budget"] == 10.0  # enforced cap, not 50.0
+    assert data["limits"]["budget_duration"] == "30d"
+    # tpm/rpm still come from the user object
+    assert data["limits"]["tpm_limit"] == 1000000
+
+
+def test_me_budget_degrades_when_no_member(client):
+    """No membership budget → /me falls back to the user-level figures."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_member_budget", new_callable=AsyncMock) as mock_member,
+    ):
+        mock_user.return_value = _USER_INFO
+        mock_member.return_value = None
+        response = client.get("/api/session/me", cookies=_authed_cookie())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["limits"]["max_budget"] == 10.0
+    assert data["spend"] == {"current": 2.5, "source": "user"}
+
+
 # ---------------------------------------------------------------------------
 # #1/RQ-1 — _budget_block: prefer the ENFORCED per-member cap over user-level
 # ---------------------------------------------------------------------------
