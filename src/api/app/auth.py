@@ -334,6 +334,9 @@ async def delete_token(
         if exc.response.status_code in (401, 403, 404):
             raise HTTPException(status_code=401, detail="Invalid or unknown API key")
         raise HTTPException(status_code=502, detail="LiteLLM key lookup failed")
+    except httpx.RequestError:
+        # Backend unreachable on auth → 502, not an uncaught 500 (WR-02/#3).
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
     # An email-less caller cannot own a token-factory key. Mirror the WR-01
     # whoami guard here on the destructive path: without this, email is None and
@@ -368,5 +371,9 @@ async def delete_token(
         logger.error("Delete failed for key %s: %s", key_id, exc)
         code = 404 if exc.response.status_code == 404 else 502
         raise HTTPException(status_code=code, detail="Failed to delete token")
+    except httpx.RequestError:
+        # Backend unreachable on list/delete → 502, not an uncaught 500 (#3).
+        logger.error("Delete unreachable for key %s", key_id)
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
     return JSONResponse({"status": "deleted", "id": key_id})

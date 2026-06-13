@@ -666,3 +666,29 @@ def test_logout_without_session_still_redirects(client):
 
     assert response.status_code == 302
     assert response.headers["location"] == "http://localhost:8080/ui/"
+
+
+def test_delete_token_keyinfo_unreachable_returns_502(client):
+    """#3: get_key_info raising a RequestError (backend unreachable) → 502, not 500."""
+    with patch("app.auth.get_key_info", new_callable=AsyncMock) as mock_info:
+        mock_info.side_effect = httpx.ConnectError("backend down")
+        response = client.delete(
+            "/api/oauth/tokens/key-123",
+            headers={"x-alitellm-auth-api-key": "sk-valid-key"},
+        )
+    assert response.status_code == 502
+
+
+def test_delete_token_list_unreachable_returns_502(client):
+    """#3: list_litellm_keys raising a RequestError → 502, not 500."""
+    with (
+        patch("app.auth.get_key_info", new_callable=AsyncMock) as mock_info,
+        patch("app.auth.list_litellm_keys", new_callable=AsyncMock) as mock_list,
+    ):
+        mock_info.return_value = {"email": "alice@example.com"}
+        mock_list.side_effect = httpx.ConnectError("backend down")
+        response = client.delete(
+            "/api/oauth/tokens/key-123",
+            headers={"x-alitellm-auth-api-key": "sk-valid-key"},
+        )
+    assert response.status_code == 502
