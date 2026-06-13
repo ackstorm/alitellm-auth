@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Fixed
+
+- **The header menus no longer garble the page on mobile.** Opening the hamburger nav or the user menu on a narrow screen reflowed the page content into a collapsed, one-word-per-line column. Both were Radix *modal* dropdowns, which scroll-lock the page while open by mutating `<body>` (`overflow`, `position`, scrollbar-gap padding) — harmless on desktop, but on a phone-width viewport that mutation squeezed the content column. They are pure navigation menus, so they are now non-modal: opening one no longer touches the rest of the page. Desktop layout unchanged.
+
 ## [0.5.18] - 2026-06-13
 
 ### Fixed

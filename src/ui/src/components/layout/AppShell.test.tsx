@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 // AppShell mounts CreateKeyModal (which calls useCreateKey), so the mock must
@@ -132,5 +132,39 @@ describe('AppShell — Models/MCPs nav gating', () => {
     expect(screen.getByRole('link', { name: 'Keys' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Stats' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'How-to' })).toBeInTheDocument();
+  });
+});
+
+// The header dropdowns are pure navigation and MUST be non-modal: Radix's
+// default modal mode mounts react-remove-scroll, which scroll-locks <body>
+// (data-scroll-locked + overflow:hidden + pointer-events:none) while a menu is
+// open. On a narrow viewport that mutation reflowed the page content into a
+// collapsed, one-word-per-line column (the "menu open does something strange to
+// the content" bug). `modal={false}` removes the body mutation; these tests
+// fail if a regression re-enables modal on either menu.
+describe('AppShell — header menus do not scroll-lock the page', () => {
+  afterEach(() => {
+    // react-remove-scroll mutates the shared document.body; make sure a leaked
+    // attribute from one test cannot mask a regression in the next.
+    document.body.removeAttribute('data-scroll-locked');
+  });
+
+  it('opening the user menu does not lock <body>', async () => {
+    setKeys([]);
+    renderShell();
+    // Radix opens on Enter (see App.test.tsx). Awaiting the item also lets the
+    // scroll-lock effect run — so a false pass (lock applied late) can't slip by.
+    fireEvent.keyDown(screen.getByRole('button', { name: 'User menu' }), { key: 'Enter' });
+    expect(await screen.findByRole('menuitem', { name: 'Log out' })).toBeInTheDocument();
+    expect(document.body.hasAttribute('data-scroll-locked')).toBe(false);
+  });
+
+  it('opening the mobile hamburger menu does not lock <body>', async () => {
+    setKeys([]);
+    renderShell();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Open menu' }), { key: 'Enter' });
+    // How-to is an always-ungated item in the mobile nav menu.
+    expect(await screen.findByRole('menuitem', { name: 'How-to' })).toBeInTheDocument();
+    expect(document.body.hasAttribute('data-scroll-locked')).toBe(false);
   });
 });

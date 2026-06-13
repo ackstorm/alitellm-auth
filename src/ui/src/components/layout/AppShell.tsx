@@ -169,8 +169,14 @@ export function AppShell({ me, config }: AppShellProps) {
     <div className="flex min-h-screen flex-col bg-background bg-fixed [background-image:radial-gradient(ellipse_70%_55%_at_12%_-5%,var(--glow-1),transparent),radial-gradient(ellipse_65%_55%_at_88%_8%,var(--glow-2),transparent),radial-gradient(ellipse_80%_65%_at_50%_105%,var(--glow-3),transparent)]">
       <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-4 border-b border-border bg-surface px-4 md:gap-6 md:px-6">
         {/* Mobile: the nav collapses into a hamburger so the header fits the
-            viewport width (overflow here is what breaks sticky on phones). */}
-        <DropdownMenu>
+            viewport width (overflow here is what breaks sticky on phones).
+            `modal={false}`: this is a pure navigation menu, so it must NOT
+            scroll-lock the page. Radix's default modal mode mounts
+            react-remove-scroll, which mutates <body> (overflow:hidden,
+            position:relative, pointer-events:none, scrollbar-gap padding) while
+            open — on a narrow viewport that reflows the page content into a
+            collapsed, one-word-per-line column. Non-modal removes all of it. */}
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger
             aria-label="Open menu"
             className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-text-secondary outline-none transition-colors hover:bg-primary/5 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-ring/50 md:hidden"
@@ -231,8 +237,10 @@ export function AppShell({ me, config }: AppShellProps) {
           {chatEl}
           {/* User menu: an avatar + name trigger opening a small dropdown whose
               only action (for now) is Log out. Replaces the inline name + "sign
-              out" anchor so the identity reads as one affordance. */}
-          <DropdownMenu>
+              out" anchor so the identity reads as one affordance.
+              `modal={false}` for the same reason as the hamburger above: a tiny
+              nav/identity menu must not scroll-lock and mutate <body>. */}
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger
               aria-label="User menu"
               className="group inline-flex items-center gap-2 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 sm:h-8 sm:rounded-lg sm:border sm:border-border sm:bg-surface sm:pl-1 sm:pr-2 sm:hover:border-primary/40 sm:hover:bg-primary/5 sm:data-[state=open]:border-primary/40 sm:data-[state=open]:bg-primary/5"
