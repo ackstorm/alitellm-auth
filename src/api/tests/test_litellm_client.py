@@ -1763,3 +1763,35 @@ def test_strip_bearer_prefix():
     assert strip_bearer_prefix("Bearer sk-abc") == "sk-abc"
     assert strip_bearer_prefix("sk-abc") == "sk-abc"
     assert strip_bearer_prefix("  Bearer sk-abc  ") == "sk-abc"
+
+
+from unittest.mock import MagicMock
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_generate_litellm_key_loads_factory_config_once(monkeypatch):
+    settings = make_settings()
+    team_id = f"team-{settings.oauth_client_id}"
+
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": team_id})
+    )
+    respx.post("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+    respx.post("http://litellm.test/key/generate").mock(
+        return_value=httpx.Response(200, json={"key": "sk-generated-key", "key_id": "key-123"})
+    )
+
+    import app.litellm_client as lc
+
+    spy = MagicMock(return_value={})
+    monkeypatch.setattr(lc, "_load_factory_config", spy)
+
+    await lc.generate_litellm_key("alice@example.com", settings, name="Alice")
+
+    assert spy.call_count == 1

@@ -215,6 +215,7 @@ async def ensure_team_and_user(
     email: str,
     settings: Settings,
     name: str | None = None,
+    factory: dict | None = None,
 ) -> str:
     """Idempotently ensure the shared team, access group, and LiteLLM user exist.
 
@@ -239,7 +240,8 @@ async def ensure_team_and_user(
     team_id = settings.team_id
     headers = _admin_headers(settings)
 
-    factory = _load_factory_config(settings.factory_config_path)
+    if factory is None:
+        factory = _load_factory_config(settings.factory_config_path)
     team_extra = {k: v for k, v in factory.get("team", {}).items() if k != "metadata"}
     team_meta_extra = factory.get("team", {}).get("metadata", {})
 
@@ -270,7 +272,7 @@ async def ensure_team_and_user(
 
         # Step A2: Ensure user exists with D-15 factory user budget block.
         user_result = await ensure_litellm_user(
-            email, settings, name=name, team_id=team_id, apply_budget=True
+            email, settings, name=name, team_id=team_id, apply_budget=True, factory=factory
         )
 
         # D-16 lazy backfill: if user already existed, patch only null/missing budget fields.
@@ -369,7 +371,8 @@ async def generate_litellm_key(
     factory_key_extra = {k: v for k, v in factory.get("key", {}).items() if k != "metadata"}
 
     # Steps A, B, A2: ensure team → access group → user (shared prerequisite, D-13).
-    team_id = await ensure_team_and_user(email, settings, name=name)
+    # Reuse the factory dict loaded above so the disk read happens once per mint (#11).
+    team_id = await ensure_team_and_user(email, settings, name=name, factory=factory)
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
         # Re-resolve access_group_id for the key payload (needed for access_group_ids field).
@@ -996,6 +999,7 @@ async def ensure_litellm_user(
     name: str | None = None,
     team_id: str | None = None,
     apply_budget: bool = False,
+    factory: dict | None = None,
 ) -> dict:
     """Idempotently create a LiteLLM internal user keyed by email (user_id=email).
 
@@ -1020,7 +1024,8 @@ async def ensure_litellm_user(
     if team_id:
         payload["teams"] = [team_id]
     if apply_budget:
-        factory = _load_factory_config(settings.factory_config_path)
+        if factory is None:
+            factory = _load_factory_config(settings.factory_config_path)
         user_budget = {
             k: v for k, v in factory.get("user", {}).items() if k != "metadata" and v is not None
         }
