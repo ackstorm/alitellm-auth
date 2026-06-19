@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Changed
+
+- **The shared LiteLLM team is now named `default`.** Its id and display alias previously came from `OAUTH_CLIENT_ID` (`team-<client_id>`, e.g. `team-platform`). Both are now driven by the new `LITELLM_DEFAULT_TEAM` setting (Helm value `config.litellmDefaultTeam`, Kustomize env), defaulting to `default` and decoupled from the OIDC client. On the next deploy the service points at the new team; pre-existing keys, budgets, and members stay on the old team and are migrated out-of-band (kubectl), not in code.
+
 ## [0.5.19] - 2026-06-13
 
 ### Fixed

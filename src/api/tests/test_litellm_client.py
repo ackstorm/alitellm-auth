@@ -51,7 +51,7 @@ def make_settings(**kwargs):
 @respx.mock
 async def test_generate_litellm_key_success():
     settings = make_settings()
-    team_id = f"team-{settings.oauth_client_id}"
+    team_id = settings.team_id
 
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": team_id})
@@ -208,14 +208,14 @@ async def test_generate_litellm_key_is_not_route_restricted_by_default():
     body = _json_body(gen)
     assert "allowed_routes" not in body
     # Invariant scoping fields are still present.
-    assert body["team_id"] == "team-platform"
+    assert body["team_id"] == settings.team_id
     assert body["user_id"] == "alice@example.com"
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_generate_litellm_key_team_id_is_shared():
-    """All users get the same team_id, derived from oauth_client_id."""
+    """All users get the same team_id (LITELLM_DEFAULT_TEAM)."""
     settings = make_settings()
 
     respx.post("http://litellm.test/team/new").mock(
@@ -245,7 +245,7 @@ async def test_generate_litellm_key_team_id_is_shared():
     )
     r2 = await generate_litellm_key("bob@example.com", settings)
 
-    assert r1["team_id"] == r2["team_id"] == "team-platform"
+    assert r1["team_id"] == r2["team_id"] == settings.team_id
 
 
 @pytest.mark.asyncio
@@ -511,7 +511,7 @@ async def test_delete_litellm_user():
 async def test_generate_litellm_key_scopes_key_to_user():
     """Generated key payload includes user_id=email (USER-02) and the user ensure call is made (USER-01)."""
     settings = make_settings()
-    team_id = f"team-{settings.oauth_client_id}"
+    team_id = settings.team_id
 
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": team_id})
@@ -1701,7 +1701,7 @@ def test_strip_bearer_prefix():
 @respx.mock
 async def test_generate_litellm_key_loads_factory_config_once(monkeypatch):
     settings = make_settings()
-    team_id = f"team-{settings.oauth_client_id}"
+    team_id = settings.team_id
 
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": team_id})

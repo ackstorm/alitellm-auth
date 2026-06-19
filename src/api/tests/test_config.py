@@ -96,7 +96,7 @@ def test_brand_link_fields_load_from_env():
 def test_settings_team_id_property():
     from app.config import Settings
 
-    s = Settings(
+    base = dict(
         app_base_url="http://localhost:8080",
         session_secret_key="test-secret-32-chars-padding-xxxx",
         oauth_issuer_url="http://dex.test/dex",
@@ -106,4 +106,7 @@ def test_settings_team_id_property():
         litellm_master_key="sk-test",
         api_public_url="https://api.test",
     )
-    assert s.team_id == "team-platform"
+    # Defaults to "default", decoupled from oauth_client_id.
+    assert Settings(**base).team_id == "default"
+    # Overridable via LITELLM_DEFAULT_TEAM.
+    assert Settings(**base, litellm_default_team="platform").team_id == "platform"

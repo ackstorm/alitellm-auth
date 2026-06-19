@@ -35,6 +35,9 @@ spec:
               value: "platform"
             - name: LITELLM_URL
               value: "https://litellm.ackstorm.ai"
+            # Shared LiteLLM team id + display name (one team per deployment).
+            - name: LITELLM_DEFAULT_TEAM
+              value: "default"
             - name: API_PUBLIC_URL
               value: "https://api.ackstorm.ai"
             # Hosted chat UI URL; empty derives chat.<domain> from API_PUBLIC_URL.

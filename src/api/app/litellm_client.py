@@ -305,7 +305,7 @@ async def ensure_team_and_user(
             json={
                 **team_extra,  # configmap overrides (D-20: team:{} so no team budget)
                 "team_id": team_id,  # always wins — not overridable
-                "team_alias": settings.oauth_client_id,
+                "team_alias": settings.litellm_default_team,
                 "metadata": {"source": "token-factory", **team_meta_extra},
             },
         )
@@ -392,7 +392,7 @@ async def generate_litellm_key(
     """
     Ensure the shared org team/user exist (idempotent) and generate a virtual key.
 
-    Team is shared across all users — named after OAUTH_CLIENT_ID (e.g. "platform").
+    Team is shared across all users — id + alias from LITELLM_DEFAULT_TEAM (default "default").
 
     Args:
         email: User's email address (used as user_id).

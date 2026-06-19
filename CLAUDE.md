@@ -351,8 +351,8 @@ Install details + the contract table: `deploy/litellm/README.md`.
 ## Repository-Specific Patterns
 
 **Shared team — all users go into the same team**
-Team ID = `"team-{OAUTH_CLIENT_ID}"` (e.g. `"team-platform"`). There is one team per deployment, not one per user. The team ID is derived from `settings.oauth_client_id` in `generate_litellm_key()`. Do NOT rename `OAUTH_CLIENT_ID` — it drives the live LiteLLM team name.
-**WHERE**: `src/api/app/litellm_client.py` — `generate_litellm_key()`
+Team id (and display alias) = `LITELLM_DEFAULT_TEAM` (default `"default"`), exposed as `settings.team_id`. There is one team per deployment, not one per user. Decoupled from `OAUTH_CLIENT_ID` (was `"team-{OAUTH_CLIENT_ID}"` before v0.5.20) so the team can be renamed without touching the OIDC client. Changing it points the service at a different team — existing keys/budgets stay on the old team (migrate via kubectl, not in code).
+**WHERE**: `src/api/app/config.py` — `team_id` property; `litellm_client.py` — `ensure_team_and_user()` (`team_alias`).
 
 **LiteLLM User model — one User per login email**
 `ensure_litellm_user(email, settings, name, team_id)` is called on every login before key generation. `user_id = email` (deterministic, debuggable). Keys are scoped to `user_id` via the `user_id` field on `/key/generate`. The user is created idempotently — `400`/`409` "already exists" is treated as success (mirrors team creation).
@@ -391,6 +391,7 @@ Never rely on env vars in tests. All test files have a local `make_test_settings
 | `OAUTH_ISSUER_URL` | deployment env | OIDC issuer, e.g. `https://dex.ackstorm.ai/dex` |
 | `OAUTH_CLIENT_ID` | deployment env | OIDC client ID, e.g. `platform` |
 | `LITELLM_URL` | deployment env | LiteLLM base URL |
+| `LITELLM_DEFAULT_TEAM` | deployment env (opt) | Default `default`. Shared team id + display alias (one team per deployment). Decoupled from `OAUTH_CLIENT_ID`. Helm value: `config.litellmDefaultTeam` |
 | `SESSION_SECRET_KEY` | k8s secret | Cookie signing key — shared across all replicas |
 | `OAUTH_CLIENT_SECRET` | k8s secret | OIDC client secret (`${GENAI_OAUTH_MCP_SECRET}` in Dex) |
 | `LITELLM_MASTER_KEY` | k8s secret | LiteLLM admin key |
