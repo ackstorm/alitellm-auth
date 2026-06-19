@@ -133,7 +133,7 @@ def test_me_returns_budget(client):
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == "alice@example.com"
-    assert data["team_id"] == "team-test-client"
+    assert data["team_id"] == "default"
     assert data["limits"]["max_budget"] == 10.0
     assert data["limits"]["budget_duration"] == "24h"
     assert data["spend"]["current"] == 2.5

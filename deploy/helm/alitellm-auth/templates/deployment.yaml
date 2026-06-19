@@ -46,6 +46,8 @@ spec:
               value: {{ .Values.config.oauthClientId | quote }}
             - name: LITELLM_URL
               value: {{ .Values.config.litellmUrl | quote }}
+            - name: LITELLM_DEFAULT_TEAM
+              value: {{ .Values.config.litellmDefaultTeam | quote }}
             - name: API_PUBLIC_URL
               value: {{ .Values.config.apiPublicUrl | quote }}
             - name: CHAT_PUBLIC_URL

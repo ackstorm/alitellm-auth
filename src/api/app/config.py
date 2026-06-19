@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # API (LiteLLM backend)
     litellm_url: str  # internal URL used server-side to call admin endpoints
     litellm_master_key: str
+    # Shared team id + display alias for the single per-deployment team. Defaults
+    # to "default"; override per deployment. Decoupled from OAUTH_CLIENT_ID so the
+    # team can be renamed without touching the OIDC client. Env var:
+    # LITELLM_DEFAULT_TEAM.
+    litellm_default_team: str = "default"
     # Startup verification of the master-key + x-user-id user-scoping contract
     # (the sso_key_swapper custom auth — see deploy/litellm/). Non-fatal: when the
     # contract is not enforced we log a CRITICAL banner; we never refuse to serve.
@@ -80,8 +85,8 @@ class Settings(BaseSettings):
 
     @property
     def team_id(self) -> str:
-        """Shared team id, derived from the OIDC client id (one team per deployment)."""
-        return f"team-{self.oauth_client_id}"
+        """Shared team id for the single per-deployment team (LITELLM_DEFAULT_TEAM)."""
+        return self.litellm_default_team
 
 
 def get_settings() -> Settings:
