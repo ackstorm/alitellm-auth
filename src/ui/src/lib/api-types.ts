@@ -168,6 +168,10 @@ export interface StatsTotals {
   spend: number;
   /** Total failed requests in the window (metadata.total_failed_requests). */
   failed_requests: number;
+  /** Input (prompt) tokens in the window (metadata.total_prompt_tokens). */
+  input_tokens: number;
+  /** Output (completion) tokens in the window (metadata.total_completion_tokens). */
+  output_tokens: number;
   /** Cache-read input tokens in the window. */
   cache_read_tokens: number;
   /** cache_read/prompt fraction; null when prompt_tokens===0 (D-08). */

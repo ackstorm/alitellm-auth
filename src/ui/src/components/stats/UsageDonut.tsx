@@ -169,7 +169,7 @@ function DonutStatePanel({
   return (
     <div
       data-slot="usage-donut-state"
-      className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-surface p-5 text-center"
+      className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-surface p-5 text-center"
     >
       {showTotalCap ? (
         <>
@@ -221,7 +221,7 @@ export function UsageDonut({
   return (
     <div
       data-slot="usage-donut"
-      className="flex flex-wrap items-center gap-8 rounded-2xl border border-border bg-surface p-5"
+      className="flex flex-wrap items-center gap-8 rounded-xl border border-border bg-surface p-5"
     >
       <div className="relative h-50 w-50 shrink-0">
         <ResponsiveContainer width="100%" height={DONUT_HEIGHT}>

@@ -42,10 +42,12 @@ const EMPTY_HEADING = 'No models yet';
 const EMPTY_BODY =
   'No model aliases are configured on the gateway for your access level.';
 
-// A small provider chip (e.g. openai, anthropic, google).
+// A small provider chip (e.g. openai, anthropic, google). UPPERCASE to match
+// the sibling Mode / Thinking / capability tags in the same row (was the lone
+// lowercase chip — the casing drift flagged in the design review).
 function ProviderChip({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center rounded-md border border-border bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] font-semibold lowercase tracking-wide text-text-secondary">
+    <span className="inline-flex items-center rounded-md border border-border bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
       {label}
     </span>
   );

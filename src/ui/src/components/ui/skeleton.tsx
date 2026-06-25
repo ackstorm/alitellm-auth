@@ -9,7 +9,8 @@
 // This ports that faithfully:
 //   * the `pulse` animation -> Tailwind's built-in `animate-pulse` utility
 //     (same opacity pulse intent), so NO new keyframe is added to index.css;
-//   * the --border tint + 16px radius -> bg-border rounded-2xl (green tokens);
+//   * the --border tint + 12px radius -> bg-border rounded-xl (matches the
+//     content cards it stands in for);
 //   * the same variant footprints (card/chart/bar/table-rows);
 //   * aria-hidden on every block (decorative, threat T-13-04 parity).
 // A free-form `className` is also accepted so callers can size/shape a one-off
@@ -71,7 +72,7 @@ export function Skeleton({ variant = 'card', rows = 5, className, ...props }: Sk
       data-slot="skeleton"
       data-variant={variant}
       aria-hidden="true"
-      className={cn('w-full animate-pulse rounded-2xl bg-border', VARIANT_CLASS[variant], className)}
+      className={cn('w-full animate-pulse rounded-xl bg-border', VARIANT_CLASS[variant], className)}
       {...props}
     />
   );

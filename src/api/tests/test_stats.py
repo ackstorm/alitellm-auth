@@ -261,6 +261,9 @@ def test_build_stats_contract_cache_hit_pct():
     expected = md["total_cache_read_input_tokens"] / md["total_prompt_tokens"]
     assert contract["totals"]["cache_read_tokens"] == int(md["total_cache_read_input_tokens"])
     assert contract["totals"]["cache_hit_pct"] == pytest.approx(expected)
+    # Input/output split is surfaced at the window-total level (not just per-model).
+    assert contract["totals"]["input_tokens"] == int(md["total_prompt_tokens"])
+    assert contract["totals"]["output_tokens"] == int(md["total_completion_tokens"])
 
 
 def test_build_stats_contract_cache_hit_pct_none_when_no_prompt_tokens():

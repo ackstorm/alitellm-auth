@@ -20,6 +20,7 @@
 import * as React from 'react';
 
 import { PRESETS } from '@/lib/stats-presets';
+import { PILL_ACTIVE, PILL_BASE, PILL_IDLE } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
 // Locked copy, lifted verbatim from date-range.js (13-UI-SPEC §Copywriting).
@@ -259,11 +260,14 @@ export function DateRange({
     onCustomRange(range);
   };
 
-  // The shared pill base for the preset buttons. var(--*) tokens only.
-  const pillBase =
-    'inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border bg-transparent px-3 font-mono text-[11px] font-semibold uppercase tracking-wide transition-colors sm:min-h-8';
-  const pillIdle = 'border-border text-text-secondary hover:border-text-tertiary hover:text-text-primary';
-  const pillActive = 'border-primary bg-primary/10 text-primary';
+  // Preset buttons share the canonical segment-pill chrome (@/lib/ui) and add
+  // the data-filter typography: mono + UPPERCASE + a 44px tap target.
+  const pillBase = cn(
+    PILL_BASE,
+    'min-h-[44px] px-3 font-mono text-[11px] font-semibold uppercase tracking-wide sm:min-h-8'
+  );
+  const pillIdle = PILL_IDLE;
+  const pillActive = PILL_ACTIVE;
 
   return (
     <div

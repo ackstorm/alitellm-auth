@@ -24,6 +24,8 @@
 //   • T-10-14 (XSS): all brand/tagline/link/provider strings render as React text
 //     children (auto-escaped); href values come only from config.links.
 
+import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import type { AppConfig } from '@/lib/api-types';
 import { Button } from '@/components/ui/button';
 import { BrandLockup } from '@/components/layout/BrandLockup';
@@ -60,6 +62,12 @@ export function Login({ config }: LoginProps) {
   // and a fuchsia→violet→sky gradient CTA. Dark/light stay token-flat (the green
   // button's ink is the --primary-foreground token: dark in dark, white in light).
   const isPastel = useThemeStore((s) => s.theme) === 'pastel';
+
+  // The CTA is a real full-page navigation (T-09-17), so "pending" only needs to
+  // flip the leading glyph to a spinner and block a double-click during the brief
+  // redirect latency — the browser tears the page down on its own. Navigation is
+  // NOT prevented; we just paint feedback on the way out.
+  const [pending, setPending] = useState(false);
 
   return (
     <div data-state="signin" className={`flex min-h-screen flex-col bg-background ${GLOW_BG}`}>
@@ -164,19 +172,28 @@ export function Login({ config }: LoginProps) {
                   'border-0 bg-gradient-to-r from-fuchsia-300 via-violet-300 to-sky-300 text-violet-950 shadow-md shadow-violet-200/60 hover:from-fuchsia-400 hover:via-violet-400 hover:to-sky-400'
               )}
             >
-              <a href={SSO_LOGIN_URL}>
-                <svg
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                  className="fill-none"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                  <path d="M10 17l5-5-5-5" />
-                  <path d="M15 12H3" />
-                </svg>
+              <a
+                href={SSO_LOGIN_URL}
+                onClick={() => setPending(true)}
+                aria-busy={pending}
+                className={cn(pending && 'pointer-events-none')}
+              >
+                {pending ? (
+                  <Loader2 aria-hidden="true" className="animate-spin" />
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    className="fill-none"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                    <path d="M10 17l5-5-5-5" />
+                    <path d="M15 12H3" />
+                  </svg>
+                )}
                 Continue with SSO
               </a>
             </Button>

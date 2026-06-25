@@ -14,6 +14,8 @@ const TOTALS: StatsTotals = {
   tokens: 1_000_000,
   spend: 1249.5,
   failed_requests: 3,
+  input_tokens: 980_000,
+  output_tokens: 20_000,
   cache_read_tokens: 124_000,
   cache_hit_pct: 0.124,
   avg_cost_per_1m_tokens: 0.51,
@@ -107,15 +109,21 @@ describe('KpiRow', () => {
     expect(container.querySelector('[data-slot="kpi-failed"]')).toBeNull();
   });
 
-  it('renders a cached-input sub-line when cache_hit_pct > 0', () => {
-    const { getByText } = render(<KpiRow totals={TOTALS} />);
+  it('includes the cached-input rate in the tokens sub-line when cache_hit_pct > 0', () => {
+    const { container } = render(<KpiRow totals={TOTALS} />);
     // 0.124 -> "12.4% cached"
-    expect(getByText('12.4% cached')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="kpi-tokens"]')?.textContent).toContain(
+      '12.4% cached',
+    );
   });
 
-  it('renders NO cached-input sub-line when cache_hit_pct is null', () => {
+  it('omits the cached rate from the tokens sub-line when cache_hit_pct is null', () => {
     const totals: StatsTotals = { ...TOTALS, cache_hit_pct: null };
     const { container } = render(<KpiRow totals={totals} />);
-    expect(container.querySelector('[data-slot="kpi-cache"]')).toBeNull();
+    // The sub-line still renders the input/output split; only "cached" drops out.
+    const sub = container.querySelector('[data-slot="kpi-tokens"]');
+    expect(sub?.textContent).toContain('in');
+    expect(sub?.textContent).toContain('out');
+    expect(sub?.textContent).not.toContain('cached');
   });
 });

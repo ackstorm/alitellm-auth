@@ -38,6 +38,7 @@ import { useNavigate } from 'react-router';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
+import { TAB_PILL, TAB_PILL_LIST } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 import { deriveSubdomainUrl } from '@/lib/urls';
 import { useConfigStore } from '@/stores/config';
@@ -224,24 +225,37 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
   // the user's live gateway (apiBase); the key is the `sk-...` placeholder (mint
   // it on Keys). `caption` overrides the code-box label (e.g. a config-file path);
   // `note` adds a one-line instruction; `guide` links the authoritative doc.
-  const TOOLS: {
+  // Tools are grouped by family (top-level tab). A family with more than one
+  // variant (e.g. OpenCode → Gemini / OpenAI, Claude Code → API / Pro·Max)
+  // renders a second row of pill sub-tabs; single-variant families render the
+  // body directly. `subLabel` is the sub-tab label within a family.
+  type ToolVariant = {
     id: string;
-    label: string;
+    subLabel?: string;
     ready: boolean;
     code: string;
     caption?: string;
     note?: string;
     guide?: { url: string; label: string };
+  };
+  const TOOL_GROUPS: {
+    id: string;
+    label: string;
+    variants: ToolVariant[];
   }[] = [
     {
-      id: 'opencode-gemini',
-      label: 'OpenCode (Gemini)',
-      ready: true,
-      caption: '~/.config/opencode/opencode.json',
-      // OpenCode can instead use its native `google` provider against the gateway's
-      // Gemini-compatible passthrough (/gemini/v1beta). Model names must match the
-      // Gemini models your gateway exposes.
-      code: `{
+      id: 'opencode',
+      label: 'OpenCode',
+      variants: [
+        {
+          id: 'opencode-gemini',
+          subLabel: 'Gemini',
+          ready: true,
+          caption: '~/.config/opencode/opencode.json',
+          // OpenCode can instead use its native `google` provider against the gateway's
+          // Gemini-compatible passthrough (/gemini/v1beta). Model names must match the
+          // Gemini models your gateway exposes.
+          code: `{
   "$schema": "https://opencode.ai/config.json",
   "enabled_providers": ["google"],
   "provider": {
@@ -256,20 +270,20 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
   "model": "google/gemini-flash-latest",
   "small_model": "google/gemini-flash-lite-latest"
 }`,
-      note: 'Save the file, then run `opencode`. Model names must match the Gemini models your gateway exposes.',
-      guide: {
-        url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
-        label: 'OpenCode + LiteLLM guide',
-      },
-    },
-    {
-      id: 'opencode',
-      label: 'OpenCode',
-      ready: true,
-      caption: '~/.config/opencode/opencode.json',
-      // opencode is configured by a JSON file (NOT env vars): an OpenAI-compatible
-      // provider pointed at the gateway. The model keys MUST match LiteLLM aliases.
-      code: `{
+          note: 'Save the file, then run `opencode`. Model names must match the Gemini models your gateway exposes.',
+          guide: {
+            url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
+            label: 'OpenCode + LiteLLM guide',
+          },
+        },
+        {
+          id: 'opencode-openai',
+          subLabel: 'OpenAI',
+          ready: true,
+          caption: '~/.config/opencode/opencode.json',
+          // opencode is configured by a JSON file (NOT env vars): an OpenAI-compatible
+          // provider pointed at the gateway. The model keys MUST match LiteLLM aliases.
+          code: `{
   "$schema": "https://opencode.ai/config.json",
   "provider": {
     "litellm": {
@@ -286,122 +300,190 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
     }
   }
 }`,
-      note: 'Save the file, then run `opencode` and pick a LiteLLM model with `/models`.',
-      guide: {
-        url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
-        label: 'OpenCode + LiteLLM guide',
-      },
+          note: 'Save the file, then run `opencode` and pick a LiteLLM model with `/models`.',
+          guide: {
+            url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
+            label: 'OpenCode + LiteLLM guide',
+          },
+        },
+      ],
     },
     {
       id: 'claude',
-      label: 'Claude Code (API)',
-      ready: true,
-      code: `# Claude Code → LiteLLM
+      label: 'Claude Code',
+      variants: [
+        {
+          id: 'claude-api',
+          subLabel: 'API',
+          ready: true,
+          code: `# Claude Code → LiteLLM
 export ANTHROPIC_BASE_URL="${apiBase}"
 export ANTHROPIC_AUTH_TOKEN=${KEY_PLACEHOLDER}
 export ANTHROPIC_MODEL="ackstorm.smart"
 export ANTHROPIC_DEFAULT_OPUS_MODEL="ackstorm.smart"
 export ANTHROPIC_DEFAULT_SONNET_MODEL="ackstorm.fast"
-export ANTHROPIC_DEFAULT_HAIKU_MODEL="ackstorm.fast-lite"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="ackstorm.lite"
 export CLAUDE_CODE_SUBAGENT_MODEL="ackstorm.fast"
 
 claude`,
-      note: 'Bills against your gateway key — no Claude subscription required. Models are LiteLLM aliases.',
-      guide: {
-        url: 'https://docs.litellm.ai/docs/anthropic_completion',
-        label: 'Claude Code + LiteLLM guide',
-      },
-    },
-    {
-      id: 'claude-sub',
-      label: 'Claude Code (Pro/Max)',
-      ready: true,
-      // MAX/Pro subscription flow (NOT an API key): ANTHROPIC_API_KEY is left empty
-      // so Claude Code authenticates with your Claude subscription OAuth token. The
-      // gateway key rides in ANTHROPIC_CUSTOM_HEADERS (x-litellm-api-key) purely for
-      // budget/limit tracking. ANTHROPIC_MODEL must be a real model your gateway maps.
-      code: `# Claude Code → LiteLLM (MAX/Pro subscription)
+          note: 'Bills against your gateway key — no Claude subscription required. Models are LiteLLM aliases.',
+          guide: {
+            url: 'https://docs.litellm.ai/docs/anthropic_completion',
+            label: 'Claude Code + LiteLLM guide',
+          },
+        },
+        {
+          id: 'claude-sub',
+          subLabel: 'Pro/Max',
+          ready: true,
+          // MAX/Pro subscription flow (NOT an API key): ANTHROPIC_API_KEY is left empty
+          // so Claude Code authenticates with your Claude subscription OAuth token. The
+          // gateway key rides in ANTHROPIC_CUSTOM_HEADERS (x-litellm-api-key) purely for
+          // budget/limit tracking. ANTHROPIC_MODEL must be a real model your gateway maps.
+          code: `# Claude Code → LiteLLM (MAX/Pro subscription)
 export ANTHROPIC_API_KEY=""
 export ANTHROPIC_BASE_URL="${apiBase}"
 export ANTHROPIC_CUSTOM_HEADERS="${AUTH_HEADER}: Bearer ${KEY_PLACEHOLDER}"
 export ANTHROPIC_MODEL="claude-opus-4-8"
 
 claude`,
-      note: 'Uses your Claude MAX/Pro subscription, not an API key. On first run pick "Claude account with subscription" and authorize in the browser — Claude Code sends its OAuth token, while the gateway key only tracks budget/limits.',
-      guide: {
-        url: 'https://docs.litellm.ai/docs/tutorials/claude_code_max_subscription',
-        label: 'Claude Code subscription + LiteLLM guide',
-      },
+          note: 'Uses your Claude MAX/Pro subscription, not an API key. On first run pick "Claude account with subscription" and authorize in the browser — Claude Code sends its OAuth token, while the gateway key only tracks budget/limits.',
+          guide: {
+            url: 'https://docs.litellm.ai/docs/tutorials/claude_code_max_subscription',
+            label: 'Claude Code subscription + LiteLLM guide',
+          },
+        },
+      ],
     },
     {
       id: 'gemini',
       label: 'Gemini CLI',
-      ready: true,
-      code: `# Gemini CLI → LiteLLM
+      variants: [
+        {
+          id: 'gemini',
+          ready: true,
+          code: `# Gemini CLI → LiteLLM
 export GOOGLE_GEMINI_BASE_URL=${apiBase}/gemini
 export GEMINI_BASE_URL=${apiBase}/gemini/v1beta
 export GEMINI_API_KEY=${KEY_PLACEHOLDER}
 
 gemini`,
+        },
+      ],
     },
     {
       id: 'codex',
       label: 'Codex',
-      ready: true,
-      caption: '~/.codex/config.toml',
-      // Codex is configured by a TOML provider (NOT endpoint env vars): a named
-      // OpenAI-compatible provider pointed at the gateway. The key is read from the
-      // env var named by `env_key`, so export it before running `codex`.
-      code: `model_provider = "ackstorm"
-model = "${MODEL_ALIAS}"
-model_reasoning_effort = "high"
+      variants: [
+        {
+          id: 'codex',
+          ready: true,
+          caption: '~/.codex/config.toml',
+          // Codex is configured by a TOML provider (NOT endpoint env vars): a named
+          // OpenAI-compatible provider pointed at the gateway. The key is read from the
+          // env var named by `env_key`, so export it before running `codex`.
+          code: `model = "ackstorm.router"
+model_provider = "ackstorm"
+model_reasoning_effort = "medium"
 
 [model_providers.ackstorm]
-name = "ackstorm"
+name = "ACKstorm"
 base_url = "${apiBase}/v1"
-env_key = "LITELLM_API_KEY"`,
-      note: 'Export the key named by env_key first: `export LITELLM_API_KEY="sk-..."`, then run `codex`. Fallback (no config file): `export OPENAI_API_KEY=… OPENAI_BASE_URL=…/v1` then `codex --model …`.',
-      guide: {
-        url: 'https://openrouter.ai/docs/cookbook/coding-agents/codex-cli',
-        label: 'Codex CLI provider config',
-      },
+env_key = "LITELLM_API_KEY"
+wire_api = "responses"
+supports_websockets = false`,
+          note: 'Export the key named by env_key first: `export LITELLM_API_KEY="sk-..."`, then run `codex`. Fallback (no config file): `export OPENAI_API_KEY=… OPENAI_BASE_URL=…/v1` then `codex --model …`.',
+          guide: {
+            url: 'https://openrouter.ai/docs/cookbook/coding-agents/codex-cli',
+            label: 'Codex CLI provider config',
+          },
+        },
+      ],
     },
     {
       id: 'copilot',
       label: 'GitHub Copilot',
-      ready: true,
-      caption: 'VS Code settings.json',
-      // GitHub Copilot (VS Code) is pointed at the gateway by overriding its proxy
-      // URL in settings.json; reload the window afterwards.
-      code: `{
+      variants: [
+        {
+          id: 'copilot',
+          ready: true,
+          caption: 'VS Code settings.json',
+          // GitHub Copilot (VS Code) is pointed at the gateway by overriding its proxy
+          // URL in settings.json; reload the window afterwards.
+          code: `{
   "github.copilot.advanced": {
     "debug.overrideProxyUrl": "${apiBase}",
     "debug.testOverrideProxyUrl": "${apiBase}"
   }
 }`,
-      note: 'Reload VS Code after saving. Authenticate with your gateway key when prompted — see the guide for model + auth details.',
-      guide: {
-        url: 'https://docs.litellm.ai/docs/tutorials/github_copilot_integration',
-        label: 'GitHub Copilot + LiteLLM guide',
-      },
+          note: 'Reload VS Code after saving. Authenticate with your gateway key when prompted — see the guide for model + auth details.',
+          guide: {
+            url: 'https://docs.litellm.ai/docs/tutorials/github_copilot_integration',
+            label: 'GitHub Copilot + LiteLLM guide',
+          },
+        },
+      ],
     },
     {
       id: 'qwen',
       label: 'Qwen Code',
-      ready: true,
-      code: `# Qwen Code CLI → LiteLLM (OpenAI-compatible)
+      variants: [
+        {
+          id: 'qwen',
+          ready: true,
+          code: `# Qwen Code CLI → LiteLLM (OpenAI-compatible)
 export OPENAI_BASE_URL="${apiBase}/v1"
 export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
 export OPENAI_MODEL="${MODEL_ALIAS}"
 
 qwen`,
-      guide: {
-        url: 'https://docs.litellm.ai/docs/tutorials/litellm_qwen_code_cli',
-        label: 'Qwen Code + LiteLLM guide',
-      },
+          guide: {
+            url: 'https://docs.litellm.ai/docs/tutorials/litellm_qwen_code_cli',
+            label: 'Qwen Code + LiteLLM guide',
+          },
+        },
+      ],
     },
   ];
-  const [tool, setTool] = useState<string>('opencode-gemini');
+  const [toolGroup, setToolGroup] = useState<string>('opencode');
+  const [toolVariant, setToolVariant] = useState<Record<string, string>>(() =>
+    Object.fromEntries(TOOL_GROUPS.map((g) => [g.id, g.variants[0].id])),
+  );
+
+  // Body of one tool variant: the config code box plus its note / guide link.
+  // Reused for both single-variant families and each pill sub-tab.
+  const renderToolBody = (v: ToolVariant, groupLabel: string) => (
+    <>
+      <CodeBlock
+        code={v.code}
+        caption={
+          v.caption ??
+          `${groupLabel}${v.subLabel ? ` · ${v.subLabel}` : ''} · setup`
+        }
+      />
+      {v.note && (
+        <p className="mt-2 font-sans text-xs leading-relaxed text-text-tertiary">
+          {v.note}
+        </p>
+      )}
+      {v.guide && (
+        <a
+          href={v.guide.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 font-sans text-xs font-medium text-primary hover:underline"
+        >
+          {v.guide.label}
+          <ExternalLink className="size-3" aria-hidden="true" />
+        </a>
+      )}
+      {!v.ready && (
+        <p className="mt-2 font-sans text-xs text-text-tertiary">
+          Placeholder — tested {v.subLabel ?? groupLabel} values land here soon.
+        </p>
+      )}
+    </>
+  );
   const [mcpTab, setMcpTab] = useState<string>('access');
 
   return (
@@ -427,7 +509,7 @@ qwen`,
             aria-label="On this page"
             className="sticky top-8 flex flex-col gap-1"
           >
-            <div className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+            <div className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-primary">
               On this page
             </div>
             {TOC.map((item) => (
@@ -435,7 +517,7 @@ qwen`,
                 key={item.id}
                 type="button"
                 onClick={() => scrollToSection(item.id)}
-                className="cursor-pointer rounded-md px-2.5 py-1.5 text-left font-sans text-sm text-text-secondary transition-colors hover:bg-primary/5 hover:text-text-primary"
+                className="cursor-pointer rounded-md px-2.5 py-1.5 text-left font-sans text-sm text-text-primary transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 {item.label}
               </button>
@@ -509,37 +591,38 @@ qwen`,
             title="Editors & CLIs"
             sub="Point your AI coding tool at the gateway. Export the variables, then run the tool as usual."
           >
-            <Tabs value={tool} onValueChange={setTool}>
-              <TabsList variant="line">
-                {TOOLS.map((t) => (
-                  <TabsTrigger key={t.id} value={t.id}>
-                    {t.label}
+            <Tabs value={toolGroup} onValueChange={setToolGroup}>
+              <TabsList variant="line" className="flex-wrap">
+                {TOOL_GROUPS.map((g) => (
+                  <TabsTrigger key={g.id} value={g.id}>
+                    {g.label}
                   </TabsTrigger>
                 ))}
               </TabsList>
-              {TOOLS.map((t) => (
-                <TabsContent key={t.id} value={t.id} className="mt-4">
-                  <CodeBlock code={t.code} caption={t.caption ?? `${t.label} · setup`} />
-                  {t.note && (
-                    <p className="mt-2 font-sans text-xs leading-relaxed text-text-tertiary">
-                      {t.note}
-                    </p>
-                  )}
-                  {t.guide && (
-                    <a
-                      href={t.guide.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 font-sans text-xs font-medium text-primary hover:underline"
+              {TOOL_GROUPS.map((g) => (
+                <TabsContent key={g.id} value={g.id} className="mt-4">
+                  {g.variants.length > 1 ? (
+                    <Tabs
+                      value={toolVariant[g.id]}
+                      onValueChange={(v) =>
+                        setToolVariant((prev) => ({ ...prev, [g.id]: v }))
+                      }
                     >
-                      {t.guide.label}
-                      <ExternalLink className="size-3" aria-hidden="true" />
-                    </a>
-                  )}
-                  {!t.ready && (
-                    <p className="mt-2 font-sans text-xs text-text-tertiary">
-                      Placeholder — tested {t.label} values land here soon.
-                    </p>
+                      <TabsList className={TAB_PILL_LIST}>
+                        {g.variants.map((v) => (
+                          <TabsTrigger key={v.id} value={v.id} className={TAB_PILL}>
+                            {v.subLabel}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                      {g.variants.map((v) => (
+                        <TabsContent key={v.id} value={v.id} className="mt-4">
+                          {renderToolBody(v, g.label)}
+                        </TabsContent>
+                      ))}
+                    </Tabs>
+                  ) : (
+                    renderToolBody(g.variants[0], g.label)
                   )}
                 </TabsContent>
               ))}
@@ -558,7 +641,7 @@ qwen`,
             sub="Give MCP-capable clients (Cursor, Claude Desktop, …) access to the gateway's tool servers. The MCP endpoint lives on the same gateway host, under /mcp, and uses your same virtual key."
           >
             <Tabs value={mcpTab} onValueChange={setMcpTab}>
-              <TabsList variant="line">
+              <TabsList variant="line" className="flex-wrap">
                 <TabsTrigger value="access">MCP Access</TabsTrigger>
                 <TabsTrigger value="group">MCP Group access</TabsTrigger>
                 <TabsTrigger value="curl">Try with curl</TabsTrigger>

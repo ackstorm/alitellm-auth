@@ -64,6 +64,8 @@ function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse {
       tokens: 567890,
       spend: 12.5,
       failed_requests: 0,
+      input_tokens: 460000,
+      output_tokens: 107890,
       cache_read_tokens: 0,
       cache_hit_pct: null,
       avg_cost_per_1m_tokens: 0.01,

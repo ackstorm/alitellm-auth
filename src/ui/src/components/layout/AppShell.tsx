@@ -41,14 +41,6 @@ export interface AppShellProps {
 
 // A thin "|" divider between nav items so the group reads as KEYS | MODELS | ….
 // Module-level (stable component identity) so it never remounts on parent render.
-function NavSep() {
-  return (
-    <span aria-hidden="true" className="select-none px-0.5 text-text-tertiary/50">
-      |
-    </span>
-  );
-}
-
 // Two-letter avatar initials from a display label: first char of the first and
 // last word (e.g. "Juan Carlos Moreno" -> "JM", "alice@acme.com" -> "AL"). The
 // email local-part is used when there is no name; punctuation splits into words.
@@ -65,25 +57,25 @@ export function AppShell({ me, config }: AppShellProps) {
   // copy table). Rendered as a text child only — never raw HTML (T-10-14).
   const menuLabel = me.name || me.email;
 
-  // Shared NavLink class: a tight segmented-pill menu. `leading-none` pins the
-  // text box to the glyph height so the UPPERCASE labels optically center next
-  // to the lowercase brand (the old line-height left them riding high). Compact
-  // padding + a small gap make it read as one menu group, not three buttons.
+  // Shared NavLink class: L1 primary nav as an UNDERLINE tab strip — the top of
+  // the app's green selected-state hierarchy (L1 underline > L2/L3 tint pills).
+  // The active item carries a green underline + green text; idle items keep a
+  // transparent underline so the row never reflows on selection. `leading-none`
+  // pins the text box to the glyph height so the UPPERCASE labels optically
+  // center next to the lowercase brand.
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
-      'rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors',
+      'border-b-2 px-1 py-1.5 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider transition-colors',
       isActive
-        ? // Strong filled highlight so the current tab is unmistakable (the
-          // emphasis the CHAT pill used to carry, moved onto the active nav item).
-          'bg-primary text-primary-foreground'
-        : 'text-text-secondary hover:bg-primary/5 hover:text-text-primary'
+        ? 'border-primary text-primary'
+        : 'border-transparent text-text-secondary hover:text-text-primary'
     );
 
   // CHAT lives on the RIGHT, next to the user — an accent CTA that clearly reads
   // as a clickable destination (tinted accent fill + accent border + hover lift +
-  // an open-in-new-tab icon). It stays distinct from the SELECTED nav tab (which
-  // is a mono-uppercase SOLID-fill highlight) via sentence-case sans type, the
-  // soft fill, the shadow, and the external icon. Gated on the user having a
+  // an open-in-new-tab icon). It stays distinct from the SELECTED nav tab (a
+  // mono-uppercase green underline) via sentence-case sans type, the soft fill,
+  // the shadow, and the external icon. Gated on the user having a
   // default key — Chat needs one to authenticate; a default is never auto-assigned
   // (explicit-only), so when none exists it renders disabled with a hint.
   const { data: keys } = useKeys();
@@ -136,7 +128,7 @@ export function AppShell({ me, config }: AppShellProps) {
   ];
   const gateTitle = 'You need a default key — set one on the Keys tab';
   const disabledNavClass =
-    'cursor-not-allowed rounded-md px-2.5 py-1 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider text-text-tertiary';
+    'cursor-not-allowed border-b-2 border-transparent px-1 py-1.5 font-mono text-[11px] font-semibold uppercase leading-none tracking-wider text-text-tertiary';
 
   // Service-status indicator (D-02/D-03). An external link when config.links.status
   // is set, else a connected pulse-dot "operational" label. Moved OUT of the
@@ -211,13 +203,11 @@ export function AppShell({ me, config }: AppShellProps) {
 
         <BrandLockup config={config} className="text-sm" />
 
-        {/* Desktop: inline segmented-pill menu. Items are joined by a thin "|"
-            so the group reads as one menu, KEYS | MODELS | …. `end` on Keys
+        {/* Desktop: inline underline tab strip, KEYS  MODELS  …. `end` on Keys
             keeps it active ONLY on the exact "/" route, not nested paths. */}
-        <nav aria-label="Primary" className="hidden items-center gap-0.5 md:flex">
-          {navItems.map((item, i) => (
+        <nav aria-label="Primary" className="hidden items-center gap-4 md:flex lg:gap-5">
+          {navItems.map((item) => (
             <Fragment key={item.to}>
-              {i > 0 && <NavSep />}
               {item.gated && !hasDefault ? (
                 <span aria-disabled="true" title={gateTitle} className={disabledNavClass}>
                   {item.label}

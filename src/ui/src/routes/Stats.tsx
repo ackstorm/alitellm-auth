@@ -148,12 +148,12 @@ export function Stats() {
   const header = (
     <div className="flex flex-wrap items-start justify-between gap-5">
       <div>
-        <div className="font-sans text-2xl font-semibold leading-snug text-text-primary">
+        <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
           {PAGE_TITLE}
-        </div>
-        <div className="mt-1 font-sans text-sm text-text-secondary">
+        </h1>
+        <p className="mt-1 max-w-2xl font-sans text-sm text-text-secondary">
           {PAGE_SUB}
-        </div>
+        </p>
       </div>
       <DateRange
         preset={preset}

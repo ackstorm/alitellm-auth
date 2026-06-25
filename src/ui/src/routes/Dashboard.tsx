@@ -55,7 +55,7 @@ export interface DashboardProps {
 function EndpointChip({ endpoint }: { endpoint: string }) {
   const { copied, copy } = useCopyFeedback();
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-2">
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-2">
       <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
         endpoint
       </div>
@@ -94,7 +94,7 @@ function MetricTile({
   icon: typeof Key;
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-5">
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
       <div className="flex items-center gap-2">
         <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg border border-border">
           <Icon className="size-[15px] text-primary" aria-hidden="true" />
@@ -131,7 +131,7 @@ function BudgetBar({
 
   if (maxBudget === null || maxBudget <= 0) {
     return (
-      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-5">
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
         <div className="flex items-baseline justify-between gap-3">
           <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
             Account budget
@@ -151,7 +151,7 @@ function BudgetBar({
   const fillPct = Math.max(0, Math.min(1, ratio)) * 100;
 
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-5">
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
           Account budget

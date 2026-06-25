@@ -16,9 +16,18 @@ import { RequiresDefaultKey } from '@/components/layout/RequiresDefaultKey';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useA2a } from '@/hooks/use-a2a';
+import { useSessionStore } from '@/stores/session';
 import type { A2aAgentRow } from '@/lib/api-types';
 
 const EM_DASH = '—';
+
+// Where to invoke an A2A agent: the gateway base (me.endpoint, e.g.
+// https://api.<domain>) + /a2a/<name>. Mirrors HowTo's apiBase fallback so the
+// card still shows a sensible host before the session endpoint resolves.
+const FALLBACK_API_BASE = 'https://api.your-domain.example';
+
+// LiteLLM how-to for calling A2A agents (shown as a header link).
+const A2A_DOCS_URL = 'https://docs.litellm.ai/docs/a2a_invoking_agents';
 
 const PAGE_TITLE = 'A2A';
 const PAGE_SUB =
@@ -52,7 +61,11 @@ function MetaChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AgentCard({ agent }: { agent: A2aAgentRow }) {
+function AgentCard({ agent, apiBase }: { agent: A2aAgentRow; apiBase: string }) {
+  // The public invoke URL on the gateway: {BASE}/a2a/{name}. Falls back to the
+  // agent id when the card omits a name; the row is dropped only if both are absent.
+  const slug = agent.name ?? agent.id;
+  const invokeUrl = slug ? `${apiBase}/a2a/${slug}` : null;
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-5">
       {/* Head: name + version */}
@@ -75,11 +88,11 @@ function AgentCard({ agent }: { agent: A2aAgentRow }) {
         </p>
       )}
 
-      {/* Endpoint URL */}
-      {agent.url && (
+      {/* Invoke URL — {BASE}/a2a/{name} on the gateway */}
+      {invokeUrl && (
         <div className="flex items-center gap-1.5 break-all font-mono text-[11px] text-text-tertiary">
           <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
-          {agent.url}
+          {invokeUrl}
         </div>
       )}
 
@@ -124,6 +137,8 @@ export function A2a() {
   // it). No default → render the prompt and DON'T fetch (useA2a disabled).
   const hasDefault = useHasDefaultKey();
   const query = useA2a(hasDefault);
+  const me = useSessionStore((s) => s.me);
+  const apiBase = me?.endpoint || FALLBACK_API_BASE;
   const header = (
     <div>
       <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
@@ -132,6 +147,15 @@ export function A2a() {
       <p className="mt-1 max-w-2xl font-sans text-sm text-text-secondary">
         {PAGE_SUB}
       </p>
+      <a
+        href={A2A_DOCS_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-primary transition-colors hover:text-text-primary"
+      >
+        <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
+        How to invoke A2A agents
+      </a>
     </div>
   );
 
@@ -188,7 +212,7 @@ export function A2a() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {agents.map((a, i) => (
-            <AgentCard key={a.id ?? i} agent={a} />
+            <AgentCard key={a.id ?? i} agent={a} apiBase={apiBase} />
           ))}
         </div>
       )}

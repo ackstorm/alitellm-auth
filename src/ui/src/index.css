@@ -83,7 +83,7 @@
   --surface-hover: oklch(0.955 0.005 260);
   --accent-bright: oklch(0.5 0.18 150);
   --success: oklch(0.58 0.17 155);
-  --warning: oklch(0.62 0.15 75);
+  --warning: oklch(0.70 0.18 58);
   --error: oklch(0.55 0.22 25);
 
   /* shadcn variables mapped to the light theme */
@@ -143,7 +143,7 @@
   --surface-hover: oklch(0.96 0.024 320);
   --accent-bright: oklch(0.72 0.18 330);
   --success: oklch(0.7 0.13 165);
-  --warning: oklch(0.8 0.12 75);
+  --warning: oklch(0.74 0.17 60);
   --error: oklch(0.64 0.19 18);
 
   /* shadcn variables mapped to the pastel theme */
@@ -206,7 +206,7 @@
   --surface-hover: oklch(0.955 0.008 277);
   --accent-bright: oklch(0.6 0.21 22);
   --success: oklch(0.62 0.11 188); /* Izertis teal #23b4aa */
-  --warning: oklch(0.66 0.15 80); /* Izertis gold #ffbc11, deepened */
+  --warning: oklch(0.73 0.17 65); /* Izertis gold #ffbc11, brightened toward orange (low-L hue-80 read brown) */
   --error: oklch(0.564 0.223 28); /* deep red #da1414 */
 
   /* shadcn variables mapped to the red theme */

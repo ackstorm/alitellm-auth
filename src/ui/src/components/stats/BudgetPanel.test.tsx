@@ -20,7 +20,7 @@ describe('BudgetPanel', () => {
       has_budget: true,
     };
     const { getByText, container } = render(<BudgetPanel budget={budget} />);
-    expect(getByText('BUDGET STATUS')).toBeInTheDocument();
+    expect(getByText('ACCOUNT BUDGET')).toBeInTheDocument();
     // The figure carries the budget PERIOD ("/ 30d") in a child span, so match on
     // the amount span's full textContent.
     expect(
@@ -49,7 +49,7 @@ describe('BudgetPanel', () => {
       has_budget: false,
     };
     const { getByText, container } = render(<BudgetPanel budget={budget} />);
-    expect(getByText('BUDGET STATUS')).toBeInTheDocument();
+    expect(getByText('ACCOUNT BUDGET')).toBeInTheDocument();
     expect(getByText('$8.00 spent · no budget set')).toBeInTheDocument();
     // No bar in the no-budget state.
     expect(container.querySelector('[data-slot="budget-fill"]')).toBeNull();

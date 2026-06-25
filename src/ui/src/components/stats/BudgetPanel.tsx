@@ -25,8 +25,10 @@ import type { StatsBudget } from '@/lib/api-types';
 import { budgetFillClass } from '@/lib/budget';
 import { formatCurrency } from '@/lib/format';
 
-// Locked copy (13-UI-SPEC §Copywriting Contract / §7).
-const SECTION_LABEL = 'BUDGET STATUS';
+// "ACCOUNT BUDGET" matches the Dashboard BudgetBar label verbatim (the bar is
+// the same enforced per-member budget) — was "BUDGET STATUS", the wording drift
+// flagged in the design review.
+const SECTION_LABEL = 'ACCOUNT BUDGET';
 
 export interface BudgetPanelProps {
   /** The Phase-12 `budget` slice {current, max_budget, source, pct, has_budget}. */
@@ -50,7 +52,7 @@ export function BudgetPanel({ budget }: BudgetPanelProps): React.ReactElement {
       <div
         data-slot="budget-panel"
         data-state="none"
-        className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-5"
+        className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5"
       >
         <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
           {SECTION_LABEL}
@@ -76,7 +78,7 @@ export function BudgetPanel({ budget }: BudgetPanelProps): React.ReactElement {
     <div
       data-slot="budget-panel"
       data-state={over ? 'over' : 'ok'}
-      className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-5"
+      className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5"
     >
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
