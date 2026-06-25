@@ -2,6 +2,16 @@
 
 ## [unreleased]
 
+## [0.5.22] - 2026-06-25
+
+### Added
+
+- **TOTAL TOKENS now shows the input/output split.** The card's headline total is dominated by (mostly cached) input tokens, so it was misleading on its own — a single "863M" hid that ~99% was input and most of that was cache reads. The card now spells out the breakdown beneath the total: `856M in · 6.8M out · 93% cached`. The stats API exposes `input_tokens`/`output_tokens` on the window totals (from LiteLLM `total_prompt_tokens`/`total_completion_tokens`).
+
+### Changed
+
+- **Unified the in-page segmented-selector styling.** The Stats date-range presets, the How-to tool/variant tabs, and the MCP section tabs now share one set of active/idle pill tokens (`lib/ui.ts`), so the selected-state treatment no longer drifts per route. KPI tiles also gain leading icons matching the dashboard, plus related Stats/Dashboard/nav polish.
+
 ## [0.5.21] - 2026-06-25
 
 ### Fixed
