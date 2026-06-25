@@ -135,7 +135,22 @@ async def sso_key_swapper(request: Request, api_key: str):
             code=403,
         )
 
-    # 3) Impersonate the default key.
+    # 3) Resolve the team's model access. Native auth populates
+    #    UserAPIKeyAuth.team_models from the team row; we hand-build the object, so
+    #    we must do the same. Without it, a key whose models is empty or
+    #    ["all-team-models"] resolves to NO restriction, and the catalog routes
+    #    (/v1/models, /model_group/info) fall through to the FULL proxy model list
+    #    -> every user sees the global admin catalog (visibility leak / scoping
+    #    silently degrades to admin).
+    team_models: list = []
+    if target_key.team_id:
+        team = await db.litellm_teamtable.find_unique(
+            where={"team_id": target_key.team_id}
+        )
+        if team is not None and team.models:
+            team_models = list(team.models)
+
+    # 4) Impersonate the default key.
     return UserAPIKeyAuth(
         api_key=target_key.token,
         key_name=target_key.key_name,
@@ -144,6 +159,7 @@ async def sso_key_swapper(request: Request, api_key: str):
         user_id=target_key.user_id,
         team_id=target_key.team_id,
         models=target_key.models or [],
+        team_models=team_models,
         max_budget=target_key.max_budget,
         spend=target_key.spend or 0.0,
         tpm_limit=target_key.tpm_limit,
