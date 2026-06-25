@@ -2,6 +2,13 @@
 
 ## [unreleased]
 
+## [0.5.21] - 2026-06-25
+
+### Fixed
+
+- **Stats no longer under-report usage for multi-page windows.** The Usage & Spend totals (requests, tokens, spend) and the dashboard's "Requests (MTD)" tile read the window total from LiteLLM's `/user/daily/activity` response metadata, on the assumption it was aggregated across the whole range. On LiteLLM v1.89.2 that metadata is only a *per-page* partial, so any window large enough to paginate showed the last (oldest) page's slice — e.g. a month-to-date figure surfaced 220 of 10,588 real requests and 5.59M of 850M tokens, while the 7-day figure (which fit one page) was correct. The per-page totals are now summed across every fetched page (boundary days split cleanly across pages, so there is no double-counting).
+- **The per-user model catalog is now scoped to the user's team, not the global admin list.** The console's Models page calls LiteLLM with the master key plus an `x-user-id` header; the gateway custom auth impersonates the user's default key. The hand-built impersonation identity omitted `team_models`, so a key whose models are `["all-team-models"]` resolved to *no* restriction and the catalog routes (`/v1/models`, `/model_group/info`) returned the full proxy model list — every user saw the entire admin catalog. The impersonation identity now carries the team's model access, so the catalog matches what the user's own key returns. (Canonical copy of the gateway `auth_user_map` custom auth; the live fix is deployed separately on the LiteLLM proxy.)
+
 ## [0.5.20] - 2026-06-19
 
 ### Changed
