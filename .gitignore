@@ -25,6 +25,10 @@ src/api/coverage.xml
 
 # BEGIN ach-cli — agent config with embedded credentials, do not commit
 .ach/
+.agents/
 .claude/
+.codex/
+.opencode/
+opencode.jsonc
 .mcp.json
 # END ach-cli
