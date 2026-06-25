@@ -1189,11 +1189,16 @@ async def test_user_daily_activity():
 @pytest.mark.asyncio
 @respx.mock
 async def test_two_page_daily_activity():
-    """Plan 12-02: a multi-page has_more response is concatenated across pages.
+    """Plan 12-02: a multi-page has_more response is concatenated across pages AND
+    its window totals are summed across pages.
 
-    The spike could not reproduce has_more=true on low-traffic prod, so this is a
-    SYNTHETIC two-page test: page 1 has_more=true, page 2 has_more=false. The
-    bounded loop must accumulate results[] across both pages.
+    SYNTHETIC two-page test: page 1 has_more=true, page 2 has_more=false. Modeled on
+    the REAL v1.89.2 behaviour confirmed live — metadata.total_* is a per-PAGE partial
+    (the sum of that page's day-rows), NOT a full-range aggregate. The bounded loop
+    must accumulate results[] across both pages AND sum the per-page total_* so the
+    window total is correct (the old code kept only the LAST page's partial, which
+    surfaced e.g. as a month-to-date figure showing the oldest page's 220 of 10588
+    real requests).
     """
     from app.litellm_client import user_daily_activity
 
@@ -1204,9 +1209,10 @@ async def test_two_page_daily_activity():
             {"date": "2026-06-01", "metrics": {"spend": 0.1, "api_requests": 1}},
             {"date": "2026-06-02", "metrics": {"spend": 0.2, "api_requests": 2}},
         ],
+        # Per-page partial: spend/req of THIS page's two rows only.
         "metadata": {
-            "total_spend": 0.6,
-            "total_api_requests": 6,
+            "total_spend": 0.3,
+            "total_api_requests": 3,
             "page": 1,
             "total_pages": 2,
             "has_more": True,
@@ -1216,9 +1222,10 @@ async def test_two_page_daily_activity():
         "results": [
             {"date": "2026-06-03", "metrics": {"spend": 0.3, "api_requests": 3}},
         ],
+        # Per-page partial: spend/req of THIS page's single row only.
         "metadata": {
-            "total_spend": 0.6,
-            "total_api_requests": 6,
+            "total_spend": 0.3,
+            "total_api_requests": 3,
             "page": 2,
             "total_pages": 2,
             "has_more": False,
@@ -1239,8 +1246,11 @@ async def test_two_page_daily_activity():
     # Page 1 (2 results) + page 2 (1 result) concatenated.
     assert len(result["results"]) == 3
     assert [r["date"] for r in result["results"]] == ["2026-06-01", "2026-06-02", "2026-06-03"]
-    # Window totals taken from metadata (LiteLLM pre-aggregates across the range).
-    assert result["metadata"]["total_spend"] == 0.6
+    # Window totals are SUMMED across pages: 0.3 + 0.3 spend, 3 + 3 requests.
+    assert result["metadata"]["total_spend"] == pytest.approx(0.6)
+    assert result["metadata"]["total_api_requests"] == 6
+    # total_pages is paging bookkeeping, NOT a window total — it must not be summed.
+    assert result["metadata"]["total_pages"] == 2
     # H6: page param passed via params={}, not f-string.
     params = dict(route.calls.last.request.url.params)
     assert params.get("user_id") == "alice@example.com"

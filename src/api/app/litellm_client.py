@@ -629,9 +629,10 @@ async def user_daily_activity(
     Follows pagination with a bounded page loop (mirrors list_litellm_users): a
     max-range window (RESEARCH §4: up to 366 days) must not be silently truncated
     when LiteLLM returns metadata.has_more=true. results[] are concatenated across
-    pages; the returned metadata is the LAST page's block — LiteLLM already
-    aggregates window totals (total_spend/total_tokens/total_api_requests) across
-    the full range, so the totals are correct regardless of the page count.
+    pages; the returned metadata.total_* are SUMMED across every page. LiteLLM's
+    per-response metadata.total_* is only a per-PAGE partial (it sums the day-rows on
+    that page), NOT a full-range aggregate, so the window total must be accumulated
+    page by page — see the summed_totals loop below.
 
     Used by GET /api/session/stats.
 
@@ -652,6 +653,14 @@ async def user_daily_activity(
     page = 1
     accumulated: list = []
     last_metadata: dict = {}
+    # Window totals MUST be summed across pages. LiteLLM's metadata.total_* is a
+    # PER-PAGE partial (it sums only the day-rows on THIS page), NOT the full-range
+    # aggregate the old code assumed — verified live on v1.89.2: a multi-page window
+    # returned the LAST page's partial as the "total" (MTD showed page 4 = 220 of
+    # 10588 real requests; a single-page window like 7d was correct by luck). Days
+    # that straddle a page boundary are SPLIT across pages, so the per-page partials
+    # add up to the exact window total with no double-counting.
+    summed_totals: dict[str, float] = {}
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
         while True:
@@ -680,6 +689,16 @@ async def user_daily_activity(
             metadata = data.get("metadata", {}) if isinstance(data, dict) else {}
             if isinstance(metadata, dict):
                 last_metadata = metadata
+                for field, value in metadata.items():
+                    # Sum the numeric total_* counters only; total_pages is paging
+                    # bookkeeping, not a window total, and bools must not coerce to 1.
+                    if (
+                        field.startswith("total_")
+                        and field != "total_pages"
+                        and isinstance(value, (int, float))
+                        and not isinstance(value, bool)
+                    ):
+                        summed_totals[field] = summed_totals.get(field, 0) + value
 
             if not last_metadata.get("has_more"):
                 break
@@ -694,7 +713,11 @@ async def user_daily_activity(
                 )
                 break
 
-    return {"results": accumulated, "metadata": last_metadata}
+    # Overlay the summed window totals on the last page's metadata so total_* reflect
+    # the FULL range while page/has_more bookkeeping is preserved. For a single-page
+    # window summed_totals == that page's totals, so behaviour is unchanged there.
+    merged_metadata = {**last_metadata, **summed_totals}
+    return {"results": accumulated, "metadata": merged_metadata}
 
 
 async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:

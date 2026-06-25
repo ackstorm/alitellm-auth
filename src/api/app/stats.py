@@ -137,7 +137,9 @@ def _zero_fill_series(
 def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     """Fold ONE daily-activity window into window totals + series + per-model/per-key.
 
-    Window totals come from ``data["metadata"]`` (LiteLLM pre-aggregates the range).
+    Window totals come from ``data["metadata"]``, whose ``total_*`` are summed
+    across all pages by ``user_daily_activity`` (LiteLLM's per-response metadata is
+    only a per-page partial, NOT a full-range aggregate).
     ``series`` is one entry per ``results[]`` day. Per-model and per-key metrics are
     summed ACROSS days from each ``results[].breakdown.models`` /
     ``results[].breakdown.api_keys`` (the breakdowns are per-day; the window total
