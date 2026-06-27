@@ -556,9 +556,7 @@ async def test_generate_key_uses_explicit_team_id():
         return_value=httpx.Response(200, json={"key": "sk-new", "key_id": "key-run"})
     )
 
-    result = await generate_litellm_key(
-        "alice@example.com", settings, name="Alice", team_id="run"
-    )
+    result = await generate_litellm_key("alice@example.com", settings, name="Alice", team_id="run")
 
     key_body = _json_body(key_route)
     assert key_body["team_id"] == "run"
