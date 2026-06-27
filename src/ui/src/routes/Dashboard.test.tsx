@@ -20,7 +20,14 @@ vi.mock('@/hooks/use-keys', () => ({
   useDeleteKey: vi.fn(),
   useMakeDefault: vi.fn(),
   useToggleKeyBlock: vi.fn(),
+  useChangeKeyTeam: vi.fn(),
   KEYS_QUERY_KEY: ['session', 'keys'],
+}));
+
+// KeysTable (mounted by the dashboard) reads useTeams to gate its Change-team
+// action — mock it to [] so the dashboard test renders without a QueryClient.
+vi.mock('@/hooks/use-teams', () => ({
+  useTeams: vi.fn(() => ({ data: [] })),
 }));
 
 // useStats backs the "Requests (MTD)" tile — mocked so no real fetch fires (the
@@ -30,7 +37,13 @@ vi.mock('@/hooks/use-stats', () => ({
   useStats: vi.fn(),
 }));
 
-import { useDeleteKey, useKeys, useMakeDefault, useToggleKeyBlock } from '@/hooks/use-keys';
+import {
+  useChangeKeyTeam,
+  useDeleteKey,
+  useKeys,
+  useMakeDefault,
+  useToggleKeyBlock,
+} from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
 import { Dashboard } from './Dashboard';
 import { formatCurrency } from '@/lib/format';
@@ -48,6 +61,7 @@ const useKeysMock = vi.mocked(useKeys);
 const useDeleteKeyMock = vi.mocked(useDeleteKey);
 const useMakeDefaultMock = vi.mocked(useMakeDefault);
 const useToggleKeyBlockMock = vi.mocked(useToggleKeyBlock);
+const useChangeKeyTeamMock = vi.mocked(useChangeKeyTeam);
 const useStatsMock = vi.mocked(useStats);
 
 // Build a valid SessionMe fixture with overrides.
@@ -130,6 +144,11 @@ beforeEach(() => {
     mutate: vi.fn(),
     isPending: false,
   } as unknown as ReturnType<typeof useToggleKeyBlock>);
+  // Default the change-team mutation to a no-op.
+  useChangeKeyTeamMock.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+  } as unknown as ReturnType<typeof useChangeKeyTeam>);
   // Default stats to a non-success state — the Requests (MTD) tile shows EM_DASH.
   useStatsMock.mockReturnValue({
     data: undefined,
