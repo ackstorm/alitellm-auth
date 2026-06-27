@@ -1528,6 +1528,14 @@ def test_project_session_key_default_false_when_flag_absent():
     assert out["is_default"] is False
 
 
+def test_project_session_key_includes_team_id():
+    from app.litellm_client import _project_session_key
+
+    row = {"token": "h", "team_id": "run", "metadata": {}}
+    out = _project_session_key(row, {})
+    assert out["team_id"] == "run"
+
+
 # ---------------------------------------------------------------------------
 # A2: set_litellm_key_default — write path (/key/update metadata merge)
 # ---------------------------------------------------------------------------

@@ -518,6 +518,7 @@ def _project_session_key(k: dict, md: dict) -> dict:
         "tpm_limit": k.get("tpm_limit"),
         "rpm_limit": k.get("rpm_limit"),
         "models": k.get("models"),
+        "team_id": k.get("team_id"),  # NEW — which team this key is scoped to
         "created_at": md.get("created_at") or k.get("created_at"),
         "expires": k.get("expires"),
         # LiteLLM's per-key last-used timestamp (same field whoami surfaces). May be
@@ -544,6 +545,7 @@ _EMPTY_SESSION_KEY = {
     "tpm_limit": None,
     "rpm_limit": None,
     "models": None,
+    "team_id": None,  # NEW
     "created_at": None,
     "expires": None,
     "last_used": None,
