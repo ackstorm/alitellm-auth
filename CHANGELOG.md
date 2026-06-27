@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.23] - 2026-06-27
+
 ### Added
 
 - **Per-user multi-team support.** A user who belongs to more than one LiteLLM team can now see all of their teams and place virtual keys in any of them. The dashboard TEAM tile lists every member team as pills, the keys table shows each key's team in a new second column, the create-key modal gains a team picker, and a key's team can be changed after the fact from its per-key `⋯` menu. New endpoint `GET /api/session/teams` lists the signed-in user's teams; `POST /api/session/keys` now accepts an optional `team_id`; `POST /api/session/keys/{id}/team` moves an existing key. Every team choice is validated server-side against the user's real LiteLLM memberships — a key can never be placed in a team the user does not belong to (the email is always the authenticated session identity, never client input). NOTE: the per-user Models/MCP catalog is still scoped to the user's default-key team rather than the per-key team; per-team catalog scoping (an `x-user-id`/`sso_key_swapper` change) is a separate follow-up.
