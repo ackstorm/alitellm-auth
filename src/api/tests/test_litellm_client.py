@@ -537,6 +537,36 @@ async def test_generate_litellm_key_scopes_key_to_user():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_generate_key_uses_explicit_team_id():
+    """An explicit team_id (validated by the caller) reaches the /key/generate
+    payload AND the returned dict, overriding the per-deployment default team."""
+    settings = make_settings()
+    assert settings.team_id == "default"  # guard: "run" must differ from the default
+
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "run"})
+    )
+    respx.post("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+    key_route = respx.post("http://litellm.test/key/generate").mock(
+        return_value=httpx.Response(200, json={"key": "sk-new", "key_id": "key-run"})
+    )
+
+    result = await generate_litellm_key(
+        "alice@example.com", settings, name="Alice", team_id="run"
+    )
+
+    key_body = _json_body(key_route)
+    assert key_body["team_id"] == "run"
+    assert result["team_id"] == "run"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_list_litellm_keys_raises_when_string_key_hydration_fails():
     """WR-06: a hydration failure on a string key must not be silently swallowed.
 

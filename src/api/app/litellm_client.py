@@ -267,6 +267,7 @@ async def ensure_team_and_user(
     settings: Settings,
     name: str | None = None,
     factory: dict | None = None,
+    team_id: str | None = None,
 ) -> str:
     """Idempotently ensure the shared team, access group, and LiteLLM user exist.
 
@@ -288,7 +289,7 @@ async def ensure_team_and_user(
     On subsequent logins/key-mints the cap is left untouched so a manually-raised
     max_budget_in_team is not silently clobbered back to the factory default.
     """
-    team_id = settings.team_id
+    team_id = team_id or settings.team_id
     headers = _admin_headers(settings)
 
     if factory is None:
@@ -304,7 +305,7 @@ async def ensure_team_and_user(
             headers=headers,
             json={
                 **team_extra,  # configmap overrides (D-20: team:{} so no team budget)
-                "team_id": team_id,  # always wins — not overridable
+                "team_id": team_id,  # validated team choice, else default
                 "team_alias": settings.litellm_default_team,
                 "metadata": {"source": "token-factory", **team_meta_extra},
             },
@@ -388,6 +389,7 @@ async def generate_litellm_key(
     name: str | None = None,
     duration: str | None = None,
     alias: str | None = None,
+    team_id: str | None = None,
 ) -> dict:
     """
     Ensure the shared org team/user exist (idempotent) and generate a virtual key.
@@ -423,7 +425,9 @@ async def generate_litellm_key(
 
     # Steps A, B, A2: ensure team → access group → user (shared prerequisite, D-13).
     # Reuse the factory dict loaded above so the disk read happens once per mint (#11).
-    team_id = await ensure_team_and_user(email, settings, name=name, factory=factory)
+    team_id = await ensure_team_and_user(
+        email, settings, name=name, factory=factory, team_id=team_id
+    )
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
         # Re-resolve access_group_id for the key payload (needed for access_group_ids field).
@@ -449,7 +453,7 @@ async def generate_litellm_key(
             # default so the per-user catalog (/model_group/info) works; the
             # invariant fields below always win over anything factory supplies.
             **factory_key_extra,
-            "team_id": team_id,  # always wins — not overridable
+            "team_id": team_id,  # validated team choice, else default
             "user_id": email,  # scope key to LiteLLM user (USER-02)
             "access_group_ids": [access_group_id] if access_group_id else [],
             "key_alias": key_alias,  # opaque lk-{random} (globally unique)
