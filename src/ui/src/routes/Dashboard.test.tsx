@@ -45,6 +45,7 @@ import {
   useToggleKeyBlock,
 } from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
+import { useTeams } from '@/hooks/use-teams';
 import { Dashboard } from './Dashboard';
 import { formatCurrency } from '@/lib/format';
 import {
@@ -63,6 +64,7 @@ const useMakeDefaultMock = vi.mocked(useMakeDefault);
 const useToggleKeyBlockMock = vi.mocked(useToggleKeyBlock);
 const useChangeKeyTeamMock = vi.mocked(useChangeKeyTeam);
 const useStatsMock = vi.mocked(useStats);
+const useTeamsMock = vi.mocked(useTeams);
 
 // Build a valid SessionMe fixture with overrides.
 function makeMe(overrides: Partial<SessionMe> = {}): SessionMe {
@@ -156,6 +158,9 @@ beforeEach(() => {
     isPending: true,
     isError: false,
   } as unknown as ReturnType<typeof useStats>);
+  // Default teams to empty so the Team tile falls back to me.team_id; the
+  // multi-team test overrides this per-test.
+  useTeamsMock.mockReturnValue({ data: [] } as unknown as ReturnType<typeof useTeams>);
 });
 
 afterEach(() => {
@@ -176,6 +181,19 @@ describe('Dashboard — top row + tiles', () => {
     setKeysSuccess([]);
     render(<Dashboard me={makeMe({ team_id: 'team-platform' })} />);
     expect(screen.getByText('team-platform')).toBeInTheDocument();
+  });
+
+  it('Team tile lists all member team aliases when useTeams returns teams', () => {
+    setKeysSuccess([]);
+    useTeamsMock.mockReturnValue({
+      data: [
+        { id: 'a', alias: 'Alpha' },
+        { id: 'b', alias: 'Bravo' },
+        { id: 'c', alias: 'Charlie' },
+      ],
+    } as unknown as ReturnType<typeof useTeams>);
+    render(<Dashboard me={makeMe({ team_id: 'team-platform' })} />);
+    expect(screen.getByText('Alpha, Bravo, Charlie')).toBeInTheDocument();
   });
 
   it('Spend MTD shows formatCurrency(me.spend.current)', () => {

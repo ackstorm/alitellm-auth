@@ -26,6 +26,7 @@ import { KeysTable } from '@/components/keys/KeysTable';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useKeys } from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
+import { useTeams } from '@/hooks/use-teams';
 import type {
   KeyRow,
   SessionLimits,
@@ -177,6 +178,7 @@ function BudgetBar({
 
 export function Dashboard({ me }: DashboardProps) {
   const query = useKeys();
+  const { data: teams } = useTeams();
   const openModal = useCreateKeyModalStore((s) => s.openModal);
 
   // The dashboard owns the delete target; KeysTable's per-row revoke action
@@ -212,7 +214,13 @@ export function Dashboard({ me }: DashboardProps) {
   // Spend MTD uses the documented me.spend.current fallback from dashboard.js;
   // the stats-window total replaces it in Phase 4.
   const spendValue = formatCurrency(me.spend.current);
-  const teamValue = me.team_id || EM_DASH;
+  // Team tile lists ALL the user's member teams (read-only — no active-team
+  // switching). Falls back to the single me.team_id, then EM_DASH, when the
+  // teams query is empty/unavailable.
+  const teamValue =
+    teams && teams.length
+      ? teams.map((t) => t.alias).join(', ')
+      : me.team_id || EM_DASH;
 
   return (
     <div className="flex flex-col gap-8">
