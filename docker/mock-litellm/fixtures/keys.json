@@ -9,7 +9,9 @@
     "rpm_limit": 100,
     "max_budget": null,
     "budget_duration": null,
-    "models": ["all-team-models"],
+    "models": [
+      "all-team-models"
+    ],
     "expires": null,
     "created_at": "2026-04-01T09:12:44.000000Z",
     "last_active": "2026-06-06T06:25:06.024000Z",
@@ -26,13 +28,15 @@
     "token": "hash-key-staging-bot-7d088cd118b928630a03f2317195b8b1f",
     "key_alias": "staging-bot",
     "user_id": "alice@example.com",
-    "team_id": "team-platform",
+    "team_id": "run",
     "spend": 3.0102,
     "tpm_limit": 500000,
     "rpm_limit": 60,
     "max_budget": null,
     "budget_duration": null,
-    "models": ["all-team-models"],
+    "models": [
+      "all-team-models"
+    ],
     "expires": "2026-12-31T23:59:59.000000Z",
     "created_at": "2026-04-18T14:30:10.000000Z",
     "last_active": "2026-05-30T11:02:18.000000Z",
@@ -54,7 +58,9 @@
     "rpm_limit": 30,
     "max_budget": null,
     "budget_duration": null,
-    "models": ["all-team-models"],
+    "models": [
+      "all-team-models"
+    ],
     "expires": null,
     "created_at": "2026-05-22T08:05:55.000000Z",
     "last_active": "2026-06-04T19:47:33.000000Z",
@@ -70,13 +76,15 @@
     "token": "hash-key-notebook-036f24a2ac987e55dadfa77400ce2546",
     "key_alias": "notebook-scratch",
     "user_id": "alice@example.com",
-    "team_id": "team-platform",
+    "team_id": "dream",
     "spend": 0.0,
     "tpm_limit": 100000,
     "rpm_limit": 30,
     "max_budget": null,
     "budget_duration": null,
-    "models": ["all-team-models"],
+    "models": [
+      "all-team-models"
+    ],
     "expires": null,
     "created_at": "2026-06-01T17:44:02.000000Z",
     "last_active": null,
