@@ -32,6 +32,7 @@ import type {
   SessionLimits,
   SessionMe,
   SessionSpend,
+  Team,
 } from '@/lib/api-types';
 import { budgetFillClass } from '@/lib/budget';
 import { abbreviate, formatCurrency, formatInt } from '@/lib/format';
@@ -107,6 +108,43 @@ function MetricTile({
       <div className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
         {value}
       </div>
+    </div>
+  );
+}
+
+// ── TeamTile ─────────────────────────────────────────────────────────────────
+// The TEAM tile (DASH-06). A user may belong to several teams, so a single
+// 24px value would wrap into an unreadable multi-line blob. With ≥2 teams the
+// aliases render as compact muted pills (a wrapped row); with 0/1 team it keeps
+// the single 24px value look of the other tiles (falling back to me.team_id).
+function TeamTile({ teams, fallback }: { teams: Team[]; fallback: string }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg border border-border">
+          <Users className="size-[15px] text-primary" aria-hidden="true" />
+        </span>
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+          Team
+        </div>
+      </div>
+      {teams.length > 1 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {teams.map((t) => (
+            <span
+              key={t.id}
+              data-slot="team-pill"
+              className="inline-flex items-center rounded-md border border-border bg-surface-elevated px-2 py-0.5 font-sans text-xs font-medium text-text-secondary"
+            >
+              {t.alias}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
+          {teams[0]?.alias || fallback}
+        </div>
+      )}
     </div>
   );
 }
@@ -217,10 +255,6 @@ export function Dashboard({ me }: DashboardProps) {
   // Team tile lists ALL the user's member teams (read-only — no active-team
   // switching). Falls back to the single me.team_id, then EM_DASH, when the
   // teams query is empty/unavailable.
-  const teamValue =
-    teams && teams.length
-      ? teams.map((t) => t.alias).join(', ')
-      : me.team_id || EM_DASH;
 
   return (
     <div className="flex flex-col gap-8">
@@ -237,7 +271,7 @@ export function Dashboard({ me }: DashboardProps) {
         <MetricTile label="Active keys" value={activeKeys} icon={Key} />
         <MetricTile label="Requests (MTD)" value={requestsValue} icon={BarChart3} />
         <MetricTile label="Spend (MTD)" value={spendValue} icon={DollarSign} />
-        <MetricTile label="Team" value={teamValue} icon={Users} />
+        <TeamTile teams={teams ?? []} fallback={me.team_id || EM_DASH} />
       </div>
 
       {/* DASH-06: account budget bar */}

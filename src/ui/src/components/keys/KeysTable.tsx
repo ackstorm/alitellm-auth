@@ -190,6 +190,13 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       sortAccessor: (row) => row.key_alias || row.id,
     },
     {
+      key: 'team',
+      header: 'Team',
+      className: 'font-mono text-xs whitespace-nowrap',
+      cell: (row) => teamAlias(row.team_id),
+      sortAccessor: (row) => teamAlias(row.team_id),
+    },
+    {
       key: 'created',
       header: 'Created',
       className: 'font-mono text-xs whitespace-nowrap',
@@ -209,13 +216,6 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       className: 'font-mono text-xs whitespace-nowrap',
       cell: (row) => (row.expires == null ? 'Never' : formatDate(row.expires)),
       sortAccessor: (row) => row.expires,
-    },
-    {
-      key: 'team',
-      header: 'Team',
-      className: 'font-mono text-xs whitespace-nowrap',
-      cell: (row) => teamAlias(row.team_id),
-      sortAccessor: (row) => teamAlias(row.team_id),
     },
     {
       key: 'status',

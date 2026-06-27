@@ -183,7 +183,7 @@ describe('Dashboard — top row + tiles', () => {
     expect(screen.getByText('team-platform')).toBeInTheDocument();
   });
 
-  it('Team tile lists all member team aliases when useTeams returns teams', () => {
+  it('Team tile lists all member team aliases as pills when useTeams returns teams', () => {
     setKeysSuccess([]);
     useTeamsMock.mockReturnValue({
       data: [
@@ -193,7 +193,10 @@ describe('Dashboard — top row + tiles', () => {
       ],
     } as unknown as ReturnType<typeof useTeams>);
     render(<Dashboard me={makeMe({ team_id: 'team-platform' })} />);
-    expect(screen.getByText('Alpha, Bravo, Charlie')).toBeInTheDocument();
+    // Each alias renders as its own pill (not a comma-joined blob).
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Bravo')).toBeInTheDocument();
+    expect(screen.getByText('Charlie')).toBeInTheDocument();
   });
 
   it('Spend MTD shows formatCurrency(me.spend.current)', () => {
