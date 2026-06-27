@@ -14,7 +14,15 @@ vi.mock('@/hooks/use-keys', () => ({
   useCreateKey: vi.fn(),
 }));
 
+// Mock the teams hook — each test programs the team list (default [] so the
+// picker is hidden, mirroring the single-team fallback).
+vi.mock('@/hooks/use-teams', () => ({
+  useTeams: vi.fn(),
+}));
+
 import { useCreateKey } from '@/hooks/use-keys';
+import { useTeams } from '@/hooks/use-teams';
+import type { Team } from '@/lib/api-types';
 import { CreateKeyModal } from './CreateKeyModal';
 import { ALIAS_ERROR, DURATION_ERROR } from '@/lib/key-validation';
 import {
@@ -27,6 +35,7 @@ import {
 } from '@/stores/fresh-keys';
 
 const useCreateKeyMock = vi.mocked(useCreateKey);
+const useTeamsMock = vi.mocked(useTeams);
 
 /** Program useCreateKey with a given mutateAsync + pending flag. */
 function setMutation(mutateAsync: ReturnType<typeof vi.fn>, isPending = false): void {
@@ -34,6 +43,13 @@ function setMutation(mutateAsync: ReturnType<typeof vi.fn>, isPending = false): 
     mutateAsync,
     isPending,
   } as unknown as ReturnType<typeof useCreateKey>);
+}
+
+/** Program useTeams with a given team list (defaults to [] in beforeEach). */
+function setTeams(teams: Team[]): void {
+  useTeamsMock.mockReturnValue({
+    data: teams,
+  } as unknown as ReturnType<typeof useTeams>);
 }
 
 /** Install a navigator.clipboard.writeText stub, returning the spy. */
@@ -57,6 +73,8 @@ beforeEach(() => {
   const { setFresh, dropFresh } = useFreshKeysStore.getState();
   useFreshKeysStore.setState({ ...initialFreshKeysState, setFresh, dropFresh }, true);
   useCreateKeyModalStore.getState().openModal();
+  // Default to no teams -> picker hidden, single-team fallback (tests opt in).
+  setTeams([]);
 });
 
 afterEach(() => {
@@ -221,5 +239,40 @@ describe('CreateKeyModal — reopen clears the shown-once key', () => {
     expect(screen.getByLabelText('name')).toBeInTheDocument();
     expect(screen.queryByText('Key created')).not.toBeInTheDocument();
     expect(screen.queryByText('sk-PREVIOUS-SECRET')).not.toBeInTheDocument();
+  });
+});
+
+describe('CreateKeyModal — team picker', () => {
+  it('submits the selected team_id', async () => {
+    setTeams([
+      { id: 'default', alias: 'Default' },
+      { id: 'run', alias: 'Run Squad' },
+    ]);
+    const mutateAsync = vi.fn().mockResolvedValue({ id: 'key-1', key: 'sk-secret' });
+    setMutation(mutateAsync);
+    render(<CreateKeyModal />);
+
+    // The picker defaulted to the first team; override it to 'run'.
+    fireEvent.change(screen.getByLabelText('team'), { target: { value: 'run' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Key' }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync).toHaveBeenCalledWith({ team_id: 'run' });
+  });
+
+  it('omits team_id and hides the picker when no teams load', async () => {
+    setTeams([]);
+    const mutateAsync = vi.fn().mockResolvedValue({ id: 'key-1', key: 'sk-secret' });
+    setMutation(mutateAsync);
+    render(<CreateKeyModal />);
+
+    // No teams -> the picker is not rendered.
+    expect(screen.queryByLabelText('team')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Key' }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    // Single-team fallback: body carries no team_id.
+    expect(mutateAsync).toHaveBeenCalledWith({});
   });
 });

@@ -20,7 +20,7 @@
 //     keys query; this modal only DISPLAYS the returned key once.
 
 import { Check, Copy } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -33,6 +33,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useCreateKey } from '@/hooks/use-keys';
+import { useTeams } from '@/hooks/use-teams';
 import type { CreateKeyBody } from '@/lib/api-types';
 import {
   CREATE_502_ERROR,
@@ -57,6 +58,9 @@ export function CreateKeyModal() {
 
   const [alias, setAlias] = useState('');
   const [duration, setDuration] = useState('');
+  // '' = let the backend use the session's default team. When teams load the
+  // effect below selects the first team; an explicit user pick overrides it.
+  const [team, setTeam] = useState('');
   const [aliasError, setAliasError] = useState<string | null>(null);
   const [durationError, setDurationError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -68,11 +72,22 @@ export function CreateKeyModal() {
   const submitting = createKey.isPending;
   const { copied, copy } = useCopyFeedback();
 
+  // useTeams never throws — it resolves to [] when teams can't be loaded, which
+  // hides the picker and preserves single-team behaviour (submit without team_id).
+  const { data: teams = [] } = useTeams();
+
+  // Default the picker to the first team once they load, but only if the user
+  // hasn't picked yet (team still ''). A user choice or reset takes precedence.
+  useEffect(() => {
+    if (team === '' && teams.length) setTeam(teams[0].id);
+  }, [team, teams]);
+
   // Reset every transient field then bubble the close up via the store. Wired to
   // Cancel / done AND to onOpenChange(false) (Esc / overlay click).
   const handleClose = useCallback(() => {
     setAlias('');
     setDuration('');
+    setTeam('');
     setAliasError(null);
     setDurationError(null);
     setFormError(null);
@@ -101,6 +116,7 @@ export function CreateKeyModal() {
       const body: CreateKeyBody = {};
       if (aliasValue) body.alias = aliasValue;
       if (durationValue) body.duration = durationValue;
+      if (team) body.team_id = team;
 
       try {
         const data = await createKey.mutateAsync(body);
@@ -123,7 +139,7 @@ export function CreateKeyModal() {
         setFormError(CREATE_502_ERROR);
       }
     },
-    [alias, duration, submitting, createKey],
+    [alias, duration, team, submitting, createKey],
   );
 
   return (
@@ -228,6 +244,32 @@ export function CreateKeyModal() {
                   <p className="text-xs text-destructive">{aliasError}</p>
                 ) : null}
               </div>
+
+              {teams.length ? (
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="ck-team"
+                    className="font-mono text-xs font-semibold uppercase tracking-wide text-text-secondary"
+                  >
+                    team
+                  </label>
+                  {/* Native <select> styled to match Input (no shadcn Select in
+                      this project). Class tokens copied from input.tsx. */}
+                  <select
+                    id="ck-team"
+                    value={team}
+                    onChange={(e) => setTeam(e.target.value)}
+                    disabled={submitting}
+                    className="border-input dark:bg-input/30 h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                  >
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.alias}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
 
               <div className="flex flex-col gap-1.5">
                 <label

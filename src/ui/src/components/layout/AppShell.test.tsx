@@ -23,6 +23,12 @@ vi.mock('@/hooks/use-keys', () => ({
   KEYS_QUERY_KEY: ['session', 'keys'],
 }));
 
+// CreateKeyModal also calls useTeams (a useQuery) — stub it to [] so the shell
+// renders without a QueryClientProvider; the picker is hidden either way.
+vi.mock('@/hooks/use-teams', () => ({
+  useTeams: vi.fn(() => ({ data: [] })),
+}));
+
 import { useKeys } from '@/hooks/use-keys';
 import type { AppConfig, KeyRow, SessionMe } from '@/lib/api-types';
 import { AppShell } from './AppShell';
