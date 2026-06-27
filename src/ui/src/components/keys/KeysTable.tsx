@@ -109,6 +109,12 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
   const [pickedTeam, setPickedTeam] = React.useState('');
   const rows = selectKeyRows(query.data);
 
+  // Resolve a key's team_id to its display alias (matching the picker / change
+  // dialog / dashboard tile, which all show aliases). Falls back to the raw id
+  // when teams aren't loaded or the id has no match, then EM_DASH when null.
+  const teamAlias = (id: string | null): string =>
+    (id ? teams.find((t) => t.id === id)?.alias : null) ?? id ?? EM_DASH;
+
   // ── State branches (exact copy lifted from keys-table.js) ───────────────────
   if (query.isPending) {
     return (
@@ -208,8 +214,8 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       key: 'team',
       header: 'Team',
       className: 'font-mono text-xs whitespace-nowrap',
-      cell: (row) => row.team_id ?? EM_DASH,
-      sortAccessor: (row) => row.team_id,
+      cell: (row) => teamAlias(row.team_id),
+      sortAccessor: (row) => teamAlias(row.team_id),
     },
     {
       key: 'status',

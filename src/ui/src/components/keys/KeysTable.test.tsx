@@ -355,11 +355,19 @@ describe('KeysTable — disable / enable (LiteLLM block)', () => {
 });
 
 describe('KeysTable — team column + change team', () => {
-  it('shows the team id in the Team column', () => {
+  it('shows the team alias (resolved from team_id) in the Team column', () => {
     setRows([makeRow({ id: 'key-t', team_id: 'team-alpha' })]);
     render(<KeysTable onDelete={vi.fn()} />);
     expect(screen.getByRole('columnheader', { name: 'Team' })).toBeInTheDocument();
-    expect(screen.getByText('team-alpha')).toBeInTheDocument();
+    // team-alpha resolves to its alias "Alpha" (matching the picker/dialog/tile).
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('team-alpha')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the raw team_id when it has no alias match', () => {
+    setRows([makeRow({ id: 'key-u', team_id: 'team-unknown' })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.getByText('team-unknown')).toBeInTheDocument();
   });
 
   it('opens change-team dialog and calls useChangeKeyTeam.mutate with picked team', async () => {
