@@ -24,6 +24,7 @@ vi.mock('@/lib/api', () => ({
 import { del, getJson, postJson } from '@/lib/api';
 import {
   KEYS_QUERY_KEY,
+  useChangeKeyTeam,
   useCreateKey,
   useDeleteKey,
   useHasDefaultKey,
@@ -47,6 +48,7 @@ const ROW: KeyRow = {
   tpm_limit: null,
   rpm_limit: null,
   models: ['all-team-models'],
+  team_id: 'team-1',
   created_at: '2026-03-01T10:00:00+00:00',
   expires: null,
   last_used: null,
@@ -239,6 +241,60 @@ describe('useMakeDefault', () => {
     });
 
     await expect(result.current.mutateAsync('key-x')).rejects.toThrow();
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'error' }),
+      ),
+    );
+    toastSpy.mockRestore();
+  });
+});
+
+describe('useChangeKeyTeam', () => {
+  it('200 -> POSTs the team endpoint AND invalidates the keys query', async () => {
+    postJsonMock.mockResolvedValue({
+      status: 200,
+      data: { status: 'moved', id: 'key-1', team_id: 'team-2' },
+    });
+
+    const client = makeClient();
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+
+    const { result } = renderHook(() => useChangeKeyTeam(), {
+      wrapper: wrapperFor(client),
+    });
+
+    await result.current.mutateAsync({ id: 'key-1', teamId: 'team-2' });
+
+    expect(postJsonMock).toHaveBeenCalledWith('/api/session/keys/key-1/team', {
+      team_id: 'team-2',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: KEYS_QUERY_KEY });
+  });
+
+  it('non-200 (502) -> rejects', async () => {
+    postJsonMock.mockResolvedValue({ status: 502, data: null });
+
+    const { result } = renderHook(() => useChangeKeyTeam(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await expect(
+      result.current.mutateAsync({ id: 'key-x', teamId: 'team-2' }),
+    ).rejects.toThrow();
+  });
+
+  it('non-200 -> pushes an error toast', async () => {
+    postJsonMock.mockResolvedValue({ status: 502, data: null });
+    const toastSpy = vi.spyOn(useToastStore.getState(), 'toast');
+
+    const { result } = renderHook(() => useChangeKeyTeam(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await expect(
+      result.current.mutateAsync({ id: 'key-x', teamId: 'team-2' }),
+    ).rejects.toThrow();
     await waitFor(() =>
       expect(toastSpy).toHaveBeenCalledWith(
         expect.objectContaining({ variant: 'error' }),

@@ -73,6 +73,7 @@ function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
     tpm_limit: null,
     rpm_limit: null,
     models: null,
+    team_id: null,
     created_at: '2026-03-01T10:00:00+00:00',
     expires: null,
     last_used: null,

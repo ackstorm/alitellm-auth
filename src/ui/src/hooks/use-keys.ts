@@ -28,6 +28,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { del, getJson, postJson } from '@/lib/api';
 import type {
   BlockKeyResponse,
+  ChangeKeyTeamResponse,
   CreateKeyBody,
   CreateKeyResponse,
   DeleteKeyResponse,
@@ -189,6 +190,28 @@ export function useMakeDefault() {
     onError: () => {
       toast({ message: 'Could not set the default key. Please try again.', variant: 'error' });
     },
+  });
+}
+
+/**
+ * POST /api/session/keys/{id}/team. Moves an owned key to another team the user
+ * belongs to (session.py::session_change_key_team). On success the list is
+ * invalidated so the row's team + any team-derived UI re-render.
+ */
+export function useChangeKeyTeam() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ id, teamId }: { id: string; teamId: string }) => {
+      const { status, data } = await postJson<ChangeKeyTeamResponse>(
+        `/api/session/keys/${encodeURIComponent(id)}/team`,
+        { team_id: teamId },
+      );
+      if (status !== 200 || !data) throw apiCallError('change-team-failed', status, data);
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY }),
+    onError: () => toast({ message: 'Could not change the key team.', variant: 'error' }),
   });
 }
 
