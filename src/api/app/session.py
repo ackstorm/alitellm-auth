@@ -32,6 +32,8 @@ from pydantic import BaseModel, ValidationError
 from app.config import Settings
 from app.litellm_client import (
     LiteLLMUserNotFound,
+    TeamMembershipError,
+    assert_team_membership,
     block_litellm_key,
     delete_litellm_key,
     generate_litellm_key,
@@ -43,6 +45,7 @@ from app.litellm_client import (
     list_session_keys,
     list_user_teams,
     set_litellm_key_default,
+    update_litellm_key_team,
     user_daily_activity,
 )
 from app.stats import (
@@ -137,6 +140,7 @@ class CreateKeyBody(BaseModel):
 
     alias: str | None = None
     duration: str | None = None
+    team_id: str | None = None
 
 
 class BlockKeyBody(BaseModel):
@@ -389,9 +393,23 @@ async def session_create_key(
                     detail="duration must be a LiteLLM duration string (e.g. '90d', '24h')",
                 )
 
+    # Optional target team. SECURITY: a client-supplied team_id is validated
+    # against the SESSION email's real memberships BEFORE any LiteLLM mint —
+    # the email comes from the verified session, never the body. Non-member → 403.
+    team_id: str | None = body.team_id
+    if team_id is not None:
+        team_id = team_id.strip() or None
+    if team_id is not None:
+        try:
+            await assert_team_membership(email, team_id, settings)
+        except TeamMembershipError:
+            raise HTTPException(status_code=403, detail="Not a member of that team")
+        except (httpx.HTTPStatusError, httpx.RequestError):
+            raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
     try:
         key_data = await generate_litellm_key(
-            email, settings, name=name, duration=duration, alias=alias
+            email, settings, name=name, duration=duration, alias=alias, team_id=team_id
         )
     except httpx.HTTPStatusError as exc:
         logger.error("session_create_key: key generation failed for %s: %s", email, exc)
@@ -599,6 +617,69 @@ async def session_block_key(
 
     logger.info("session_block_key: user %s set blocked=%s on key %s", email, body.blocked, key_id)
     return JSONResponse({"status": "blocked" if body.blocked else "active", "id": key_id})
+
+
+class ChangeTeamBody(BaseModel):
+    """Body for POST /api/session/keys/{id}/team — target team id."""
+
+    team_id: str
+
+
+@router.post("/keys/{key_id}/team", response_model=None)
+async def session_change_key_team(
+    request: Request,
+    key_id: str,
+    user: dict = Depends(require_session_user),
+) -> JSONResponse:
+    """Move an owned key to another team the user belongs to.
+
+    403 for a foreign/unknown id (no existence leak, D-12) AND for a team the
+    user is not a member of (validated server-side; never trust the body).
+    """
+    settings: Settings = request.app.state.settings
+    assert_same_origin(request, settings)
+    email = user["email"]
+
+    try:
+        body = ChangeTeamBody.model_validate_json(await request.body())
+    except ValidationError:
+        raise HTTPException(status_code=422, detail="invalid request body")
+
+    team_id = body.team_id.strip()
+    if not team_id:
+        raise HTTPException(status_code=422, detail="team_id required")
+
+    # Security gate: the user must belong to the target team.
+    try:
+        await assert_team_membership(email, team_id, settings)
+    except TeamMembershipError:
+        raise HTTPException(status_code=403, detail="Not a member of that team")
+    except (httpx.HTTPStatusError, httpx.RequestError):
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
+    # Ownership: relist + match by id (403 for foreign/unknown, D-12).
+    try:
+        user_keys = await list_session_keys(email, settings)
+    except httpx.HTTPStatusError as exc:
+        logger.error("session_change_key_team: relist failed for %s: %s", email, exc)
+        raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
+    target = next((k for k in user_keys if k.get("id") == key_id), None)
+    if target is None:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    try:
+        await update_litellm_key_team(target["token"], team_id, settings)
+    except httpx.HTTPStatusError as exc:
+        logger.error("session_change_key_team: update failed for %s: %s", key_id, exc)
+        raise HTTPException(status_code=502, detail="Failed to change key team")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
+    logger.info("session_change_key_team: user %s moved key %s to %s", email, key_id, team_id)
+    return JSONResponse({"status": "moved", "id": key_id, "team_id": team_id})
 
 
 def _parse_stats_range(start_date: str | None, end_date: str | None) -> tuple[date, date]:

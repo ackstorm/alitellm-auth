@@ -15,7 +15,7 @@ from itsdangerous import TimestampSigner
 from pydantic import ValidationError
 
 from app.config import Settings
-from app.litellm_client import LiteLLMUserNotFound
+from app.litellm_client import LiteLLMUserNotFound, TeamMembershipError
 from app.main import create_app
 
 # ---------------------------------------------------------------------------
@@ -494,6 +494,48 @@ def test_create_key_does_not_reassign_existing_default(client):
     mock_set.assert_not_awaited()
 
 
+def test_create_key_with_valid_team(client):
+    """A client-supplied team_id the user belongs to is validated against the
+    SESSION email's memberships, then threaded into /key/generate."""
+    with (
+        patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
+        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+    ):
+        mock_gen.return_value = {"key": "sk-x", "id": "id-x", "team_id": "run"}
+        mock_list.return_value = []  # auto-default relist → no default
+        response = client.post(
+            "/api/session/keys",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"team_id": "run"},
+        )
+    assert response.status_code == 200
+    # Membership is checked for the SESSION email, NEVER the body.
+    mock_assert.assert_awaited_once()
+    assert mock_assert.await_args.args[0] == "alice@example.com"
+    assert mock_assert.await_args.args[1] == "run"
+    # team_id threaded into the mint.
+    assert mock_gen.call_args.kwargs.get("team_id") == "run"
+
+
+def test_create_key_rejects_non_member_team(client):
+    """A team the session user is NOT a member of → 403, NO key minted."""
+    with (
+        patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
+        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
+    ):
+        mock_assert.side_effect = TeamMembershipError("nope")
+        response = client.post(
+            "/api/session/keys",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"team_id": "dream"},
+        )
+    assert response.status_code == 403
+    mock_gen.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # SAPI-05 — DELETE /api/session/keys/{id}
 # ---------------------------------------------------------------------------
@@ -843,6 +885,73 @@ def test_block_key_invalid_body_422(client):
             content="{}",
         )
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Change team — POST /api/session/keys/{id}/team
+# ---------------------------------------------------------------------------
+
+
+def test_change_key_team_moves_owned_key(client):
+    """An owned key + a team the user belongs to → /key/update with the hashed token."""
+    owned = [{"id": "id-1", "token": "hash-1", "is_default": False, "metadata": {}}]
+    with (
+        patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.update_litellm_key_team", new_callable=AsyncMock) as mock_update,
+    ):
+        mock_list.return_value = owned
+        response = client.post(
+            "/api/session/keys/id-1/team",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"team_id": "run"},
+        )
+    assert response.status_code == 200
+    assert response.json() == {"status": "moved", "id": "id-1", "team_id": "run"}
+    # Membership checked for the SESSION email + target team BEFORE the move.
+    mock_assert.assert_awaited_once()
+    assert mock_assert.await_args.args[0] == "alice@example.com"
+    assert mock_assert.await_args.args[1] == "run"
+    # The move sends the server-side hashed token, never the sk-.
+    mock_update.assert_awaited_once()
+    assert mock_update.await_args.args[0] == "hash-1"
+    assert mock_update.await_args.args[1] == "run"
+
+
+def test_change_key_team_foreign_id_403(client):
+    """A foreign/unknown id → 403, NO update (no existence leak, D-12)."""
+    with (
+        patch("app.session.assert_team_membership", new_callable=AsyncMock),
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.update_litellm_key_team", new_callable=AsyncMock) as mock_update,
+    ):
+        mock_list.return_value = []
+        response = client.post(
+            "/api/session/keys/ghost/team",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"team_id": "run"},
+        )
+    assert response.status_code == 403
+    mock_update.assert_not_awaited()
+
+
+def test_change_key_team_non_member_403(client):
+    """A team the session user is NOT a member of → 403, NO update."""
+    with (
+        patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
+        patch("app.session.update_litellm_key_team", new_callable=AsyncMock) as mock_update,
+    ):
+        mock_assert.side_effect = TeamMembershipError("nope")
+        response = client.post(
+            "/api/session/keys/id-1/team",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"team_id": "dream"},
+        )
+    assert response.status_code == 403
+    mock_update.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
