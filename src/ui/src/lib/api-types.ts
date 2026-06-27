@@ -66,6 +66,8 @@ export interface KeyRow {
   tpm_limit: number | null;
   rpm_limit: number | null;
   models: string[] | null;
+  /** Team the key belongs to; null when the key is not team-scoped. */
+  team_id: string | null;
   created_at: string | null;
   expires: string | null;
   /** LiteLLM per-key last-used timestamp (its `last_active`); null until used. */
@@ -86,10 +88,12 @@ export interface KeysResponse {
 // POST /api/session/keys  — src/api/app/session.py (CreateKeyBody + create handler)
 // ---------------------------------------------------------------------------
 
-/** POST /api/session/keys request body. session.py::CreateKeyBody (both optional). */
+/** POST /api/session/keys request body. session.py::CreateKeyBody (all optional). */
 export interface CreateKeyBody {
   alias?: string;
   duration?: string;
+  /** Team to scope the new key to; omit for the session's default team. */
+  team_id?: string;
 }
 
 /**
@@ -129,6 +133,29 @@ export interface MakeDefaultResponse {
 export interface BlockKeyResponse {
   status: 'blocked' | 'active';
   id: string;
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/session/teams  — src/api/app/session.py::session_teams
+// POST /api/session/keys/{id}/team  — session.py::session_change_key_team
+// ---------------------------------------------------------------------------
+
+/** A team the session user belongs to. GET /api/session/teams. */
+export interface Team {
+  id: string;
+  alias: string;
+}
+
+/** GET /api/session/teams response. session.py::session_teams. */
+export interface TeamsResponse {
+  teams: Team[];
+}
+
+/** POST /api/session/keys/{id}/team response. session.py::session_change_key_team. */
+export interface ChangeKeyTeamResponse {
+  status: string;
+  id: string;
+  team_id: string;
 }
 
 // ---------------------------------------------------------------------------

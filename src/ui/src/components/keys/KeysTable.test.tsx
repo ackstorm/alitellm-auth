@@ -18,19 +18,42 @@ vi.mock('@/hooks/use-keys', () => ({
   useKeys: vi.fn(),
   useMakeDefault: vi.fn(),
   useToggleKeyBlock: vi.fn(),
+  useChangeKeyTeam: vi.fn(),
   KEYS_QUERY_KEY: ['session', 'keys'],
 }));
 
-import { useKeys, useMakeDefault, useToggleKeyBlock } from '@/hooks/use-keys';
+// Mock the teams hook — KeysTable reads it to populate the Change-team picker
+// and to decide whether to surface the action at all.
+vi.mock('@/hooks/use-teams', () => ({
+  useTeams: vi.fn(),
+}));
+
+import {
+  useChangeKeyTeam,
+  useKeys,
+  useMakeDefault,
+  useToggleKeyBlock,
+} from '@/hooks/use-keys';
+import { useTeams } from '@/hooks/use-teams';
+import type { ChangeKeyTeamResponse, Team } from '@/lib/api-types';
+import type { UseQueryResult as UseQueryResultTeams } from '@tanstack/react-query';
 import { KeysTable } from './KeysTable';
 
 const useKeysMock = vi.mocked(useKeys);
 const useMakeDefaultMock = vi.mocked(useMakeDefault);
 const useToggleKeyBlockMock = vi.mocked(useToggleKeyBlock);
+const useChangeKeyTeamMock = vi.mocked(useChangeKeyTeam);
+const useTeamsMock = vi.mocked(useTeams);
+
+const TEAMS: Team[] = [
+  { id: 'team-alpha', alias: 'Alpha' },
+  { id: 'team-beta', alias: 'Beta' },
+];
 
 // Reusable mutation stubs; reset per test via beforeEach.
 let makeDefaultMutate: ReturnType<typeof vi.fn>;
 let toggleBlockMutate: ReturnType<typeof vi.fn>;
+let changeTeamMutate: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   makeDefaultMutate = vi.fn();
   useMakeDefaultMock.mockReturnValue({
@@ -40,6 +63,19 @@ beforeEach(() => {
   useToggleKeyBlockMock.mockReturnValue({
     mutate: toggleBlockMutate,
   } as unknown as UseMutationResult<BlockKeyResponse, Error, { id: string; blocked: boolean }>);
+  changeTeamMutate = vi.fn();
+  useChangeKeyTeamMock.mockReturnValue({
+    mutate: changeTeamMutate,
+    isPending: false,
+  } as unknown as UseMutationResult<
+    ChangeKeyTeamResponse,
+    Error,
+    { id: string; teamId: string }
+  >);
+  // Default: two teams available -> Change team action is offered.
+  useTeamsMock.mockReturnValue({
+    data: TEAMS,
+  } as unknown as UseQueryResultTeams<Team[]>);
 });
 
 // A minimal projected /keys row factory (mirrors the api-types KeyRow contract).
@@ -52,6 +88,7 @@ function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
     tpm_limit: null,
     rpm_limit: null,
     models: null,
+    team_id: null,
     created_at: '2026-03-01T10:00:00+00:00',
     expires: null,
     last_used: null,
@@ -141,8 +178,15 @@ describe('KeysTable — populated table', () => {
   });
 
   it('shows the em-dash in Last used when the key was never used', () => {
-    // expires is set so the ONLY em-dash on the row comes from the empty Last used.
-    setRows([makeRow({ last_used: null, expires: '2027-01-01T00:00:00+00:00' })]);
+    // expires + team_id are set so the ONLY em-dash on the row comes from the
+    // empty Last used (Team also renders an em-dash when team_id is null).
+    setRows([
+      makeRow({
+        last_used: null,
+        expires: '2027-01-01T00:00:00+00:00',
+        team_id: 'team-x',
+      }),
+    ]);
     render(<KeysTable onDelete={vi.fn()} />);
     expect(screen.getByText('—')).toBeInTheDocument();
   });
@@ -307,5 +351,59 @@ describe('KeysTable — disable / enable (LiteLLM block)', () => {
     const item = await screen.findByRole('menuitem', { name: 'Enable key' });
     fireEvent.keyDown(item, { key: 'Enter' });
     expect(toggleBlockMutate).toHaveBeenCalledWith({ id: 'key-x', blocked: false });
+  });
+});
+
+describe('KeysTable — team column + change team', () => {
+  it('shows the team alias (resolved from team_id) in the Team column', () => {
+    setRows([makeRow({ id: 'key-t', team_id: 'team-alpha' })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.getByRole('columnheader', { name: 'Team' })).toBeInTheDocument();
+    // team-alpha resolves to its alias "Alpha" (matching the picker/dialog/tile).
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('team-alpha')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the raw team_id when it has no alias match', () => {
+    setRows([makeRow({ id: 'key-u', team_id: 'team-unknown' })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.getByText('team-unknown')).toBeInTheDocument();
+  });
+
+  it('opens change-team dialog and calls useChangeKeyTeam.mutate with picked team', async () => {
+    setRows([makeRow({ id: 'key-x', team_id: 'team-alpha' })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+
+    // Open the kebab and choose "Change team…" (Radix content is portaled).
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'Enter',
+    });
+    const item = await screen.findByRole('menuitem', { name: /Change team/ });
+    fireEvent.keyDown(item, { key: 'Enter' });
+
+    // The dialog (also portaled) carries a native <select> defaulting to the
+    // key's current team; Save is disabled until a different team is picked.
+    const select = await screen.findByRole('combobox');
+    fireEvent.change(select, { target: { value: 'team-beta' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(changeTeamMutate).toHaveBeenCalledWith({ id: 'key-x', teamId: 'team-beta' });
+  });
+
+  it('hides the Change team item when no teams are loaded', async () => {
+    useTeamsMock.mockReturnValue({
+      data: [],
+    } as unknown as UseQueryResultTeams<Team[]>);
+    setRows([makeRow({ id: 'key-x', team_id: null })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'Enter',
+    });
+    // The menu opened (Disable key is present) but Change team is absent.
+    await screen.findByRole('menuitem', { name: 'Disable key' });
+    expect(
+      screen.queryByRole('menuitem', { name: /Change team/ })
+    ).not.toBeInTheDocument();
   });
 });

@@ -23,10 +23,17 @@ import * as React from 'react';
 import { MoreVertical, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   DataTable,
   type DataTableColumn,
 } from '@/components/ui/data-table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +41,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useKeys, useMakeDefault, useToggleKeyBlock } from '@/hooks/use-keys';
+import {
+  useChangeKeyTeam,
+  useKeys,
+  useMakeDefault,
+  useToggleKeyBlock,
+} from '@/hooks/use-keys';
+import { useTeams } from '@/hooks/use-teams';
 import { formatDate } from '@/lib/format';
 import { isBlocked, isExpired, selectKeyRows } from '@/lib/keys';
 import { cn } from '@/lib/utils';
@@ -87,7 +100,20 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
   const query = useKeys();
   const makeDefault = useMakeDefault();
   const toggleBlock = useToggleKeyBlock();
+  // Teams the user may move a key into. [] when teams are unavailable — the
+  // Change-team action is then hidden entirely (single-team deployments).
+  const teams = useTeams().data ?? [];
+  const changeTeam = useChangeKeyTeam();
+  // The change-team dialog target (null = closed) + the picked team id.
+  const [changing, setChanging] = React.useState<KeyRow | null>(null);
+  const [pickedTeam, setPickedTeam] = React.useState('');
   const rows = selectKeyRows(query.data);
+
+  // Resolve a key's team_id to its display alias (matching the picker / change
+  // dialog / dashboard tile, which all show aliases). Falls back to the raw id
+  // when teams aren't loaded or the id has no match, then EM_DASH when null.
+  const teamAlias = (id: string | null): string =>
+    (id ? teams.find((t) => t.id === id)?.alias : null) ?? id ?? EM_DASH;
 
   // ── State branches (exact copy lifted from keys-table.js) ───────────────────
   if (query.isPending) {
@@ -162,6 +188,13 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         );
       },
       sortAccessor: (row) => row.key_alias || row.id,
+    },
+    {
+      key: 'team',
+      header: 'Team',
+      className: 'font-mono text-xs whitespace-nowrap',
+      cell: (row) => teamAlias(row.team_id),
+      sortAccessor: (row) => teamAlias(row.team_id),
     },
     {
       key: 'created',
@@ -292,11 +325,71 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                 >
                   {row.blocked ? 'Enable key' : 'Disable key'}
                 </DropdownMenuItem>
+                {/* Change team — only when the user belongs to >1 team; opens
+                    the dialog seeded with the row's current team. */}
+                {teams.length > 0 ? (
+                  <DropdownMenuItem
+                    data-slot="key-change-team"
+                    onSelect={() => {
+                      setChanging(row);
+                      setPickedTeam(row.team_id ?? '');
+                    }}
+                  >
+                    Change team…
+                  </DropdownMenuItem>
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         )}
       />
+
+      {/* Change-team dialog. Controlled by `changing` (null = closed). The team
+          picker is a native <select> styled to match Input (no shadcn Select in
+          this project); Save is gated to a real, different team. */}
+      <Dialog
+        open={changing !== null}
+        onOpenChange={(o) => {
+          if (!o) setChanging(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change team</DialogTitle>
+          </DialogHeader>
+          <select
+            aria-label="Team"
+            value={pickedTeam}
+            onChange={(e) => setPickedTeam(e.target.value)}
+            className="border-input dark:bg-input/30 h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+          >
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.alias}
+              </option>
+            ))}
+          </select>
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="outline" onClick={() => setChanging(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                changeTeam.isPending ||
+                pickedTeam === '' ||
+                pickedTeam === changing?.team_id
+              }
+              onClick={() => {
+                changeTeam.mutate({ id: changing!.id ?? '', teamId: pickedTeam });
+                setChanging(null);
+              }}
+            >
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -20,7 +20,14 @@ vi.mock('@/hooks/use-keys', () => ({
   useDeleteKey: vi.fn(),
   useMakeDefault: vi.fn(),
   useToggleKeyBlock: vi.fn(),
+  useChangeKeyTeam: vi.fn(),
   KEYS_QUERY_KEY: ['session', 'keys'],
+}));
+
+// KeysTable (mounted by the dashboard) reads useTeams to gate its Change-team
+// action — mock it to [] so the dashboard test renders without a QueryClient.
+vi.mock('@/hooks/use-teams', () => ({
+  useTeams: vi.fn(() => ({ data: [] })),
 }));
 
 // useStats backs the "Requests (MTD)" tile — mocked so no real fetch fires (the
@@ -30,8 +37,15 @@ vi.mock('@/hooks/use-stats', () => ({
   useStats: vi.fn(),
 }));
 
-import { useDeleteKey, useKeys, useMakeDefault, useToggleKeyBlock } from '@/hooks/use-keys';
+import {
+  useChangeKeyTeam,
+  useDeleteKey,
+  useKeys,
+  useMakeDefault,
+  useToggleKeyBlock,
+} from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
+import { useTeams } from '@/hooks/use-teams';
 import { Dashboard } from './Dashboard';
 import { formatCurrency } from '@/lib/format';
 import {
@@ -48,7 +62,9 @@ const useKeysMock = vi.mocked(useKeys);
 const useDeleteKeyMock = vi.mocked(useDeleteKey);
 const useMakeDefaultMock = vi.mocked(useMakeDefault);
 const useToggleKeyBlockMock = vi.mocked(useToggleKeyBlock);
+const useChangeKeyTeamMock = vi.mocked(useChangeKeyTeam);
 const useStatsMock = vi.mocked(useStats);
+const useTeamsMock = vi.mocked(useTeams);
 
 // Build a valid SessionMe fixture with overrides.
 function makeMe(overrides: Partial<SessionMe> = {}): SessionMe {
@@ -73,6 +89,7 @@ function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
     tpm_limit: null,
     rpm_limit: null,
     models: null,
+    team_id: null,
     created_at: '2026-03-01T10:00:00+00:00',
     expires: null,
     last_used: null,
@@ -129,6 +146,11 @@ beforeEach(() => {
     mutate: vi.fn(),
     isPending: false,
   } as unknown as ReturnType<typeof useToggleKeyBlock>);
+  // Default the change-team mutation to a no-op.
+  useChangeKeyTeamMock.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+  } as unknown as ReturnType<typeof useChangeKeyTeam>);
   // Default stats to a non-success state — the Requests (MTD) tile shows EM_DASH.
   useStatsMock.mockReturnValue({
     data: undefined,
@@ -136,6 +158,9 @@ beforeEach(() => {
     isPending: true,
     isError: false,
   } as unknown as ReturnType<typeof useStats>);
+  // Default teams to empty so the Team tile falls back to me.team_id; the
+  // multi-team test overrides this per-test.
+  useTeamsMock.mockReturnValue({ data: [] } as unknown as ReturnType<typeof useTeams>);
 });
 
 afterEach(() => {
@@ -156,6 +181,22 @@ describe('Dashboard — top row + tiles', () => {
     setKeysSuccess([]);
     render(<Dashboard me={makeMe({ team_id: 'team-platform' })} />);
     expect(screen.getByText('team-platform')).toBeInTheDocument();
+  });
+
+  it('Team tile lists all member team aliases as pills when useTeams returns teams', () => {
+    setKeysSuccess([]);
+    useTeamsMock.mockReturnValue({
+      data: [
+        { id: 'a', alias: 'Alpha' },
+        { id: 'b', alias: 'Bravo' },
+        { id: 'c', alias: 'Charlie' },
+      ],
+    } as unknown as ReturnType<typeof useTeams>);
+    render(<Dashboard me={makeMe({ team_id: 'team-platform' })} />);
+    // Each alias renders as its own pill (not a comma-joined blob).
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Bravo')).toBeInTheDocument();
+    expect(screen.getByText('Charlie')).toBeInTheDocument();
   });
 
   it('Spend MTD shows formatCurrency(me.spend.current)', () => {

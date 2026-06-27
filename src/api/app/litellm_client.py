@@ -267,6 +267,7 @@ async def ensure_team_and_user(
     settings: Settings,
     name: str | None = None,
     factory: dict | None = None,
+    team_id: str | None = None,
 ) -> str:
     """Idempotently ensure the shared team, access group, and LiteLLM user exist.
 
@@ -288,7 +289,7 @@ async def ensure_team_and_user(
     On subsequent logins/key-mints the cap is left untouched so a manually-raised
     max_budget_in_team is not silently clobbered back to the factory default.
     """
-    team_id = settings.team_id
+    team_id = team_id or settings.team_id
     headers = _admin_headers(settings)
 
     if factory is None:
@@ -304,7 +305,7 @@ async def ensure_team_and_user(
             headers=headers,
             json={
                 **team_extra,  # configmap overrides (D-20: team:{} so no team budget)
-                "team_id": team_id,  # always wins — not overridable
+                "team_id": team_id,  # validated team choice, else default
                 "team_alias": settings.litellm_default_team,
                 "metadata": {"source": "token-factory", **team_meta_extra},
             },
@@ -388,6 +389,7 @@ async def generate_litellm_key(
     name: str | None = None,
     duration: str | None = None,
     alias: str | None = None,
+    team_id: str | None = None,
 ) -> dict:
     """
     Ensure the shared org team/user exist (idempotent) and generate a virtual key.
@@ -423,7 +425,9 @@ async def generate_litellm_key(
 
     # Steps A, B, A2: ensure team → access group → user (shared prerequisite, D-13).
     # Reuse the factory dict loaded above so the disk read happens once per mint (#11).
-    team_id = await ensure_team_and_user(email, settings, name=name, factory=factory)
+    team_id = await ensure_team_and_user(
+        email, settings, name=name, factory=factory, team_id=team_id
+    )
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
         # Re-resolve access_group_id for the key payload (needed for access_group_ids field).
@@ -449,7 +453,7 @@ async def generate_litellm_key(
             # default so the per-user catalog (/model_group/info) works; the
             # invariant fields below always win over anything factory supplies.
             **factory_key_extra,
-            "team_id": team_id,  # always wins — not overridable
+            "team_id": team_id,  # validated team choice, else default
             "user_id": email,  # scope key to LiteLLM user (USER-02)
             "access_group_ids": [access_group_id] if access_group_id else [],
             "key_alias": key_alias,  # opaque lk-{random} (globally unique)
@@ -514,6 +518,7 @@ def _project_session_key(k: dict, md: dict) -> dict:
         "tpm_limit": k.get("tpm_limit"),
         "rpm_limit": k.get("rpm_limit"),
         "models": k.get("models"),
+        "team_id": k.get("team_id"),  # NEW — which team this key is scoped to
         "created_at": md.get("created_at") or k.get("created_at"),
         "expires": k.get("expires"),
         # LiteLLM's per-key last-used timestamp (same field whoami surfaces). May be
@@ -540,6 +545,7 @@ _EMPTY_SESSION_KEY = {
     "tpm_limit": None,
     "rpm_limit": None,
     "models": None,
+    "team_id": None,  # NEW
     "created_at": None,
     "expires": None,
     "last_used": None,
@@ -846,6 +852,27 @@ async def set_litellm_key_default(
         )
 
 
+async def update_litellm_key_team(token: str, team_id: str, settings: Settings) -> None:
+    """Move a virtual key to ``team_id`` via /key/update.
+
+    Sends ONLY {key, team_id} so models/metadata/budget are untouched
+    (LiteLLM replaces only the supplied fields). ``token`` is the hashed value
+    from /key/list (same value /key/delete and /key/update accept). Caller MUST
+    have validated the user's membership of ``team_id`` first (assert_team_membership).
+    """
+    headers = _admin_headers(settings)
+    payload = {"key": token, "team_id": team_id}
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+        resp = await client.post("/key/update", headers=headers, json=payload)
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM /key/update failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+
+
 async def block_litellm_key(token: str, settings: Settings, *, blocked: bool) -> None:
     """Disable (block) or re-enable (unblock) a virtual key — reversible, NOT a delete.
 
@@ -946,6 +973,10 @@ class LiteLLMUserNotFound(Exception):
     """Raised when a LiteLLM user genuinely does not exist."""
 
 
+class TeamMembershipError(Exception):
+    """Raised when a user is asked to be scoped to a team they don't belong to."""
+
+
 def _normalize_teams(raw: Any) -> list[str] | None:
     """LiteLLM /user/info returns teams as [{team_id, team_alias}] objects (H2);
     /user/list may return plain strings. Project both to alias-preferred strings."""
@@ -964,6 +995,69 @@ def _normalize_teams(raw: Any) -> list[str] | None:
         elif isinstance(t, dict):
             out.append(t.get("team_alias") or t.get("team_id") or "")
     return [t for t in out if t]
+
+
+async def list_user_teams(email: str, settings: Settings) -> list[dict]:
+    """Return the teams the user belongs to as ordered, de-duplicated
+    ``[{"id", "alias"}]`` pairs.
+
+    team_ids come from /user/info (H6: email via params, never f-string); the
+    id→alias map comes from /team/list. Order follows first-seen in /user/info.
+    An id with no /team/list match falls back to the id as its own alias.
+    Never raises for an empty membership list — returns [].
+
+    NOTE: we extract the raw team_id directly (NOT via _normalize_teams, which
+    returns alias-preferred strings for object-shaped teams, H2) because the
+    returned ``"id"`` is sent as ``team_id`` to /key/generate and /key/update —
+    it must always be a real team_id, never an alias.
+    """
+    headers = _admin_headers(settings)
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+        info_resp = await client.get("/user/info", headers=headers, params={"user_id": email})
+        if not info_resp.is_success:
+            msg = _extract_litellm_error(info_resp)
+            raise httpx.HTTPStatusError(
+                f"LiteLLM /user/info failed ({info_resp.status_code}): {msg}",
+                request=info_resp.request,
+                response=info_resp,
+            )
+        list_resp = await client.get("/team/list", headers=headers)
+
+    user_info = info_resp.json().get("user_info") or {}
+    raw_teams = user_info.get("teams") or []
+
+    rows = list_resp.json() if list_resp.is_success else []
+    if isinstance(rows, dict):
+        rows = rows.get("teams", [])
+    alias_by_id = {
+        r.get("team_id"): (r.get("team_alias") or r.get("team_id"))
+        for r in rows
+        if isinstance(r, dict) and r.get("team_id")
+    }
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    for t in raw_teams:
+        tid = t if isinstance(t, str) else (t.get("team_id") if isinstance(t, dict) else None)
+        if not tid or tid in seen:
+            continue
+        seen.add(tid)
+        # prefer the object's own alias, then /team/list, then the id itself
+        own_alias = t.get("team_alias") if isinstance(t, dict) else None
+        out.append({"id": tid, "alias": own_alias or alias_by_id.get(tid, tid)})
+    return out
+
+
+async def assert_team_membership(email: str, team_id: str, settings: Settings) -> None:
+    """Raise TeamMembershipError if ``email`` is not a member of ``team_id``.
+
+    SECURITY: ``email`` MUST be the authenticated session email; ``team_id`` is
+    untrusted client input. Memberships are read fresh from LiteLLM, never from
+    the request. Callers map TeamMembershipError → HTTP 403.
+    """
+    teams = await list_user_teams(email, settings)
+    if not any(t["id"] == team_id for t in teams):
+        raise TeamMembershipError(f"{email} is not a member of team {team_id!r}")
 
 
 def _normalize_user(info: dict, fallback_id: str | None = None) -> dict:

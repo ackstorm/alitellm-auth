@@ -537,6 +537,34 @@ async def test_generate_litellm_key_scopes_key_to_user():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_generate_key_uses_explicit_team_id():
+    """An explicit team_id (validated by the caller) reaches the /key/generate
+    payload AND the returned dict, overriding the per-deployment default team."""
+    settings = make_settings()
+    assert settings.team_id == "default"  # guard: "run" must differ from the default
+
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "run"})
+    )
+    respx.post("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+    key_route = respx.post("http://litellm.test/key/generate").mock(
+        return_value=httpx.Response(200, json={"key": "sk-new", "key_id": "key-run"})
+    )
+
+    result = await generate_litellm_key("alice@example.com", settings, name="Alice", team_id="run")
+
+    key_body = _json_body(key_route)
+    assert key_body["team_id"] == "run"
+    assert result["team_id"] == "run"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_list_litellm_keys_raises_when_string_key_hydration_fails():
     """WR-06: a hydration failure on a string key must not be silently swallowed.
 
@@ -1500,6 +1528,14 @@ def test_project_session_key_default_false_when_flag_absent():
     assert out["is_default"] is False
 
 
+def test_project_session_key_includes_team_id():
+    from app.litellm_client import _project_session_key
+
+    row = {"token": "h", "team_id": "run", "metadata": {}}
+    out = _project_session_key(row, {})
+    assert out["team_id"] == "run"
+
+
 # ---------------------------------------------------------------------------
 # A2: set_litellm_key_default — write path (/key/update metadata merge)
 # ---------------------------------------------------------------------------
@@ -1557,6 +1593,44 @@ async def test_set_litellm_key_default_raises_on_5xx():
     )
     with pytest.raises(httpx.HTTPStatusError):
         await set_litellm_key_default("h", settings, is_default=True, existing_metadata={})
+
+
+# ---------------------------------------------------------------------------
+# A3: update_litellm_key_team — move a key to another team (/key/update)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_update_litellm_key_team_sends_minimal_payload():
+    settings = make_settings()
+    captured = {}
+
+    def capture(request):
+        import json as _json
+
+        captured.update(_json.loads(request.content))
+        return httpx.Response(200, json={"key": "hash", "team_id": "run"})
+
+    respx.post(f"{settings.litellm_url}/key/update").mock(side_effect=capture)
+
+    from app.litellm_client import update_litellm_key_team
+
+    await update_litellm_key_team("hash", "run", settings)
+    assert captured == {"key": "hash", "team_id": "run"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_update_litellm_key_team_raises_on_5xx():
+    from app.litellm_client import update_litellm_key_team
+
+    settings = make_settings()
+    respx.post(f"{settings.litellm_url}/key/update").mock(
+        return_value=httpx.Response(500, text="boom")
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        await update_litellm_key_team("hash", "run", settings)
 
 
 # ---------------------------------------------------------------------------
@@ -1777,3 +1851,103 @@ async def test_get_team_member_budget_none_when_no_membership():
     from app.litellm_client import get_team_member_budget
 
     assert await get_team_member_budget("nobody@example.com", settings) is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_user_teams_dedups_and_resolves_aliases():
+    settings = make_settings()
+    respx.get(f"{settings.litellm_url}/user/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={"user_info": {"teams": ["default", "default", "run", "dream"]}},
+        )
+    )
+    respx.get(f"{settings.litellm_url}/team/list").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"team_id": "default", "team_alias": "Default"},
+                {"team_id": "run", "team_alias": "Run Squad"},
+                # 'dream' intentionally absent → falls back to id as alias
+            ],
+        )
+    )
+    from app.litellm_client import list_user_teams
+
+    teams = await list_user_teams("alice@example.com", settings)
+
+    assert teams == [
+        {"id": "default", "alias": "Default"},
+        {"id": "run", "alias": "Run Squad"},
+        {"id": "dream", "alias": "dream"},
+    ]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_user_teams_object_shape_returns_team_ids_not_aliases():
+    """H2: /user/info may return teams as [{team_id, team_alias}] objects. The
+    returned 'id' MUST be the real team_id (sent to /key/generate), never the
+    alias — and duplicate objects are de-duplicated by team_id."""
+    settings = make_settings()
+    respx.get(f"{settings.litellm_url}/user/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "user_info": {
+                    "teams": [
+                        {"team_id": "default", "team_alias": "Default"},
+                        {"team_id": "default", "team_alias": "Default"},  # duplicate
+                        {"team_id": "run", "team_alias": "Run Squad"},
+                    ]
+                }
+            },
+        )
+    )
+    respx.get(f"{settings.litellm_url}/team/list").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"team_id": "default", "team_alias": "Default"},
+                {"team_id": "run", "team_alias": "Run Squad"},
+            ],
+        )
+    )
+    from app.litellm_client import list_user_teams
+
+    teams = await list_user_teams("alice@example.com", settings)
+
+    # ids are the team_ids, not the aliases; duplicate collapsed; aliases resolved
+    assert teams == [
+        {"id": "default", "alias": "Default"},
+        {"id": "run", "alias": "Run Squad"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_assert_team_membership_allows_member(monkeypatch):
+    settings = make_settings()
+
+    async def fake_list(email, s):
+        return [{"id": "run", "alias": "Run"}, {"id": "default", "alias": "Default"}]
+
+    monkeypatch.setattr("app.litellm_client.list_user_teams", fake_list)
+    from app.litellm_client import assert_team_membership
+
+    # Member → returns silently, no raise.
+    await assert_team_membership("alice@example.com", "run", settings)
+
+
+@pytest.mark.asyncio
+async def test_assert_team_membership_rejects_non_member(monkeypatch):
+    settings = make_settings()
+
+    async def fake_list(email, s):
+        return [{"id": "default", "alias": "Default"}]
+
+    monkeypatch.setattr("app.litellm_client.list_user_teams", fake_list)
+    from app.litellm_client import assert_team_membership, TeamMembershipError
+
+    with pytest.raises(TeamMembershipError):
+        await assert_team_membership("alice@example.com", "dream", settings)

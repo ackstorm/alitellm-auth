@@ -26,11 +26,13 @@ import { KeysTable } from '@/components/keys/KeysTable';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useKeys } from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
+import { useTeams } from '@/hooks/use-teams';
 import type {
   KeyRow,
   SessionLimits,
   SessionMe,
   SessionSpend,
+  Team,
 } from '@/lib/api-types';
 import { budgetFillClass } from '@/lib/budget';
 import { abbreviate, formatCurrency, formatInt } from '@/lib/format';
@@ -110,6 +112,43 @@ function MetricTile({
   );
 }
 
+// ── TeamTile ─────────────────────────────────────────────────────────────────
+// The TEAM tile (DASH-06). A user may belong to several teams, so a single
+// 24px value would wrap into an unreadable multi-line blob. With ≥2 teams the
+// aliases render as compact muted pills (a wrapped row); with 0/1 team it keeps
+// the single 24px value look of the other tiles (falling back to me.team_id).
+function TeamTile({ teams, fallback }: { teams: Team[]; fallback: string }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg border border-border">
+          <Users className="size-[15px] text-primary" aria-hidden="true" />
+        </span>
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+          Team
+        </div>
+      </div>
+      {teams.length > 1 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {teams.map((t) => (
+            <span
+              key={t.id}
+              data-slot="team-pill"
+              className="inline-flex items-center rounded-md border border-border bg-surface-elevated px-2 py-0.5 font-sans text-xs font-medium text-text-secondary"
+            >
+              {t.alias}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
+          {teams[0]?.alias || fallback}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── BudgetBar ────────────────────────────────────────────────────────────────
 // The account budget bar (DASH-06 / UI-SPEC §C6 / D-11 / FID-03). When
 // max_budget is null OR <= 0 it renders a NEUTRAL EMPTY 0%-fill track (a muted
@@ -177,6 +216,7 @@ function BudgetBar({
 
 export function Dashboard({ me }: DashboardProps) {
   const query = useKeys();
+  const { data: teams } = useTeams();
   const openModal = useCreateKeyModalStore((s) => s.openModal);
 
   // The dashboard owns the delete target; KeysTable's per-row revoke action
@@ -212,7 +252,9 @@ export function Dashboard({ me }: DashboardProps) {
   // Spend MTD uses the documented me.spend.current fallback from dashboard.js;
   // the stats-window total replaces it in Phase 4.
   const spendValue = formatCurrency(me.spend.current);
-  const teamValue = me.team_id || EM_DASH;
+  // Team tile lists ALL the user's member teams (read-only — no active-team
+  // switching). Falls back to the single me.team_id, then EM_DASH, when the
+  // teams query is empty/unavailable.
 
   return (
     <div className="flex flex-col gap-8">
@@ -229,7 +271,7 @@ export function Dashboard({ me }: DashboardProps) {
         <MetricTile label="Active keys" value={activeKeys} icon={Key} />
         <MetricTile label="Requests (MTD)" value={requestsValue} icon={BarChart3} />
         <MetricTile label="Spend (MTD)" value={spendValue} icon={DollarSign} />
-        <MetricTile label="Team" value={teamValue} icon={Users} />
+        <TeamTile teams={teams ?? []} fallback={me.team_id || EM_DASH} />
       </div>
 
       {/* DASH-06: account budget bar */}

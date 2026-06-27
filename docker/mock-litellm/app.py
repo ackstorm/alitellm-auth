@@ -36,6 +36,15 @@ MOCK_EMAIL = "alice@example.com"
 MOCK_NAME = "Mock User"
 TEAM_ID = "team-platform"
 
+# Multi-team membership for the mock user so the /ui team picker, the keys-table
+# Team column, and the dashboard Team tile show >1 team locally. /user/info and
+# /team/list both read this single source of truth.
+_TEAMS = [
+    {"team_id": TEAM_ID, "team_alias": "platform"},
+    {"team_id": "run", "team_alias": "Run Squad"},
+    {"team_id": "dream", "team_alias": "Dream Team"},
+]
+
 REPO_FIXTURES = Path("/app/repo-fixtures")
 LOCAL_FIXTURES = Path("/app/fixtures")
 
@@ -68,7 +77,7 @@ _MOCK_USER = {
     "rpm_limit": 100,
     "max_parallel_requests": None,
     "models": [],
-    "teams": [{"team_id": TEAM_ID, "team_alias": "platform"}],
+    "teams": copy.deepcopy(_TEAMS),
     "created_at": "2026-03-30T16:40:37.106000Z",
     "metadata": {"email": MOCK_EMAIL, "name": MOCK_NAME},
 }
@@ -139,6 +148,12 @@ async def team_member_update(request: Request):
     return {"team_id": TEAM_ID}
 
 
+@app.get("/team/list")
+async def team_list():
+    # list_user_teams resolves member team_id → team_alias from here.
+    return copy.deepcopy(_TEAMS)
+
+
 # ── Access groups ───────────────────────────────────────────────────────────
 
 _ACCESS_GROUP = {"access_group_id": "ag-mock-platform", "access_group_name": "platform"}
@@ -184,12 +199,14 @@ async def key_generate(request: Request):
     now = datetime.now(timezone.utc).isoformat()
     alias = body.get("key_alias") or f"key-{now}"
     sk = _rand_sk()
+    # Honor a caller-chosen team_id (multi-team create); default to TEAM_ID.
+    team_id = body.get("team_id") or TEAM_ID
     new_key = {
         "token": sk,
         "key": sk,
         "key_alias": alias,
         "user_id": body.get("user_id", MOCK_EMAIL),
-        "team_id": TEAM_ID,
+        "team_id": team_id,
         "spend": 0.0,
         "tpm_limit": 1000000,
         "rpm_limit": 100,
@@ -212,7 +229,7 @@ async def key_generate(request: Request):
         "key": sk,
         "token": sk,
         "key_alias": alias,
-        "team_id": TEAM_ID,
+        "team_id": team_id,
         "user_id": new_key["user_id"],
         "expires": None,
         "models": new_key["models"],
@@ -230,32 +247,29 @@ async def key_delete(request: Request):
     return {"deleted_keys": list(targets)}
 
 
-def _update_key_metadata(token: str | None, metadata: dict) -> dict | None:
-    """Replace the metadata of the in-memory key matched by token/key (wholesale).
-
-    Mirrors real LiteLLM /key/update semantics: the supplied `metadata` dict
-    replaces the stored one. Returns the mutated key, or None when not found.
-    """
-    for k in _KEYS:
-        if k.get("token") == token or k.get("key") == token:
-            k["metadata"] = metadata
-            return k
-    return None
-
-
 @app.post("/key/update")
 async def key_update(request: Request):
     body = await _json(request)
     token = body.get("key")
-    metadata = body.get("metadata", {})
-    updated = _update_key_metadata(token, metadata)
+    # Update ONLY the fields present in the body (mirrors real /key/update). The
+    # change-team call sends {key, team_id} with NO metadata — must not wipe it.
+    updated = None
+    for k in _KEYS:
+        if k.get("token") == token or k.get("key") == token:
+            updated = k
+            if "metadata" in body:
+                k["metadata"] = body["metadata"]
+            if "team_id" in body:
+                k["team_id"] = body["team_id"]
+            break
     log.info(
-        "key/update token=%s is_default=%s (%s)",
+        "key/update token=%s team_id=%s is_default=%s (%s)",
         token,
-        metadata.get("is_default"),
+        body.get("team_id"),
+        (body.get("metadata") or {}).get("is_default"),
         "ok" if updated else "not-found",
     )
-    return {"key": token, "metadata": metadata}
+    return updated or {"key": token, **{k: v for k, v in body.items() if k != "key"}}
 
 
 def _set_key_blocked(token: str | None, blocked: bool) -> dict | None:
