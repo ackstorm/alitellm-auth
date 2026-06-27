@@ -41,6 +41,7 @@ from app.litellm_client import (
     list_litellm_mcp_servers,
     list_litellm_models,
     list_session_keys,
+    list_user_teams,
     set_litellm_key_default,
     user_daily_activity,
 )
@@ -304,6 +305,28 @@ async def session_list_keys(
         {k: v for k, v in kd.items() if k not in ("key", "token", "metadata")} for kd in keys
     ]
     return JSONResponse({"keys": safe_keys})
+
+
+@router.get("/teams", response_model=None)
+async def session_teams(
+    request: Request,
+    user: dict = Depends(require_session_user),
+) -> JSONResponse:
+    """List the teams the session user belongs to (id + display alias).
+
+    Read-only. Feeds the create-key team picker and the change-team action.
+    Degrades to a 502 on LiteLLM failure (the UI shows an empty picker).
+    """
+    settings: Settings = request.app.state.settings
+    email = user["email"]
+    try:
+        teams = await list_user_teams(email, settings)
+    except httpx.HTTPStatusError as exc:
+        logger.error("session_teams: list failed for %s: %s", email, exc)
+        raise HTTPException(status_code=502, detail="LiteLLM team listing failed")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    return JSONResponse({"teams": teams})
 
 
 @router.post("/keys", response_model=None)

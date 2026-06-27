@@ -1631,3 +1631,39 @@ def test_session_a2a_forwards_email_as_user_id(client):
         resp = client.get("/api/session/a2a", cookies=_authed_cookie())
     assert resp.status_code == 200
     assert mock_a2a.await_args.kwargs.get("user_id") == "alice@example.com"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/session/teams — member teams (id + display alias, read-only)
+# ---------------------------------------------------------------------------
+
+
+def test_session_teams_returns_member_teams(client, monkeypatch):
+    """200 with the session user's member teams (id + alias) from list_user_teams."""
+
+    async def fake_teams(email, settings):
+        assert email == "alice@example.com"
+        return [{"id": "default", "alias": "Default"}, {"id": "run", "alias": "Run"}]
+
+    monkeypatch.setattr("app.session.list_user_teams", fake_teams)
+
+    resp = client.get("/api/session/teams", cookies=_authed_cookie())
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "teams": [
+            {"id": "default", "alias": "Default"},
+            {"id": "run", "alias": "Run"},
+        ]
+    }
+
+
+def test_session_teams_401_without_cookie(client):
+    resp = client.get("/api/session/teams")
+    assert resp.status_code == 401
+
+
+def test_session_teams_502_on_backend_failure(client):
+    with patch("app.session.list_user_teams", new_callable=AsyncMock) as mock_teams:
+        mock_teams.side_effect = httpx.RequestError("unreachable")
+        resp = client.get("/api/session/teams", cookies=_authed_cookie())
+    assert resp.status_code == 502
