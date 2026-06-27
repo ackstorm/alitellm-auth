@@ -946,6 +946,10 @@ class LiteLLMUserNotFound(Exception):
     """Raised when a LiteLLM user genuinely does not exist."""
 
 
+class TeamMembershipError(Exception):
+    """Raised when a user is asked to be scoped to a team they don't belong to."""
+
+
 def _normalize_teams(raw: Any) -> list[str] | None:
     """LiteLLM /user/info returns teams as [{team_id, team_alias}] objects (H2);
     /user/list may return plain strings. Project both to alias-preferred strings."""
@@ -1015,6 +1019,18 @@ async def list_user_teams(email: str, settings: Settings) -> list[dict]:
         own_alias = t.get("team_alias") if isinstance(t, dict) else None
         out.append({"id": tid, "alias": own_alias or alias_by_id.get(tid, tid)})
     return out
+
+
+async def assert_team_membership(email: str, team_id: str, settings: Settings) -> None:
+    """Raise TeamMembershipError if ``email`` is not a member of ``team_id``.
+
+    SECURITY: ``email`` MUST be the authenticated session email; ``team_id`` is
+    untrusted client input. Memberships are read fresh from LiteLLM, never from
+    the request. Callers map TeamMembershipError → HTTP 403.
+    """
+    teams = await list_user_teams(email, settings)
+    if not any(t["id"] == team_id for t in teams):
+        raise TeamMembershipError(f"{email} is not a member of team {team_id!r}")
 
 
 def _normalize_user(info: dict, fallback_id: str | None = None) -> dict:

@@ -1849,3 +1849,31 @@ async def test_list_user_teams_object_shape_returns_team_ids_not_aliases():
         {"id": "default", "alias": "Default"},
         {"id": "run", "alias": "Run Squad"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_assert_team_membership_allows_member(monkeypatch):
+    settings = make_settings()
+
+    async def fake_list(email, s):
+        return [{"id": "run", "alias": "Run"}, {"id": "default", "alias": "Default"}]
+
+    monkeypatch.setattr("app.litellm_client.list_user_teams", fake_list)
+    from app.litellm_client import assert_team_membership
+
+    # Member → returns silently, no raise.
+    await assert_team_membership("alice@example.com", "run", settings)
+
+
+@pytest.mark.asyncio
+async def test_assert_team_membership_rejects_non_member(monkeypatch):
+    settings = make_settings()
+
+    async def fake_list(email, s):
+        return [{"id": "default", "alias": "Default"}]
+
+    monkeypatch.setattr("app.litellm_client.list_user_teams", fake_list)
+    from app.litellm_client import assert_team_membership, TeamMembershipError
+
+    with pytest.raises(TeamMembershipError):
+        await assert_team_membership("alice@example.com", "dream", settings)
