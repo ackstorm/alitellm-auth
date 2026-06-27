@@ -850,6 +850,27 @@ async def set_litellm_key_default(
         )
 
 
+async def update_litellm_key_team(token: str, team_id: str, settings: Settings) -> None:
+    """Move a virtual key to ``team_id`` via /key/update.
+
+    Sends ONLY {key, team_id} so models/metadata/budget are untouched
+    (LiteLLM replaces only the supplied fields). ``token`` is the hashed value
+    from /key/list (same value /key/delete and /key/update accept). Caller MUST
+    have validated the user's membership of ``team_id`` first (assert_team_membership).
+    """
+    headers = _admin_headers(settings)
+    payload = {"key": token, "team_id": team_id}
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+        resp = await client.post("/key/update", headers=headers, json=payload)
+    if not resp.is_success:
+        msg = _extract_litellm_error(resp)
+        raise httpx.HTTPStatusError(
+            f"LiteLLM /key/update failed ({resp.status_code}): {msg}",
+            request=resp.request,
+            response=resp,
+        )
+
+
 async def block_litellm_key(token: str, settings: Settings, *, blocked: bool) -> None:
     """Disable (block) or re-enable (unblock) a virtual key — reversible, NOT a delete.
 

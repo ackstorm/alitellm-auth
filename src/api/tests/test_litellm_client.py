@@ -1590,6 +1590,44 @@ async def test_set_litellm_key_default_raises_on_5xx():
 
 
 # ---------------------------------------------------------------------------
+# A3: update_litellm_key_team — move a key to another team (/key/update)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_update_litellm_key_team_sends_minimal_payload():
+    settings = make_settings()
+    captured = {}
+
+    def capture(request):
+        import json as _json
+
+        captured.update(_json.loads(request.content))
+        return httpx.Response(200, json={"key": "hash", "team_id": "run"})
+
+    respx.post(f"{settings.litellm_url}/key/update").mock(side_effect=capture)
+
+    from app.litellm_client import update_litellm_key_team
+
+    await update_litellm_key_team("hash", "run", settings)
+    assert captured == {"key": "hash", "team_id": "run"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_update_litellm_key_team_raises_on_5xx():
+    from app.litellm_client import update_litellm_key_team
+
+    settings = make_settings()
+    respx.post(f"{settings.litellm_url}/key/update").mock(
+        return_value=httpx.Response(500, text="boom")
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        await update_litellm_key_team("hash", "run", settings)
+
+
+# ---------------------------------------------------------------------------
 # C1: per-user scoping header (x-user-id) on the catalog calls
 # ---------------------------------------------------------------------------
 
