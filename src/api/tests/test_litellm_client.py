@@ -1777,3 +1777,75 @@ async def test_get_team_member_budget_none_when_no_membership():
     from app.litellm_client import get_team_member_budget
 
     assert await get_team_member_budget("nobody@example.com", settings) is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_user_teams_dedups_and_resolves_aliases():
+    settings = make_settings()
+    respx.get(f"{settings.litellm_url}/user/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={"user_info": {"teams": ["default", "default", "run", "dream"]}},
+        )
+    )
+    respx.get(f"{settings.litellm_url}/team/list").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"team_id": "default", "team_alias": "Default"},
+                {"team_id": "run", "team_alias": "Run Squad"},
+                # 'dream' intentionally absent → falls back to id as alias
+            ],
+        )
+    )
+    from app.litellm_client import list_user_teams
+
+    teams = await list_user_teams("alice@example.com", settings)
+
+    assert teams == [
+        {"id": "default", "alias": "Default"},
+        {"id": "run", "alias": "Run Squad"},
+        {"id": "dream", "alias": "dream"},
+    ]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_user_teams_object_shape_returns_team_ids_not_aliases():
+    """H2: /user/info may return teams as [{team_id, team_alias}] objects. The
+    returned 'id' MUST be the real team_id (sent to /key/generate), never the
+    alias — and duplicate objects are de-duplicated by team_id."""
+    settings = make_settings()
+    respx.get(f"{settings.litellm_url}/user/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "user_info": {
+                    "teams": [
+                        {"team_id": "default", "team_alias": "Default"},
+                        {"team_id": "default", "team_alias": "Default"},  # duplicate
+                        {"team_id": "run", "team_alias": "Run Squad"},
+                    ]
+                }
+            },
+        )
+    )
+    respx.get(f"{settings.litellm_url}/team/list").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"team_id": "default", "team_alias": "Default"},
+                {"team_id": "run", "team_alias": "Run Squad"},
+            ],
+        )
+    )
+    from app.litellm_client import list_user_teams
+
+    teams = await list_user_teams("alice@example.com", settings)
+
+    # ids are the team_ids, not the aliases; duplicate collapsed; aliases resolved
+    assert teams == [
+        {"id": "default", "alias": "Default"},
+        {"id": "run", "alias": "Run Squad"},
+    ]

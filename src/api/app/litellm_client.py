@@ -966,6 +966,57 @@ def _normalize_teams(raw: Any) -> list[str] | None:
     return [t for t in out if t]
 
 
+async def list_user_teams(email: str, settings: Settings) -> list[dict]:
+    """Return the teams the user belongs to as ordered, de-duplicated
+    ``[{"id", "alias"}]`` pairs.
+
+    team_ids come from /user/info (H6: email via params, never f-string); the
+    id→alias map comes from /team/list. Order follows first-seen in /user/info.
+    An id with no /team/list match falls back to the id as its own alias.
+    Never raises for an empty membership list — returns [].
+
+    NOTE: we extract the raw team_id directly (NOT via _normalize_teams, which
+    returns alias-preferred strings for object-shaped teams, H2) because the
+    returned ``"id"`` is sent as ``team_id`` to /key/generate and /key/update —
+    it must always be a real team_id, never an alias.
+    """
+    headers = _admin_headers(settings)
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+        info_resp = await client.get("/user/info", headers=headers, params={"user_id": email})
+        if not info_resp.is_success:
+            msg = _extract_litellm_error(info_resp)
+            raise httpx.HTTPStatusError(
+                f"LiteLLM /user/info failed ({info_resp.status_code}): {msg}",
+                request=info_resp.request,
+                response=info_resp,
+            )
+        list_resp = await client.get("/team/list", headers=headers)
+
+    user_info = info_resp.json().get("user_info") or {}
+    raw_teams = user_info.get("teams") or []
+
+    rows = list_resp.json() if list_resp.is_success else []
+    if isinstance(rows, dict):
+        rows = rows.get("teams", [])
+    alias_by_id = {
+        r.get("team_id"): (r.get("team_alias") or r.get("team_id"))
+        for r in rows
+        if isinstance(r, dict) and r.get("team_id")
+    }
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    for t in raw_teams:
+        tid = t if isinstance(t, str) else (t.get("team_id") if isinstance(t, dict) else None)
+        if not tid or tid in seen:
+            continue
+        seen.add(tid)
+        # prefer the object's own alias, then /team/list, then the id itself
+        own_alias = t.get("team_alias") if isinstance(t, dict) else None
+        out.append({"id": tid, "alias": own_alias or alias_by_id.get(tid, tid)})
+    return out
+
+
 def _normalize_user(info: dict, fallback_id: str | None = None) -> dict:
     """Project a LiteLLM user object into our stable shape.
 
