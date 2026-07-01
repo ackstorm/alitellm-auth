@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
@@ -333,82 +334,79 @@ async def session_teams(
     return JSONResponse({"teams": teams})
 
 
-@router.post("/keys", response_model=None)
-async def session_create_key(
-    request: Request,
-    user: dict = Depends(require_session_user),
-) -> JSONResponse:
-    """Mint a new virtual key for the session user (SAPI-04/D-10/D-11).
-
-    Accepts an optional JSON body {alias?, duration?}. No body is valid.
-    Returns the sk- once in the response — it is NEVER stored server-side.
-    D-10: a supplied duration is threaded into /key/generate (never null);
-          a supplied alias overrides the readable+unique default.
+async def _parse_create_key_body(request: Request) -> CreateKeyBody:
+    """WR-03: distinguish "no body" (valid → defaults) from a malformed body
+    (non-empty payload that fails schema coercion → 422). The prior bare
+    ``except Exception: pass`` silently dropped a client's requested
+    alias/duration when JSON coercion failed, minting a defaults key without error.
     """
-    settings: Settings = request.app.state.settings
-    assert_same_origin(request, settings)
-
-    email = user["email"]
-    name = user["name"]
-
-    # Parse optional body. WR-03: distinguish "no body" (valid → defaults) from a
-    # "malformed body" (non-empty payload that fails schema coercion → 422). The
-    # prior bare `except Exception: pass` silently dropped a client's requested
-    # alias/duration when JSON coercion failed, minting a defaults key without error.
-    body = CreateKeyBody()
     raw_body = await request.body()
     stripped = raw_body.strip() if raw_body else b""
-    if stripped and stripped != b"{}":
-        try:
-            body = CreateKeyBody.model_validate_json(raw_body)
-        except ValidationError:
-            raise HTTPException(status_code=422, detail="invalid request body")
+    if not stripped or stripped == b"{}":
+        return CreateKeyBody()
+    try:
+        return CreateKeyBody.model_validate_json(raw_body)
+    except ValidationError:
+        raise HTTPException(status_code=422, detail="invalid request body")
 
-    # Validate alias (safe chars + length bound) if provided
-    alias: str | None = body.alias
-    if alias is not None:
-        alias = alias.strip()
-        if not alias or len(alias) > 128:
-            raise HTTPException(status_code=422, detail="alias must be 1-128 characters")
-        # Only allow alphanumeric, dash, underscore, dot
-        if not all(c.isalnum() or c in "-_." for c in alias):
-            raise HTTPException(
-                status_code=422,
-                detail="alias may only contain alphanumeric, dash, underscore, dot",
-            )
 
-    # Validate duration if provided (LiteLLM duration string, e.g. "90d", "30d", "7d")
-    duration: str | None = body.duration
-    if duration is not None:
-        duration = duration.strip()
-        if not duration:
-            duration = None
-        else:
-            # Basic format check: number + d/h/m (e.g. "90d", "24h", "30m")
-            import re
+def _validate_key_alias(alias: str | None) -> str | None:
+    if alias is None:
+        return None
+    alias = alias.strip()
+    if not alias or len(alias) > 128:
+        raise HTTPException(status_code=422, detail="alias must be 1-128 characters")
+    if not all(c.isalnum() or c in "-_." for c in alias):
+        raise HTTPException(
+            status_code=422,
+            detail="alias may only contain alphanumeric, dash, underscore, dot",
+        )
+    return alias
 
-            if not re.match(r"^\d+[dhms]$", duration):
-                raise HTTPException(
-                    status_code=422,
-                    detail="duration must be a LiteLLM duration string (e.g. '90d', '24h')",
-                )
 
-    # Optional target team. SECURITY: a client-supplied team_id is validated
-    # against the SESSION email's real memberships BEFORE any LiteLLM mint —
-    # the email comes from the verified session, never the body. Non-member → 403.
-    team_id: str | None = body.team_id
+def _validate_key_duration(duration: str | None) -> str | None:
+    """LiteLLM duration string, e.g. "90d", "24h", "30m"."""
+    if duration is None:
+        return None
+    duration = duration.strip()
+    if not duration:
+        return None
+    if not re.match(r"^\d+[dhms]$", duration):
+        raise HTTPException(
+            status_code=422,
+            detail="duration must be a LiteLLM duration string (e.g. '90d', '24h')",
+        )
+    return duration
+
+
+async def _validate_key_team(email: str, team_id: str | None, settings: Settings) -> str | None:
+    """SECURITY: a client-supplied team_id is validated against the SESSION
+    email's real memberships BEFORE any LiteLLM mint — the email comes from
+    the verified session, never the body. Non-member → 403.
+    """
     if team_id is not None:
         team_id = team_id.strip() or None
-    if team_id is not None:
-        try:
-            await assert_team_membership(email, team_id, settings)
-        except TeamMembershipError:
-            raise HTTPException(status_code=403, detail="Not a member of that team")
-        except (httpx.HTTPStatusError, httpx.RequestError):
-            raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
-
+    if team_id is None:
+        return None
     try:
-        key_data = await generate_litellm_key(
+        await assert_team_membership(email, team_id, settings)
+    except TeamMembershipError:
+        raise HTTPException(status_code=403, detail="Not a member of that team")
+    except (httpx.HTTPStatusError, httpx.RequestError):
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    return team_id
+
+
+async def _mint_session_key(
+    email: str,
+    settings: Settings,
+    name: str,
+    duration: str | None,
+    alias: str | None,
+    team_id: str | None,
+) -> dict:
+    try:
+        return await generate_litellm_key(
             email, settings, name=name, duration=duration, alias=alias, team_id=team_id
         )
     except httpx.HTTPStatusError as exc:
@@ -427,28 +425,61 @@ async def session_create_key(
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
-    # If the user has NO default key, make the key we JUST created the default.
-    # This is a presence check, not a positional one — it does not matter whether
-    # this is the 1st key or the 5th; whenever no default exists, the new key
-    # becomes it (so the very first key is default, and the user is never left
-    # without one). An existing default is never silently reassigned (that stays
-    # explicit-only via the kebab). Non-fatal: the key is already minted, so any
-    # failure here just leaves it un-defaulted (the user can set one manually).
-    is_default = False
+
+async def _auto_default_new_key(email: str, settings: Settings, key_data: dict) -> bool:
+    """If the user has NO default key, make the key we JUST created the default.
+
+    This is a presence check, not a positional one — it does not matter whether
+    this is the 1st key or the 5th; whenever no default exists, the new key
+    becomes it (so the very first key is default, and the user is never left
+    without one). An existing default is never silently reassigned (that stays
+    explicit-only via the kebab). Non-fatal: the key is already minted, so any
+    failure here just leaves it un-defaulted (the user can set one manually).
+    """
     try:
         user_keys = await list_session_keys(email, settings)
-        if not any(k.get("is_default") for k in user_keys):
-            new_key = next((k for k in user_keys if k.get("id") == key_data["id"]), None)
-            if new_key is not None:
-                await set_litellm_key_default(
-                    new_key["token"],
-                    settings,
-                    is_default=True,
-                    existing_metadata=new_key.get("metadata") or {},
-                )
-                is_default = True
+        if any(k.get("is_default") for k in user_keys):
+            return False
+        new_key = next((k for k in user_keys if k.get("id") == key_data["id"]), None)
+        if new_key is None:
+            return False
+        await set_litellm_key_default(
+            new_key["token"],
+            settings,
+            is_default=True,
+            existing_metadata=new_key.get("metadata") or {},
+        )
+        return True
     except (httpx.HTTPStatusError, httpx.RequestError) as exc:
         logger.warning("session_create_key: auto-default failed for %s: %s", email, exc)
+        return False
+
+
+@router.post("/keys", response_model=None)
+async def session_create_key(
+    request: Request,
+    user: dict = Depends(require_session_user),
+) -> JSONResponse:
+    """Mint a new virtual key for the session user (SAPI-04/D-10/D-11).
+
+    Accepts an optional JSON body {alias?, duration?}. No body is valid.
+    Returns the sk- once in the response — it is NEVER stored server-side.
+    D-10: a supplied duration is threaded into /key/generate (never null);
+          a supplied alias overrides the readable+unique default.
+    """
+    settings: Settings = request.app.state.settings
+    assert_same_origin(request, settings)
+
+    email = user["email"]
+    name = user["name"]
+
+    body = await _parse_create_key_body(request)
+    alias = _validate_key_alias(body.alias)
+    duration = _validate_key_duration(body.duration)
+    team_id = await _validate_key_team(email, body.team_id, settings)
+
+    key_data = await _mint_session_key(email, settings, name, duration, alias, team_id)
+    is_default = await _auto_default_new_key(email, settings, key_data)
 
     # Return the sk- ONCE — it is never stored and cannot be recovered (SAPI-04)
     return JSONResponse(
