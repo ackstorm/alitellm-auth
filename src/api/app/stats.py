@@ -136,6 +136,68 @@ def _zero_fill_series(
     return filled
 
 
+def _day_series_entry(day: dict[str, Any]) -> dict[str, Any]:
+    m = day.get("metrics") or {}
+    return {
+        "date": day.get("date"),
+        "spend": _num(m.get("spend")),
+        "requests": int(_num(m.get("api_requests"))),
+        "tokens": int(_num(m.get("total_tokens"))),
+        "failed": int(_num(m.get("failed_requests"))),
+    }
+
+
+def _accumulate_day_models(model_acc: dict[str, dict[str, Any]], breakdown: dict[str, Any]) -> None:
+    models = breakdown.get("models") or {}
+    if not isinstance(models, dict):
+        return
+    for model_name, mblock in models.items():
+        if not isinstance(mblock, dict):
+            continue
+        m = mblock.get("metrics") or {}
+        acc = model_acc.setdefault(
+            model_name,
+            {
+                "model": model_name,
+                "requests": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "spend": 0.0,
+            },
+        )
+        acc["requests"] += int(_num(m.get("api_requests")))
+        acc["input_tokens"] += int(_num(m.get("prompt_tokens")))
+        acc["output_tokens"] += int(_num(m.get("completion_tokens")))
+        acc["total_tokens"] += int(_num(m.get("total_tokens")))
+        acc["spend"] += _num(m.get("spend"))
+
+
+def _accumulate_day_keys(key_acc: dict[str, dict[str, Any]], breakdown: dict[str, Any]) -> None:
+    api_keys = breakdown.get("api_keys") or {}
+    if not isinstance(api_keys, dict):
+        return
+    for key_hash, kblock in api_keys.items():
+        if not isinstance(kblock, dict):
+            continue
+        k = kblock.get("metrics") or {}
+        kmeta = kblock.get("metadata") or {}
+        acc = key_acc.setdefault(
+            key_hash,
+            {
+                "id": key_hash,
+                "key_alias": kmeta.get("key_alias"),
+                "requests": 0,
+                "spend": 0.0,
+            },
+        )
+        # Keep the first non-null alias we see for this hash.
+        if acc.get("key_alias") is None and kmeta.get("key_alias") is not None:
+            acc["key_alias"] = kmeta.get("key_alias")
+        acc["requests"] += int(_num(k.get("api_requests")))
+        acc["spend"] += _num(k.get("spend"))
+
+
 def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     """Fold ONE daily-activity window into window totals + series + per-model/per-key.
 
@@ -179,63 +241,10 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     for day in results:
         if not isinstance(day, dict):
             continue
-        day_metrics = day.get("metrics") or {}
-        series.append(
-            {
-                "date": day.get("date"),
-                "spend": _num(day_metrics.get("spend")),
-                "requests": int(_num(day_metrics.get("api_requests"))),
-                "tokens": int(_num(day_metrics.get("total_tokens"))),
-                "failed": int(_num(day_metrics.get("failed_requests"))),
-            }
-        )
-
+        series.append(_day_series_entry(day))
         breakdown = day.get("breakdown") or {}
-
-        models = breakdown.get("models") or {}
-        if isinstance(models, dict):
-            for model_name, mblock in models.items():
-                if not isinstance(mblock, dict):
-                    continue
-                m = mblock.get("metrics") or {}
-                acc = model_acc.setdefault(
-                    model_name,
-                    {
-                        "model": model_name,
-                        "requests": 0,
-                        "input_tokens": 0,
-                        "output_tokens": 0,
-                        "total_tokens": 0,
-                        "spend": 0.0,
-                    },
-                )
-                acc["requests"] += int(_num(m.get("api_requests")))
-                acc["input_tokens"] += int(_num(m.get("prompt_tokens")))
-                acc["output_tokens"] += int(_num(m.get("completion_tokens")))
-                acc["total_tokens"] += int(_num(m.get("total_tokens")))
-                acc["spend"] += _num(m.get("spend"))
-
-        api_keys = breakdown.get("api_keys") or {}
-        if isinstance(api_keys, dict):
-            for key_hash, kblock in api_keys.items():
-                if not isinstance(kblock, dict):
-                    continue
-                k = kblock.get("metrics") or {}
-                kmeta = kblock.get("metadata") or {}
-                acc = key_acc.setdefault(
-                    key_hash,
-                    {
-                        "id": key_hash,
-                        "key_alias": kmeta.get("key_alias"),
-                        "requests": 0,
-                        "spend": 0.0,
-                    },
-                )
-                # Keep the first non-null alias we see for this hash.
-                if acc.get("key_alias") is None and kmeta.get("key_alias") is not None:
-                    acc["key_alias"] = kmeta.get("key_alias")
-                acc["requests"] += int(_num(k.get("api_requests")))
-                acc["spend"] += _num(k.get("spend"))
+        _accumulate_day_models(model_acc, breakdown)
+        _accumulate_day_keys(key_acc, breakdown)
 
     # Chart x-axis runs oldest → newest (left → right). LiteLLM may return
     # ``results[]`` newest-first, so sort the series chronologically by date

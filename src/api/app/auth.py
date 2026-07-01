@@ -151,6 +151,114 @@ async def logout(request: Request) -> RedirectResponse:
     return RedirectResponse(f"{settings.app_base_url}/ui/", status_code=302)
 
 
+async def _auth_callback_ui(email: str, name: str | None, settings: Settings) -> HTMLResponse:
+    # D-13: eager-create the LiteLLM user on first /ui login (no key minted).
+    # Dashboard entry makes the user exist immediately so /me is coherent.
+    try:
+        await ensure_team_and_user(email, settings, name=name)
+    except Exception as exc:
+        # D-09 graceful degrade — still redirect; /me handles the transient no-user case.
+        logger.error("ui: ensure_team_and_user failed for %s: %s", email, exc)
+    return RedirectResponse(f"{settings.app_base_url}/ui", status_code=302)
+
+
+async def _auth_callback_reveal(
+    request: Request,
+    templates: Jinja2Templates,
+    email: str,
+    name: str | None,
+    settings: Settings,
+) -> HTMLResponse:
+    try:
+        keys = await list_litellm_keys(email, settings)
+    except Exception as exc:
+        # Never interpolate the raw backend exception (which can carry
+        # resp.text via _extract_litellm_error) into the HTML page returned
+        # to the browser. Log server-side, render a generic message (WR-A,
+        # same non-leak treatment as the WR-05 delete_token fix).
+        logger.error("reveal: list_litellm_keys failed for %s: %s", email, exc)
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": "Could not retrieve your tokens. Please try again later."},
+            status_code=500,
+        )
+    if not keys:
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": "No tokens found for this user. Please use /login to create one."},
+            status_code=404,
+        )
+    latest = keys[0]
+    return templates.TemplateResponse(
+        request,
+        "success.html",
+        {
+            "name": name,
+            "email": email,
+            "key": None,
+            "key_id": latest["id"],
+            "team_id": settings.team_id,
+            "api_url": f"{settings.api_public_url}/v1",
+        },
+    )
+
+
+async def _auth_callback_tokens(
+    request: Request, templates: Jinja2Templates, email: str, settings: Settings
+) -> JSONResponse | HTMLResponse:
+    try:
+        keys = await list_litellm_keys(email, settings)
+    except Exception as exc:
+        # Same non-leak treatment as the reveal branch above (WR-A): log the
+        # raw exception server-side, return a generic message to the client.
+        logger.error("tokens: list_litellm_keys failed for %s: %s", email, exc)
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": "Could not retrieve your tokens. Please try again later."},
+            status_code=500,
+        )
+    safe_keys = [{k: v for k, v in t.items() if k != "key"} for t in keys]
+    return JSONResponse({"email": email, "tokens": safe_keys})
+
+
+async def _auth_callback_login(
+    request: Request,
+    templates: Jinja2Templates,
+    email: str,
+    name: str | None,
+    settings: Settings,
+) -> HTMLResponse:
+    try:
+        key_data = await generate_litellm_key(email, settings, name=name)
+    except Exception as exc:
+        # Never interpolate the raw backend error body (resp.text via
+        # _extract_litellm_error) into the page (#4) — same non-leak treatment as
+        # the reveal/tokens branches (WR-A). Log server-side, show generic copy.
+        logger.error("login: key generation failed for %s: %s", email, exc)
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": "Could not create your API key. Please try again later."},
+            status_code=500,
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "success.html",
+        {
+            "name": name,
+            "email": email,
+            "key": key_data["key"],
+            "key_id": key_data["id"],
+            "team_id": key_data["team_id"],
+            "api_url": f"{settings.api_public_url}/v1",
+        },
+    )
+
+
 @router.get("/api/oauth/callback", name="auth_callback", response_model=None)
 async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
     """Handle Dex callback for all OIDC flows.
@@ -202,94 +310,12 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
 
     # 3. Dispatch based on action
     if action == "ui":
-        # D-13: eager-create the LiteLLM user on first /ui login (no key minted).
-        # Dashboard entry makes the user exist immediately so /me is coherent.
-        try:
-            await ensure_team_and_user(email, settings, name=name)
-        except Exception as exc:
-            # D-09 graceful degrade — still redirect; /me handles the transient no-user case.
-            logger.error("ui: ensure_team_and_user failed for %s: %s", email, exc)
-        return RedirectResponse(f"{settings.app_base_url}/ui", status_code=302)
-
+        return await _auth_callback_ui(email, name, settings)
     if action == "reveal":
-        try:
-            keys = await list_litellm_keys(email, settings)
-        except Exception as exc:
-            # Never interpolate the raw backend exception (which can carry
-            # resp.text via _extract_litellm_error) into the HTML page returned
-            # to the browser. Log server-side, render a generic message (WR-A,
-            # same non-leak treatment as the WR-05 delete_token fix).
-            logger.error("reveal: list_litellm_keys failed for %s: %s", email, exc)
-            return templates.TemplateResponse(
-                request,
-                "error.html",
-                {"error": "Could not retrieve your tokens. Please try again later."},
-                status_code=500,
-            )
-        if not keys:
-            return templates.TemplateResponse(
-                request,
-                "error.html",
-                {"error": "No tokens found for this user. Please use /login to create one."},
-                status_code=404,
-            )
-        latest = keys[0]
-        return templates.TemplateResponse(
-            request,
-            "success.html",
-            {
-                "name": name,
-                "email": email,
-                "key": None,
-                "key_id": latest["id"],
-                "team_id": settings.team_id,
-                "api_url": f"{settings.api_public_url}/v1",
-            },
-        )
-
+        return await _auth_callback_reveal(request, templates, email, name, settings)
     if action == "tokens":
-        try:
-            keys = await list_litellm_keys(email, settings)
-        except Exception as exc:
-            # Same non-leak treatment as the reveal branch above (WR-A): log the
-            # raw exception server-side, return a generic message to the client.
-            logger.error("tokens: list_litellm_keys failed for %s: %s", email, exc)
-            return templates.TemplateResponse(
-                request,
-                "error.html",
-                {"error": "Could not retrieve your tokens. Please try again later."},
-                status_code=500,
-            )
-        safe_keys = [{k: v for k, v in t.items() if k != "key"} for t in keys]
-        return JSONResponse({"email": email, "tokens": safe_keys})
-
-    # Default: action == "login" — generate a new key
-    try:
-        key_data = await generate_litellm_key(email, settings, name=name)
-    except Exception as exc:
-        # Never interpolate the raw backend error body (resp.text via
-        # _extract_litellm_error) into the page (#4) — same non-leak treatment as
-        # the reveal/tokens branches (WR-A). Log server-side, show generic copy.
-        logger.error("login: key generation failed for %s: %s", email, exc)
-        return templates.TemplateResponse(
-            request,
-            "error.html",
-            {"error": "Could not create your API key. Please try again later."},
-            status_code=500,
-        )
-
-    return templates.TemplateResponse(
-        request,
-        "success.html",
-        {
-            "name": name,
-            "email": email,
-            "key": key_data["key"],
-            "key_id": key_data["id"],
-            "team_id": key_data["team_id"],
-            "api_url": f"{settings.api_public_url}/v1",
-        },
-    )
+        return await _auth_callback_tokens(request, templates, email, settings)
+    return await _auth_callback_login(request, templates, email, name, settings)
 
 
 @router.get("/api/oauth/reveal")
