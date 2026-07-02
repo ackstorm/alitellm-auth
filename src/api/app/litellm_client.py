@@ -9,7 +9,7 @@ import logging
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import httpx
 
@@ -36,6 +36,16 @@ def _extract_litellm_error(resp: httpx.Response) -> str:
     except Exception:
         pass
     return resp.text
+
+
+def _raise_litellm(resp: httpx.Response, endpoint: str) -> NoReturn:
+    """Raise a uniform HTTPStatusError for a failed LiteLLM admin call."""
+    msg = _extract_litellm_error(resp)
+    raise httpx.HTTPStatusError(
+        f"LiteLLM {endpoint} failed ({resp.status_code}): {msg}",
+        request=resp.request,
+        response=resp,
+    )
 
 
 def _parse_metadata(raw_metadata: Any) -> dict:
@@ -184,12 +194,7 @@ async def ensure_team_member_budget(
         )
         already_member = add_resp.status_code in (400, 409) and "already" in add_resp.text.lower()
         if not add_resp.is_success and not already_member:
-            msg = _extract_litellm_error(add_resp)
-            raise httpx.HTTPStatusError(
-                f"LiteLLM /team/member_add failed: {msg}",
-                request=add_resp.request,
-                response=add_resp,
-            )
+            _raise_litellm(add_resp, "/team/member_add")
 
         # Step 2: Update the per-member cap (top-level body per TeamMemberUpdateRequest).
         # Always called: sets/refreshes the cap whether the member was just added or already existed.
@@ -203,12 +208,7 @@ async def ensure_team_member_budget(
             },
         )
         if not update_resp.is_success:
-            msg = _extract_litellm_error(update_resp)
-            raise httpx.HTTPStatusError(
-                f"LiteLLM /team/member_update failed: {msg}",
-                request=update_resp.request,
-                response=update_resp,
-            )
+            _raise_litellm(update_resp, "/team/member_update")
 
 
 async def get_team_member_budget(email: str, settings: Settings) -> dict | None:
@@ -231,12 +231,7 @@ async def get_team_member_budget(email: str, settings: Settings) -> dict | None:
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
         resp = await client.get("/team/info", headers=headers, params={"team_id": settings.team_id})
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /team/info failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/team/info")
     data = resp.json()
     if not isinstance(data, dict):
         return None
@@ -312,12 +307,7 @@ async def ensure_team_and_user(
         )
         team_exists = _already_exists(team_resp)
         if team_resp.status_code != 200 and not team_exists:
-            msg = _extract_litellm_error(team_resp)
-            raise httpx.HTTPStatusError(
-                f"LiteLLM /team/new failed: {msg}",
-                request=team_resp.request,
-                response=team_resp,
-            )
+            _raise_litellm(team_resp, "/team/new")
 
         # Step B: Ensure shared access group exists (same name as team/client_id).
         await _ensure_access_group(client, headers, settings.oauth_client_id)
@@ -345,12 +335,7 @@ async def ensure_team_and_user(
                         json={"user_id": email, **missing},
                     )
                     if not resp.is_success:
-                        msg = _extract_litellm_error(resp)
-                        raise httpx.HTTPStatusError(
-                            f"LiteLLM /user/update (backfill) failed: {msg}",
-                            request=resp.request,
-                            response=resp,
-                        )
+                        _raise_litellm(resp, "/user/update (backfill)")
                     logger.info(
                         "D-16 lazy backfill: updated %s with fields %s",
                         email,
@@ -473,12 +458,7 @@ async def generate_litellm_key(
         key_resp = await client.post("/key/generate", headers=headers, json=key_payload)
 
         if not key_resp.is_success:
-            msg = _extract_litellm_error(key_resp)
-            raise httpx.HTTPStatusError(
-                f"LiteLLM /key/generate failed: {msg}",
-                request=key_resp.request,
-                response=key_resp,
-            )
+            _raise_litellm(key_resp, "/key/generate")
 
     key_data = key_resp.json()
     metadata = _parse_metadata(key_data.get("metadata"))
@@ -589,12 +569,7 @@ async def list_session_keys(email: str, settings: Settings) -> list[dict]:
         )
 
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /key/list failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/key/list")
 
     rows = resp.json().get("keys", [])
     if not isinstance(rows, list):
@@ -682,12 +657,7 @@ async def user_daily_activity(
                 },
             )
             if not resp.is_success:
-                msg = _extract_litellm_error(resp)
-                raise httpx.HTTPStatusError(
-                    f"LiteLLM /user/daily/activity failed ({resp.status_code}): {msg}",
-                    request=resp.request,
-                    response=resp,
-                )
+                _raise_litellm(resp, "/user/daily/activity")
             data = resp.json()
             results = data.get("results", []) if isinstance(data, dict) else []
             if isinstance(results, list):
@@ -736,11 +706,7 @@ async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:
         resp = await client.get("/key/list", headers=headers, params={"team_id": team_id})
 
     if not resp.is_success:
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /key/list failed ({resp.status_code}): {resp.text}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/key/list")
 
     all_keys = resp.json().get("keys", [])
     if not isinstance(all_keys, list):
@@ -812,12 +778,7 @@ async def delete_litellm_key(token: str, settings: Settings) -> None:
         resp = await client.post("/key/delete", headers=headers, json={"keys": [token]})
 
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /key/delete failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/key/delete")
 
 
 async def set_litellm_key_default(
@@ -844,12 +805,7 @@ async def set_litellm_key_default(
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
         resp = await client.post("/key/update", headers=headers, json=payload)
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /key/update failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/key/update")
 
 
 async def update_litellm_key_team(token: str, team_id: str, settings: Settings) -> None:
@@ -865,12 +821,7 @@ async def update_litellm_key_team(token: str, team_id: str, settings: Settings) 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
         resp = await client.post("/key/update", headers=headers, json=payload)
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /key/update failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/key/update")
 
 
 async def block_litellm_key(token: str, settings: Settings, *, blocked: bool) -> None:
@@ -886,12 +837,7 @@ async def block_litellm_key(token: str, settings: Settings, *, blocked: bool) ->
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
         resp = await client.post(route, headers=headers, json={"key": token})
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM {route} failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, route)
 
 
 async def get_key_info(api_key: str, settings: Settings) -> dict:
@@ -920,12 +866,7 @@ async def get_key_info(api_key: str, settings: Settings) -> dict:
         resp = await client.get("/key/info", headers=headers, params={"key": api_key})
 
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /key/info failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/key/info")
 
     data = resp.json()
     if not isinstance(data, dict):
@@ -1015,12 +956,7 @@ async def list_user_teams(email: str, settings: Settings) -> list[dict]:
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
         info_resp = await client.get("/user/info", headers=headers, params={"user_id": email})
         if not info_resp.is_success:
-            msg = _extract_litellm_error(info_resp)
-            raise httpx.HTTPStatusError(
-                f"LiteLLM /user/info failed ({info_resp.status_code}): {msg}",
-                request=info_resp.request,
-                response=info_resp,
-            )
+            _raise_litellm(info_resp, "/user/info")
         list_resp = await client.get("/team/list", headers=headers)
 
     user_info = info_resp.json().get("user_info") or {}
@@ -1128,10 +1064,7 @@ async def ensure_litellm_user(
         resp = await client.post("/user/new", headers=headers, json=payload)
     exists = _already_exists(resp)
     if not resp.is_success and not exists:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /user/new failed: {msg}", request=resp.request, response=resp
-        )
+        _raise_litellm(resp, "/user/new")
     if exists:
         return {"user_id": email, "existed": True}
     return resp.json()
@@ -1161,12 +1094,7 @@ async def get_litellm_user(email: str, settings: Settings) -> dict:
         if resp.status_code == 404:
             info: dict = {}
         elif not resp.is_success:
-            msg = _extract_litellm_error(resp)
-            raise httpx.HTTPStatusError(
-                f"LiteLLM /user/info failed ({resp.status_code}): {msg}",
-                request=resp.request,
-                response=resp,
-            )
+            _raise_litellm(resp, "/user/info")
         else:
             data = resp.json()
             # Unwrap user_info wrapper if present
@@ -1201,12 +1129,7 @@ async def get_litellm_user(email: str, settings: Settings) -> dict:
             # transient 5xx as "User not found" (404) — dangerous on the admin
             # DELETE path, which would report a real user as absent (WR-05).
             # Surface it as an HTTPStatusError so callers map it to 502.
-            msg = _extract_litellm_error(list_resp)
-            raise httpx.HTTPStatusError(
-                f"LiteLLM /user/list fallback failed ({list_resp.status_code}): {msg}",
-                request=list_resp.request,
-                response=list_resp,
-            )
+            _raise_litellm(list_resp, "/user/list fallback")
 
     return _normalize_user(info, fallback_id=email)
 
@@ -1243,12 +1166,7 @@ async def list_litellm_users(
                 params=params,
             )
             if not resp.is_success:
-                msg = _extract_litellm_error(resp)
-                raise httpx.HTTPStatusError(
-                    f"LiteLLM /user/list failed ({resp.status_code}): {msg}",
-                    request=resp.request,
-                    response=resp,
-                )
+                _raise_litellm(resp, "/user/list")
             data = resp.json()
             page_users = data.get("users", data) if isinstance(data, dict) else data
             if not isinstance(page_users, list):
@@ -1283,12 +1201,7 @@ async def delete_litellm_user(email: str, settings: Settings) -> None:
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
         resp = await client.post("/user/delete", headers=headers, json={"user_ids": [email]})
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /user/delete failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/user/delete")
 
 
 # ---------------------------------------------------------------------------
@@ -1341,12 +1254,7 @@ async def list_litellm_models(settings: Settings, user_id: str | None = None) ->
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
         resp = await client.get("/model_group/info", headers=headers)
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /model_group/info failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/model_group/info")
     data = resp.json()
     rows = data.get("data", []) if isinstance(data, dict) else []
     if not isinstance(rows, list):
@@ -1405,12 +1313,7 @@ async def list_litellm_mcp_servers(settings: Settings, user_id: str | None = Non
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
         resp = await client.get("/v1/mcp/server", headers=headers)
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /v1/mcp/server failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/v1/mcp/server")
     data = resp.json()
     if isinstance(data, dict):
         rows = data.get("data") or data.get("servers") or []
@@ -1491,12 +1394,7 @@ async def list_litellm_a2a_agents(settings: Settings, user_id: str | None = None
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
         resp = await client.get("/v1/agents", headers=headers)
     if not resp.is_success:
-        msg = _extract_litellm_error(resp)
-        raise httpx.HTTPStatusError(
-            f"LiteLLM /v1/agents failed ({resp.status_code}): {msg}",
-            request=resp.request,
-            response=resp,
-        )
+        _raise_litellm(resp, "/v1/agents")
     data = resp.json()
     if isinstance(data, dict):
         rows = data.get("data") or data.get("agents") or []
