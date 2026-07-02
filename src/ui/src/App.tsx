@@ -20,6 +20,7 @@
 import { useEffect, useMemo } from 'react';
 import { createHashRouter, Navigate, RouterProvider } from 'react-router';
 import { resolveState } from '@/lib/resolve-state';
+import { setUnauthorizedHandler } from '@/lib/on-unauthorized';
 import { useSessionStore } from '@/stores/session';
 import { useConfigStore } from '@/stores/config';
 import type { AppConfig, SessionMe } from '@/lib/api-types';
@@ -78,14 +79,20 @@ export function App() {
   const hasLoaded = useSessionStore((s) => s.hasLoaded);
   const me = useSessionStore((s) => s.me);
   const loadSession = useSessionStore((s) => s.loadSession);
+  const markExpired = useSessionStore((s) => s.markExpired);
   const config = useConfigStore((s) => s.config);
   const loadConfig = useConfigStore((s) => s.loadConfig);
 
-  // Boot: ONE loadSession + ONE loadConfig on mount.
+  // Boot: register the mid-session 401 handler, then ONE loadSession + ONE
+  // loadConfig on mount. Any /api/session/* 401 after load (e.g. a Models/Stats
+  // fetch once the cookie expired) marks the session expired -> resolveState maps
+  // that to 'expired' -> the redirect effect below navigates to login.
   useEffect(() => {
+    setUnauthorizedHandler(() => markExpired());
     loadSession();
     loadConfig();
-  }, [loadSession, loadConfig]);
+    return () => setUnauthorizedHandler(null);
+  }, [loadSession, loadConfig, markExpired]);
 
   const view = resolveState(status, hasLoaded);
 

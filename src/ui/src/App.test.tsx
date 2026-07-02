@@ -22,6 +22,7 @@ import { App } from './App';
 import { useSessionStore, initialSessionState } from './stores/session';
 import { useConfigStore, initialConfigState, DEFAULT_CONFIG } from './stores/config';
 import type { SessionMe } from './lib/api-types';
+import { setUnauthorizedHandler, notifyUnauthorized } from './lib/on-unauthorized';
 
 // The authed dashboard now mounts KeysTable + the dashboard's own useKeys()
 // query, so App must render inside a QueryClientProvider. A fresh, retry-free
@@ -52,13 +53,15 @@ const ME: SessionMe = {
 // Spies stand in for the store boot actions so mounting App never fetches.
 let loadSessionSpy: ReturnType<typeof vi.fn>;
 let loadConfigSpy: ReturnType<typeof vi.fn>;
+let markExpiredSpy: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   loadSessionSpy = vi.fn();
   loadConfigSpy = vi.fn();
+  markExpiredSpy = vi.fn();
   // Replace whole state, re-supplying the (spied) actions.
   useSessionStore.setState(
-    { ...initialSessionState, loadSession: loadSessionSpy },
+    { ...initialSessionState, loadSession: loadSessionSpy, markExpired: markExpiredSpy },
     true,
   );
   useConfigStore.setState(
@@ -69,6 +72,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  setUnauthorizedHandler(null);
   // Reset the hash so hash-router tests stay isolated (a leftover #/garbage or
   // #/stats would leak into the next render).
   window.location.hash = '';
@@ -199,5 +203,17 @@ describe('App driver — brand lockup (empty accent_segment)', () => {
     // Whole brand renders as one string; no "-auth" accent span.
     expect(screen.getByText('ACKStorm')).toBeInTheDocument();
     expect(screen.queryByText('-auth')).toBeNull();
+  });
+});
+
+describe('App driver — mid-session 401 wiring', () => {
+  it('registers a handler so notifyUnauthorized() calls markExpired', () => {
+    // Authed shell so App mounts normally and the boot effect runs.
+    useSessionStore.setState({ status: 200, hasLoaded: true, me: ME });
+    renderApp();
+
+    notifyUnauthorized();
+
+    expect(markExpiredSpy).toHaveBeenCalledTimes(1);
   });
 });
