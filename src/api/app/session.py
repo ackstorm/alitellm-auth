@@ -215,6 +215,22 @@ def _build_limits(user: dict[str, Any]) -> dict[str, Any] | None:
     return limits
 
 
+async def _relist_or_502(email: str, settings: Settings, ctx: str) -> list[dict]:
+    """Fetch the user's keys, mapping any LiteLLM failure to a 502.
+
+    ``ctx`` prefixes the error log line (e.g. "session_delete_key: relist failed")
+    so per-route context survives; the user-facing 502 detail strings are the same
+    across every caller.
+    """
+    try:
+        return await list_session_keys(email, settings)
+    except httpx.HTTPStatusError as exc:
+        logger.error("%s for %s: %s", ctx, email, exc)
+        raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
+
 # ---------------------------------------------------------------------------
 # /api/session/* routes
 # ---------------------------------------------------------------------------
@@ -296,13 +312,7 @@ async def session_list_keys(
     """
     settings: Settings = request.app.state.settings
     email = user["email"]
-    try:
-        keys = await list_session_keys(email, settings)
-    except httpx.HTTPStatusError as exc:
-        logger.error("session_list_keys: list failed for %s: %s", email, exc)
-        raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    keys = await _relist_or_502(email, settings, "session_list_keys: list failed")
     # D-17: never expose the raw sk- ("key"), the server-side delete hash ("token"),
     # nor the raw "metadata" (may hold factory user_meta_extra) to the browser.
     # The derived "is_default" bool DOES go to the browser.
@@ -509,13 +519,7 @@ async def session_delete_key(
 
     email = user["email"]
 
-    try:
-        user_keys = await list_session_keys(email, settings)
-    except httpx.HTTPStatusError as exc:
-        logger.error("session_delete_key: relist failed for %s: %s", email, exc)
-        raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    user_keys = await _relist_or_502(email, settings, "session_delete_key: relist failed")
 
     # Find the key for this id — 403 for any id not in the user's list (D-12)
     target = next((k for k in user_keys if k.get("id") == key_id), None)
@@ -561,13 +565,7 @@ async def session_make_default(
     assert_same_origin(request, settings)
     email = user["email"]
 
-    try:
-        user_keys = await list_session_keys(email, settings)
-    except httpx.HTTPStatusError as exc:
-        logger.error("session_make_default: relist failed for %s: %s", email, exc)
-        raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    user_keys = await _relist_or_502(email, settings, "session_make_default: relist failed")
 
     target = next((k for k in user_keys if k.get("id") == key_id), None)
     if target is None:
@@ -625,13 +623,7 @@ async def session_block_key(
     except ValidationError:
         raise HTTPException(status_code=422, detail="invalid request body")
 
-    try:
-        user_keys = await list_session_keys(email, settings)
-    except httpx.HTTPStatusError as exc:
-        logger.error("session_block_key: relist failed for %s: %s", email, exc)
-        raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    user_keys = await _relist_or_502(email, settings, "session_block_key: relist failed")
 
     target = next((k for k in user_keys if k.get("id") == key_id), None)
     if target is None:
@@ -689,13 +681,7 @@ async def session_change_key_team(
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
     # Ownership: relist + match by id (403 for foreign/unknown, D-12).
-    try:
-        user_keys = await list_session_keys(email, settings)
-    except httpx.HTTPStatusError as exc:
-        logger.error("session_change_key_team: relist failed for %s: %s", email, exc)
-        raise HTTPException(status_code=502, detail="LiteLLM key listing failed")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    user_keys = await _relist_or_502(email, settings, "session_change_key_team: relist failed")
 
     target = next((k for k in user_keys if k.get("id") == key_id), None)
     if target is None:
