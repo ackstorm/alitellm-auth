@@ -237,6 +237,9 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
     caption?: string;
     note?: string;
     guide?: { url: string; label: string };
+    // Optional trailing caveat with its own copyable snippet (e.g. disabling
+    // Anthropic server-side tools that can't run through the gateway).
+    caveat?: { note: string; caption: string; code: string };
   };
   const TOOL_GROUPS: {
     id: string;
@@ -330,6 +333,15 @@ claude`,
           guide: {
             url: 'https://docs.litellm.ai/docs/anthropic_completion',
             label: 'Claude Code + LiteLLM guide',
+          },
+          caveat: {
+            note: "WebSearch is an Anthropic server-side tool — it only runs on Anthropic's own API, so through the gateway it fails. You don't lose web search, though: plug in an external search MCP server (see the MCP servers section below) to add it back. Disable the built-in tool in Claude Code settings (~/.claude/settings.json for all projects, or .claude/settings.json in a project); add WebFetch too if it also errors:",
+            caption: '~/.claude/settings.json',
+            code: `{
+  "permissions": {
+    "deny": ["WebSearch"]
+  }
+}`,
           },
         },
         {
@@ -462,7 +474,7 @@ qwen`,
         }
       />
       {v.note && (
-        <p className="mt-2 font-sans text-xs leading-relaxed text-text-tertiary">
+        <p className="mt-2 font-sans text-xs leading-relaxed text-text-secondary">
           {v.note}
         </p>
       )}
@@ -477,8 +489,16 @@ qwen`,
           <ExternalLink className="size-3" aria-hidden="true" />
         </a>
       )}
+      {v.caveat && (
+        <div className="mt-4 rounded-lg border border-border bg-surface/50 p-3">
+          <p className="mb-2 font-sans text-xs leading-relaxed text-text-secondary">
+            {v.caveat.note}
+          </p>
+          <CodeBlock code={v.caveat.code} caption={v.caveat.caption} />
+        </div>
+      )}
       {!v.ready && (
-        <p className="mt-2 font-sans text-xs text-text-tertiary">
+        <p className="mt-2 font-sans text-xs text-text-secondary">
           Placeholder — tested {v.subLabel ?? groupLabel} values land here soon.
         </p>
       )}
@@ -627,7 +647,7 @@ qwen`,
                 </TabsContent>
               ))}
             </Tabs>
-            <p className="mt-3 font-sans text-xs leading-relaxed text-text-tertiary">
+            <p className="mt-3 font-sans text-xs leading-relaxed text-text-secondary">
               Swap {KEY_PLACEHOLDER} for your key (mint it on the Keys tab). The
               base URL is your live gateway; only the key differs per user.
             </p>
