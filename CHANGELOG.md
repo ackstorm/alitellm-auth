@@ -2,6 +2,12 @@
 
 ## [unreleased]
 
+## [0.5.27] - 2026-07-02
+
+### Changed
+
+- **Internal refactor — deduplicated repeated scaffolding across the API and UI; no behavior change.** Extracted shared helpers for four copy-pasted patterns: `_raise_litellm` (23 identical LiteLLM error-raise blocks, error message format now uniform), `_relist_or_502` (5 identical key-relist error handlers), `_list_catalog` (the models/MCP/A2A catalog scaffold), and `_oidc_redirect` (the login/reveal/tokens OIDC flow start); on the console, a `useKeyMutation` factory backs the five key-lifecycle mutation hooks. Also removed three verified-dead items (an unused admin return value, an unused `CreatedKey` type, and a `'team'` spend-source that the server never emits). All security invariants preserved (the login `?action` whitelist, the `x-user-id` catalog scoping, and the admin constant-time key compare are untouched). Net −123 lines; 257 pytest / 389 vitest green.
+
 ## [0.5.26] - 2026-07-02
 
 ### Changed
