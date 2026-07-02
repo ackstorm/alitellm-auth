@@ -1,5 +1,8 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { apiFetch } from './api';
+
+vi.mock('./on-unauthorized', () => ({ notifyUnauthorized: vi.fn() }));
+import { notifyUnauthorized } from './on-unauthorized';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -43,5 +46,41 @@ describe('apiFetch never-throw contract', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortErr));
 
     await expect(apiFetch('/api/session/keys')).rejects.toThrow();
+  });
+});
+
+describe('apiFetch mid-session 401 notification', () => {
+  beforeEach(() => {
+    vi.mocked(notifyUnauthorized).mockClear();
+  });
+
+  const resp401 = () =>
+    ({
+      status: 401,
+      json: () => Promise.reject(new SyntaxError('no body')),
+    }) as unknown as Response;
+
+  test('a 401 on a /api/session/* URL notifies the unauthorized handler', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(resp401()));
+    await apiFetch('/api/session/models');
+    expect(notifyUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
+  test('a 401 on a non-session URL does NOT notify', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(resp401()));
+    await apiFetch('/api/config');
+    expect(notifyUnauthorized).not.toHaveBeenCalled();
+  });
+
+  test('a 200 on a /api/session/* URL does NOT notify', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 200,
+        json: () => Promise.resolve({ ok: true }),
+      } as unknown as Response),
+    );
+    await apiFetch('/api/session/models');
+    expect(notifyUnauthorized).not.toHaveBeenCalled();
   });
 });
