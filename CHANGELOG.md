@@ -2,6 +2,12 @@
 
 ## [unreleased]
 
+## [0.5.25] - 2026-07-02
+
+### Fixed
+
+- **Expired session now redirects to login instead of a dead error.** When a session cookie expired mid-use, the console stayed on the authenticated shell and every data panel (Models, Stats, Keys, MCPs) showed a generic "couldn't load — check your connection" error with a RETRY button that could never recover. Any `/api/session/*` request that returns 401 after the session has loaded now routes through the existing expired-session path and silently redirects to the OIDC login (`/api/oauth/login`); with a still-valid SSO session this returns the user straight to where they were. A cold-load 401 still lands on the sign-in page as before.
+
 ## [0.5.24] - 2026-07-01
 
 ## [0.5.23] - 2026-06-27
