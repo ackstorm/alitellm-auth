@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/users", tags=["admin"])
 
 
-async def require_admin(api_key: str, settings: Settings) -> str:
+async def require_admin(api_key: str, settings: Settings) -> None:
     """Constant-time master-key comparison — never use == for secrets.
 
     Compare on UTF-8 bytes (not str): hmac.compare_digest raises TypeError on
@@ -38,7 +38,6 @@ async def require_admin(api_key: str, settings: Settings) -> str:
         api_key.encode("utf-8"), settings.litellm_master_key.encode("utf-8")
     ):
         raise HTTPException(status_code=403, detail="Admin privileges required")
-    return "master-key"
 
 
 async def _guard(request: Request, header: str | None) -> Settings:

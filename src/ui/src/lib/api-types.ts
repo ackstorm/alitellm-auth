@@ -23,7 +23,7 @@ export interface SessionLimits {
 }
 
 /** Source of the spend figure. session.py::_derive_spend / _SPEND_SOURCE_UNKNOWN. */
-export type SpendSource = 'team_member' | 'team' | 'user' | 'unknown';
+export type SpendSource = 'team_member' | 'user' | 'unknown';
 
 /** Spend block on /me. session.py::_derive_spend. `current` is always a number. */
 export interface SessionSpend {
@@ -106,12 +106,6 @@ export interface CreateKeyResponse {
   id: string;
   team_id: string | null;
 }
-
-/**
- * The one-time freshly-minted key. Same payload as CreateKeyResponse; named
- * separately because list rows (KeyRow) deliberately OMIT the sk- `key`.
- */
-export type CreatedKey = CreateKeyResponse;
 
 // ---------------------------------------------------------------------------
 // DELETE /api/session/keys/{id}  — src/api/app/session.py::session_delete_key
