@@ -9,7 +9,7 @@ import logging
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, Callable, NoReturn
 
 import httpx
 
@@ -1209,6 +1209,40 @@ async def delete_litellm_user(email: str, settings: Settings) -> None:
 # ---------------------------------------------------------------------------
 
 
+async def _list_catalog(
+    endpoint: str,
+    projector: Callable[[dict], dict],
+    unwrap: Callable[[Any], Any],
+    settings: Settings,
+    user_id: str | None,
+) -> list[dict]:
+    """Shared scaffold for the read-only per-user catalogs (models / MCP / A2A).
+
+    Builds master-key headers PLUS the ``x-user-id`` scoping header (the value is
+    ALWAYS the authenticated session email, NEVER client input — the user-scoping
+    contract; see the public list_* callers), GETs ``endpoint``, raises uniformly
+    on failure, then unwraps → allow-list-projects → sorts by name.
+
+    ``unwrap`` maps the parsed JSON to the row list; it stays per-endpoint because
+    the wrapper shape and bare-list tolerance differ across catalogs. A non-list
+    result degrades to []. ``projector`` is the per-row EXPLICIT allow-list.
+    """
+    headers = _admin_headers(settings)
+    if user_id:
+        headers["x-user-id"] = user_id
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
+        resp = await client.get(endpoint, headers=headers)
+    if not resp.is_success:
+        _raise_litellm(resp, endpoint)
+    rows = unwrap(resp.json())
+    if not isinstance(rows, list):
+        logger.warning("LiteLLM %s returned unexpected shape: %r", endpoint, rows)
+        return []
+    out = [projector(r) for r in rows if isinstance(r, dict)]
+    out.sort(key=lambda x: (x.get("name") or "").lower())
+    return out
+
+
 def _project_model_group(m: dict) -> dict:
     """Allow-listed projection of one /model_group/info row.
 
@@ -1248,21 +1282,14 @@ async def list_litellm_models(settings: Settings, user_id: str | None = None) ->
     Raises httpx.HTTPStatusError / httpx.RequestError on failure (caller degrades).
     Used by GET /api/session/models.
     """
-    headers = _admin_headers(settings)
-    if user_id:
-        headers["x-user-id"] = user_id
-    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
-        resp = await client.get("/model_group/info", headers=headers)
-    if not resp.is_success:
-        _raise_litellm(resp, "/model_group/info")
-    data = resp.json()
-    rows = data.get("data", []) if isinstance(data, dict) else []
-    if not isinstance(rows, list):
-        logger.warning("LiteLLM /model_group/info returned non-list 'data': %r", rows)
-        return []
-    out = [_project_model_group(m) for m in rows if isinstance(m, dict)]
-    out.sort(key=lambda x: (x.get("name") or "").lower())
-    return out
+    # /model_group/info is a strict {"data": [...]} wrapper — no bare-list fallback.
+    return await _list_catalog(
+        "/model_group/info",
+        _project_model_group,
+        lambda d: d.get("data", []) if isinstance(d, dict) else [],
+        settings,
+        user_id,
+    )
 
 
 def _project_mcp_server(s: dict) -> dict:
@@ -1307,24 +1334,14 @@ async def list_litellm_mcp_servers(settings: Settings, user_id: str | None = Non
     LiteLLM with no MCP gateway — to an "unavailable" empty state) and
     httpx.RequestError when unreachable. Used by GET /api/session/mcp.
     """
-    headers = _admin_headers(settings)
-    if user_id:
-        headers["x-user-id"] = user_id
-    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
-        resp = await client.get("/v1/mcp/server", headers=headers)
-    if not resp.is_success:
-        _raise_litellm(resp, "/v1/mcp/server")
-    data = resp.json()
-    if isinstance(data, dict):
-        rows = data.get("data") or data.get("servers") or []
-    else:
-        rows = data
-    if not isinstance(rows, list):
-        logger.warning("LiteLLM /v1/mcp/server returned unexpected shape: %r", rows)
-        return []
-    out = [_project_mcp_server(s) for s in rows if isinstance(s, dict)]
-    out.sort(key=lambda x: (x.get("name") or "").lower())
-    return out
+    # Bare JSON array, with a {"data"|"servers": [...]} wrapper tolerated defensively.
+    return await _list_catalog(
+        "/v1/mcp/server",
+        _project_mcp_server,
+        lambda d: (d.get("data") or d.get("servers") or []) if isinstance(d, dict) else d,
+        settings,
+        user_id,
+    )
 
 
 def _project_a2a_agent(a: dict) -> dict:
@@ -1388,24 +1405,14 @@ async def list_litellm_a2a_agents(settings: Settings, user_id: str | None = None
     no A2A gateway, A2A is beta since v1.80.8 — to an "unavailable" empty state) and
     httpx.RequestError when unreachable. Used by GET /api/session/a2a.
     """
-    headers = _admin_headers(settings)
-    if user_id:
-        headers["x-user-id"] = user_id
-    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
-        resp = await client.get("/v1/agents", headers=headers)
-    if not resp.is_success:
-        _raise_litellm(resp, "/v1/agents")
-    data = resp.json()
-    if isinstance(data, dict):
-        rows = data.get("data") or data.get("agents") or []
-    else:
-        rows = data
-    if not isinstance(rows, list):
-        logger.warning("LiteLLM /v1/agents returned unexpected shape: %r", rows)
-        return []
-    out = [_project_a2a_agent(a) for a in rows if isinstance(a, dict)]
-    out.sort(key=lambda x: (x.get("name") or "").lower())
-    return out
+    # Bare JSON array, with a {"data"|"agents": [...]} wrapper tolerated defensively.
+    return await _list_catalog(
+        "/v1/agents",
+        _project_a2a_agent,
+        lambda d: (d.get("data") or d.get("agents") or []) if isinstance(d, dict) else d,
+        settings,
+        user_id,
+    )
 
 
 # ---------------------------------------------------------------------------
