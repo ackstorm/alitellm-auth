@@ -25,7 +25,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { del, getJson, postJson } from '@/lib/api';
+import { del, getJson, postJson, type ApiResult } from '@/lib/api';
 import type {
   BlockKeyResponse,
   ChangeKeyTeamResponse,
@@ -103,38 +103,61 @@ export function useHasDefaultKey(): boolean {
 }
 
 /**
+ * Shared factory for the key-lifecycle mutations. Each wraps the never-throw api
+ * wrapper: a non-200 / null-body response throws an ApiCallError carrying
+ * `errorTag` (+ status/detail), a success invalidates the keys list, and any
+ * failure fires the per-hook error `toastMessage`. `onSuccessExtra` runs BEFORE
+ * the invalidation for the two hooks that also touch the fresh-keys store (create
+ * stashes the sk-, delete drops it); it receives both the parsed data and the
+ * mutation variables (delete keys off the variables, create off the data).
+ */
+function useKeyMutation<TArgs, TData>(
+  request: (args: TArgs) => Promise<ApiResult<TData>>,
+  errorTag: string,
+  toastMessage: string,
+  onSuccessExtra?: (data: TData, variables: TArgs) => void,
+) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (args: TArgs): Promise<TData> => {
+      const { status, data } = await request(args);
+      if (status !== 200 || !data) throw apiCallError(errorTag, status, data);
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      onSuccessExtra?.(data, variables);
+      queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
+    },
+    onError: () => {
+      toast({ message: toastMessage, variant: 'error' });
+    },
+  });
+}
+
+/**
  * POST /api/session/keys. Backend returns HTTP 200 with { key, id, team_id }
  * (session.py::session_create_key). On success the one-time full `sk-` is stashed
  * in the in-memory fresh-keys store (never persisted; T-10-15) and the list is
  * invalidated. Guard at the hook via the `status !== 200` check — the response
  * type's `key`/`id` stay non-null (plan carry-forward).
+ *
+ * A 422 parses to a truthy `{ detail }` body but the `status !== 200` branch
+ * still throws and carries the detail; a 502 has a null `data` so detail is null.
+ * The create-key modal reads `.status` + `.detail` to route a field-rejection.
  */
 export function useCreateKey() {
-  const queryClient = useQueryClient();
   const setFresh = useFreshKeysStore((s) => s.setFresh);
-  const { toast } = useToast();
 
-  return useMutation({
-    mutationFn: async (body: CreateKeyBody) => {
-      const { status, data } = await postJson<CreateKeyResponse>(
-        '/api/session/keys',
-        body,
-      );
-      // On a 422 the parsed body is `{ detail }` (truthy) so the `status !== 200`
-      // branch throws and carries the detail; on a 502 `data` is null so detail
-      // is null. The create-key modal reads `.status` + `.detail` to route a
-      // field-rejection to the matching field.
-      if (status !== 200 || !data) throw apiCallError('create-key-failed', status, data);
-      return data;
-    },
-    onSuccess: (data) => {
+  return useKeyMutation<CreateKeyBody, CreateKeyResponse>(
+    (body) => postJson<CreateKeyResponse>('/api/session/keys', body),
+    'create-key-failed',
+    'Could not create the key.',
+    (data) => {
       if (data.id) setFresh(data.id, data.key);
-      queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
     },
-    onError: () => {
-      toast({ message: 'Could not create the key.', variant: 'error' });
-    },
-  });
+  );
 }
 
 /**
@@ -143,26 +166,16 @@ export function useCreateKey() {
  * the in-memory store and the list is invalidated.
  */
 export function useDeleteKey() {
-  const queryClient = useQueryClient();
   const dropFresh = useFreshKeysStore((s) => s.dropFresh);
-  const { toast } = useToast();
 
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { status, data } = await del<DeleteKeyResponse>(
-        `/api/session/keys/${encodeURIComponent(id)}`,
-      );
-      if (status !== 200 || !data) throw apiCallError('delete-key-failed', status, data);
-      return data;
-    },
-    onSuccess: (_data, id) => {
+  return useKeyMutation<string, DeleteKeyResponse>(
+    (id) => del<DeleteKeyResponse>(`/api/session/keys/${encodeURIComponent(id)}`),
+    'delete-key-failed',
+    'Could not delete the key.',
+    (_data, id) => {
       dropFresh(id);
-      queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
     },
-    onError: () => {
-      toast({ message: 'Could not delete the key.', variant: 'error' });
-    },
-  });
+  );
 }
 
 /**
@@ -172,25 +185,11 @@ export function useDeleteKey() {
  * invalidated so the DEFAULT badge + revoke-guard re-render.
  */
 export function useMakeDefault() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { status, data } = await postJson<MakeDefaultResponse>(
-        `/api/session/keys/${encodeURIComponent(id)}/default`,
-        {},
-      );
-      if (status !== 200 || !data) throw apiCallError('make-default-failed', status, data);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
-    },
-    onError: () => {
-      toast({ message: 'Could not set the default key. Please try again.', variant: 'error' });
-    },
-  });
+  return useKeyMutation<string, MakeDefaultResponse>(
+    (id) => postJson<MakeDefaultResponse>(`/api/session/keys/${encodeURIComponent(id)}/default`, {}),
+    'make-default-failed',
+    'Could not set the default key. Please try again.',
+  );
 }
 
 /**
@@ -199,20 +198,14 @@ export function useMakeDefault() {
  * invalidated so the row's team + any team-derived UI re-render.
  */
 export function useChangeKeyTeam() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  return useMutation({
-    mutationFn: async ({ id, teamId }: { id: string; teamId: string }) => {
-      const { status, data } = await postJson<ChangeKeyTeamResponse>(
-        `/api/session/keys/${encodeURIComponent(id)}/team`,
-        { team_id: teamId },
-      );
-      if (status !== 200 || !data) throw apiCallError('change-team-failed', status, data);
-      return data;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY }),
-    onError: () => toast({ message: 'Could not change the key team.', variant: 'error' }),
-  });
+  return useKeyMutation<{ id: string; teamId: string }, ChangeKeyTeamResponse>(
+    ({ id, teamId }) =>
+      postJson<ChangeKeyTeamResponse>(`/api/session/keys/${encodeURIComponent(id)}/team`, {
+        team_id: teamId,
+      }),
+    'change-team-failed',
+    'Could not change the key team.',
+  );
 }
 
 /**
@@ -222,23 +215,10 @@ export function useChangeKeyTeam() {
  * the Status pill + kebab label re-render.
  */
 export function useToggleKeyBlock() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async ({ id, blocked }: { id: string; blocked: boolean }) => {
-      const { status, data } = await postJson<BlockKeyResponse>(
-        `/api/session/keys/${encodeURIComponent(id)}/block`,
-        { blocked },
-      );
-      if (status !== 200 || !data) throw apiCallError('block-key-failed', status, data);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS_QUERY_KEY });
-    },
-    onError: () => {
-      toast({ message: 'Could not update the key.', variant: 'error' });
-    },
-  });
+  return useKeyMutation<{ id: string; blocked: boolean }, BlockKeyResponse>(
+    ({ id, blocked }) =>
+      postJson<BlockKeyResponse>(`/api/session/keys/${encodeURIComponent(id)}/block`, { blocked }),
+    'block-key-failed',
+    'Could not update the key.',
+  );
 }
