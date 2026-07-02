@@ -112,6 +112,20 @@ async def whoami(
     return JSONResponse(payload)
 
 
+async def _oidc_redirect(request: Request, settings: Settings, action: str) -> HTMLResponse:
+    """Start the OIDC flow with a TRUSTED action literal. Callers validate untrusted input.
+
+    ``action`` MUST already be validated by the caller: the login route whitelists its
+    user-controlled ``?action`` param BEFORE calling here (T-09-04); reveal/tokens pass
+    hardcoded literals. ``callback_url`` is built from ``settings.app_base_url`` (always
+    https), never ``request.url_for`` — which would yield http:// behind the TLS gateway
+    and be rejected as an unregistered redirect_uri.
+    """
+    request.session["oauth_action"] = action
+    callback_url = f"{settings.app_base_url}/api/oauth/callback"
+    return await oauth.oidc.authorize_redirect(request, callback_url)
+
+
 @router.get("/api/oauth/login")
 async def login(request: Request, action: str = "login") -> HTMLResponse:
     """Redirect user to Dex for authentication.
@@ -125,9 +139,10 @@ async def login(request: Request, action: str = "login") -> HTMLResponse:
     arbitrary value can never enter ``oauth_action`` (falls back to ``"login"``).
     """
     settings: Settings = request.app.state.settings
-    request.session["oauth_action"] = action if action in {"login", "ui"} else "login"
-    callback_url = f"{settings.app_base_url}/api/oauth/callback"
-    return await oauth.oidc.authorize_redirect(request, callback_url)
+    # T-09-04: whitelist the user-controlled ?action HERE, before it reaches the
+    # session/helper. _oidc_redirect only ever receives an already-validated value.
+    validated_action = action if action in {"login", "ui"} else "login"
+    return await _oidc_redirect(request, settings, validated_action)
 
 
 @router.get("/api/oauth/logout")
@@ -322,18 +337,14 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
 async def reveal(request: Request) -> HTMLResponse:
     """Redirect user to Dex for authentication (shows latest existing key on return)."""
     settings: Settings = request.app.state.settings
-    request.session["oauth_action"] = "reveal"
-    callback_url = f"{settings.app_base_url}/api/oauth/callback"
-    return await oauth.oidc.authorize_redirect(request, callback_url)
+    return await _oidc_redirect(request, settings, "reveal")
 
 
 @router.get("/api/oauth/tokens")
 async def list_tokens(request: Request) -> HTMLResponse:
     """Redirect user to Dex for authentication (returns JSON token list on return)."""
     settings: Settings = request.app.state.settings
-    request.session["oauth_action"] = "tokens"
-    callback_url = f"{settings.app_base_url}/api/oauth/callback"
-    return await oauth.oidc.authorize_redirect(request, callback_url)
+    return await _oidc_redirect(request, settings, "tokens")
 
 
 @router.delete("/api/oauth/tokens/{key_id}")
