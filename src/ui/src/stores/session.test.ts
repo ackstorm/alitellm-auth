@@ -33,8 +33,11 @@ beforeEach(() => {
   getJsonMock.mockReset();
   // Replace the whole state back to the cold-load initial, but keep the
   // loadSession action (the `true` replace flag drops it otherwise).
-  const { loadSession } = useSessionStore.getState();
-  useSessionStore.setState({ ...initialSessionState, loadSession }, true);
+  const { loadSession, markExpired } = useSessionStore.getState();
+  useSessionStore.setState(
+    { ...initialSessionState, loadSession, markExpired },
+    true,
+  );
 });
 
 describe('session store', () => {
@@ -109,5 +112,24 @@ describe('session store', () => {
     expect(status).toBe(0);
     expect(me).toBeNull();
     expect(hasLoaded).toBe(false);
+  });
+});
+
+describe('markExpired', () => {
+  it('no-ops when hasLoaded is false (cold load stays signin)', () => {
+    // initial cold-load state: status null, hasLoaded false.
+    useSessionStore.getState().markExpired();
+    const { status, hasLoaded } = useSessionStore.getState();
+    expect(status).toBeNull(); // unchanged
+    expect(hasLoaded).toBe(false);
+  });
+
+  it('flips status to 401 when hasLoaded is true (mid-session -> expired)', () => {
+    useSessionStore.setState({ status: 200, hasLoaded: true, me: ME });
+    useSessionStore.getState().markExpired();
+    const { status, me, hasLoaded } = useSessionStore.getState();
+    expect(status).toBe(401); // resolveState(401, true) === 'expired'
+    expect(hasLoaded).toBe(true);
+    expect(me).toEqual(ME); // me is NOT cleared
   });
 });

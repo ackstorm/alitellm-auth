@@ -32,6 +32,7 @@ export interface SessionState {
   me: SessionMe | null;
   hasLoaded: boolean;
   loadSession: () => Promise<void>;
+  markExpired: () => void;
 }
 
 /** Initial (cold-load) state. Exported so tests can reset the store to it. */
@@ -62,4 +63,10 @@ export const useSessionStore = create<SessionState>((set) => ({
     // app.js, which only ever calls setMe on 200).
     set({ status });
   },
+
+  // markExpired — flip status to 401 so resolveState(401, hasLoaded) === 'expired'
+  // and App's redirect effect fires. GUARDED on hasLoaded: a cold-load 401 (before
+  // the first authenticated /me) must stay 'signin', so this no-ops until the user
+  // has loaded at least once. Sets state only (no fetch) — it cannot loop.
+  markExpired: () => set((s) => (s.hasLoaded ? { status: 401 } : s)),
 }));
