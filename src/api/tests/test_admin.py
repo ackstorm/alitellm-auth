@@ -172,7 +172,9 @@ async def test_require_admin_non_ascii_header_returns_403():
 @pytest.mark.asyncio
 async def test_require_admin_accepts_master_key():
     settings = make_test_settings()
-    assert await require_admin(settings.litellm_master_key, settings) == "master-key"
+    # Accepts the master key without raising 403; returns None (the sentinel
+    # return was dead — _guard discards it).
+    assert await require_admin(settings.litellm_master_key, settings) is None
 
 
 # UAT item 1 / T-03-07: the secret token must not survive the REAL /key/list
