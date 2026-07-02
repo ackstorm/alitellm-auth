@@ -2,6 +2,12 @@
 
 ## [unreleased]
 
+## [0.5.26] - 2026-07-02
+
+### Changed
+
+- **How-to: the Claude Code (API) tab now flags that WebSearch won't work through the gateway.** WebSearch is an Anthropic server-side tool, so it errors when Claude Code is pointed at the LiteLLM gateway. The how-to now explains this, shows a copyable `~/.claude/settings.json` snippet that denies the built-in `WebSearch` tool (and notes to add `WebFetch` if it also errors), and points users at an external search MCP server to restore web-search functionality. Several faint how-to notes (per-tool notes, the "swap your key" line, the not-ready placeholder) were also bumped to a more legible text color.
+
 ## [0.5.25] - 2026-07-02
 
 ### Fixed
