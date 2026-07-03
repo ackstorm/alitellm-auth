@@ -3,7 +3,7 @@
 `alitellm-auth` is a FastAPI service that sits at the OIDC login boundary of your LiteLLM
 deployment. When a user authenticates through an OIDC provider (Dex, Keycloak, or any
 compliant IdP), the service provisions a first-class LiteLLM User (`user_id = email`) and
-issues a scoped virtual key (`sk-...`) for that user — all in a single login flow.
+opens a web console (`/ui`) where the user creates and manages scoped virtual keys (`sk-...`).
 
 ## Where it fits
 
@@ -12,13 +12,13 @@ issues a scoped virtual key (`sk-...`) for that user — all in a single login f
 - **alitellm-operator** owns the declarative layer: model routing, team definitions, and
   resource discovery via Kubernetes CRDs. It does not manage Users or VirtualKeys.
 - **alitellm-auth** owns the identity layer: Users and VirtualKeys. Every login creates or
-  reuses the user record and returns a credential the user can put directly into an LLM client.
+  reuses the user record and drops the user into the console to manage their own keys.
 
 ## Getting a key
 
-Navigate to `/api/oauth/login`. After OIDC authentication, you land on a page showing your
-`sk-...` key. Returning users can use `/api/oauth/reveal` to retrieve their most recent key
-without creating a new one. All keys for your account are listed at `/api/oauth/tokens`.
+Navigate to `/api/oauth/login`. After OIDC authentication, you land in the `/ui` console,
+where you create, list, and delete your `sk-...` keys. Sign-in itself never mints a key —
+key management is handled entirely inside the console (backed by the `/api/session/keys` API).
 
 For the full endpoint reference, request/response shapes, and `whoami` identity resolution,
 see the [README on GitHub](https://github.com/ackstorm/alitellm-auth#readme).

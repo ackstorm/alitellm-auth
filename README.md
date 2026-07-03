@@ -1,16 +1,16 @@
 # alitellm-auth
 
-FastAPI service that authenticates users via an OIDC provider (Dex / Keycloak) and provisions a LiteLLM virtual key (`sk-...`) per user. It creates a first-class LiteLLM User on every login (`user_id = email`), scopes the key to that user, and exposes admin CRUD endpoints for user management. Companion to alitellm-operator, which owns model/team discovery but not Users or VirtualKeys.
+FastAPI service that authenticates users via an OIDC provider (Dex / Keycloak) and lets each user create LiteLLM virtual keys (`sk-...`) from a web console. It creates a first-class LiteLLM User on every login (`user_id = email`), scopes keys to that user, and exposes admin CRUD endpoints for user management. Companion to alitellm-operator, which owns model/team discovery but not Users or VirtualKeys.
 
 ## API Endpoints
 
 ### User Endpoints
 
-- `GET /api/oauth/login` — Start OIDC flow; creates a new LiteLLM key on return.
-- `GET /api/oauth/reveal` — OIDC login; shows the most recently created key.
-- `GET /api/oauth/tokens` — OIDC login; returns JSON list of all user keys.
-- `DELETE /api/oauth/tokens/{id}` — Delete a specific key. Header: `x-alitellm-auth-api-key: sk-...`
+- `GET /api/oauth/login` — Start the OIDC sign-in flow. On return it eager-creates the LiteLLM user (idempotent) and redirects to the `/ui` console. It does **not** mint a key.
+- `GET /api/oauth/logout` — Clear the local session and return to the `/ui` sign-in landing.
 - `GET /api/oauth/whoami` — Validate a key and return user identity + LiteLLM user metadata. Header: `x-alitellm-auth-api-key: sk-...`
+
+Keys are created, listed, and deleted from inside the console via the session API (`/api/session/keys`, below). There is no OIDC-redirect endpoint that hands back an `sk-`.
 
 The `whoami` response includes the key's metadata (`user_id`, `email`, `team_id`, budgets, limits) plus a nested `litellm_user` enrichment block. A valid key whose metadata lacks an `email` is returned unenriched.
 
@@ -23,7 +23,6 @@ curl -s https://<your-app>/api/oauth/whoami \
 Status codes:
 
 - `GET /api/oauth/whoami` — `200` (valid key; unenriched `200` when the key has no email), `401` (missing header / invalid key), `404` (valid key, email present, but no matching LiteLLM user), `502` (LiteLLM unreachable / 5xx).
-- `DELETE /api/oauth/tokens/{id}` — `200` (deleted), `401` (missing/invalid key), `403` (key has no associated user), `404` (token not owned by the caller), `502` (LiteLLM failure).
 
 ### Admin Endpoints (master-key only)
 

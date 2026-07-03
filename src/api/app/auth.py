@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""OIDC authentication routes."""
+"""OIDC authentication routes.
+
+Sign-in is UI-only. The OIDC flow authenticates the user, eager-creates their
+LiteLLM user (idempotent), and redirects to /ui — it NEVER mints a virtual key.
+Keys are created explicitly from inside the console (POST /api/session/keys).
+``whoami`` (header-authed key -> identity resolver) is the only non-UI endpoint.
+"""
 
 from __future__ import annotations
 
@@ -15,13 +21,10 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import Settings
 from app.litellm_client import (
-    delete_litellm_key,
     ensure_team_and_user,
-    generate_litellm_key,
     get_key_info,
     get_litellm_user,
     LiteLLMUserNotFound,
-    list_litellm_keys,
     strip_bearer_prefix,
 )
 
@@ -112,37 +115,23 @@ async def whoami(
     return JSONResponse(payload)
 
 
-async def _oidc_redirect(request: Request, settings: Settings, action: str) -> HTMLResponse:
-    """Start the OIDC flow with a TRUSTED action literal. Callers validate untrusted input.
-
-    ``action`` MUST already be validated by the caller: the login route whitelists its
-    user-controlled ``?action`` param BEFORE calling here (T-09-04); reveal/tokens pass
-    hardcoded literals. ``callback_url`` is built from ``settings.app_base_url`` (always
-    https), never ``request.url_for`` — which would yield http:// behind the TLS gateway
-    and be rejected as an unregistered redirect_uri.
-    """
-    request.session["oauth_action"] = action
-    callback_url = f"{settings.app_base_url}/api/oauth/callback"
-    return await oauth.oidc.authorize_redirect(request, callback_url)
-
-
 @router.get("/api/oauth/login")
-async def login(request: Request, action: str = "login") -> HTMLResponse:
-    """Redirect user to Dex for authentication.
+async def login(request: Request) -> HTMLResponse:
+    """Redirect the user to the OIDC provider to sign in.
 
-    ``?action`` selects the post-callback behavior (D-02/D-13):
-    - ``"login"`` (default) → the callback mints a new LiteLLM key.
-    - ``"ui"``              → the callback eager-creates the LiteLLM user WITHOUT
-                              minting a key (the SPA sign-in CTA navigates here).
+    Sign-in is UI-only. The callback always eager-creates the LiteLLM user
+    (idempotent) and redirects to /ui — it NEVER mints a virtual key. The SPA
+    uses this route both for the fresh sign-in CTA and the silent mid-session
+    expiry redirect; neither can mint a key (keys are created explicitly via
+    POST /api/session/keys inside the console).
 
-    T-09-04: the param is whitelisted before being written to the session — an
-    arbitrary value can never enter ``oauth_action`` (falls back to ``"login"``).
+    ``callback_url`` is built from ``settings.app_base_url`` (always https), never
+    ``request.url_for`` — which would yield http:// behind the TLS gateway and be
+    rejected as an unregistered redirect_uri.
     """
     settings: Settings = request.app.state.settings
-    # T-09-04: whitelist the user-controlled ?action HERE, before it reaches the
-    # session/helper. _oidc_redirect only ever receives an already-validated value.
-    validated_action = action if action in {"login", "ui"} else "login"
-    return await _oidc_redirect(request, settings, validated_action)
+    callback_url = f"{settings.app_base_url}/api/oauth/callback"
+    return await oauth.oidc.authorize_redirect(request, callback_url)
 
 
 @router.get("/api/oauth/logout")
@@ -166,9 +155,9 @@ async def logout(request: Request) -> RedirectResponse:
     return RedirectResponse(f"{settings.app_base_url}/ui/", status_code=302)
 
 
-async def _auth_callback_ui(email: str, name: str | None, settings: Settings) -> HTMLResponse:
-    # D-13: eager-create the LiteLLM user on first /ui login (no key minted).
-    # Dashboard entry makes the user exist immediately so /me is coherent.
+async def _auth_callback_ui(email: str, name: str | None, settings: Settings) -> RedirectResponse:
+    # Eager-create the LiteLLM user on sign-in (no key minted). Dashboard entry
+    # makes the user exist immediately so /me is coherent.
     try:
         await ensure_team_and_user(email, settings, name=name)
     except Exception as exc:
@@ -177,114 +166,15 @@ async def _auth_callback_ui(email: str, name: str | None, settings: Settings) ->
     return RedirectResponse(f"{settings.app_base_url}/ui", status_code=302)
 
 
-async def _auth_callback_reveal(
-    request: Request,
-    templates: Jinja2Templates,
-    email: str,
-    name: str | None,
-    settings: Settings,
-) -> HTMLResponse:
-    try:
-        keys = await list_litellm_keys(email, settings)
-    except Exception as exc:
-        # Never interpolate the raw backend exception (which can carry
-        # resp.text via _extract_litellm_error) into the HTML page returned
-        # to the browser. Log server-side, render a generic message (WR-A,
-        # same non-leak treatment as the WR-05 delete_token fix).
-        logger.error("reveal: list_litellm_keys failed for %s: %s", email, exc)
-        return templates.TemplateResponse(
-            request,
-            "error.html",
-            {"error": "Could not retrieve your tokens. Please try again later."},
-            status_code=500,
-        )
-    if not keys:
-        return templates.TemplateResponse(
-            request,
-            "error.html",
-            {"error": "No tokens found for this user. Please use /login to create one."},
-            status_code=404,
-        )
-    latest = keys[0]
-    return templates.TemplateResponse(
-        request,
-        "success.html",
-        {
-            "name": name,
-            "email": email,
-            "key": None,
-            "key_id": latest["id"],
-            "team_id": settings.team_id,
-            "api_url": f"{settings.api_public_url}/v1",
-        },
-    )
-
-
-async def _auth_callback_tokens(
-    request: Request, templates: Jinja2Templates, email: str, settings: Settings
-) -> JSONResponse | HTMLResponse:
-    try:
-        keys = await list_litellm_keys(email, settings)
-    except Exception as exc:
-        # Same non-leak treatment as the reveal branch above (WR-A): log the
-        # raw exception server-side, return a generic message to the client.
-        logger.error("tokens: list_litellm_keys failed for %s: %s", email, exc)
-        return templates.TemplateResponse(
-            request,
-            "error.html",
-            {"error": "Could not retrieve your tokens. Please try again later."},
-            status_code=500,
-        )
-    safe_keys = [{k: v for k, v in t.items() if k != "key"} for t in keys]
-    return JSONResponse({"email": email, "tokens": safe_keys})
-
-
-async def _auth_callback_login(
-    request: Request,
-    templates: Jinja2Templates,
-    email: str,
-    name: str | None,
-    settings: Settings,
-) -> HTMLResponse:
-    try:
-        key_data = await generate_litellm_key(email, settings, name=name)
-    except Exception as exc:
-        # Never interpolate the raw backend error body (resp.text via
-        # _extract_litellm_error) into the page (#4) — same non-leak treatment as
-        # the reveal/tokens branches (WR-A). Log server-side, show generic copy.
-        logger.error("login: key generation failed for %s: %s", email, exc)
-        return templates.TemplateResponse(
-            request,
-            "error.html",
-            {"error": "Could not create your API key. Please try again later."},
-            status_code=500,
-        )
-
-    return templates.TemplateResponse(
-        request,
-        "success.html",
-        {
-            "name": name,
-            "email": email,
-            "key": key_data["key"],
-            "key_id": key_data["id"],
-            "team_id": key_data["team_id"],
-            "api_url": f"{settings.api_public_url}/v1",
-        },
-    )
-
-
 @router.get("/api/oauth/callback", name="auth_callback", response_model=None)
-async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
-    """Handle Dex callback for all OIDC flows.
+async def auth_callback(request: Request) -> HTMLResponse | RedirectResponse:
+    """Handle the OIDC provider callback.
 
-    Reads ``session["oauth_action"]`` to decide what to do after authentication:
-    - ``"login"``  (default) → generate a new LiteLLM key → success HTML
-    - ``"reveal"``            → list existing keys     → success HTML (latest)
-    - ``"tokens"``            → list existing keys     → JSON
+    Sign-in is UI-only: after authentication we eager-create the LiteLLM user
+    (idempotent) and redirect to /ui. No virtual key is ever minted here — keys
+    are created explicitly from inside the console (POST /api/session/keys).
     """
     templates = _templates()
-    action = request.session.pop("oauth_action", "login")
 
     # 1. Exchange authorization code for OIDC token
     try:
@@ -315,105 +205,12 @@ async def auth_callback(request: Request) -> HTMLResponse | JSONResponse:
 
     settings: Settings = request.app.state.settings
 
-    # D-02: stamp the session for ALL actions (login, reveal, tokens, ui).
-    # The session cookie is signed but NOT encrypted — store only non-sensitive identity.
-    # D-01: NEVER store the access_token / id_token / any sk- here (signed, not encrypted).
+    # Stamp the session with non-sensitive identity only. The session cookie is
+    # signed but NOT encrypted — NEVER store the access_token / id_token / any sk-.
     request.session["sub"] = user_info.get("sub")
     request.session["email"] = email
     request.session["name"] = name
     request.session["authenticated_at"] = datetime.now(timezone.utc).isoformat()
 
-    # 3. Dispatch based on action
-    if action == "ui":
-        return await _auth_callback_ui(email, name, settings)
-    if action == "reveal":
-        return await _auth_callback_reveal(request, templates, email, name, settings)
-    if action == "tokens":
-        return await _auth_callback_tokens(request, templates, email, settings)
-    return await _auth_callback_login(request, templates, email, name, settings)
-
-
-@router.get("/api/oauth/reveal")
-async def reveal(request: Request) -> HTMLResponse:
-    """Redirect user to Dex for authentication (shows latest existing key on return)."""
-    settings: Settings = request.app.state.settings
-    return await _oidc_redirect(request, settings, "reveal")
-
-
-@router.get("/api/oauth/tokens")
-async def list_tokens(request: Request) -> HTMLResponse:
-    """Redirect user to Dex for authentication (returns JSON token list on return)."""
-    settings: Settings = request.app.state.settings
-    return await _oidc_redirect(request, settings, "tokens")
-
-
-@router.delete("/api/oauth/tokens/{key_id}")
-async def delete_token(
-    request: Request,
-    key_id: str,
-    x_alitellm_auth_api_key: str | None = Header(default=None),
-) -> JSONResponse:
-    """Delete a specific token by its key_id/alias.
-
-    Requires a valid API key in the header to authenticate the user.
-    """
-    if not x_alitellm_auth_api_key:
-        raise HTTPException(status_code=401, detail="Missing x-alitellm-auth-api-key header")
-
-    api_key = strip_bearer_prefix(x_alitellm_auth_api_key)
-    settings: Settings = request.app.state.settings
-
-    # 1. Authenticate the caller to get their email.
-    # Distinguish a genuine credential problem (4xx → 401) from a backend
-    # outage (5xx → 502); a valid key must not be reported as "invalid" just
-    # because LiteLLM is unhealthy (WR-02).
-    try:
-        caller_info = await get_key_info(api_key, settings)
-        email = caller_info.get("email")
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code in (401, 403, 404):
-            raise HTTPException(status_code=401, detail="Invalid or unknown API key")
-        raise HTTPException(status_code=502, detail="LiteLLM key lookup failed")
-    except httpx.RequestError:
-        # Backend unreachable on auth → 502, not an uncaught 500 (WR-02/#3).
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
-
-    # An email-less caller cannot own a token-factory key. Mirror the WR-01
-    # whoami guard here on the destructive path: without this, email is None and
-    # the ownership filter (metadata.get("email") == None) would match every
-    # other email-less key in the shared team, letting the caller enumerate and
-    # delete keys that are not theirs (WR-B).
-    if not email:
-        raise HTTPException(status_code=403, detail="Key has no associated user")
-
-    # 2. Find the token associated with this ID for this user
-    try:
-        user_keys = await list_litellm_keys(email, settings)
-        target_token = None
-
-        for k in user_keys:
-            if k["id"] == key_id:
-                target_token = k["key"]
-                break
-
-        if not target_token:
-            raise HTTPException(status_code=404, detail="Token not found or does not belong to you")
-
-        # 3. Delete the token
-        await delete_litellm_key(target_token, settings)
-        logger.info("User %s deleted key %s", email, key_id)
-    except HTTPException:
-        raise
-    except httpx.HTTPStatusError as exc:
-        # Narrow the mapping and never echo raw backend text (which may include
-        # resp.text) into the client response body (WR-05): a 404 from the
-        # backend stays a 404, everything else is a 502.
-        logger.error("Delete failed for key %s: %s", key_id, exc)
-        code = 404 if exc.response.status_code == 404 else 502
-        raise HTTPException(status_code=code, detail="Failed to delete token")
-    except httpx.RequestError:
-        # Backend unreachable on list/delete → 502, not an uncaught 500 (#3).
-        logger.error("Delete unreachable for key %s", key_id)
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
-
-    return JSONResponse({"status": "deleted", "id": key_id})
+    # 3. Sign-in is UI-only — eager-create the user and redirect to /ui.
+    return await _auth_callback_ui(email, name, settings)

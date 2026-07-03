@@ -18,12 +18,12 @@ Image: {{ .Values.image.repo }}:{{ .Values.image.tag | default .Chart.AppVersion
    secret source. Set existingSecret or secret.create=true.
 {{- end }}
 
-2. Reach the login flow
+2. Open the console (sign in via OIDC, then manage your keys)
 {{- if .Values.ingress.enabled }}
-   https://{{ .Values.ingress.host }}/api/oauth/login
+   https://{{ .Values.ingress.host }}/ui
 {{- else }}
    kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "alitellm-auth.fullname" . }} 8080:{{ .Values.service.port }}
-   then open http://localhost:8080/api/oauth/login
+   then open http://localhost:8080/ui
 {{- end }}
 
 3. Verify the rollout

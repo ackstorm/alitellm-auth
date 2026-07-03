@@ -1,6 +1,6 @@
 # alitellm-auth
 
-FastAPI service that authenticates users via an OIDC provider (Dex/Keycloak) and provisions a LiteLLM virtual key (`sk-...`) per user, returning a dark-card HTML page with the key.
+FastAPI service that authenticates users via an OIDC provider (Dex/Keycloak) and lets each user create LiteLLM virtual keys (`sk-...`) from a React web console served at `/ui`. Sign-in is UI-only — the OIDC flow eager-creates the LiteLLM user and redirects to the console; keys are created/listed/deleted via the `/api/session/*` API. No OIDC-redirect endpoint hands back a key.
 
 Companion to alitellm-operator (Go), which owns model/team discovery but not Users or VirtualKeys — Users and VirtualKeys are exclusively managed by this service.
 
@@ -16,7 +16,7 @@ Companion to alitellm-operator (Go), which owns model/team discovery but not Use
 Browser
   │
   ▼
-GET /api/oauth/login
+GET /api/oauth/login              (SPA sign-in CTA + silent mid-session expiry redirect)
   │  authorize_redirect (authlib)
   ▼
 OIDC Provider (Dex / Keycloak)
@@ -24,20 +24,17 @@ OIDC Provider (Dex / Keycloak)
   ▼
 GET /api/oauth/callback
   ├─▶ exchange code → id_token (email, name)
-  ├─▶ POST /team/new   → LiteLLM  (idempotent, 409 = already exists)
-  ├─▶ POST /user/new → LiteLLM  (idempotent, user_id=email)
-  ├─▶ POST /key/generate → LiteLLM
-  └─▶ render success.html  (or error.html on failure)
+  ├─▶ POST /team/new  → LiteLLM  (idempotent, 409 = already exists)
+  ├─▶ POST /user/new  → LiteLLM  (idempotent, user_id=email) — eager-create, NO key minted
+  └─▶ 302 redirect → /ui  (or render error.html on failure)
 
-GET /api/oauth/reveal
-  ├─▶ OIDC Login
-  ├─▶ GET /key/list (filtered by email)
-  └─▶ render success.html (latest token)
+Key lifecycle (create / list / delete) lives entirely in the /ui console via the
+session API — POST/GET/DELETE /api/session/keys. There is NO OIDC-redirect route
+that mints or reveals an sk-.
 
-GET /api/oauth/tokens
-  ├─▶ OIDC Login
-  ├─▶ GET /key/list (filtered by email)
-  └─▶ JSON response (all tokens)
+GET /api/oauth/whoami             (header-authed key → identity resolver, non-UI)
+  ├─▶ validate x-alitellm-auth-api-key against LiteLLM
+  └─▶ JSON response (key metadata + nested litellm_user)
 
 GET /api/users (+ /{email}, DELETE /{email})
   ├─▶ master-key authz (x-alitellm-auth-api-key == LITELLM_MASTER_KEY)
@@ -55,7 +52,7 @@ GET /api/users (+ /{email}, DELETE /{email})
 | `src/api/app/admin.py` | GET/DELETE `/api/users` CRUD, master-key authz |
 | `src/api/app/main.py` | `create_app()` factory + SessionMiddleware + lifespan contract check |
 | `src/api/app/contract.py` | startup verification of the LiteLLM user-scoping contract (non-fatal CRITICAL banner) |
-| `src/api/app/templates/` | `success.html`, `error.html` (dark terminal card) |
+| `src/api/app/templates/` | `error.html` (dark terminal card; rendered on OIDC/callback failure) |
 | `deploy/helm/`, `deploy/kustomize/` | Helm chart + Kustomize base/overlays (deployment, service, ingress, configmap, secret example) |
 | `deploy/litellm/` | **canonical** `sso_key_swapper` custom-auth (runs on the LiteLLM proxy) + install README — the user-scoping contract |
 
@@ -117,42 +114,17 @@ nested `litellm_user` enrichment block. A valid key whose metadata lacks an
 | `401` | Missing header, or key not found / invalid |
 | `502` | LiteLLM backend unreachable or returned 5xx |
 
-### `GET /api/oauth/reveal` — Show latest token
+### `GET /api/oauth/login` — Sign in (UI-only)
 
-OIDC login flow that redirects to the success page showing the most recently created LiteLLM key for the user, without creating a new one.
+Starts the OIDC flow. On callback it eager-creates the LiteLLM user (idempotent,
+`user_id = email`) and `302`-redirects to `/ui`. It **never** mints a key. The SPA
+uses this route for both the sign-in CTA and the silent mid-session expiry redirect,
+so neither can create a key.
 
-### `GET /api/oauth/tokens` — List all user tokens
-
-OIDC login flow that returns a JSON list of all LiteLLM keys associated with the user's email.
-
-**Success response (`200`):**
-```json
-{
-  "email": "alice@example.com",
-  "tokens": [
-    {
-      "id": "key-XXXXXXXXXXXXXXXXXXXX",
-      "key": "sk-...",
-      "created_at": "2026-03-01T10:00:00+00:00",
-      "expires": null,
-      "models": ["all-team-models"]
-    }
-  ]
-}
-```
-
-### `DELETE /api/oauth/tokens/{id}` — Delete a token
-
-Deletes a specific LiteLLM virtual key. Requires authentication via header.
-
-**Header:** `x-alitellm-auth-api-key: sk-...`
-
-**Path parameter:** `id` (the identifier returned by `/tokens` or `/whoami`)
-
-```bash
-curl -X DELETE https://platform.ackstorm.ai/api/oauth/tokens/key-XXXXXXXXXXXXXXXXXXXX \
-  -H "x-alitellm-auth-api-key: sk-YYYYYYYYYYYYYYYYYYYY"
-```
+Key create/list/delete is handled inside the console by the session API
+(`POST`/`GET`/`DELETE /api/session/keys` — see `src/api/app/session.py`). There is
+**no** OIDC-redirect endpoint that mints or reveals an `sk-` (the legacy
+`login`-mint / `reveal` / `GET tokens` / `DELETE tokens` routes were removed).
 
 ### Admin Endpoints — /api/users (master-key only)
 

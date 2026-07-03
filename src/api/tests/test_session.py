@@ -1376,19 +1376,14 @@ def test_cookie_httponly_present(client):
 
     with (
         patch("app.auth.oauth") as mock_oauth,
-        patch("app.auth.generate_litellm_key", new_callable=AsyncMock) as mock_key,
+        patch("app.auth.ensure_team_and_user", new_callable=AsyncMock) as mock_ensure,
     ):
         mock_oauth.oidc.authorize_access_token = AsyncMock(return_value=mock_token)
-        mock_key.return_value = {
-            "key": "sk-new",
-            "id": "k1",
-            "team_id": "team-test-client",
-        }
+        mock_ensure.return_value = None
 
-        cookie = _make_session_cookie(_TEST_SESSION_SECRET, {"oauth_action": "login"})
-        response = client.get("/api/oauth/callback", cookies={"session": cookie})
+        response = client.get("/api/oauth/callback", follow_redirects=False)
 
-    assert response.status_code == 200
+    assert response.status_code == 302
     raw_set_cookie = response.headers.get("set-cookie", "")
     assert "session=" in raw_set_cookie, f"no session Set-Cookie: {raw_set_cookie!r}"
     assert (
@@ -1462,15 +1457,14 @@ def test_callback_stamps_session(client):
 
     with (
         patch("app.auth.oauth") as mock_oauth,
-        patch("app.auth.generate_litellm_key", new_callable=AsyncMock) as mock_key,
+        patch("app.auth.ensure_team_and_user", new_callable=AsyncMock) as mock_ensure,
     ):
         mock_oauth.oidc.authorize_access_token = AsyncMock(return_value=mock_token)
-        mock_key.return_value = {"key": "sk-new", "id": "k1", "team_id": "team-test-client"}
+        mock_ensure.return_value = None
 
-        cookie = _make_session_cookie(_TEST_SESSION_SECRET, {"oauth_action": "login"})
-        response = client.get("/api/oauth/callback", cookies={"session": cookie})
+        response = client.get("/api/oauth/callback", follow_redirects=False)
 
-    assert response.status_code == 200
+    assert response.status_code == 302
     # The session cookie was set in the response
     session_cookie = response.cookies.get("session")
     assert session_cookie is not None
@@ -1507,24 +1501,19 @@ def test_ui_action_ensures_user_no_key(client):
     with (
         patch("app.auth.oauth") as mock_oauth,
         patch("app.auth.ensure_team_and_user", new_callable=AsyncMock) as mock_ensure,
-        patch("app.auth.generate_litellm_key", new_callable=AsyncMock) as mock_key,
     ):
         mock_oauth.oidc.authorize_access_token = AsyncMock(return_value=mock_token)
         mock_ensure.return_value = "team-test-client"
 
-        cookie = _make_session_cookie(_TEST_SESSION_SECRET, {"oauth_action": "ui"})
         response = client.get(
             "/api/oauth/callback",
-            cookies={"session": cookie},
             follow_redirects=False,
         )
 
     # Should redirect to /ui
     assert response.status_code in (302, 303)
     assert "/ui" in response.headers.get("location", "")
-    # generate_litellm_key must NOT have been called (no key minted)
-    mock_key.assert_not_called()
-    # ensure_team_and_user must have been called (eager create)
+    # ensure_team_and_user must have been called (eager create); no key minted.
     mock_ensure.assert_called_once()
 
 
