@@ -257,7 +257,8 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
           caption: '~/.config/opencode/opencode.json',
           // OpenCode can instead use its native `google` provider against the gateway's
           // Gemini-compatible passthrough (/gemini/v1beta). Model names must match the
-          // Gemini models your gateway exposes.
+          // Gemini models your gateway exposes. apiKey is read from the LITELLM_API_KEY
+          // env var (opencode `{env:...}` interpolation), same as Codex.
           code: `{
   "$schema": "https://opencode.ai/config.json",
   "enabled_providers": ["google"],
@@ -265,7 +266,7 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
     "google": {
       "options": {
         "baseURL": "${apiBase}/gemini/v1beta",
-        "apiKey": "${KEY_PLACEHOLDER}",
+        "apiKey": "{env:LITELLM_API_KEY}",
         "timeout": 600000
       }
     }
@@ -273,7 +274,7 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
   "model": "google/gemini-flash-latest",
   "small_model": "google/gemini-flash-lite-latest"
 }`,
-          note: 'Save the file, then run `opencode`. Model names must match the Gemini models your gateway exposes.',
+          note: 'Export the key referenced by `{env:LITELLM_API_KEY}` first: `export LITELLM_API_KEY="sk-..."`, then run `opencode`. Model names must match the Gemini models your gateway exposes.',
           guide: {
             url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
             label: 'OpenCode + LiteLLM guide',
@@ -284,8 +285,9 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
           subLabel: 'OpenAI',
           ready: true,
           caption: '~/.config/opencode/opencode.json',
-          // opencode is configured by a JSON file (NOT env vars): an OpenAI-compatible
-          // provider pointed at the gateway. The model keys MUST match LiteLLM aliases.
+          // opencode is configured by a JSON file: an OpenAI-compatible provider pointed
+          // at the gateway. The model keys MUST match LiteLLM aliases. apiKey is read from
+          // the LITELLM_API_KEY env var (opencode `{env:...}` interpolation), same as Codex.
           code: `{
   "$schema": "https://opencode.ai/config.json",
   "provider": {
@@ -294,7 +296,7 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
       "name": "LiteLLM",
       "options": {
         "baseURL": "${apiBase}/v1",
-        "apiKey": "${KEY_PLACEHOLDER}"
+        "apiKey": "{env:LITELLM_API_KEY}"
       },
       "models": {
         "ackstorm.fast": { "name": "ACKstorm Fast" },
@@ -303,7 +305,7 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
     }
   }
 }`,
-          note: 'Save the file, then run `opencode` and pick a LiteLLM model with `/models`.',
+          note: 'Export the key referenced by `{env:LITELLM_API_KEY}` first: `export LITELLM_API_KEY="sk-..."`, then run `opencode` and pick a LiteLLM model with `/models`.',
           guide: {
             url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
             label: 'OpenCode + LiteLLM guide',
