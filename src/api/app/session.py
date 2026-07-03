@@ -389,6 +389,19 @@ def _validate_key_duration(duration: str | None) -> str | None:
     return duration
 
 
+async def _require_team_membership(email: str, team_id: str, settings: Settings) -> None:
+    """Assert the SESSION email belongs to ``team_id``; 403 if not, 502 on backend error.
+
+    ``email`` is always the verified session identity, never client input.
+    """
+    try:
+        await assert_team_membership(email, team_id, settings)
+    except TeamMembershipError:
+        raise HTTPException(status_code=403, detail="Not a member of that team")
+    except (httpx.HTTPStatusError, httpx.RequestError):
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+
+
 async def _validate_key_team(email: str, team_id: str | None, settings: Settings) -> str | None:
     """SECURITY: a client-supplied team_id is validated against the SESSION
     email's real memberships BEFORE any LiteLLM mint — the email comes from
@@ -398,12 +411,7 @@ async def _validate_key_team(email: str, team_id: str | None, settings: Settings
         team_id = team_id.strip() or None
     if team_id is None:
         return None
-    try:
-        await assert_team_membership(email, team_id, settings)
-    except TeamMembershipError:
-        raise HTTPException(status_code=403, detail="Not a member of that team")
-    except (httpx.HTTPStatusError, httpx.RequestError):
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    await _require_team_membership(email, team_id, settings)
     return team_id
 
 
@@ -673,12 +681,7 @@ async def session_change_key_team(
         raise HTTPException(status_code=422, detail="team_id required")
 
     # Security gate: the user must belong to the target team.
-    try:
-        await assert_team_membership(email, team_id, settings)
-    except TeamMembershipError:
-        raise HTTPException(status_code=403, detail="Not a member of that team")
-    except (httpx.HTTPStatusError, httpx.RequestError):
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    await _require_team_membership(email, team_id, settings)
 
     # Ownership: relist + match by id (403 for foreign/unknown, D-12).
     user_keys = await _relist_or_502(email, settings, "session_change_key_team: relist failed")
@@ -856,6 +859,27 @@ async def session_models(
     return JSONResponse({"models": models})
 
 
+async def _degrading_catalog(
+    settings: Settings, *, lister, user_id: str, key: str, label: str
+) -> JSONResponse:
+    """Run a per-user, read-only catalog lister and shape the response (MCP / A2A).
+
+    404 -> a calm ``{<key>: [], "available": False}`` 200 (the gateway feature is not
+    enabled); 5xx / unreachable -> 502. ``label`` names the feature in logs/detail.
+    """
+    try:
+        items = await lister(settings, user_id=user_id)
+    except httpx.HTTPStatusError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            logger.info("%s catalog unavailable (404), degrading", label)
+            return JSONResponse({key: [], "available": False})
+        logger.error("%s catalog list failed: %s", label, exc)
+        raise HTTPException(status_code=502, detail=f"{label} catalog unavailable")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
+    return JSONResponse({key: items, "available": True})
+
+
 @router.get("/mcp", response_model=None)
 async def session_mcp(
     request: Request,
@@ -873,17 +897,13 @@ async def session_mcp(
     A 5xx / unreachable backend -> 502.
     """
     settings: Settings = request.app.state.settings
-    try:
-        servers = await list_litellm_mcp_servers(settings, user_id=user["email"])
-    except httpx.HTTPStatusError as exc:
-        if exc.response is not None and exc.response.status_code == 404:
-            logger.info("session_mcp: MCP gateway unavailable (404), degrading")
-            return JSONResponse({"servers": [], "available": False})
-        logger.error("session_mcp: server list failed: %s", exc)
-        raise HTTPException(status_code=502, detail="MCP catalog unavailable")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
-    return JSONResponse({"servers": servers, "available": True})
+    return await _degrading_catalog(
+        settings,
+        lister=list_litellm_mcp_servers,
+        user_id=user["email"],
+        key="servers",
+        label="MCP",
+    )
 
 
 @router.get("/a2a", response_model=None)
@@ -903,14 +923,10 @@ async def session_a2a(
     A 5xx / unreachable backend -> 502.
     """
     settings: Settings = request.app.state.settings
-    try:
-        agents = await list_litellm_a2a_agents(settings, user_id=user["email"])
-    except httpx.HTTPStatusError as exc:
-        if exc.response is not None and exc.response.status_code == 404:
-            logger.info("session_a2a: A2A gateway unavailable (404), degrading")
-            return JSONResponse({"agents": [], "available": False})
-        logger.error("session_a2a: agent list failed: %s", exc)
-        raise HTTPException(status_code=502, detail="A2A catalog unavailable")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
-    return JSONResponse({"agents": agents, "available": True})
+    return await _degrading_catalog(
+        settings,
+        lister=list_litellm_a2a_agents,
+        user_id=user["email"],
+        key="agents",
+        label="A2A",
+    )

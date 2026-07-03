@@ -535,6 +535,20 @@ _EMPTY_SESSION_KEY = {
 }
 
 
+def _is_key_dict(k: Any) -> bool:
+    """Guard a /key/list row: log and reject anything that is not a dict.
+
+    LiteLLM should only return dict rows (or str, handled separately); a non-dict
+    is unexpected. Callers skip the row: ``if not _is_key_dict(k): continue``.
+    """
+    if isinstance(k, dict):
+        return True
+    logger.warning(
+        "LiteLLM /key/list returned unexpected type (not str/dict): %r type=%s", k, type(k)
+    )
+    return False
+
+
 async def _list_session_keys_fallback(email: str, settings: Settings) -> list[dict]:
     """Fallback: hydrate keys via list_litellm_keys + get_key_info when /key/list returns strings."""
     raw_keys = await list_litellm_keys(email, settings)
@@ -581,12 +595,7 @@ async def list_session_keys(email: str, settings: Settings) -> list[dict]:
         # If the proxy returned a string, return_full_object was ignored → trigger fallback.
         if isinstance(k, str):
             return await _list_session_keys_fallback(email, settings)
-        if not isinstance(k, dict):
-            logger.warning(
-                "LiteLLM /key/list returned unexpected type (not str/dict): %r type=%s",
-                k,
-                type(k),
-            )
+        if not _is_key_dict(k):
             continue
         out.append(_project_session_key(k, _parse_metadata(k.get("metadata"))))
 
@@ -739,10 +748,7 @@ async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:
                 raise
             continue
 
-        if not isinstance(k, dict):
-            logger.warning(
-                "LiteLLM /key/list returned UNKNOWN type (not str/dict): %r type=%s", k, type(k)
-            )
+        if not _is_key_dict(k):
             continue
 
         metadata = _parse_metadata(k.get("metadata"))
