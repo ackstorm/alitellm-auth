@@ -412,19 +412,19 @@
 <p><code>alitellm-auth</code> is a FastAPI service that sits at the OIDC login boundary of your LiteLLM
 deployment. When a user authenticates through an OIDC provider (Dex, Keycloak, or any
 compliant IdP), the service provisions a first-class LiteLLM User (<code>user_id = email</code>) and
-issues a scoped virtual key (<code>sk-...</code>) for that user — all in a single login flow.</p>
+opens a web console (<code>/ui</code>) where the user creates and manages scoped virtual keys (<code>sk-...</code>).</p>
 <h2 id="where-it-fits">Where it fits</h2>
 <p><code>alitellm-auth</code> and <code>alitellm-operator</code> divide LiteLLM ownership cleanly:</p>
 <ul>
 <li><strong>alitellm-operator</strong> owns the declarative layer: model routing, team definitions, and
   resource discovery via Kubernetes CRDs. It does not manage Users or VirtualKeys.</li>
 <li><strong>alitellm-auth</strong> owns the identity layer: Users and VirtualKeys. Every login creates or
-  reuses the user record and returns a credential the user can put directly into an LLM client.</li>
+  reuses the user record and drops the user into the console to manage their own keys.</li>
 </ul>
 <h2 id="getting-a-key">Getting a key</h2>
-<p>Navigate to <code>/api/oauth/login</code>. After OIDC authentication, you land on a page showing your
-<code>sk-...</code> key. Returning users can use <code>/api/oauth/reveal</code> to retrieve their most recent key
-without creating a new one. All keys for your account are listed at <code>/api/oauth/tokens</code>.</p>
+<p>Navigate to <code>/api/oauth/login</code>. After OIDC authentication, you land in the <code>/ui</code> console,
+where you create, list, and delete your <code>sk-...</code> keys. Sign-in itself never mints a key —
+key management is handled entirely inside the console (backed by the <code>/api/session/keys</code> API).</p>
 <p>For the full endpoint reference, request/response shapes, and <code>whoami</code> identity resolution,
 see the <a href="https://github.com/ackstorm/alitellm-auth#readme">README on GitHub</a>.</p>
 <h2 id="oidc-setup">OIDC setup</h2>
