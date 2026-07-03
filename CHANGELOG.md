@@ -2,6 +2,17 @@
 
 ## [unreleased]
 
+## [0.5.28] - 2026-07-03
+
+### Removed
+
+- **BREAKING: the legacy browser key endpoints are gone — sign-in is now keyless and UI-only.** `GET /api/oauth/login` and its callback no longer mint a virtual key or render a key card; the callback eager-creates the LiteLLM user (idempotent) and redirects to the `/ui` console. Removed `GET /api/oauth/reveal`, `GET /api/oauth/tokens`, `DELETE /api/oauth/tokens/{id}`, the `action=login` minting path, and the `success.html` template. This fixes an unwanted side effect where the SPA's silent mid-session expiry redirect hit the bare `/api/oauth/login`, which defaulted to the minting flow and created a fresh `sk-` on every session expiry (key proliferation). `GET /api/oauth/whoami` (header-authed key → identity resolver) is kept. Create/list/delete keys from the console via `/api/session/keys`.
+
+### Changed
+
+- **How-to: the OpenCode config now reads the key from the `LITELLM_API_KEY` env var.** Both OpenCode variants (Gemini + OpenAI) use opencode's `{env:LITELLM_API_KEY}` interpolation for `apiKey` instead of a literal `sk-...` placeholder, and the notes tell you to `export LITELLM_API_KEY=…` before running `opencode` — matching the Codex flow.
+- **Internal refactor — deduplicated three repeated blocks in the API; no behavior change.** Extracted `_require_team_membership` (the team-membership 403/502 guard shared by key-create and move-team), `_degrading_catalog` (the shared MCP/A2A read-only catalog handler with its 404-degrade path), and `_is_key_dict` (the non-dict `/key/list` row guard). 239 pytest green; net −44 lines.
+
 ## [0.5.27] - 2026-07-02
 
 ### Changed
