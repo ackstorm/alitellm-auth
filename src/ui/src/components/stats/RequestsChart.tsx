@@ -45,7 +45,7 @@ import {
   tooltipLabelFormatter,
 } from './chart-common';
 
-export type RequestsMetric = 'requests' | 'tokens';
+export type RequestsMetric = 'requests' | 'tokens' | 'failed';
 
 // The REQUESTS/TOKENS segmented toggle. Controlled — the owner holds the metric
 // state so it can place this control anywhere (e.g. the panel header row). A
@@ -60,7 +60,7 @@ export function RequestsMetricToggle({
 }): React.ReactElement {
   return (
     <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
-      {(['requests', 'tokens'] as const).map((m) => (
+      {(['requests', 'tokens', 'failed'] as const).map((m) => (
         <button
           key={m}
           type="button"
@@ -154,6 +154,9 @@ export function RequestsChart({
         )}
         {metric === 'tokens' && (
           <Bar key="tokens" dataKey="tokens" fill={SERIES_COLOR} radius={[3, 3, 0, 0]} />
+        )}
+        {metric === 'failed' && (
+          <Bar key="failed-only" dataKey="failed" fill="var(--destructive)" radius={[3, 3, 0, 0]} />
         )}
       </BarChart>
     </ResponsiveContainer>

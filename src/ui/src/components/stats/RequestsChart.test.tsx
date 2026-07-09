@@ -111,4 +111,11 @@ describe('RequestsMetricToggle', () => {
     fireEvent.click(getByText('tokens'));
     expect(onChange).toHaveBeenCalledWith('tokens');
   });
+
+  it('offers a failed metric in the toggle', () => {
+    const { getByRole } = render(
+      <RequestsMetricToggle metric="requests" onChange={() => {}} />
+    );
+    expect(getByRole('button', { name: /failed/i })).toBeInTheDocument();
+  });
 });
