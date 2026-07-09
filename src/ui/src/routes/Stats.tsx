@@ -51,7 +51,7 @@ const PAGE_SUB = 'Requests, tokens, models, and spend for the selected period.';
 const SECTION_DAILY_SPEND = 'DAILY SPEND';
 const SECTION_REQUESTS = 'REQUESTS BY DAY';
 const SECTION_USAGE_BY_MODEL = 'USAGE BY MODEL';
-const SECTION_MODEL_BREAKDOWN = 'MODEL BREAKDOWN';
+const SECTION_MODEL_BREAKDOWN = 'USAGE BREAKDOWN';
 const ERR_HEADING = "Couldn't load usage";
 const ERR_BODY =
   "We couldn't reach the usage service. Check your connection and retry.";

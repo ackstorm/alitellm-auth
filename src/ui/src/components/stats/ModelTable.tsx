@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/data-table';
 import type { StatsCapabilities, StatsModelRow } from '@/lib/api-types';
 import { abbreviate, formatCurrency, formatDate, formatInt } from '@/lib/format';
+import { isMcpModelRow, mcpToolLabel } from '@/lib/model-classify';
 
 // The em-dash placeholder (matches format.ts EM_DASH) — every null / unavailable
 // / capability-disabled cell renders THIS, never a `0`.
@@ -85,10 +86,21 @@ export function ModelTable({
   // click; the default sort below keeps the original SPEND-descending view.
   const columns: DataTableColumn<StatsModelRow>[] = [
     {
+      key: 'type',
+      header: 'TYPE',
+      className: 'whitespace-nowrap',
+      cell: (m) => (
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+          {isMcpModelRow(m.model) ? 'MCP Tool' : 'Model'}
+        </span>
+      ),
+      sortAccessor: (m) => (isMcpModelRow(m.model) ? 1 : 0),
+    },
+    {
       key: 'model',
-      header: 'MODEL',
+      header: 'NAME',
       className: 'font-mono text-xs text-text-primary',
-      cell: (m) => (m.model == null ? EM_DASH : m.model),
+      cell: (m) => (m.model == null ? EM_DASH : mcpToolLabel(m.model)),
       sortAccessor: (m) => m.model,
     },
     {
@@ -104,7 +116,12 @@ export function ModelTable({
       header: 'INPUT',
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
-      cell: (m) => (tokenSplit === false ? EM_DASH : abbreviate(m.input_tokens)),
+      cell: (m) =>
+        isMcpModelRow(m.model)
+          ? EM_DASH
+          : tokenSplit === false
+            ? EM_DASH
+            : abbreviate(m.input_tokens),
       sortAccessor: (m) => m.input_tokens,
     },
     {
@@ -112,7 +129,12 @@ export function ModelTable({
       header: 'OUTPUT',
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
-      cell: (m) => (tokenSplit === false ? EM_DASH : abbreviate(m.output_tokens)),
+      cell: (m) =>
+        isMcpModelRow(m.model)
+          ? EM_DASH
+          : tokenSplit === false
+            ? EM_DASH
+            : abbreviate(m.output_tokens),
       sortAccessor: (m) => m.output_tokens,
     },
     {
@@ -120,7 +142,7 @@ export function ModelTable({
       header: 'TOTAL',
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
-      cell: (m) => abbreviate(m.total_tokens),
+      cell: (m) => (isMcpModelRow(m.model) ? EM_DASH : abbreviate(m.total_tokens)),
       sortAccessor: (m) => m.total_tokens,
     },
     {
@@ -128,7 +150,14 @@ export function ModelTable({
       header: 'SPEND',
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
-      cell: (m) => formatCurrency(m.spend),
+      cell: (m) =>
+        isMcpModelRow(m.model) ? (
+          <span data-testid="usage-spend-mcp" className="text-muted-foreground">
+            {EM_DASH}
+          </span>
+        ) : (
+          formatCurrency(m.spend)
+        ),
       sortAccessor: (m) => m.spend,
     },
     {
@@ -136,7 +165,7 @@ export function ModelTable({
       header: '% SPEND',
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
-      cell: (m) => formatPct(m.spend_pct),
+      cell: (m) => (isMcpModelRow(m.model) ? EM_DASH : formatPct(m.spend_pct)),
       sortAccessor: (m) => m.spend_pct,
     },
     {
@@ -144,7 +173,7 @@ export function ModelTable({
       header: '$/1M TOK',
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
-      cell: (m) => costPer1mTokens(m),
+      cell: (m) => (isMcpModelRow(m.model) ? EM_DASH : costPer1mTokens(m)),
       sortAccessor: (m) => costPer1mValue(m),
     },
     {

@@ -218,7 +218,7 @@ describe('Stats — success', () => {
     expect(screen.getByText('DAILY SPEND')).toBeInTheDocument();
     expect(screen.getByText('REQUESTS BY DAY')).toBeInTheDocument();
     expect(screen.getByText('USAGE BY MODEL')).toBeInTheDocument();
-    expect(screen.getByText('MODEL BREAKDOWN')).toBeInTheDocument();
+    expect(screen.getByText('USAGE BREAKDOWN')).toBeInTheDocument();
   });
 
   it('renders the KPI labels', () => {

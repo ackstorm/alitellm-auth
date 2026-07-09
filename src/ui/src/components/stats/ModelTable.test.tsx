@@ -40,12 +40,13 @@ const MODELS: StatsModelRow[] = [
 ];
 
 describe('ModelTable', () => {
-  it('renders the nine exact column headers', () => {
+  it('renders the exact column headers (TYPE + NAME prefix the metrics)', () => {
     const { getByText } = render(
       <ModelTable models={MODELS} capabilities={CAPS} />
     );
     for (const h of [
-      'MODEL',
+      'TYPE',
+      'NAME',
       'REQUESTS',
       'INPUT',
       'OUTPUT',
@@ -109,5 +110,30 @@ describe('ModelTable', () => {
   it('renders the empty copy for no rows', () => {
     const { getByText } = render(<ModelTable models={[]} capabilities={CAPS} />);
     expect(getByText('No usage in this range')).toBeInTheDocument();
+  });
+
+  it('tags MCP rows and blanks their token/cost cells', () => {
+    const base = {
+      requests: 3,
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      spend: 0,
+      spend_pct: 0,
+      last_used: null,
+    };
+    const { getByText, getByTestId } = render(
+      <ModelTable
+        capabilities={null}
+        models={[
+          { ...base, model: 'gemini/flash', spend: 1.5, total_tokens: 1000 },
+          { ...base, model: 'MCP: mcp-gitlab.gitlab_api' },
+        ]}
+      />,
+    );
+    expect(getByText('MCP Tool')).toBeInTheDocument();
+    expect(getByText('mcp-gitlab.gitlab_api')).toBeInTheDocument();
+    // MCP row shows em-dash (not $0.00) for spend.
+    expect(getByTestId('usage-spend-mcp').textContent).toBe('—');
   });
 });
