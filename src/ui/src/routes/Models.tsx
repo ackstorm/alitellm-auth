@@ -19,7 +19,14 @@ import {
   Wrench,
 } from 'lucide-react';
 
+import { useState } from 'react';
+
 import { RequiresDefaultKey } from '@/components/layout/RequiresDefaultKey';
+import {
+  ModelFilters,
+  applyModelFilters,
+  type ModelCapKey,
+} from '@/components/models/ModelFilters';
 import {
   DataTable,
   type DataTableColumn,
@@ -239,6 +246,14 @@ export function Models() {
   // it). No default → render the prompt and DON'T fetch (useModels disabled).
   const hasDefault = useHasDefaultKey();
   const query = useModels(hasDefault);
+  const [caps, setCaps] = useState<Set<ModelCapKey>>(new Set());
+  const toggleCap = (k: ModelCapKey) =>
+    setCaps((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
   const header = (
     <div>
       <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
@@ -293,10 +308,12 @@ export function Models() {
       {query.isPending ? (
         <Skeleton variant="table-rows" rows={6} />
       ) : (
+        <div className="flex flex-col gap-3">
+          <ModelFilters active={caps} onToggle={toggleCap} />
         <DataTable
           data-slot="models-table"
           columns={COLUMNS}
-          rows={models}
+          rows={applyModelFilters(models, caps)}
           defaultSort={{ key: 'model', dir: 'asc' }}
           getRowId={(row) => row.name ?? ''}
           empty={
@@ -308,6 +325,7 @@ export function Models() {
             </div>
           }
         />
+        </div>
       )}
     </div>
   );

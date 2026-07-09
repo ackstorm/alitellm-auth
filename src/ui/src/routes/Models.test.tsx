@@ -137,12 +137,26 @@ describe('Models — populated', () => {
   it('marks reasoning models in the Thinking column', () => {
     setSuccess([makeModel({ supports_reasoning: true })]);
     render(<Models />);
-    // Column header is always present.
-    expect(screen.getByText('Thinking')).toBeInTheDocument();
+    // Column header is always present (the capability toolbar also has a
+    // "Thinking" toggle, so target the header by role to disambiguate).
+    expect(screen.getByRole('columnheader', { name: 'Thinking' })).toBeInTheDocument();
     // Reasoning row carries the labelled badge.
     const badge = screen.getByLabelText('Thinking model');
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveTextContent('Yes');
+  });
+
+  it('filters rows by capability when a toggle is active', () => {
+    setSuccess([
+      makeModel({ name: 'sees', supports_vision: true }),
+      makeModel({ name: 'blind', supports_vision: false }),
+    ]);
+    render(<Models />);
+    expect(screen.getByText('sees')).toBeInTheDocument();
+    expect(screen.getByText('blind')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Vision' }));
+    expect(screen.getByText('sees')).toBeInTheDocument();
+    expect(screen.queryByText('blind')).not.toBeInTheDocument();
   });
 
   it('shows "Dynamic" for auto-router price and context', () => {
