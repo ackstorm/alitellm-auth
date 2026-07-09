@@ -2,6 +2,18 @@
 
 ## [unreleased]
 
+## [0.5.29] - 2026-07-09
+
+### Added
+
+- **Console UI review improvements across KEYS, MODELS, MCP, STATS, and HOW-TO.** A batch of screen refinements from the design review:
+  - **KEYS** — the "Last used" column now shows a relative time ("2h ago", "Never used") with an amber stale marker for keys unused ≥30 days; a new **TPM / RPM** rate-limit column (em-dash when unset).
+  - **MODELS** — auto-router aliases show **"Dynamic"** for price/context instead of a misleading `$0.00 / $0.00`; a **capability filter toolbar** (Vision / Thinking / Tools / Web) and a **table search**; a per-row **copy-curl** button that emits a ready-to-run call to the alias (key stays the `sk-...` placeholder).
+  - **MCP** — a **summary bar** (server + tool totals), a prominent tool-count chip, a clearer **"server auth"** label (auth is gateway↔server, your access is always key-authed), long tool lists collapse to 6 + "+N more", and a table search.
+  - **STATS** — a **failed-requests** trend metric on the requests chart; the "Model Breakdown" is now **"Usage Breakdown"** with a **TYPE** column that splits real models from **MCP Tool** rows (whose token/cost cells blank to em-dash, not `$0.00`); a per-model **Cached-input** column (aggregated `cache_read_input_tokens`); a spend-card **pricing tooltip** and a stacked token split; **% used** and a **projected month-end** figure on both budget bars.
+  - **HOW-TO** — Python/TypeScript **quickstart tabs** + an expected-response block; a **Troubleshooting** section (401/404/429/MCP errors); an OpenAI-compat env hint; **client-specific MCP config tabs** (Cursor / Claude Desktop / VS Code / Generic); a **model picker** that personalizes the quickstart snippets.
+  - **DASHBOARD** — the multi-team tile is captioned "Your teams".
+
 ## [0.5.28] - 2026-07-03
 
 ### Removed
