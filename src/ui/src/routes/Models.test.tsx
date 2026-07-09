@@ -146,6 +146,18 @@ describe('Models — populated', () => {
     expect(badge).toHaveTextContent('Yes');
   });
 
+  it('exposes a copyable curl snippet per model', () => {
+    setSuccess([
+      makeModel({ name: 'ackstorm.fast' }),
+      makeModel({ name: 'ackstorm.smart' }),
+    ]);
+    render(<Models />);
+    expect(screen.getAllByRole('button', { name: /copy curl/i })).toHaveLength(2);
+    expect(
+      screen.getByRole('button', { name: 'Copy curl for ackstorm.fast' }),
+    ).toBeInTheDocument();
+  });
+
   it('filters rows by the search box (case-insensitive substring)', () => {
     setSuccess([
       makeModel({ name: 'gemini/flash' }),

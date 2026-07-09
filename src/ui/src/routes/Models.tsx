@@ -14,6 +14,8 @@
 
 import {
   Brain,
+  Check,
+  Copy,
   Eye,
   Globe,
   Wrench,
@@ -33,11 +35,14 @@ import {
 } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TableSearch, matchesSearch } from '@/components/ui/table-search';
+import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useModels } from '@/hooks/use-models';
 import type { ModelRow } from '@/lib/api-types';
 import { formatPricePerMillion, formatTokens } from '@/lib/format';
 import { isRouterModel } from '@/lib/model-classify';
+import { cn } from '@/lib/utils';
+import { useSessionStore } from '@/stores/session';
 
 const EM_DASH = '—';
 
@@ -171,6 +176,48 @@ function CapabilitiesCell({ row }: { row: ModelRow }) {
   );
 }
 
+// The literal key placeholder — the real sk- is shown ONCE at mint time (Keys
+// tab), NEVER on this page (security constraint).
+const KEY_PLACEHOLDER = 'sk-...';
+// Fallback gateway host before the session endpoint resolves.
+const FALLBACK_API_BASE = 'https://api.your-domain.example';
+
+// A ready-to-run curl for one alias against the live gateway (key = placeholder).
+function curlSnippet(endpoint: string, alias: string): string {
+  return `curl ${endpoint}/v1/chat/completions \\
+  -H "x-litellm-api-key: Bearer ${KEY_PLACEHOLDER}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"${alias}","messages":[{"role":"user","content":"Hello!"}]}'`;
+}
+
+// Per-row "copy curl" action. Reads the live gateway endpoint from the session
+// and copies exactly the shown snippet on an explicit click (useCopyFeedback).
+function CurlCell({ row }: { row: ModelRow }) {
+  const endpoint = useSessionStore((s) => s.me?.endpoint) ?? FALLBACK_API_BASE;
+  const { copied, copy } = useCopyFeedback();
+  const alias = row.name ?? '';
+  return (
+    <button
+      type="button"
+      aria-label={`Copy curl for ${alias}`}
+      onClick={() => void copy(curlSnippet(endpoint, alias))}
+      className={cn(
+        'inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[11px] font-semibold lowercase tracking-wide transition-colors',
+        copied
+          ? 'border-primary bg-primary/15 text-primary'
+          : 'border-border text-text-tertiary hover:border-primary hover:text-primary',
+      )}
+    >
+      {copied ? (
+        <Check className="size-3" aria-hidden="true" />
+      ) : (
+        <Copy className="size-3" aria-hidden="true" />
+      )}
+      {copied ? 'copied!' : 'curl'}
+    </button>
+  );
+}
+
 // Columns for the shared DataTable. Same contract as KeysTable so the two tables
 // render with identical header/cell chrome.
 const COLUMNS: DataTableColumn<ModelRow>[] = [
@@ -239,6 +286,12 @@ const COLUMNS: DataTableColumn<ModelRow>[] = [
         row.supports_reasoning,
         row.supports_web_search,
       ].filter(Boolean).length,
+  },
+  {
+    key: 'example',
+    header: 'Example',
+    className: 'align-top',
+    cell: (row) => <CurlCell row={row} />,
   },
 ];
 
