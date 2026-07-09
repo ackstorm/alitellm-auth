@@ -48,7 +48,7 @@ import {
   useToggleKeyBlock,
 } from '@/hooks/use-keys';
 import { useTeams } from '@/hooks/use-teams';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatInt } from '@/lib/format';
 import { isBlocked, isExpired, selectKeyRows } from '@/lib/keys';
 import { isStale, relativeTime } from '@/lib/relative-time';
 import { cn } from '@/lib/utils';
@@ -230,6 +230,22 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       className: 'font-mono text-xs whitespace-nowrap',
       cell: (row) => (row.expires == null ? 'Never' : formatDate(row.expires)),
       sortAccessor: (row) => row.expires,
+    },
+    {
+      key: 'limits',
+      header: 'TPM / RPM',
+      headerClassName: 'whitespace-nowrap',
+      className: 'font-mono text-xs whitespace-nowrap',
+      cell: (row) => {
+        const tpm = row.tpm_limit == null ? EM_DASH : formatInt(row.tpm_limit);
+        const rpm = row.rpm_limit == null ? EM_DASH : formatInt(row.rpm_limit);
+        return (
+          <span className="text-text-secondary">
+            {tpm} / {rpm}
+          </span>
+        );
+      },
+      sortAccessor: (row) => row.tpm_limit,
     },
     {
       key: 'status',

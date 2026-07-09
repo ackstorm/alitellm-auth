@@ -212,6 +212,16 @@ describe('KeysTable — populated table', () => {
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 
+  it('renders a rate-limit column (em-dash when a limit is unset)', () => {
+    setRows([makeRow({ id: 'key-lim', tpm_limit: 1000, rpm_limit: null })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(
+      screen.getByText(
+        (_content, el) => el?.textContent === '1,000 / —' && el.tagName === 'SPAN',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('renders "Never" for a null expiry and a formatted date otherwise', () => {
     setRows([
       makeRow({ id: 'key-never', expires: null }),
