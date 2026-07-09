@@ -4,7 +4,7 @@
 // period-over-period delta chips (rendered from totals.deltas; null pct -> no chip).
 
 import { describe, expect, it } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 import type { StatsTotals } from '@/lib/api-types';
 import { KpiRow } from './KpiRow';
@@ -125,5 +125,10 @@ describe('KpiRow', () => {
     expect(sub?.textContent).toContain('in');
     expect(sub?.textContent).toContain('out');
     expect(sub?.textContent).not.toContain('cached');
+  });
+
+  it('adds a spend pricing tooltip', () => {
+    render(<KpiRow totals={TOTALS} />);
+    expect(screen.getByTestId('kpi-spend-label').getAttribute('title')).toMatch(/cache/i);
   });
 });

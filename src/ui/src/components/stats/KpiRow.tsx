@@ -91,6 +91,7 @@ function isNewMetric(
 // below. `sub` must be inline (a <span>) so it nests inside the parens.
 function KpiCard({
   label,
+  labelTitle,
   value,
   deltaPct,
   invert,
@@ -99,6 +100,7 @@ function KpiCard({
   icon: Icon,
 }: {
   label: string;
+  labelTitle?: string;
   value: string;
   deltaPct: number | null | undefined;
   invert?: boolean;
@@ -118,7 +120,11 @@ function KpiCard({
         <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg border border-border">
           <Icon className="size-[15px] text-primary" aria-hidden="true" />
         </span>
-        <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+        <div
+          data-testid={label === 'SPEND' ? 'kpi-spend-label' : undefined}
+          title={labelTitle}
+          className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary"
+        >
           {label}
         </div>
       </div>
@@ -184,8 +190,11 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
         if (typeof t?.cache_hit_pct === 'number' && t.cache_hit_pct > 0)
           parts.push(`${(t.cache_hit_pct * 100).toFixed(1)}% cached`);
         return parts.length ? (
-          <span data-slot="kpi-tokens" className="text-text-secondary">
-            {parts.join(' · ')}
+          // ponytail: parens kept around the stacked sub; drop only if design objects.
+          <span data-slot="kpi-tokens" className="flex flex-col text-text-secondary">
+            {parts.map((p) => (
+              <span key={p}>{p}</span>
+            ))}
           </span>
         ) : null;
       })(),
@@ -194,6 +203,7 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       label: 'SPEND',
       icon: DollarSign,
       value: formatCurrency(t?.spend),
+      labelTitle: 'Gateway-computed spend — includes cache & provider pricing',
       deltaPct: d?.spend_pct,
       invert: true,
       isNew: isNewMetric(d?.spend_pct, t?.spend),
@@ -218,6 +228,7 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
           <KpiCard
             key={c.label}
             label={c.label}
+            labelTitle={'labelTitle' in c ? c.labelTitle : undefined}
             icon={c.icon}
             value={c.value}
             deltaPct={c.deltaPct}
