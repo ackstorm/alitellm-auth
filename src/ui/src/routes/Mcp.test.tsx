@@ -132,4 +132,23 @@ describe('Mcp — populated', () => {
     expect(screen.getByText('create_issue')).toBeInTheDocument();
     expect(screen.getByText('platform')).toBeInTheDocument();
   });
+
+  it('renders a summary bar with server + tool totals', () => {
+    setSuccess({ servers: [makeServer()], available: true });
+    render(<Mcp />);
+    expect(screen.getByTestId('mcp-summary').textContent).toMatch(/1 server/);
+    expect(screen.getByTestId('mcp-summary').textContent).toMatch(/2 tools/);
+  });
+
+  it('caps the visible tool chips at six with a "+N more" marker', () => {
+    const tools = Array.from({ length: 9 }, (_, i) => `tool_${i}`);
+    setSuccess({
+      servers: [makeServer({ tools, tool_count: 9 })],
+      available: true,
+    });
+    render(<Mcp />);
+    expect(screen.getByText('tool_5')).toBeInTheDocument(); // 6th chip (index 5)
+    expect(screen.queryByText('tool_6')).not.toBeInTheDocument(); // hidden
+    expect(screen.getByText('+3 more')).toBeInTheDocument();
+  });
 });

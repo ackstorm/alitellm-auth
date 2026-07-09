@@ -111,14 +111,31 @@ function ServerCard({ server }: { server: McpServerRow }) {
       {/* Meta chips: transport + auth */}
       <div className="flex flex-wrap gap-1.5">
         {server.transport && <MetaChip label="via" value={server.transport} />}
-        {server.auth_type && <MetaChip label="auth" value={server.auth_type} />}
-        <MetaChip label="tools" value={String(server.tool_count)} />
+        {server.auth_type && (
+          <span
+            title="Auth between the gateway and this server. Your gateway access is always key-authed."
+            className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-text-secondary"
+          >
+            <span className="text-text-tertiary">server auth</span>
+            <span className="font-semibold text-text-primary">{server.auth_type}</span>
+          </span>
+        )}
+        <span
+          className={cn(
+            'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[11px] font-semibold',
+            server.tool_count > 0
+              ? 'border-primary/40 bg-primary/10 text-primary'
+              : 'border-border text-text-secondary',
+          )}
+        >
+          {server.tool_count} {server.tool_count === 1 ? 'tool' : 'tools'}
+        </span>
       </div>
 
-      {/* Tools */}
+      {/* Tools — cap the visible chips so a chatty server doesn't dominate. */}
       {server.tools.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {server.tools.map((t) => (
+          {server.tools.slice(0, 6).map((t) => (
             <span
               key={t}
               className="inline-flex items-center rounded-md border border-border bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] text-text-secondary"
@@ -126,6 +143,11 @@ function ServerCard({ server }: { server: McpServerRow }) {
               {t}
             </span>
           ))}
+          {server.tools.length > 6 && (
+            <span className="inline-flex items-center rounded-md px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary">
+              +{server.tools.length - 6} more
+            </span>
+          )}
         </div>
       )}
 
@@ -228,10 +250,19 @@ export function Mcp() {
       ) : servers.length === 0 ? (
         <StateCard heading={EMPTY_HEADING} body={EMPTY_BODY} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {servers.map((s, i) => (
-            <ServerCard key={s.id ?? i} server={s} />
-          ))}
+        <div className="flex flex-col gap-4">
+          <div
+            data-testid="mcp-summary"
+            className="font-mono text-[11px] uppercase tracking-wider text-text-tertiary"
+          >
+            {servers.length} {servers.length === 1 ? 'server' : 'servers'} ·{' '}
+            {servers.reduce((n, s) => n + s.tool_count, 0)} tools
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {servers.map((s, i) => (
+              <ServerCard key={s.id ?? i} server={s} />
+            ))}
+          </div>
         </div>
       )}
     </div>
