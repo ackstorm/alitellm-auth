@@ -11,7 +11,7 @@ import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 import type { BlockKeyResponse, KeyRow, MakeDefaultResponse } from '@/lib/api-types';
-import { formatDate } from '@/lib/format';
+import { relativeTime } from '@/lib/relative-time';
 
 // Mock the data hook — each test sets useKeys's return value.
 vi.mock('@/hooks/use-keys', () => ({
@@ -170,25 +170,25 @@ describe('KeysTable — populated table', () => {
     expect(screen.getByText('key-abc123')).toBeInTheDocument();
   });
 
-  it('renders the Last used cell from last_used (LiteLLM last_active)', () => {
-    const lastUsed = '2026-06-06T06:25:06+00:00';
+  it('renders a relative Last used cell (recent = not stale)', () => {
+    // 2h ago — deterministic relative to the test clock and well under the
+    // 30-day stale threshold, so the non-stale variant renders.
+    const lastUsed = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     setRows([makeRow({ last_used: lastUsed })]);
     render(<KeysTable onDelete={vi.fn()} />);
-    expect(screen.getByText(formatDate(lastUsed))).toBeInTheDocument();
+    expect(screen.getByText(relativeTime(lastUsed))).toBeInTheDocument();
+    expect(screen.getByTestId('key-lastused')).toBeInTheDocument();
   });
 
-  it('shows the em-dash in Last used when the key was never used', () => {
-    // expires + team_id are set so the ONLY em-dash on the row comes from the
-    // empty Last used (Team also renders an em-dash when team_id is null).
+  it('renders relative last-used and marks stale keys', () => {
+    // One never-used row (null) and one used long ago — both are stale.
     setRows([
-      makeRow({
-        last_used: null,
-        expires: '2027-01-01T00:00:00+00:00',
-        team_id: 'team-x',
-      }),
+      makeRow({ id: 'key-never', last_used: null }),
+      makeRow({ id: 'key-old', last_used: '2020-01-01T00:00:00+00:00' }),
     ]);
     render(<KeysTable onDelete={vi.fn()} />);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('Never used')).toBeInTheDocument();
+    expect(screen.getAllByTestId('key-lastused-stale')).toHaveLength(2);
   });
 
   it('shows the truncated id (16 chars + ellipsis) beneath the alias, prefixed "id:"', () => {

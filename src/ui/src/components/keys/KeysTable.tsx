@@ -50,6 +50,7 @@ import {
 import { useTeams } from '@/hooks/use-teams';
 import { formatDate } from '@/lib/format';
 import { isBlocked, isExpired, selectKeyRows } from '@/lib/keys';
+import { isStale, relativeTime } from '@/lib/relative-time';
 import { cn } from '@/lib/utils';
 import type { KeyRow } from '@/lib/api-types';
 
@@ -207,7 +208,20 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       key: 'lastused',
       header: 'Last used',
       className: 'font-mono text-xs whitespace-nowrap',
-      cell: (row) => (row.last_used == null ? EM_DASH : formatDate(row.last_used)),
+      cell: (row) => {
+        const stale = isStale(row.last_used);
+        return (
+          <span
+            data-slot="key-lastused"
+            data-testid={stale ? 'key-lastused-stale' : 'key-lastused'}
+            className={stale ? 'text-amber-600 dark:text-amber-400' : undefined}
+            title={row.last_used ?? undefined}
+          >
+            {relativeTime(row.last_used)}
+          </span>
+        );
+      },
+      // Sort by the raw timestamp (null sorts last); null last_used = never used.
       sortAccessor: (row) => row.last_used,
     },
     {
