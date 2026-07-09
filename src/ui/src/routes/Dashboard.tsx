@@ -36,6 +36,7 @@ import type {
 } from '@/lib/api-types';
 import { budgetFillClass } from '@/lib/budget';
 import { abbreviate, formatCurrency, formatInt } from '@/lib/format';
+import { budgetPctLabel, isMonthlyDuration, projectMonthEnd } from '@/lib/spend-projection';
 import { isRevoked, selectKeyRows } from '@/lib/keys';
 import { presetToRange } from '@/lib/stats-presets';
 import { cn } from '@/lib/utils';
@@ -200,6 +201,14 @@ function BudgetBar({
           {limits?.budget_duration ? (
             // The budget is per-period; show it so "$X of $Y" isn't ambiguous.
             <span className="text-text-tertiary"> / {limits.budget_duration}</span>
+          ) : null}
+          {budgetPctLabel(current, maxBudget) ? (
+            <span className="text-text-tertiary"> · {budgetPctLabel(current, maxBudget)}</span>
+          ) : null}
+          {isMonthlyDuration(limits?.budget_duration) ? (
+            <span className="text-text-tertiary">
+              {' '}· projected {formatCurrency(projectMonthEnd(current))}
+            </span>
           ) : null}
         </span>
       </div>

@@ -4,7 +4,7 @@
 // over-budget color switch (mirrors the dashboard BudgetBar logic).
 
 import { describe, expect, it } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 import type { StatsBudget } from '@/lib/api-types';
 import { BudgetPanel } from './BudgetPanel';
@@ -21,13 +21,16 @@ describe('BudgetPanel', () => {
     };
     const { getByText, container } = render(<BudgetPanel budget={budget} />);
     expect(getByText('ACCOUNT BUDGET')).toBeInTheDocument();
-    // The figure carries the budget PERIOD ("/ 30d") in a child span, so match on
-    // the amount span's full textContent.
+    // The figure carries the budget PERIOD ("/ 30d") plus the "% used" and a
+    // (clock-dependent) monthly projection in child spans, so match on the
+    // amount span's leading textContent.
     expect(
       getByText(
-        (_content, el) => el?.textContent === '$12.50 of $50.00 / 30d',
+        (_content, el) =>
+          el?.textContent?.startsWith('$12.50 of $50.00 / 30d') ?? false,
       ),
     ).toBeInTheDocument();
+    expect(getByText(/25% used/)).toBeInTheDocument();
     // Under 80% -> neutral grey fill (not primary, not warning/destructive).
     const fill = container.querySelector('[data-slot="budget-fill"]');
     expect(fill?.className).toContain('bg-text-secondary');
@@ -108,5 +111,39 @@ describe('BudgetPanel', () => {
   it('renders the no-budget state for a null budget prop', () => {
     const { getByText } = render(<BudgetPanel budget={null} />);
     expect(getByText(/no budget set/)).toBeInTheDocument();
+  });
+
+  it('shows percent used and a monthly projection', () => {
+    render(
+      <BudgetPanel
+        budget={{
+          current: 16,
+          max_budget: 400,
+          budget_duration: '30d',
+          source: 'team_member',
+          pct: 0.04,
+          has_budget: true,
+        }}
+      />,
+    );
+    expect(screen.getByText(/4% used/)).toBeInTheDocument();
+    expect(screen.getByText(/projected/)).toBeInTheDocument();
+  });
+
+  it('omits the projection for a non-monthly duration', () => {
+    render(
+      <BudgetPanel
+        budget={{
+          current: 16,
+          max_budget: 400,
+          budget_duration: '24h',
+          source: 'team_member',
+          pct: 0.04,
+          has_budget: true,
+        }}
+      />,
+    );
+    expect(screen.getByText(/4% used/)).toBeInTheDocument();
+    expect(screen.queryByText(/projected/)).not.toBeInTheDocument();
   });
 });

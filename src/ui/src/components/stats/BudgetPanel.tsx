@@ -24,6 +24,7 @@ import * as React from 'react';
 import type { StatsBudget } from '@/lib/api-types';
 import { budgetFillClass } from '@/lib/budget';
 import { formatCurrency } from '@/lib/format';
+import { budgetPctLabel, isMonthlyDuration, projectMonthEnd } from '@/lib/spend-projection';
 
 // "ACCOUNT BUDGET" matches the Dashboard BudgetBar label verbatim (the bar is
 // the same enforced per-member budget) — was "BUDGET STATUS", the wording drift
@@ -89,6 +90,14 @@ export function BudgetPanel({ budget }: BudgetPanelProps): React.ReactElement {
           {b?.budget_duration ? (
             // The budget is per-period; show it so "$X of $Y" isn't ambiguous.
             <span className="text-text-tertiary"> / {b.budget_duration}</span>
+          ) : null}
+          {budgetPctLabel(current, maxBudget) ? (
+            <span className="text-text-tertiary"> · {budgetPctLabel(current, maxBudget)}</span>
+          ) : null}
+          {isMonthlyDuration(b?.budget_duration) ? (
+            <span className="text-text-tertiary">
+              {' '}· projected {formatCurrency(projectMonthEnd(current))}
+            </span>
           ) : null}
         </span>
       </div>
