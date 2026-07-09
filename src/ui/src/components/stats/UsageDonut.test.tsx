@@ -49,6 +49,7 @@ function modelRow(
     input_tokens: 0,
     output_tokens: 0,
     total_tokens: 0,
+    cache_read_tokens: 0,
     spend,
     spend_pct,
     last_used: null,
@@ -184,7 +185,7 @@ describe('legend tooltip', () => {
       {
         model: 'gemini/gemini-3-pro-preview',
         requests: 1, input_tokens: 1, output_tokens: 1, total_tokens: 2,
-        spend: 5, spend_pct: 1, last_used: null,
+        cache_read_tokens: 0, spend: 5, spend_pct: 1, last_used: null,
       },
     ];
     const { container } = render(

@@ -87,6 +87,7 @@ function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse {
         input_tokens: 100000,
         output_tokens: 50000,
         total_tokens: 150000,
+        cache_read_tokens: 30000,
         spend: 10,
         spend_pct: 0.8,
         last_used: '2026-03-02T00:00:00+00:00',

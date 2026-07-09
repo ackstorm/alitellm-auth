@@ -146,6 +146,14 @@ export function ModelTable({
       sortAccessor: (m) => m.total_tokens,
     },
     {
+      key: 'cached',
+      header: 'CACHED IN',
+      headerClassName: 'text-right',
+      className: 'font-mono text-xs text-right whitespace-nowrap',
+      cell: (m) => (isMcpModelRow(m.model) ? EM_DASH : abbreviate(m.cache_read_tokens)),
+      sortAccessor: (m) => m.cache_read_tokens,
+    },
+    {
       key: 'spend',
       header: 'SPEND',
       headerClassName: 'text-right',

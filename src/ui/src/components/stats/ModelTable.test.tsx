@@ -23,6 +23,7 @@ const MODELS: StatsModelRow[] = [
     input_tokens: 600_000,
     output_tokens: 400_000,
     total_tokens: 1_000_000,
+    cache_read_tokens: 250_000,
     spend: 12.5,
     spend_pct: 0.6,
     last_used: '2026-03-03T05:35:44.827000+00:00',
@@ -33,6 +34,7 @@ const MODELS: StatsModelRow[] = [
     input_tokens: 100_000,
     output_tokens: 50_000,
     total_tokens: 150_000,
+    cache_read_tokens: 0,
     spend: 3.25,
     spend_pct: 0.2,
     last_used: null,
@@ -51,6 +53,7 @@ describe('ModelTable', () => {
       'INPUT',
       'OUTPUT',
       'TOTAL',
+      'CACHED IN',
       'SPEND',
       '% SPEND',
       '$/1M TOK',
@@ -68,6 +71,14 @@ describe('ModelTable', () => {
     // spend $12.50 AND $/1M TOK $12.50 (12.5 over exactly 1M tokens) — two cells.
     expect(getAllByText('$12.50')).toHaveLength(2);
     expect(getByText('60.0%')).toBeInTheDocument(); // spend_pct 0.6 -> 60.0%
+  });
+
+  it('renders the abbreviated cached-input tokens per row', () => {
+    const { getByText } = render(
+      <ModelTable models={MODELS} capabilities={CAPS} />
+    );
+    // gpt-4o cache_read_tokens 250_000 -> "250K".
+    expect(getByText('250K')).toBeInTheDocument();
   });
 
   it('renders $/1M TOK (spend/total_tokens*1e6); 0 tokens -> em-dash', () => {
@@ -118,6 +129,7 @@ describe('ModelTable', () => {
       input_tokens: 0,
       output_tokens: 0,
       total_tokens: 0,
+      cache_read_tokens: 0,
       spend: 0,
       spend_pct: 0,
       last_used: null,

@@ -163,6 +163,7 @@ def _accumulate_day_models(model_acc: dict[str, dict[str, Any]], breakdown: dict
                 "input_tokens": 0,
                 "output_tokens": 0,
                 "total_tokens": 0,
+                "cache_read_tokens": 0,
                 "spend": 0.0,
             },
         )
@@ -170,6 +171,7 @@ def _accumulate_day_models(model_acc: dict[str, dict[str, Any]], breakdown: dict
         acc["input_tokens"] += int(_num(m.get("prompt_tokens")))
         acc["output_tokens"] += int(_num(m.get("completion_tokens")))
         acc["total_tokens"] += int(_num(m.get("total_tokens")))
+        acc["cache_read_tokens"] += int(_num(m.get("cache_read_input_tokens")))
         acc["spend"] += _num(m.get("spend"))
 
 
@@ -379,6 +381,7 @@ def build_stats_contract(
                 "input_tokens": int(_num(m.get("input_tokens"))),
                 "output_tokens": int(_num(m.get("output_tokens"))),
                 "total_tokens": int(_num(m.get("total_tokens"))),
+                "cache_read_tokens": int(_num(m.get("cache_read_tokens"))),
                 "spend": _num(m.get("spend")),
                 "spend_pct": _safe_pct(_num(m.get("spend")), models_total_spend),
                 "last_used": last_used.get(model_name),

@@ -223,6 +223,8 @@ export interface StatsModelRow {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
+  /** Cache-read (cached input) tokens for this model in the window. */
+  cache_read_tokens: number;
   spend: number;
   spend_pct: number | null;
   last_used: string | null;

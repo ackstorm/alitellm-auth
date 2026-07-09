@@ -460,3 +460,13 @@ def test_resolve_key_display_empty_key_list_is_noop_copy():
         out = resolve_key_display(stats_keys, kl)
         assert out == stats_keys
         assert out[0] is not stats_keys[0]  # never mutates / aliases the input
+
+
+def test_model_cache_read_tokens_aggregated():
+    """Per-model cache_read_input_tokens accumulate under cache_read_tokens."""
+    acc: dict = {}
+    breakdown = {"models": {"m": {"metrics": {"cache_read_input_tokens": 42, "prompt_tokens": 100}}}}
+    from app.stats import _accumulate_day_models
+
+    _accumulate_day_models(acc, breakdown)
+    assert acc["m"]["cache_read_tokens"] == 42
