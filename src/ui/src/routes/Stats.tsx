@@ -37,6 +37,7 @@ import { SpendChart } from '@/components/stats/SpendChart';
 import { TopKeys } from '@/components/stats/TopKeys';
 import { UsageDonut } from '@/components/stats/UsageDonut';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TableSearch, matchesSearch } from '@/components/ui/table-search';
 import { useKeys } from '@/hooks/use-keys';
 import type { StatsModelRow } from '@/lib/api-types';
 import type { CsvColumn } from '@/lib/csv';
@@ -110,6 +111,8 @@ export function Stats() {
   // REQUESTS BY DAY metric, hoisted so the toggle lives in the panel header row.
   const [requestsMetric, setRequestsMetric] =
     useState<RequestsMetric>('requests');
+  // USAGE BREAKDOWN client-side name filter.
+  const [modelSearch, setModelSearch] = useState('');
 
   const query = useStats(range);
   // The user's full key list — merged into the TOP API KEYS panel so idle keys
@@ -136,6 +139,7 @@ export function Stats() {
   const totals = data?.totals ?? null;
   const series = data?.series ?? [];
   const models = data?.models ?? [];
+  const visibleModels = models.filter((m) => matchesSearch(modelSearch, m.model));
   // Activity rows unioned with the user's keys (idle keys padded with zeros),
   // ranked by spend — so TOP API KEYS lists all keys, not only the active ones.
   const keys = mergeTopKeys(data?.keys ?? [], selectKeyRows(keysQuery.data));
@@ -259,20 +263,27 @@ export function Stats() {
 
       {/* §4 Model Breakdown */}
       <div className="min-w-0">
-        <div className="mb-3 flex min-h-6 items-center justify-between gap-3">
+        <div className="mb-3 flex min-h-6 flex-wrap items-center justify-between gap-3">
           <div className={SECTION_LABEL_CLASS}>{SECTION_MODEL_BREAKDOWN}</div>
           {loading ? null : (
-            <ExportCsvButton
-              rows={models}
-              columns={MODELS_CSV_COLS}
-              filename={`models-${range.start}-${range.end}.csv`}
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              <TableSearch
+                value={modelSearch}
+                onChange={setModelSearch}
+                placeholder="Search models…"
+              />
+              <ExportCsvButton
+                rows={models}
+                columns={MODELS_CSV_COLS}
+                filename={`models-${range.start}-${range.end}.csv`}
+              />
+            </div>
           )}
         </div>
         {loading ? (
           <Skeleton variant="table-rows" rows={6} />
         ) : (
-          <ModelTable models={models} capabilities={capabilities} />
+          <ModelTable models={visibleModels} capabilities={capabilities} />
         )}
       </div>
     </div>

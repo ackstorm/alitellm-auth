@@ -32,6 +32,7 @@ import {
   type DataTableColumn,
 } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TableSearch, matchesSearch } from '@/components/ui/table-search';
 import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useModels } from '@/hooks/use-models';
 import type { ModelRow } from '@/lib/api-types';
@@ -247,6 +248,7 @@ export function Models() {
   const hasDefault = useHasDefaultKey();
   const query = useModels(hasDefault);
   const [caps, setCaps] = useState<Set<ModelCapKey>>(new Set());
+  const [search, setSearch] = useState('');
   const toggleCap = (k: ModelCapKey) =>
     setCaps((prev) => {
       const next = new Set(prev);
@@ -309,11 +311,14 @@ export function Models() {
         <Skeleton variant="table-rows" rows={6} />
       ) : (
         <div className="flex flex-col gap-3">
-          <ModelFilters active={caps} onToggle={toggleCap} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <ModelFilters active={caps} onToggle={toggleCap} />
+            <TableSearch value={search} onChange={setSearch} placeholder="Search models…" />
+          </div>
         <DataTable
           data-slot="models-table"
           columns={COLUMNS}
-          rows={applyModelFilters(models, caps)}
+          rows={applyModelFilters(models, caps).filter((m) => matchesSearch(search, m.name))}
           defaultSort={{ key: 'model', dir: 'asc' }}
           getRowId={(row) => row.name ?? ''}
           empty={

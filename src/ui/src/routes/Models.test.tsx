@@ -146,6 +146,19 @@ describe('Models — populated', () => {
     expect(badge).toHaveTextContent('Yes');
   });
 
+  it('filters rows by the search box (case-insensitive substring)', () => {
+    setSuccess([
+      makeModel({ name: 'gemini/flash' }),
+      makeModel({ name: 'claude/opus' }),
+    ]);
+    render(<Models />);
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search models…' }), {
+      target: { value: 'GEMINI' },
+    });
+    expect(screen.getByText('gemini/flash')).toBeInTheDocument();
+    expect(screen.queryByText('claude/opus')).not.toBeInTheDocument();
+  });
+
   it('filters rows by capability when a toggle is active', () => {
     setSuccess([
       makeModel({ name: 'sees', supports_vision: true }),

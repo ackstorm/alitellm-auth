@@ -11,10 +11,12 @@
 // with available:false); and an empty "no servers configured" state. The page is
 // presentational — the hook owns the fetch.
 
+import { useState } from 'react';
 import { Boxes, ExternalLink } from 'lucide-react';
 
 import { RequiresDefaultKey } from '@/components/layout/RequiresDefaultKey';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TableSearch, matchesSearch } from '@/components/ui/table-search';
 import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useMcp } from '@/hooks/use-mcp';
 import type { McpServerRow } from '@/lib/api-types';
@@ -188,6 +190,7 @@ export function Mcp() {
   // it). No default → render the prompt and DON'T fetch (useMcp disabled).
   const hasDefault = useHasDefaultKey();
   const query = useMcp(hasDefault);
+  const [search, setSearch] = useState('');
   const header = (
     <div>
       <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
@@ -235,6 +238,7 @@ export function Mcp() {
 
   const data = query.data;
   const servers = data?.servers ?? [];
+  const visible = servers.filter((s) => matchesSearch(search, s.name, s.description));
 
   return (
     <div className="flex flex-col gap-8">
@@ -251,15 +255,18 @@ export function Mcp() {
         <StateCard heading={EMPTY_HEADING} body={EMPTY_BODY} />
       ) : (
         <div className="flex flex-col gap-4">
-          <div
-            data-testid="mcp-summary"
-            className="font-mono text-[11px] uppercase tracking-wider text-text-tertiary"
-          >
-            {servers.length} {servers.length === 1 ? 'server' : 'servers'} ·{' '}
-            {servers.reduce((n, s) => n + s.tool_count, 0)} tools
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div
+              data-testid="mcp-summary"
+              className="font-mono text-[11px] uppercase tracking-wider text-text-tertiary"
+            >
+              {visible.length} {visible.length === 1 ? 'server' : 'servers'} ·{' '}
+              {visible.reduce((n, s) => n + s.tool_count, 0)} tools
+            </div>
+            <TableSearch value={search} onChange={setSearch} placeholder="Search servers…" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            {servers.map((s, i) => (
+            {visible.map((s, i) => (
               <ServerCard key={s.id ?? i} server={s} />
             ))}
           </div>
