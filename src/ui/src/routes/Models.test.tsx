@@ -144,4 +144,20 @@ describe('Models — populated', () => {
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveTextContent('Yes');
   });
+
+  it('shows "Dynamic" for auto-router price and context', () => {
+    setSuccess([
+      makeModel({
+        name: 'ackstorm.auto',
+        providers: ['auto_router'],
+        max_input_tokens: null,
+        max_output_tokens: null,
+        input_cost_per_token: null,
+        output_cost_per_token: null,
+      }),
+    ]);
+    render(<Models />);
+    // Both the price and the context cell short-circuit to "Dynamic".
+    expect(screen.getAllByText('Dynamic')).toHaveLength(2);
+  });
 });

@@ -29,6 +29,7 @@ import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useModels } from '@/hooks/use-models';
 import type { ModelRow } from '@/lib/api-types';
 import { formatPricePerMillion, formatTokens } from '@/lib/format';
+import { isRouterModel } from '@/lib/model-classify';
 
 const EM_DASH = '—';
 
@@ -104,6 +105,13 @@ function ModeBadge({ mode }: { mode: string | null }) {
 // Context window as "in / out", abbreviated (e.g. 128K / 16K). A single em-dash
 // when neither cap is set.
 function ContextCell({ row }: { row: ModelRow }) {
+  if (isRouterModel(row)) {
+    return (
+      <span className="text-muted-foreground" title="Depends on the routed model">
+        Dynamic
+      </span>
+    );
+  }
   const hasIn = typeof row.max_input_tokens === 'number';
   const hasOut = typeof row.max_output_tokens === 'number';
   if (!hasIn && !hasOut) return <span className="text-muted-foreground">{EM_DASH}</span>;
@@ -119,6 +127,13 @@ function ContextCell({ row }: { row: ModelRow }) {
 // Combined price cell: "$in / $out" per 1M tokens, mirroring ContextCell so the
 // two paired metrics read the same way. A single em-dash when neither cost is set.
 function PriceCell({ row }: { row: ModelRow }) {
+  if (isRouterModel(row)) {
+    return (
+      <span className="text-muted-foreground" title="Priced by the routed model">
+        Dynamic
+      </span>
+    );
+  }
   const hasIn = typeof row.input_cost_per_token === 'number';
   const hasOut = typeof row.output_cost_per_token === 'number';
   if (!hasIn && !hasOut) return <span className="text-muted-foreground">{EM_DASH}</span>;
