@@ -25,6 +25,7 @@
 
 import { useState } from 'react';
 import {
+  AlertCircle,
   ArrowRight,
   Check,
   Copy,
@@ -38,6 +39,8 @@ import { useNavigate } from 'react-router';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
+import { useHasDefaultKey } from '@/hooks/use-keys';
+import { useModels } from '@/hooks/use-models';
 import { TAB_PILL, TAB_PILL_LIST } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 import { deriveSubdomainUrl } from '@/lib/urls';
@@ -69,6 +72,7 @@ const TOC = [
   { id: 'tools', label: 'Editors & CLIs' },
   { id: 'mcp', label: 'MCP servers' },
   { id: 'chat', label: 'No terminal?' },
+  { id: 'troubleshooting', label: 'Troubleshooting' },
 ] as const;
 
 function scrollToSection(id: string): void {
@@ -162,6 +166,17 @@ export function HowTo() {
   const config = useConfigStore((s) => s.config);
   const navigate = useNavigate();
 
+  // Model picker: personalize the quickstart snippets with a real alias from the
+  // catalog (gated on a default key, like the other per-user reads). Defaults to
+  // the standard MODEL_ALIAS; the picked value is always kept as a valid option.
+  const hasDefaultKey = useHasDefaultKey();
+  const modelsQuery = useModels(hasDefaultKey);
+  const catalogAliases = (modelsQuery.data?.models ?? [])
+    .map((m) => m.name)
+    .filter((n): n is string => typeof n === 'string' && n.length > 0);
+  const [pickedModel, setPickedModel] = useState<string>(MODEL_ALIAS);
+  const modelOptions = Array.from(new Set([pickedModel, ...catalogAliases]));
+
   // Live gateway base (api_public_url). Falls back to a neutral placeholder so
   // the page reads sensibly before the session resolves.
   const apiBase = me?.endpoint || FALLBACK_API_BASE;
@@ -175,9 +190,39 @@ export function HowTo() {
   -H "${AUTH_HEADER}: Bearer ${KEY_PLACEHOLDER}" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "${MODEL_ALIAS}",
+    "model": "${pickedModel}",
     "messages": [{ "role": "user", "content": "Hello!" }]
   }'`;
+
+  // Same first call from the official OpenAI SDKs (the gateway is OpenAI-compatible).
+  const pySnippet = `from openai import OpenAI
+
+client = OpenAI(api_key="${KEY_PLACEHOLDER}", base_url="${apiBase}/v1")
+
+resp = client.chat.completions.create(
+    model="${pickedModel}",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(resp.choices[0].message.content)`;
+
+  const tsSnippet = `import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: "${KEY_PLACEHOLDER}",
+  baseURL: "${apiBase}/v1",
+});
+
+const resp = await client.chat.completions.create({
+  model: "${pickedModel}",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+console.log(resp.choices[0].message.content);`;
+
+  const expectedResponse = `{
+  "choices": [
+    { "message": { "role": "assistant", "content": "Hello!" } }
+  ]
+}`;
 
   // ── MCP gateway ────────────────────────────────────────────────────────────────
   // LiteLLM exposes an MCP gateway on the SAME host, under /mcp, authenticated with
@@ -596,11 +641,45 @@ qwen`,
                     </span>{' '}
                     for your key and run it. The endpoint is OpenAI-compatible —{' '}
                     <span className="font-mono text-text-primary">
-                      {MODEL_ALIAS}
+                      {pickedModel}
                     </span>{' '}
                     is a standard model alias.
                   </p>
-                  <CodeBlock code={curlSnippet} caption="curl" />
+                  <label className="mb-3 flex items-center gap-2 font-sans text-xs text-text-secondary">
+                    Model
+                    <select
+                      aria-label="Model"
+                      value={pickedModel}
+                      onChange={(e) => setPickedModel(e.target.value)}
+                      className="cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 font-mono text-xs text-text-primary outline-none focus-visible:border-primary"
+                    >
+                      {modelOptions.map((alias) => (
+                        <option key={alias} value={alias}>
+                          {alias}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Tabs defaultValue="curl">
+                    <TabsList variant="line" className="flex-wrap">
+                      <TabsTrigger value="curl">cURL</TabsTrigger>
+                      <TabsTrigger value="python">Python</TabsTrigger>
+                      <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="curl" className="mt-3">
+                      <CodeBlock code={curlSnippet} caption="curl" />
+                    </TabsContent>
+                    <TabsContent value="python" className="mt-3">
+                      <CodeBlock code={pySnippet} caption="python" />
+                    </TabsContent>
+                    <TabsContent value="typescript" className="mt-3">
+                      <CodeBlock code={tsSnippet} caption="typescript" />
+                    </TabsContent>
+                  </Tabs>
+                  <p className="mt-4 mb-2 font-sans text-sm text-text-secondary">
+                    A successful call returns:
+                  </p>
+                  <CodeBlock code={expectedResponse} caption="200 OK" />
                 </div>
               </div>
             </div>
@@ -653,6 +732,11 @@ qwen`,
               Swap {KEY_PLACEHOLDER} for your key (mint it on the Keys tab). The
               base URL is your live gateway; only the key differs per user.
             </p>
+            <p className="mt-2 font-mono text-xs leading-relaxed text-text-tertiary">
+              Tools that read OpenAI's env vars work too:{' '}
+              <span className="text-text-secondary">export OPENAI_API_KEY=$LITELLM_API_KEY</span>{' '}
+              and <span className="text-text-secondary">export OPENAI_BASE_URL={`${apiBase}/v1`}</span>.
+            </p>
           </Section>
 
           {/* §3 MCP servers */}
@@ -679,7 +763,24 @@ qwen`,
                   </span>{' '}
                   (the same Bearer key as chat).
                 </p>
-                <CodeBlock code={mcpConfig} caption="MCP client config" />
+                <Tabs defaultValue="cursor">
+                  <TabsList className={TAB_PILL_LIST}>
+                    <TabsTrigger value="cursor" className={TAB_PILL}>Cursor</TabsTrigger>
+                    <TabsTrigger value="claude" className={TAB_PILL}>Claude Desktop</TabsTrigger>
+                    <TabsTrigger value="vscode" className={TAB_PILL}>VS Code</TabsTrigger>
+                    <TabsTrigger value="generic" className={TAB_PILL}>Generic JSON</TabsTrigger>
+                  </TabsList>
+                  {[
+                    ['cursor', '~/.cursor/mcp.json'],
+                    ['claude', '~/Library/Application Support/Claude/claude_desktop_config.json'],
+                    ['vscode', '.vscode/mcp.json (workspace)'],
+                    ['generic', "your client's MCP config"],
+                  ].map(([id, path]) => (
+                    <TabsContent key={id} value={id} className="mt-3">
+                      <CodeBlock code={mcpConfig} caption={path} />
+                    </TabsContent>
+                  ))}
+                </Tabs>
               </TabsContent>
 
               <TabsContent value="group" className="mt-4">
@@ -776,7 +877,7 @@ qwen`,
                       openwork
                     </span>
                     <span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                      Soon
+                      Coming soon
                     </span>
                   </span>
                   <ExternalLink
@@ -792,6 +893,29 @@ qwen`,
                   github.com/different-ai/openwork
                 </span>
               </a>
+            </div>
+          </Section>
+
+          {/* §5 Troubleshooting */}
+          <Section
+            id="troubleshooting"
+            icon={AlertCircle}
+            title="Troubleshooting"
+            sub="The most common onboarding errors and what they mean."
+          >
+            <div className="flex flex-col gap-3">
+              {[
+                ['401 Unauthorized', 'Your API key is missing, invalid, expired, or copied incorrectly. Mint a fresh key on the Keys tab.'],
+                ['404 Model not found', 'The model alias is not enabled for your team or does not exist. Check the Models tab for available aliases.'],
+                ['429 Rate limited', 'Your key, team, or the upstream provider hit a rate limit. Retry with backoff or check your limits.'],
+                ['MCP: no tools discovered', 'The MCP server is reachable but returned no tools. Check the server health and your access group on the MCP tab.'],
+                ['MCP: authentication failed', `Confirm your MCP client sends the ${AUTH_HEADER} header with a Bearer key.`],
+              ].map(([code, body]) => (
+                <div key={code} className="rounded-lg border border-border bg-surface p-4">
+                  <div className="font-mono text-sm font-semibold text-text-primary">{code}</div>
+                  <p className="mt-1 font-sans text-sm leading-relaxed text-text-secondary">{body}</p>
+                </div>
+              ))}
             </div>
           </Section>
         </div>
