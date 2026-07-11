@@ -53,28 +53,58 @@ function StatePanel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ModelRow({ m }: { m: LatencyByModel }) {
+// Cycling pastel highlights for the model-name pills (reference "Top Models" look).
+// Fixed dark text so the name stays legible on every pastel in light OR dark theme.
+const PILL_COLORS = [
+  '#d1fae5', // green
+  '#fef3c7', // amber
+  '#fed7aa', // orange
+  '#e9d5ff', // purple
+  '#dbeafe', // blue
+  '#fce7f3', // pink
+];
+
+// Shared grid template so the header row and the data rows line up column-for-
+// column (fixed numeric widths, right-aligned — model name takes the rest).
+const MODEL_GRID =
+  'grid grid-cols-[1fr_3rem_5rem_3.5rem] items-center gap-3';
+const MODEL_HEAD_CELL =
+  'font-mono text-[10px] font-semibold uppercase tracking-wider text-text-secondary';
+
+function ModelHeader() {
+  return (
+    <div className={`${MODEL_GRID} border-b border-border/60 pb-1`}>
+      <span className={MODEL_HEAD_CELL}>Model</span>
+      <span className={`${MODEL_HEAD_CELL} text-right`}>Req</span>
+      <span className={`${MODEL_HEAD_CELL} text-right`}>p95</span>
+      <span className={`${MODEL_HEAD_CELL} text-right`}>Err</span>
+    </div>
+  );
+}
+
+function ModelRow({ m, index }: { m: LatencyByModel; index: number }) {
   const errPct =
     m.requests > 0 ? ((m.failed / m.requests) * 100).toFixed(1) : null;
   const stripped = m.model.includes('/')
     ? m.model.slice(m.model.indexOf('/') + 1)
     : m.model;
+  const pill = PILL_COLORS[index % PILL_COLORS.length];
   return (
-    <li
-      title={m.model}
-      className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-1"
-    >
-      <span className="truncate font-mono text-xs text-text-primary">
+    <li title={m.model} className={`${MODEL_GRID} py-1`}>
+      <span
+        className="max-w-full truncate justify-self-start rounded px-1.5 py-0.5 font-mono text-xs"
+        style={{ backgroundColor: pill, color: '#0f172a' }}
+      >
         {stripped}
       </span>
-      <span className="font-mono text-xs text-text-secondary tabular-nums">
-        {formatInt(m.requests)} req
+      <span className="text-right font-mono text-xs text-text-secondary tabular-nums">
+        {formatInt(m.requests)}
       </span>
-      <span className="font-mono text-xs text-text-secondary tabular-nums">
-        p95 {formatMs(m.p95_ms)}
+      <span className="text-right font-mono text-xs text-text-secondary tabular-nums">
+        {formatMs(m.p95_ms)}
       </span>
       <span
-        className={`font-mono text-xs tabular-nums ${
+        className={`text-right font-mono text-xs tabular-nums ${
           m.failed > 0 ? 'text-destructive' : 'text-text-tertiary'
         }`}
       >
@@ -124,13 +154,16 @@ export function LatencyPanel({
         </span>
       </div>
 
-      {/* Per-model latency + error split */}
+      {/* Per-model latency + error split (headed table, aligned columns) */}
       {data.by_model.length > 0 ? (
-        <ul className="flex flex-col divide-y divide-border/60">
-          {data.by_model.map((m) => (
-            <ModelRow key={m.model} m={m} />
-          ))}
-        </ul>
+        <div className="flex flex-col">
+          <ModelHeader />
+          <ul className="flex flex-col divide-y divide-border/60">
+            {data.by_model.map((m, i) => (
+              <ModelRow key={m.model} m={m} index={i} />
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       <div className="font-mono text-[10px] text-text-tertiary">

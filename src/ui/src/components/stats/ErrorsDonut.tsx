@@ -37,7 +37,7 @@ function outcomeFill(status: string): string {
 
 function StatePanel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-40 flex-col items-center justify-center gap-2 text-center">
+    <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-surface p-5 text-center">
       <div className="font-sans text-sm text-text-secondary">{children}</div>
     </div>
   );
@@ -66,7 +66,7 @@ export function ErrorsDonut({
     .reduce((acc, o) => acc + o.count, 0);
 
   return (
-    <div className="flex flex-wrap items-center gap-8">
+    <div className="flex flex-wrap items-center gap-8 rounded-xl border border-border bg-surface p-5">
       <div className="relative h-50 w-50 shrink-0">
         <ResponsiveContainer width="100%" height={DONUT_HEIGHT}>
           <PieChart>

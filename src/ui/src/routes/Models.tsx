@@ -365,8 +365,12 @@ export function Models() {
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <ModelFilters active={caps} onToggle={toggleCap} />
             <TableSearch value={search} onChange={setSearch} placeholder="Search models…" />
+            <ModelFilters
+              active={caps}
+              onToggle={toggleCap}
+              onClear={() => setCaps(new Set())}
+            />
           </div>
         <DataTable
           data-slot="models-table"

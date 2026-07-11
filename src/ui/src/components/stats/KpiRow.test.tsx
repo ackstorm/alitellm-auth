@@ -120,9 +120,8 @@ describe('KpiRow', () => {
   it('omits the cached rate from the tokens sub-line when cache_hit_pct is null', () => {
     const totals: StatsTotals = { ...TOTALS, cache_hit_pct: null };
     const { container } = render(<KpiRow totals={totals} />);
-    // The sub-line still renders the input/output split; only "cached" drops out.
+    // The sub-line still renders the output split; only "cached" drops out.
     const sub = container.querySelector('[data-slot="kpi-tokens"]');
-    expect(sub?.textContent).toContain('in');
     expect(sub?.textContent).toContain('out');
     expect(sub?.textContent).not.toContain('cached');
   });

@@ -56,7 +56,6 @@ describe('ModelTable', () => {
       'CACHED IN',
       'SPEND',
       '% SPEND',
-      '$/1M TOK',
       'LAST USED',
     ]) {
       expect(getByText(h)).toBeInTheDocument();
@@ -64,12 +63,11 @@ describe('ModelTable', () => {
   });
 
   it('renders a representative row (model name + formatted spend/%)', () => {
-    const { getByText, getAllByText } = render(
+    const { getByText } = render(
       <ModelTable models={MODELS} capabilities={CAPS} />
     );
     expect(getByText('gpt-4o')).toBeInTheDocument();
-    // spend $12.50 AND $/1M TOK $12.50 (12.5 over exactly 1M tokens) — two cells.
-    expect(getAllByText('$12.50')).toHaveLength(2);
+    expect(getByText('$12.50')).toBeInTheDocument(); // spend
     expect(getByText('60.0%')).toBeInTheDocument(); // spend_pct 0.6 -> 60.0%
   });
 
@@ -79,24 +77,6 @@ describe('ModelTable', () => {
     );
     // gpt-4o cache_read_tokens 250_000 -> "250K".
     expect(getByText('250K')).toBeInTheDocument();
-  });
-
-  it('renders $/1M TOK (spend/total_tokens*1e6); 0 tokens -> em-dash', () => {
-    const { getByText } = render(
-      <ModelTable models={MODELS} capabilities={CAPS} />
-    );
-    // claude-3: 3.25 / 150_000 * 1e6 = $21.67
-    expect(getByText('$21.67')).toBeInTheDocument();
-
-    const zeroTok: StatsModelRow[] = [
-      { ...MODELS[0], model: 'broken', total_tokens: 0, spend: 1 },
-    ];
-    const { container } = render(
-      <ModelTable models={zeroTok} capabilities={CAPS} />
-    );
-    const cells = container.querySelectorAll('td[data-col="per1m"]');
-    expect(cells.length).toBeGreaterThan(0);
-    cells.forEach((c) => expect(c.textContent).toBe('—'));
   });
 
   it('collapses INPUT/OUTPUT cells to em-dash when token_split is false', () => {

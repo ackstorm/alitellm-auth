@@ -255,14 +255,7 @@ export function Mcp() {
         <StateCard heading={EMPTY_HEADING} body={EMPTY_BODY} />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div
-              data-testid="mcp-summary"
-              className="font-mono text-[11px] uppercase tracking-wider text-text-tertiary"
-            >
-              {visible.length} {visible.length === 1 ? 'server' : 'servers'} ·{' '}
-              {visible.reduce((n, s) => n + s.tool_count, 0)} tools
-            </div>
+          <div className="flex flex-wrap items-center gap-3">
             <TableSearch value={search} onChange={setSearch} placeholder="Search servers…" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

@@ -133,13 +133,6 @@ describe('Mcp — populated', () => {
     expect(screen.getByText('platform')).toBeInTheDocument();
   });
 
-  it('renders a summary bar with server + tool totals', () => {
-    setSuccess({ servers: [makeServer()], available: true });
-    render(<Mcp />);
-    expect(screen.getByTestId('mcp-summary').textContent).toMatch(/1 server/);
-    expect(screen.getByTestId('mcp-summary').textContent).toMatch(/2 tools/);
-  });
-
   it('caps the visible tool chips at six with a "+N more" marker', () => {
     const tools = Array.from({ length: 9 }, (_, i) => `tool_${i}`);
     setSuccess({

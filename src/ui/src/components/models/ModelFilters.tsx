@@ -27,12 +27,27 @@ export function applyModelFilters(rows: ModelRow[], active: Set<ModelCapKey>): M
 export function ModelFilters({
   active,
   onToggle,
+  onClear,
 }: {
   active: Set<ModelCapKey>;
   onToggle: (k: ModelCapKey) => void;
+  onClear: () => void;
 }): React.ReactElement {
+  // "ALL" = no capability filter (the default). Selected whenever the active set
+  // is empty; clicking it clears any active capability toggles.
+  const allOn = active.size === 0;
   return (
     <div className="flex flex-wrap gap-1.5">
+      <button
+        type="button"
+        aria-pressed={allOn}
+        onClick={onClear}
+        className={`cursor-pointer rounded-md border px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+          allOn ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text-secondary hover:border-primary'
+        }`}
+      >
+        All
+      </button>
       {(Object.keys(CAP_LABEL) as ModelCapKey[]).map((k) => {
         const on = active.has(k);
         return (

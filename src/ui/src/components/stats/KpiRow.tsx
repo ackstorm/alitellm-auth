@@ -105,6 +105,7 @@ function KpiCard({
   deltaPct: number | null | undefined;
   invert?: boolean;
   isNew?: boolean;
+  /** Short inline note next to the value, in muted parens (e.g. "5 failed · 6.5%"). */
   sub?: React.ReactNode;
   icon: typeof BarChart3;
 }): React.ReactElement {
@@ -179,23 +180,16 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       deltaPct: d?.tokens_pct,
       invert: false,
       isNew: isNewMetric(d?.tokens_pct, t?.tokens),
-      // The headline total is dominated by (mostly cached) input, so spell out the
-      // input/output split + cache-hit rate: "856M in · 6.8M out · 93% cached".
+      // The headline total already shows the full token count, so the inline sub
+      // only adds the output split + cache-hit rate: "6.8M out · 93% cached".
       sub: ((): React.ReactNode => {
         const parts: string[] = [];
-        if (typeof t?.input_tokens === 'number' && t.input_tokens > 0)
-          parts.push(`${abbreviate(t.input_tokens)} in`);
         if (typeof t?.output_tokens === 'number' && t.output_tokens > 0)
           parts.push(`${abbreviate(t.output_tokens)} out`);
         if (typeof t?.cache_hit_pct === 'number' && t.cache_hit_pct > 0)
           parts.push(`${(t.cache_hit_pct * 100).toFixed(1)}% cached`);
         return parts.length ? (
-          // ponytail: parens kept around the stacked sub; drop only if design objects.
-          <span data-slot="kpi-tokens" className="flex flex-col text-text-secondary">
-            {parts.map((p) => (
-              <span key={p}>{p}</span>
-            ))}
-          </span>
+          <span data-slot="kpi-tokens">{parts.join(' · ')}</span>
         ) : null;
       })(),
     },

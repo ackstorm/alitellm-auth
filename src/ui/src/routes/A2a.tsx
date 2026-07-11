@@ -10,10 +10,12 @@
 // available:false); and an empty "no agents configured" state. The page is
 // presentational — the hook owns the fetch. Mirrors routes/Mcp.tsx.
 
+import { useState } from 'react';
 import { Bot, ExternalLink } from 'lucide-react';
 
 import { RequiresDefaultKey } from '@/components/layout/RequiresDefaultKey';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TableSearch, matchesSearch } from '@/components/ui/table-search';
 import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useA2a } from '@/hooks/use-a2a';
 import { useSessionStore } from '@/stores/session';
@@ -139,6 +141,7 @@ export function A2a() {
   const query = useA2a(hasDefault);
   const me = useSessionStore((s) => s.me);
   const apiBase = me?.endpoint || FALLBACK_API_BASE;
+  const [search, setSearch] = useState('');
   const header = (
     <div>
       <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
@@ -195,6 +198,7 @@ export function A2a() {
 
   const data = query.data;
   const agents = data?.agents ?? [];
+  const visible = agents.filter((a) => matchesSearch(search, a.name, a.description));
 
   return (
     <div className="flex flex-col gap-8">
@@ -210,10 +214,15 @@ export function A2a() {
       ) : agents.length === 0 ? (
         <StateCard heading={EMPTY_HEADING} body={EMPTY_BODY} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {agents.map((a, i) => (
-            <AgentCard key={a.id ?? i} agent={a} apiBase={apiBase} />
-          ))}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <TableSearch value={search} onChange={setSearch} placeholder="Search agents…" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {visible.map((a, i) => (
+              <AgentCard key={a.id ?? i} agent={a} apiBase={apiBase} />
+            ))}
+          </div>
         </div>
       )}
     </div>

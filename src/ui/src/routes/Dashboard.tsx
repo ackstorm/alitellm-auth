@@ -126,24 +126,21 @@ function TeamTile({ teams, fallback }: { teams: Team[]; fallback: string }) {
           <Users className="size-[15px] text-primary" aria-hidden="true" />
         </span>
         <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-          Team
+          Teams
         </div>
       </div>
       {teams.length > 1 ? (
-        <>
-          <div className="flex flex-wrap gap-1.5">
-            {teams.map((t) => (
-              <span
-                key={t.id}
-                data-slot="team-pill"
-                className="inline-flex items-center rounded-md border border-border bg-surface-elevated px-2 py-0.5 font-sans text-xs font-medium text-text-secondary"
-              >
-                {t.alias}
-              </span>
-            ))}
-          </div>
-          <span className="font-mono text-[10px] text-text-tertiary">Your teams</span>
-        </>
+        <div className="flex flex-wrap gap-1.5">
+          {teams.map((t) => (
+            <span
+              key={t.id}
+              data-slot="team-pill"
+              className="inline-flex items-center rounded-md border border-border bg-surface-elevated px-2 py-0.5 font-sans text-xs font-medium text-text-secondary"
+            >
+              {t.alias}
+            </span>
+          ))}
+        </div>
       ) : (
         <div className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
           {teams[0]?.alias || fallback}

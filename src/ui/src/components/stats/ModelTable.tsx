@@ -37,30 +37,6 @@ function formatPct(fraction: number | null | undefined): string {
   return `${(fraction * 100).toFixed(1)}%`;
 }
 
-// Per-model efficiency: spend / total_tokens * 1e6 (the same unit as the AVG
-// COST / 1M TOKENS KPI). Absent/zero tokens -> null (the sort accessor treats it
-// as missing → sorts last; the cell renders em-dash, D-08, never ∞).
-function costPer1mValue(m: StatsModelRow): number | null {
-  const tokens = m.total_tokens;
-  const spend = m.spend;
-  if (
-    typeof tokens !== 'number' ||
-    !Number.isFinite(tokens) ||
-    tokens <= 0 ||
-    typeof spend !== 'number' ||
-    !Number.isFinite(spend)
-  ) {
-    return null;
-  }
-  return (spend / tokens) * 1e6;
-}
-
-// The cell form of costPer1mValue: currency, or em-dash when unavailable.
-function costPer1mTokens(m: StatsModelRow): string {
-  const v = costPer1mValue(m);
-  return v == null ? EM_DASH : formatCurrency(v);
-}
-
 export interface ModelTableProps {
   /** The Phase-12 `models[]` slice. */
   models: StatsModelRow[] | null | undefined;
@@ -80,7 +56,7 @@ export function ModelTable({
 
   const rows = Array.isArray(models) ? models : [];
 
-  // The LOCKED 9-column order (UI-SPEC §6). Numeric columns right-aligned; MODEL
+  // Column order (UI-SPEC §6). Numeric columns right-aligned; MODEL
   // and LAST USED left-aligned (mirrors the old smt-cell-model/lastused idiom).
   // Every column declares a `sortAccessor` so DataTable can sort on a header
   // click; the default sort below keeps the original SPEND-descending view.
@@ -175,14 +151,6 @@ export function ModelTable({
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => (isMcpModelRow(m.model) ? EM_DASH : formatPct(m.spend_pct)),
       sortAccessor: (m) => m.spend_pct,
-    },
-    {
-      key: 'per1m',
-      header: '$/1M TOK',
-      headerClassName: 'text-right',
-      className: 'font-mono text-xs text-right whitespace-nowrap',
-      cell: (m) => (isMcpModelRow(m.model) ? EM_DASH : costPer1mTokens(m)),
-      sortAccessor: (m) => costPer1mValue(m),
     },
     {
       key: 'lastused',

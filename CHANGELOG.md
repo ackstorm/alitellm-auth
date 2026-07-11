@@ -2,6 +2,24 @@
 
 ## [unreleased]
 
+### Added
+
+- **STATS — latency + request-outcome panels.** Two new supplementary panels on the Usage & Spend page, sourced from LiteLLM `/spend/logs/v2` (per-user via `x-user-id` impersonation, bounded by page size — no OOM) over the same date range as the rest of the page: a **LATENCY** panel (p50/p95/p99, TTFT p50/p95, throughput, and a per-model latency table with colored name pills) and a **REQUEST OUTCOMES** success/failure donut. Both degrade to a calm "not available" state and never fail the page. Gated on the user-scoping contract.
+- **A2A — table search.** A search box (left of the row) filters agents by name and description, mirroring MCP and Models.
+- **MODELS — "All" capability filter.** An **All** chip (selected by default) sits with the Vision/Thinking/Tools/Web toggles and clears any active capability filter on click.
+
+### Changed
+
+- **UI polish across STATS / MODELS / MCP / A2A / DASHBOARD.**
+  - **STATS** — tighter vertical rhythm between panels; the **TOTAL TOKENS** card shows the output split + cache-hit rate inline in muted parens (matching TOTAL REQUESTS); the USAGE BREAKDOWN search + CSV export share one row and export is now a compact download **icon** button.
+  - **MODELS / MCP / A2A** — the table search now sits on the **left** of the filter row.
+  - **DASHBOARD** — the team tile is labelled **"Teams"** (was "Team") and drops the "Your teams" caption.
+
+### Removed
+
+- **STATS** — the `$ / 1M TOK` column from the Usage Breakdown table.
+- **MCP** — the "N servers · M tools" summary bar (the counts were redundant with the visible cards).
+
 ## [0.5.29] - 2026-07-09
 
 ### Added

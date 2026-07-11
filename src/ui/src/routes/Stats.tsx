@@ -204,7 +204,7 @@ export function Stats() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5">
       {header}
 
       {/* §2 KPI row */}
@@ -300,7 +300,7 @@ export function Stats() {
         <div className="mb-3 flex min-h-6 flex-wrap items-center justify-between gap-3">
           <div className={SECTION_LABEL_CLASS}>{SECTION_MODEL_BREAKDOWN}</div>
           {loading ? null : (
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
               <TableSearch
                 value={modelSearch}
                 onChange={setModelSearch}
