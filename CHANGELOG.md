@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.31] - 2026-07-11
+
 ### Added
 
 - **STATS — LATENCY headline restructured.** The panel now leads with the metrics that matter operationally — **Throughput · Latency (p50) · Error rate · TTFT** — as a tile row; the percentiles are de-prioritized to the per-model table (which keeps a **p95** column). The per-model name pills lost their clashing colors and render as plain mono text.
