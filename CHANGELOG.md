@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.5.30] - 2026-07-11
+
 ### Added
 
 - **STATS — latency + request-outcome panels.** Two new supplementary panels on the Usage & Spend page, sourced from LiteLLM `/spend/logs/v2` (per-user via `x-user-id` impersonation, bounded by page size — no OOM) over the same date range as the rest of the page: a **LATENCY** panel (p50/p95/p99, TTFT p50/p95, throughput, and a per-model latency table with colored name pills) and a **REQUEST OUTCOMES** success/failure donut. Both degrade to a calm "not available" state and never fail the page. Gated on the user-scoping contract.
