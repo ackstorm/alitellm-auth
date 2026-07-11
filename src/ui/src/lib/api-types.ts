@@ -279,6 +279,70 @@ export interface StatsResponse {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/session/latency  — src/api/app/session.py::session_latency
+// (contract assembled by src/api/app/latency.py::compute_latency_contract from
+//  raw LiteLLM /spend/logs rows over a fixed 7-day window; ONLY computed metrics
+//  are returned — never the raw rows)
+// ---------------------------------------------------------------------------
+
+/** The fixed latency window echoed back. latency.py window_meta. */
+export interface LatencyWindow {
+  start: string;
+  end: string;
+  days: number;
+}
+
+/**
+ * Latency figures. Every field is null when no row carries the datum (D-08):
+ * an all-error window has no durations; a non-streaming window has no TTFT.
+ * `*_ms` are milliseconds; tokens_per_sec_p50 is output tokens / wall-second.
+ */
+export interface LatencyMetrics {
+  p50_ms: number | null;
+  p95_ms: number | null;
+  p99_ms: number | null;
+  avg_ms: number | null;
+  ttft_p50_ms: number | null;
+  ttft_p95_ms: number | null;
+  tokens_per_sec_p50: number | null;
+}
+
+/** One request-outcome bucket (LiteLLM `status`: "success" | "failure" | …). */
+export interface LatencyOutcome {
+  status: string;
+  count: number;
+}
+
+/** Per-model latency + error split, ranked by request count desc (top 8). */
+export interface LatencyByModel {
+  model: string;
+  requests: number;
+  failed: number;
+  p50_ms: number | null;
+  p95_ms: number | null;
+}
+
+/**
+ * GET /api/session/latency response. session.py::session_latency.
+ * `available` is false (calm degrade, still a 200) when the sso_key_swapper
+ * scoping contract is unverified or the /spend/logs fetch failed — the panel
+ * shows a "not available" state. When true but the window is empty, the latency
+ * figures are null and outcomes/by_model are empty.
+ */
+export interface LatencyResponse {
+  available: boolean;
+  /** Why it degraded, when available is false ("scoping_unverified" | "fetch_failed"). */
+  reason?: string;
+  /** True when the row cap truncated the sample (figures are a sample, not exhaustive). */
+  sampled: boolean;
+  row_count: number;
+  window: LatencyWindow | null;
+  latency: LatencyMetrics | null;
+  outcomes: LatencyOutcome[];
+  by_model: LatencyByModel[];
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/config  — src/api/app/public.py::public_config
 // (defaults mirrored in src/ui/app.js DEFAULT_CONFIG)
 // ---------------------------------------------------------------------------

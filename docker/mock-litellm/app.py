@@ -425,14 +425,124 @@ async def daily_activity(
     return out
 
 
+# Models cycled through the synthetic spend logs so the Latency by-model split and
+# the Errors donut show variety locally. Mirrors the daily-activity model names.
+_SYNTH_MODELS = [
+    "gemini/gemini-3-flash-preview",
+    "gemini/gemini-3-pro-preview",
+    "gemini/gemini-flash-latest",
+    "gemini/gemini-flash-lite-latest",
+]
+_ROWS_PER_DAY = 40  # 7-day window ≈ 280 rows — enough for meaningful percentiles
+
+
+def _synth_spend_logs(start_date: str | None, end_date: str | None) -> list[dict]:
+    """Synthesize per-request rows across [start_date, end_date] from the template.
+
+    DEV-ONLY: the LOCKED repo fixture (spend_logs_rows.json) has 5 same-day success
+    rows — useless for the Latency panel (needs a duration spread) and the Errors
+    donut (needs failures). We clone the template and vary request_duration_ms +
+    inject ~7% failures deterministically so both panels render on localhost. The
+    real /spend/logs is per-request; this reproduces that shape, never the fixture.
+    """
+    if not (start_date and end_date):
+        return copy.deepcopy(_SPEND_LOGS)
+    try:
+        sd = date.fromisoformat(start_date)
+        ed = date.fromisoformat(end_date)
+    except ValueError:
+        return copy.deepcopy(_SPEND_LOGS)
+    if ed < sd:
+        sd, ed = ed, sd
+    span = min((ed - sd).days + 1, _MAX_MOCK_DAYS)
+    template = (_SPEND_LOGS[0] if _SPEND_LOGS else {}) or {}
+
+    rows: list[dict] = []
+    n = 0
+    for d in range(span):
+        day = sd + timedelta(days=d)
+        for i in range(_ROWS_PER_DAY):
+            # Deterministic jagged latency in ~[350, 9000] ms so p50/p95/p99 differ.
+            base = 350 + ((n * 37 + 91) % 8700)
+            dur_ms = base
+            # ~7% failures, spread across the sequence (every ~14th request).
+            failed = (n % 14) == 3
+            start_dt = datetime(day.year, day.month, day.day, 9, 0, 0, tzinfo=timezone.utc) + timedelta(
+                seconds=(i * 120) + (n % 60)
+            )
+            end_dt = start_dt + timedelta(milliseconds=dur_ms)
+            # TTFT ≈ 20-45% of total latency (streaming first-token).
+            ttft_ms = int(dur_ms * (0.2 + ((n % 5) * 0.05)))
+            first_dt = start_dt + timedelta(milliseconds=ttft_ms)
+            out_tokens = 0 if failed else 80 + ((n * 13) % 900)
+            row = copy.deepcopy(template)
+            row.update(
+                {
+                    "model": _SYNTH_MODELS[n % len(_SYNTH_MODELS)],
+                    "model_group": _SYNTH_MODELS[n % len(_SYNTH_MODELS)],
+                    "status": "failure" if failed else "success",
+                    "request_duration_ms": dur_ms,
+                    "startTime": start_dt.isoformat().replace("+00:00", "Z"),
+                    "endTime": end_dt.isoformat().replace("+00:00", "Z"),
+                    "completionStartTime": (
+                        None if failed else first_dt.isoformat().replace("+00:00", "Z")
+                    ),
+                    "completion_tokens": out_tokens,
+                    "total_tokens": out_tokens + 120,
+                    "user": MOCK_EMAIL,
+                }
+            )
+            rows.append(row)
+            n += 1
+    return rows
+
+
 @app.get("/spend/logs")
 async def spend_logs(
     user_id: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
     summarize: str | None = None,
+    x_user_id: str | None = Header(default=None),
 ):
-    return copy.deepcopy(_SPEND_LOGS)
+    # The real backend scopes via x-user-id impersonation (sso_key_swapper); log it
+    # to prove the header path is exercised. The mock ignores user_id (as real
+    # LiteLLM does) — scoping is the deployment's custom auth, not this stub.
+    if x_user_id:
+        log.info("spend/logs scoped to x-user-id=%s", x_user_id)
+    return _synth_spend_logs(start_date, end_date)
+
+
+@app.get("/spend/logs/v2")
+async def spend_logs_v2(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_order: str = "desc",
+    x_user_id: str | None = Header(default=None),
+):
+    # v2 HONORS pagination + sorting (unlike v1). The backend fetch_user_spend_logs
+    # pages this newest-first (sort_by=startTime, sort_order=desc). page_size caps at
+    # 100 on real LiteLLM (422 above); mirror that so a mistake surfaces locally.
+    if x_user_id:
+        log.info("spend/logs/v2 scoped to x-user-id=%s page=%s", x_user_id, page)
+    if page_size > 100:
+        return JSONResponse(
+            {"detail": [{"type": "less_than_equal", "loc": ["query", "page_size"],
+                         "msg": "Input should be less than or equal to 100"}]},
+            status_code=422,
+        )
+    all_rows = _synth_spend_logs(start_date, end_date)
+    reverse = sort_order != "asc"
+    all_rows.sort(key=lambda r: r.get("startTime") or "", reverse=reverse)
+    total = len(all_rows)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    start = (page - 1) * page_size
+    data = all_rows[start:start + page_size]
+    return {"data": data, "total": total, "page": page,
+            "page_size": page_size, "total_pages": total_pages}
 
 
 # ── Model catalog + MCP gateway ───────────────────────────────────────────────
@@ -655,6 +765,19 @@ _A2A_AGENTS = [
         },
     },
 ]
+
+
+@app.get("/v1/models")
+async def v1_models(x_user_id: str | None = Header(default=None)):
+    # Emulate the sso_key_swapper contract that verify_user_scoping_contract probes:
+    # master + x-user-id impersonates THAT user's default key, so an UNKNOWN user (the
+    # contract-probe sentinel) is REJECTED (401/403). This is what makes the startup
+    # check — and the latency route's security gate — read the contract as "enforced"
+    # locally; without it the mock would 200 every request and read as NOT enforced,
+    # degrading the Latency/Errors panels. The real mock user (alice) passes through.
+    if x_user_id and x_user_id != MOCK_EMAIL:
+        return JSONResponse({"error": {"message": "invalid user"}}, status_code=401)
+    return {"object": "list", "data": [{"id": m["model_group"]} for m in _MODEL_GROUPS]}
 
 
 @app.get("/model_group/info")

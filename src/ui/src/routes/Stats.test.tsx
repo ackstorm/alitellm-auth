@@ -12,7 +12,7 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { CHART_HEIGHT } from '@/components/stats/chart-common';
-import type { KeyRow, StatsResponse } from '@/lib/api-types';
+import type { KeyRow, LatencyResponse, StatsResponse } from '@/lib/api-types';
 
 // Inject a fixed size into ResponsiveContainer's single child so the populated
 // chart/donut branch paints (jsdom measures the parent as 0x0 otherwise).
@@ -42,12 +42,21 @@ vi.mock('@/hooks/use-keys', () => ({
   KEYS_QUERY_KEY: ['session', 'keys'],
 }));
 
+// useLatency backs the LATENCY + REQUEST OUTCOMES panels (a separate endpoint).
+// Mocked so no real fetch fires; defaults to the calm available:false state in
+// beforeEach (the panels render their "not available" branch, no crash).
+vi.mock('@/hooks/use-latency', () => ({
+  useLatency: vi.fn(),
+}));
+
 import { useStats } from '@/hooks/use-stats';
 import { useKeys } from '@/hooks/use-keys';
+import { useLatency } from '@/hooks/use-latency';
 import { Stats } from './Stats';
 
 const useStatsMock = vi.mocked(useStats);
 const useKeysMock = vi.mocked(useKeys);
+const useLatencyMock = vi.mocked(useLatency);
 
 // A minimal but valid StatsResponse fixture (one model row, one series point,
 // one key row, a configured budget).
@@ -164,6 +173,22 @@ beforeEach(() => {
     isError: false,
     isSuccess: true,
   } as unknown as UseQueryResult<KeyRow[]>);
+  // Default the latency query to the calm degrade (available:false) so the two
+  // supplementary panels render their "not available" branch without a fetch.
+  useLatencyMock.mockReturnValue({
+    data: {
+      available: false,
+      sampled: false,
+      row_count: 0,
+      window: null,
+      latency: null,
+      outcomes: [],
+      by_model: [],
+    },
+    isPending: false,
+    isError: false,
+    isSuccess: true,
+  } as unknown as UseQueryResult<LatencyResponse>);
 });
 
 afterEach(() => {

@@ -25,8 +25,10 @@ import { useState } from 'react';
 
 import { BudgetPanel } from '@/components/stats/BudgetPanel';
 import { DateRange } from '@/components/stats/DateRange';
+import { ErrorsDonut } from '@/components/stats/ErrorsDonut';
 import { ExportCsvButton } from '@/components/stats/ExportCsvButton';
 import { KpiRow } from '@/components/stats/KpiRow';
+import { LatencyPanel } from '@/components/stats/LatencyPanel';
 import { ModelTable } from '@/components/stats/ModelTable';
 import {
   RequestsChart,
@@ -39,6 +41,7 @@ import { UsageDonut } from '@/components/stats/UsageDonut';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TableSearch, matchesSearch } from '@/components/ui/table-search';
 import { useKeys } from '@/hooks/use-keys';
+import { useLatency } from '@/hooks/use-latency';
 import type { StatsModelRow } from '@/lib/api-types';
 import type { CsvColumn } from '@/lib/csv';
 import { useStats } from '@/hooks/use-stats';
@@ -53,6 +56,8 @@ const SECTION_DAILY_SPEND = 'DAILY SPEND';
 const SECTION_REQUESTS = 'REQUESTS BY DAY';
 const SECTION_USAGE_BY_MODEL = 'USAGE BY MODEL';
 const SECTION_MODEL_BREAKDOWN = 'USAGE BREAKDOWN';
+const SECTION_LATENCY = 'LATENCY';
+const SECTION_OUTCOMES = 'REQUEST OUTCOMES';
 const ERR_HEADING = "Couldn't load usage";
 const ERR_BODY =
   "We couldn't reach the usage service. Check your connection and retry.";
@@ -118,6 +123,10 @@ export function Stats() {
   // The user's full key list — merged into the TOP API KEYS panel so idle keys
   // (no activity in-window, hence absent from the stats contract) still appear.
   const keysQuery = useKeys();
+  // Latency + request-outcomes — a SEPARATE endpoint (LiteLLM /spend/logs) over the
+  // SAME date range as the rest of the page. Supplementary: it degrades to a calm
+  // "not available" panel and never throws the whole page.
+  const latencyQuery = useLatency(range);
 
   // A preset click: recompute the range (presetToRange clamps to <=366 days so
   // the client never submits a 422-triggering span); the queryKey refetches.
@@ -259,6 +268,31 @@ export function Stats() {
         ) : (
           <TopKeys keys={keys} capabilities={capabilities} />
         )}
+      </div>
+
+      {/* Latency + request outcomes — sourced from /api/session/latency over the
+          same date range as the page. Own (independent) loading state. */}
+      <div className="grid grid-cols-2 gap-3 max-[880px]:grid-cols-1">
+        <Panel label={SECTION_LATENCY}>
+          {latencyQuery.isPending ? (
+            <Skeleton variant="chart" />
+          ) : (
+            <LatencyPanel
+              data={latencyQuery.data}
+              isError={latencyQuery.isError}
+            />
+          )}
+        </Panel>
+        <Panel label={SECTION_OUTCOMES}>
+          {latencyQuery.isPending ? (
+            <Skeleton variant="chart" />
+          ) : (
+            <ErrorsDonut
+              data={latencyQuery.data}
+              isError={latencyQuery.isError}
+            />
+          )}
+        </Panel>
       </div>
 
       {/* §4 Model Breakdown */}

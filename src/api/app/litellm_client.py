@@ -705,6 +705,116 @@ async def user_daily_activity(
     return {"results": accumulated, "metadata": merged_metadata}
 
 
+# The lean per-request fields we keep from a /spend/logs/v2 row — ONLY what the
+# latency fold needs. Everything else (messages, response, proxy_server_request,
+# metadata — the bulk of each ~6.6 KB row) is dropped at the fetch boundary, so it
+# never accumulates in memory and never reaches the browser (info-disclosure +
+# payload-size defense).
+_LEAN_SPEND_FIELDS = (
+    "request_duration_ms",
+    "status",
+    "model_group",
+    "model",
+    "completion_tokens",
+    "startTime",
+    "completionStartTime",
+)
+
+# /spend/logs/v2 pagination. page_size maxes at 100 (server-enforced, 422 above it).
+# We pull the NEWEST ``max_pages`` pages (sort_by=startTime desc) → up to 500 recent
+# requests, which is plenty for stable p50/p95/p99. Each page (~674 KB raw) is parsed,
+# projected to lean, then freed before the next, so peak memory is ONE page — not the
+# whole window. This is what makes "follow the page date range" cheap and OOM-proof:
+# unlike the legacy /spend/logs (pagination a no-op → 170 MB/7d firehose → the pod
+# OOM), v2 HONORS page_size, so the fetch is bounded by pages, not by range width.
+_SPEND_LOG_PAGE_SIZE = 100
+_SPEND_LOG_MAX_PAGES = 5
+
+
+def _lean_spend_row(row: Any) -> dict | None:
+    """Project a raw /spend/logs row to the lean latency subset (None if not a dict)."""
+    if not isinstance(row, dict):
+        return None
+    return {k: row.get(k) for k in _LEAN_SPEND_FIELDS}
+
+
+async def fetch_user_spend_logs(
+    email: str,
+    settings: Settings,
+    start_date: str,
+    end_date: str,
+    *,
+    page_size: int = _SPEND_LOG_PAGE_SIZE,
+    max_pages: int = _SPEND_LOG_MAX_PAGES,
+    timeout: float = 30.0,
+) -> tuple[list[dict], bool]:
+    """Fetch LEAN per-request spend logs for ONE user, scoped by impersonation.
+
+    Calls GET /spend/logs/v2 with the master key PLUS an ``x-user-id: <email>`` header
+    — the SAME sso_key_swapper impersonation path as the per-user Models/MCP catalogs
+    (_list_catalog). The gateway custom auth resolves master+x-user-id to the user's
+    default key, so v2 auto-scopes to that user's rows. Returns ``(rows, truncated)``
+    where ``rows`` are lean dicts (_LEAN_SPEND_FIELDS only), NEWEST-first, and
+    ``truncated`` is True when the window has more pages than ``max_pages`` (the
+    figures are then a recent sample, not the whole window).
+
+    SECURITY (CRITICAL): the caller MUST have verified the user-scoping contract is
+    ENFORCED (verify_user_scoping_contract == "enforced") before calling this. On a
+    deployment WITHOUT sso_key_swapper, master+x-user-id authenticates as full admin
+    and v2 returns EVERY user's rows (bounded by page_size, but still a cross-user
+    data leak). That is why we NEVER pass a ``user_id`` param (it would imply false
+    scoping); scoping comes only from the impersonation header, gated on the contract.
+
+    MEMORY: v2 HONORS page_size (unlike the legacy /spend/logs, whose pagination was a
+    no-op → the 170 MB/7d firehose that OOM-killed the pod). We page newest-first,
+    projecting each page to lean rows and freeing it before the next, so peak memory
+    is one page (~674 KB) regardless of how wide the date range is.
+
+    ``email`` is ALWAYS the authenticated session email, never client input.
+    """
+    headers = _admin_headers(settings)
+    headers["x-user-id"] = email
+    rows: list[dict] = []
+    truncated = False
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=timeout) as client:
+        for page in range(1, max_pages + 1):
+            resp = await client.get(
+                "/spend/logs/v2",
+                headers=headers,
+                # H6: dates via params={}. NO user_id param — scoping is the x-user-id
+                # impersonation only. Newest-first so a capped sample keeps recent data.
+                params={
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "page": page,
+                    "page_size": page_size,
+                    "sort_by": "startTime",
+                    "sort_order": "desc",
+                },
+            )
+            if not resp.is_success:
+                _raise_litellm(resp, "/spend/logs/v2")
+            body = resp.json()
+            data = body.get("data") if isinstance(body, dict) else None
+            if not isinstance(data, list):
+                logger.warning("LiteLLM /spend/logs/v2 returned no 'data' list: %r", type(body))
+                break
+            for raw in data:
+                lean = _lean_spend_row(raw)
+                if lean is not None:
+                    rows.append(lean)
+            total_pages = body.get("total_pages") if isinstance(body, dict) else None
+            # Free the raw page body before fetching the next (peak = one page).
+            del body
+            if isinstance(total_pages, int) and page >= total_pages:
+                break  # fetched the last page — full window covered
+            if page >= max_pages:
+                # Hit the page cap; more pages exist iff the window spans more of them.
+                truncated = isinstance(total_pages, int) and total_pages > max_pages
+                break
+    return rows, truncated
+
+
 async def list_litellm_keys(email: str, settings: Settings) -> list[dict]:
     """List all virtual keys for a specific user email."""
     headers = _admin_headers(settings)

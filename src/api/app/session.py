@@ -31,12 +31,14 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
+from app.latency import compute_latency_contract
 from app.litellm_client import (
     LiteLLMUserNotFound,
     TeamMembershipError,
     assert_team_membership,
     block_litellm_key,
     delete_litellm_key,
+    fetch_user_spend_logs,
     generate_litellm_key,
     get_litellm_user,
     get_team_member_budget,
@@ -48,6 +50,7 @@ from app.litellm_client import (
     set_litellm_key_default,
     update_litellm_key_team,
     user_daily_activity,
+    verify_user_scoping_contract,
 )
 from app.stats import (
     aggregate_window,
@@ -834,6 +837,95 @@ async def session_stats(
     # usage, once as the friendly name with 0). D-03: the server shapes this.
     contract["keys"] = resolve_key_display(contract["keys"], key_list)
     return JSONResponse(contract)
+
+
+def _latency_unavailable(reason: str) -> dict[str, Any]:
+    """The calm degrade payload (a valid 200) when latency cannot be sourced."""
+    return {
+        "available": False,
+        "reason": reason,
+        "sampled": False,
+        "row_count": 0,
+        "window": None,
+        "latency": None,
+        "outcomes": [],
+        "by_model": [],
+    }
+
+
+async def _scoping_enforced(request: Request, settings: Settings) -> bool:
+    """True ONLY when the sso_key_swapper impersonation contract is verified enforced.
+
+    /spend/logs via master+x-user-id is safe ONLY when the custom auth is installed;
+    without it, master+x-user-id authenticates as full admin and /spend/logs returns
+    EVERY user's rows (cross-user leak + the ~83 MB OOM). So the latency route must
+    NEVER hit /spend/logs unless this returns True.
+
+    Caches the resolved status on app.state (probe = one cheap /v1/models GET) so we
+    verify at most once per process; re-probes only while "unknown" (LiteLLM was
+    unreachable at check time). A deployment installing the swapper later is picked up
+    on the next pod restart, mirroring the startup contract check.
+    """
+    cached = getattr(request.app.state, "scoping_contract", "unknown")
+    if cached == "unknown":
+        cached = await verify_user_scoping_contract(settings)
+        request.app.state.scoping_contract = cached
+    return cached == "enforced"
+
+
+@router.get("/latency", response_model=None)
+async def session_latency(
+    request: Request,
+    user: dict = Depends(require_session_user),
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> JSONResponse:
+    """Return per-request latency + request-outcome metrics for the session user.
+
+    Sourced from LiteLLM /spend/logs/v2 (the ONLY place per-request latency/status
+    live) over the SAME date window as /stats (start_date/end_date, default 30d, max
+    366d), fetched server-side via the sso_key_swapper impersonation (master +
+    x-user-id — the email is the verified session identity, never client input) so it
+    auto-scopes to this user.
+
+    Read-only GET (no assert_same_origin, mirrors /stats). Returns ONLY computed
+    metrics — the raw rows (which carry messages/response/metadata) are dropped at the
+    fetch boundary (fetch_user_spend_logs projects to a lean subset) and folded in
+    app/latency.py; nothing raw reaches the browser.
+
+    OOM SAFETY: unlike the legacy /spend/logs (pagination a no-op → a 170 MB/7d
+    firehose that OOM-killed the pod), v2 HONORS page_size — fetch_user_spend_logs
+    pages newest-first (≤5 pages of 100), projecting each to lean rows and freeing it
+    before the next, so peak memory is one page (~674 KB) regardless of range width.
+    A window with more pages than the cap is labelled sampled=true (a recent sample).
+
+    Degrades to a calm {available: false} 200 (never breaks the page) when the
+    scoping contract is unverified (SECURITY gate — see _scoping_enforced) or the
+    /spend/logs fetch fails. An empty window is a valid {available: true} with null
+    latency figures.
+    """
+    settings: Settings = request.app.state.settings
+    email = user["email"]
+
+    # Same window contract as /stats (422 on a malformed / oversized range).
+    start, end = _parse_stats_range(start_date, end_date)
+    span = (end - start).days + 1
+    window = {"start": start.isoformat(), "end": end.isoformat(), "days": span}
+
+    # SECURITY gate: never touch /spend/logs unless impersonation scoping is enforced.
+    if not await _scoping_enforced(request, settings):
+        logger.info("session_latency: scoping contract unverified, degrading for %s", email)
+        return JSONResponse(_latency_unavailable("scoping_unverified"))
+
+    try:
+        rows, truncated = await fetch_user_spend_logs(
+            email, settings, start.isoformat(), end.isoformat()
+        )
+    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+        logger.warning("session_latency: /spend/logs fetch failed for %s: %s", email, exc)
+        return JSONResponse(_latency_unavailable("fetch_failed"))
+
+    return JSONResponse(compute_latency_contract(rows, window, truncated=truncated))
 
 
 @router.get("/models", response_model=None)
