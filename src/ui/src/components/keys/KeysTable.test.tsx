@@ -235,13 +235,18 @@ describe('KeysTable — populated table', () => {
 });
 
 describe('KeysTable — no secret material, no reveal/copy actions', () => {
-  it('renders neither a Reveal nor a Copy action — Revoke is the only per-row button', () => {
+  it('renders neither a Reveal nor a Copy action — Revoke lives in the kebab', async () => {
     setRows([makeRow({ id: 'key-public', key_alias: 'old-key' })]);
     render(<KeysTable onDelete={vi.fn()} />);
 
     expect(screen.queryByRole('button', { name: 'Reveal' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Revoke' })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'Enter',
+    });
+    expect(
+      await screen.findByRole('menuitem', { name: 'Revoke key' })
+    ).toBeInTheDocument();
   });
 
   it('truncates a long id to 16 chars + ellipsis — never the full id', () => {
@@ -254,13 +259,17 @@ describe('KeysTable — no secret material, no reveal/copy actions', () => {
 });
 
 describe('KeysTable — delete action', () => {
-  it('clicking Revoke calls onDelete with that row', () => {
+  it('choosing Revoke in the kebab calls onDelete with that row', async () => {
     const onDelete = vi.fn();
     const row = makeRow({ id: 'key-del' });
     setRows([row]);
 
     render(<KeysTable onDelete={onDelete} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'Enter',
+    });
+    const item = await screen.findByRole('menuitem', { name: 'Revoke key' });
+    fireEvent.keyDown(item, { key: 'Enter' });
 
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledWith(row);
@@ -301,7 +310,6 @@ describe('KeysTable — default key', () => {
   it('the default key omits "Set as default" and disables Revoke', async () => {
     setRows([makeRow({ id: 'key-default', is_default: true })]);
     render(<KeysTable onDelete={vi.fn()} />);
-    expect(screen.getByRole('button', { name: 'Revoke' })).toBeDisabled();
     fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
       key: 'Enter',
     });
@@ -309,6 +317,10 @@ describe('KeysTable — default key', () => {
     expect(
       screen.queryByRole('menuitem', { name: 'Set as default' })
     ).not.toBeInTheDocument();
+    // Revoke is present but disabled on the default key (Chat needs a default).
+    expect(screen.getByRole('menuitem', { name: /Revoke/ })).toHaveAttribute(
+      'data-disabled'
+    );
   });
 
   it('nudges to set a default when there are keys but none is default', () => {

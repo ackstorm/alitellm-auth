@@ -54,9 +54,9 @@ describe('KpiRow', () => {
     expect(chips[2].className).toContain('text-destructive');
   });
 
-  it('renders a neutral "no info" chip when pct is null but current > 0', () => {
+  it('renders NO chip when pct is null (no prior baseline to compare)', () => {
     // Prior baseline empty (e.g. prior window had 0 tokens) -> no % to compute and
-    // no up/down to judge: a NEUTRAL grey note, never green/red.
+    // no up/down to judge: render NOTHING, not a confusing "▲ 100% (no info)".
     const totals: StatsTotals = {
       ...TOTALS,
       deltas: {
@@ -67,16 +67,7 @@ describe('KpiRow', () => {
       },
     };
     const { container } = render(<KpiRow totals={totals} />);
-    const chips = container.querySelectorAll('[data-slot="kpi-delta"]');
-    expect(chips).toHaveLength(4);
-    chips.forEach((c) => {
-      expect(c.textContent).toContain('100%');
-      expect(c.textContent).toContain('no info');
-      // neutral grey — not the good (primary) / bad (destructive) delta colors.
-      expect(c.className).toContain('text-text-secondary');
-      expect(c.className).not.toContain('text-primary');
-      expect(c.className).not.toContain('text-destructive');
-    });
+    expect(container.querySelectorAll('[data-slot="kpi-delta"]')).toHaveLength(0);
   });
 
   it('renders NO chip when pct is null AND the current value is 0/absent', () => {
@@ -109,21 +100,19 @@ describe('KpiRow', () => {
     expect(container.querySelector('[data-slot="kpi-failed"]')).toBeNull();
   });
 
-  it('includes the cached-input rate in the tokens sub-line when cache_hit_pct > 0', () => {
+  it('shows the output-token share in the tokens sub-line', () => {
     const { container } = render(<KpiRow totals={TOTALS} />);
-    // 0.124 -> "12.4% cached"
-    expect(container.querySelector('[data-slot="kpi-tokens"]')?.textContent).toContain(
-      '12.4% cached',
-    );
-  });
-
-  it('omits the cached rate from the tokens sub-line when cache_hit_pct is null', () => {
-    const totals: StatsTotals = { ...TOTALS, cache_hit_pct: null };
-    const { container } = render(<KpiRow totals={totals} />);
-    // The sub-line still renders the output split; only "cached" drops out.
     const sub = container.querySelector('[data-slot="kpi-tokens"]');
     expect(sub?.textContent).toContain('out');
-    expect(sub?.textContent).not.toContain('cached');
+    // output 20_000 / total 1_000_000 -> 2.0%
+    expect(sub?.textContent).toContain('2.0%');
+    expect(sub?.getAttribute('title')).toMatch(/output/i);
+  });
+
+  it('omits the tokens sub-line when there are no output tokens', () => {
+    const totals: StatsTotals = { ...TOTALS, output_tokens: 0 };
+    const { container } = render(<KpiRow totals={totals} />);
+    expect(container.querySelector('[data-slot="kpi-tokens"]')).toBeNull();
   });
 
   it('adds a spend pricing tooltip', () => {

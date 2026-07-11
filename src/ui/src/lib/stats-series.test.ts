@@ -10,7 +10,7 @@
 //   - a REAL zero stays 0 (never dropped, never null) for BOTH spend and requests.
 //   - PURE: never mutates the input.
 import { describe, it, expect } from 'vitest';
-import { seriesToRecharts } from './stats-series';
+import { seriesHasActivity, seriesToRecharts } from './stats-series';
 import type { StatsSeriesPoint } from './api-types';
 
 // A small, deterministic fixture in the locked contract shape (ported from
@@ -55,6 +55,33 @@ describe('seriesToRecharts — empty / no-data shape', () => {
   it('returns [] for a null/undefined series', () => {
     expect(seriesToRecharts(null)).toEqual([]);
     expect(seriesToRecharts(undefined)).toEqual([]);
+  });
+});
+
+describe('seriesHasActivity', () => {
+  it('is false for empty / null / undefined', () => {
+    expect(seriesHasActivity([])).toBe(false);
+    expect(seriesHasActivity(null)).toBe(false);
+    expect(seriesHasActivity(undefined)).toBe(false);
+  });
+
+  it('is false for a zero-filled (inactive) window', () => {
+    // The server zero-fills an empty range — non-empty but all-zero requests.
+    expect(
+      seriesHasActivity([
+        { date: '2026-03-01', spend: 0, requests: 0, tokens: 0, failed: 0 },
+        { date: '2026-03-02', spend: 0, requests: 0, tokens: 0, failed: 0 },
+      ]),
+    ).toBe(false);
+  });
+
+  it('is true when any day has requests', () => {
+    expect(
+      seriesHasActivity([
+        { date: '2026-03-01', spend: 0, requests: 0, tokens: 0, failed: 0 },
+        { date: '2026-03-02', spend: 0, requests: 3, tokens: 0, failed: 0 },
+      ]),
+    ).toBe(true);
   });
 });
 

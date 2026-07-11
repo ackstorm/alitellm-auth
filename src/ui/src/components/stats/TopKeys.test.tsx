@@ -23,13 +23,19 @@ const KEYS: StatsKeyRow[] = [
 ];
 
 describe('TopKeys', () => {
-  it('renders the section label + column copy', () => {
-    const { getByText } = render(<TopKeys keys={KEYS} capabilities={CAPS} />);
+  it('renders the section label + summary + column copy', () => {
+    const { getByText, getByRole } = render(
+      <TopKeys keys={KEYS} capabilities={CAPS} />
+    );
     expect(getByText('TOP API KEYS')).toBeInTheDocument();
-    expect(getByText('KEY')).toBeInTheDocument();
-    expect(getByText('REQUESTS')).toBeInTheDocument();
-    expect(getByText('SPEND')).toBeInTheDocument();
-    expect(getByText('% OF TOTAL')).toBeInTheDocument();
+    // At-a-glance summary headline (StatTile labels are plain text).
+    expect(getByText('ACTIVE KEYS')).toBeInTheDocument();
+    // Column headers are sort buttons — disambiguates REQUESTS/SPEND from the
+    // summary labels of the same word.
+    expect(getByRole('button', { name: /KEY/ })).toBeInTheDocument();
+    expect(getByRole('button', { name: /REQUESTS/ })).toBeInTheDocument();
+    expect(getByRole('button', { name: /SPEND/ })).toBeInTheDocument();
+    expect(getByRole('button', { name: /% OF TOTAL/ })).toBeInTheDocument();
   });
 
   it('renders a representative ranked row (alias + figures)', () => {

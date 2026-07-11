@@ -56,12 +56,15 @@ describe('LatencyPanel', () => {
     expect(screen.getByText(/no requests in this range/i)).toBeInTheDocument();
   });
 
-  it('renders the percentile headline + throughput on the ready path', () => {
+  it('renders the headline: throughput / latency / error rate / ttft', () => {
     render(<LatencyPanel data={makeLatency()} isError={false} />);
-    expect(screen.getByText('p50')).toBeInTheDocument();
-    expect(screen.getByText('3.85 s')).toBeInTheDocument(); // p50 formatted
+    expect(screen.getByText('THROUGHPUT')).toBeInTheDocument();
     expect(screen.getByText('139 tok/s')).toBeInTheDocument();
-    expect(screen.getByText(/280 requests/)).toBeInTheDocument();
+    expect(screen.getByText('LATENCY')).toBeInTheDocument();
+    expect(screen.getByText('3.85 s')).toBeInTheDocument(); // p50 formatted
+    expect(screen.getByText('ERROR RATE')).toBeInTheDocument();
+    expect(screen.getByText('7.1%')).toBeInTheDocument(); // 20 / 280
+    expect(screen.getByText('TTFT')).toBeInTheDocument();
   });
 
   it('formats sub-second latency as ms', () => {

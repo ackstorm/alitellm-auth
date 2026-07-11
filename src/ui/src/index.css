@@ -60,6 +60,18 @@
   --glow-1: oklch(0.72 0.19 150 / 0.12);
   --glow-2: oklch(0.65 0.18 210 / 0.07);
   --glow-3: oklch(0.72 0.19 150 / 0.05);
+
+  /* Categorical data palette — distinct hues for pie/breakdown slices and
+     per-team dots, where the single green accent can't tell N series apart.
+     Intentionally theme-INDEPENDENT (defined only here, never overridden per
+     skin): a pie needs stable, distinguishable colors regardless of theme, and
+     these mid-lightness saturated hues read on both the dark and near-white
+     surfaces. Slice 1 leans brand-green so the dominant slice keeps identity. */
+  --cat-1: oklch(0.72 0.16 155); /* green  */
+  --cat-2: oklch(0.64 0.14 245); /* blue   */
+  --cat-3: oklch(0.77 0.14 75); /* amber  */
+  --cat-4: oklch(0.64 0.17 300); /* violet */
+  --cat-5: oklch(0.66 0.19 12); /* rose   */
 }
 
 /* Light theme — applied when <html> carries the `light` class (set by the theme
@@ -269,8 +281,12 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-error: var(--error);
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  /* Native system-ui stack — no web font loaded (like GitHub / Tailwind default).
+   * Uses each visitor's OS font; mono stays the OS monospace for keys/code. */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono',
+    monospace;
 
   /* shadcn theme mappings */
   --color-foreground: var(--foreground);
@@ -358,6 +374,9 @@ body {
   background-color: var(--background);
   color: var(--text-primary);
   font-family: var(--font-sans);
+  /* Lining tabular figures app-wide: KPI numbers + table columns (spend, TPM,
+   * tokens) keep vertical alignment as digit values change. */
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
 }
 
 /* Scrollbar styling for dark theme */

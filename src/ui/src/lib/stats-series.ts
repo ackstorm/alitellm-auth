@@ -42,6 +42,20 @@ function asNumber(v: unknown): number {
  * `[[],[]]` guard). Each point maps to `{ date, spend, requests }`: `date` is the
  * point's date string or `''` when null/undefined.
  */
+/**
+ * True when the window has ANY request activity. The server ZERO-FILLS the
+ * series (an inactive range comes back as full-length all-zero points, not an
+ * empty array), so `seriesToRecharts(...).length > 0` is NOT enough to decide a
+ * chart has something to draw — an all-zero series still renders a blank axis
+ * grid. Charts gate their empty state on this instead. `requests` is the master
+ * activity signal: zero requests ⇒ zero spend / tokens / failed too.
+ */
+export function seriesHasActivity(
+  series: StatsSeriesPoint[] | null | undefined,
+): boolean {
+  return Array.isArray(series) && series.some((p) => asNumber(p?.requests) > 0);
+}
+
 export function seriesToRecharts(
   series: StatsSeriesPoint[] | null | undefined,
 ): SpendRequestsPoint[] {

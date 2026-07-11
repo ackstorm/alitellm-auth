@@ -25,6 +25,7 @@ import { useState } from 'react';
 
 import { BudgetPanel } from '@/components/stats/BudgetPanel';
 import { DateRange } from '@/components/stats/DateRange';
+import { formatDate } from '@/lib/format';
 import { ErrorsDonut } from '@/components/stats/ErrorsDonut';
 import { ExportCsvButton } from '@/components/stats/ExportCsvButton';
 import { KpiRow } from '@/components/stats/KpiRow';
@@ -159,21 +160,36 @@ export function Stats() {
   // rangeError is null for now (the 422-inline distinction is deferred; useStats
   // throws generically into isError, surfaced as the whole-page error card).
   const header = (
-    <div className="flex flex-wrap items-start justify-between gap-5">
-      <div>
+    <div className="flex flex-col gap-1">
+      {/* Row 1: title (left) + date controls (right). */}
+      <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-2">
         <h1 className="font-sans text-2xl font-semibold leading-snug text-text-primary">
           {PAGE_TITLE}
         </h1>
-        <p className="mt-1 max-w-2xl font-sans text-sm text-text-secondary">
+        <DateRange
+          preset={preset}
+          onPreset={onPreset}
+          onCustomRange={onCustomRange}
+          rangeError={null}
+        />
+      </div>
+      {/* Row 2: sub-line (left) + the RESOLVED window (right, baseline-aligned to
+          the sub-line). Only shown for a Custom range — the presets already name
+          their window (7d / This month / …). formatDate turns the "YYYY-MM-DD"
+          bounds into "Jul 11, 2026". */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
+        <p className="max-w-2xl font-sans text-sm text-text-secondary">
           {PAGE_SUB}
         </p>
+        {preset === 'Custom' ? (
+          <p
+            data-slot="stats-range-label"
+            className="font-mono text-xs text-text-tertiary"
+          >
+            {formatDate(range.start)} – {formatDate(range.end)}
+          </p>
+        ) : null}
       </div>
-      <DateRange
-        preset={preset}
-        onPreset={onPreset}
-        onCustomRange={onCustomRange}
-        rangeError={null}
-      />
     </div>
   );
 

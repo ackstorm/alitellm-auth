@@ -26,7 +26,10 @@ import { useState } from 'react';
 import { RequiresDefaultKey } from '@/components/layout/RequiresDefaultKey';
 import {
   ModelFilters,
+  ModelModeFilters,
   applyModelFilters,
+  applyModeFilter,
+  modelModeOptions,
   type ModelCapKey,
 } from '@/components/models/ModelFilters';
 import {
@@ -35,6 +38,12 @@ import {
 } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TableSearch, matchesSearch } from '@/components/ui/table-search';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useModels } from '@/hooks/use-models';
@@ -67,10 +76,11 @@ function ProviderChip({ label }: { label: string }) {
   );
 }
 
-// A capability badge: a NEUTRAL grey icon pill with a tooltip. Grey (not the
-// primary accent) so it reads as a static info marker, not a clickable/toggle
-// button. Only rendered when the capability is true (off-capabilities are simply
-// absent — no greyed clutter).
+// A capability badge: a NEUTRAL grey icon pill with an instant on-brand tooltip
+// (Radix, not the native `title` — the icon alone is cryptic, so the label needs
+// to surface immediately on hover/focus, not after the OS title delay). Grey (not
+// the primary accent) so it reads as a static info marker, not a clickable button.
+// Only rendered when the capability is true (off-capabilities are simply absent).
 function CapBadge({
   icon: Icon,
   label,
@@ -79,13 +89,17 @@ function CapBadge({
   label: string;
 }) {
   return (
-    <span
-      title={label}
-      aria-label={label}
-      className="inline-flex size-6 items-center justify-center rounded-md border border-border bg-surface-elevated text-text-secondary"
-    >
-      <Icon className="size-3.5" aria-hidden="true" />
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          aria-label={label}
+          className="inline-flex size-6 items-center justify-center rounded-md border border-border bg-surface-elevated text-text-secondary"
+        >
+          <Icon className="size-3.5" aria-hidden="true" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -165,14 +179,18 @@ function CapabilitiesCell({ row }: { row: ModelRow }) {
   const any =
     row.supports_vision || row.supports_function_calling || row.supports_web_search;
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {row.supports_vision && <CapBadge icon={Eye} label="Vision" />}
-      {row.supports_function_calling && (
-        <CapBadge icon={Wrench} label="Function calling / tools" />
-      )}
-      {row.supports_web_search && <CapBadge icon={Globe} label="Web search" />}
-      {!any && <span className="font-mono text-xs text-muted-foreground">{EM_DASH}</span>}
-    </div>
+    <TooltipProvider>
+      <div className="flex flex-wrap gap-1.5">
+        {row.supports_vision && <CapBadge icon={Eye} label="Vision" />}
+        {row.supports_function_calling && (
+          <CapBadge icon={Wrench} label="Function calling / tools" />
+        )}
+        {row.supports_web_search && <CapBadge icon={Globe} label="Web search" />}
+        {!any && (
+          <span className="font-mono text-xs text-muted-foreground">{EM_DASH}</span>
+        )}
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -301,9 +319,17 @@ export function Models() {
   const hasDefault = useHasDefaultKey();
   const query = useModels(hasDefault);
   const [caps, setCaps] = useState<Set<ModelCapKey>>(new Set());
+  const [modes, setModes] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const toggleCap = (k: ModelCapKey) =>
     setCaps((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  const toggleMode = (k: string) =>
+    setModes((prev) => {
       const next = new Set(prev);
       if (next.has(k)) next.delete(k);
       else next.add(k);
@@ -355,6 +381,7 @@ export function Models() {
   }
 
   const models = query.data?.models ?? [];
+  const modeOptions = modelModeOptions(models);
 
   return (
     <div className="flex flex-col gap-8">
@@ -364,6 +391,16 @@ export function Models() {
         <Skeleton variant="table-rows" rows={6} />
       ) : (
         <div className="flex flex-col gap-3">
+          {/* MODE filter row (Chat / Embeddings / … ) — only when the catalog
+              spans more than one mode, else a single-mode toggle is pointless. */}
+          {modeOptions.length >= 2 ? (
+            <ModelModeFilters
+              options={modeOptions}
+              active={modes}
+              onToggle={toggleMode}
+              onClear={() => setModes(new Set())}
+            />
+          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <TableSearch value={search} onChange={setSearch} placeholder="Search models…" />
             <ModelFilters
@@ -375,7 +412,7 @@ export function Models() {
         <DataTable
           data-slot="models-table"
           columns={COLUMNS}
-          rows={applyModelFilters(models, caps).filter((m) => matchesSearch(search, m.name))}
+          rows={applyModeFilter(applyModelFilters(models, caps), modes).filter((m) => matchesSearch(search, m.name))}
           defaultSort={{ key: 'model', dir: 'asc' }}
           getRowId={(row) => row.name ?? ''}
           empty={

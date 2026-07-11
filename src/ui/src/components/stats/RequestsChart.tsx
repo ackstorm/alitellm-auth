@@ -29,7 +29,7 @@ import {
 
 import type { StatsSeriesPoint } from '@/lib/api-types';
 import { abbreviate, formatDate, formatInt } from '@/lib/format';
-import { seriesToRecharts } from '@/lib/stats-series';
+import { seriesHasActivity, seriesToRecharts } from '@/lib/stats-series';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import {
@@ -103,7 +103,9 @@ export function RequestsChart({
   }
 
   const rows = seriesToRecharts(series);
-  if (rows.length === 0) {
+  // Empty when there are no rows OR the window is all-zero (server zero-fills an
+  // inactive range) — otherwise Recharts paints a blank axis grid.
+  if (rows.length === 0 || !seriesHasActivity(series)) {
     return <ChartEmpty />;
   }
 

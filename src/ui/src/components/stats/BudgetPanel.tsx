@@ -21,8 +21,8 @@
 
 import * as React from 'react';
 
+import { BudgetMeter } from '@/components/ui/budget-meter';
 import type { StatsBudget } from '@/lib/api-types';
-import { budgetFillClass } from '@/lib/budget';
 import { formatCurrency } from '@/lib/format';
 import { budgetPctLabel, isMonthlyDuration, projectMonthEnd } from '@/lib/spend-projection';
 
@@ -71,8 +71,6 @@ export function BudgetPanel({ budget }: BudgetPanelProps): React.ReactElement {
   // FRACTION — using it as a 0..100 percent rendered a sliver (15.94/50 -> a
   // 0.32%-wide bar). The fill is a SINGLE width clamped to [0,100]%; over-budget
   // is signalled by color.
-  const ratio = maxBudget > 0 ? current / maxBudget : 1;
-  const fillPct = Math.max(0, Math.min(1, ratio)) * 100;
   const over = current > maxBudget;
 
   return (
@@ -101,13 +99,11 @@ export function BudgetPanel({ budget }: BudgetPanelProps): React.ReactElement {
           ) : null}
         </span>
       </div>
-      <div className="flex h-2 overflow-hidden rounded-full border border-border bg-background">
-        <div
-          data-slot="budget-fill"
-          className={`h-full ${budgetFillClass(ratio)}`}
-          style={{ width: `${fillPct}%` }}
-        />
-      </div>
+      <BudgetMeter
+        current={current}
+        maxBudget={maxBudget}
+        duration={b?.budget_duration}
+      />
     </div>
   );
 }

@@ -17,8 +17,13 @@
 // concatenating PILL_IDLE or PILL_ACTIVE onto PILL_BASE.
 export const PILL_BASE =
   'inline-flex cursor-pointer items-center justify-center rounded-lg border bg-transparent transition-colors';
+// bg-surface (not transparent): a transparent idle pill is shape-defined by its
+// border ALONE, and on the pastel skin --border (~0.9L) vanishes against the
+// saturated header gradient. The faint surface fill reads as a chip on every skin
+// (like the cards do) so the frame is visible even when the border isn't. Active
+// (PILL_ACTIVE, bg-primary/10) overrides it — the two are mutually exclusive.
 export const PILL_IDLE =
-  'border-border text-text-secondary hover:border-text-tertiary hover:text-text-primary';
+  'border-border bg-surface text-text-secondary hover:border-text-tertiary hover:text-text-primary';
 export const PILL_ACTIVE = 'border-primary bg-primary/10 text-primary';
 
 // Radix <TabsTrigger> pills (HowTo L2 tool groups + L3 variants, Mcp L2) — the

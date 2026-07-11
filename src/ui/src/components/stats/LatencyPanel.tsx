@@ -5,13 +5,18 @@
 // slice + an isError flag and renders one of three states:
 //   • unavailable — available === false (scoping unverified / fetch failed) OR isError
 //   • empty       — available but no rows in the window
-//   • ready       — the p50/p95/p99 headline + TTFT / tok-s sub-line + by-model split
+//   • ready       — headline (Throughput · Latency p50 · Error rate · TTFT) + the
+//                   per-model split (with its own Lat / p95 columns)
+//
+// The headline leads with the figures that matter at a glance; the tail
+// percentiles (p95) live only in the per-model table.
 //
 // Latency is SUPPLEMENTARY: it never throws the whole page. All figures are
 // null-guarded (D-08 null-vs-0) and render an em-dash when absent.
 
 import type { LatencyByModel, LatencyResponse } from '@/lib/api-types';
 import { formatInt } from '@/lib/format';
+import { StatTile } from './chart-common';
 
 const EM_DASH = '—';
 
@@ -30,18 +35,23 @@ function formatTps(tps: number | null | undefined): string {
   return `${Math.round(tps)} tok/s`;
 }
 
-// One big percentile stat (label above, value below).
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text-secondary">
-        {label}
-      </div>
-      <div className="font-sans text-2xl font-semibold leading-tight text-text-primary tabular-nums">
-        {value}
-      </div>
-    </div>
-  );
+// Failed / total across the outcome buckets (any non-"success" status = failed).
+// Null when there are no outcome rows (→ em-dash).
+function errorRate(outcomes: LatencyResponse['outcomes']): number | null {
+  if (!Array.isArray(outcomes) || outcomes.length === 0) return null;
+  let total = 0;
+  let failed = 0;
+  for (const o of outcomes) {
+    const c = Number(o?.count) || 0;
+    total += c;
+    if (o?.status !== 'success') failed += c;
+  }
+  return total > 0 ? failed / total : null;
+}
+
+function formatPct(fraction: number | null): string {
+  if (fraction === null || !Number.isFinite(fraction)) return EM_DASH;
+  return `${(fraction * 100).toFixed(1)}%`;
 }
 
 // A calm centered state (unavailable / empty) sized to roughly match the chart body.
@@ -53,21 +63,10 @@ function StatePanel({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Cycling pastel highlights for the model-name pills (reference "Top Models" look).
-// Fixed dark text so the name stays legible on every pastel in light OR dark theme.
-const PILL_COLORS = [
-  '#d1fae5', // green
-  '#fef3c7', // amber
-  '#fed7aa', // orange
-  '#e9d5ff', // purple
-  '#dbeafe', // blue
-  '#fce7f3', // pink
-];
-
 // Shared grid template so the header row and the data rows line up column-for-
 // column (fixed numeric widths, right-aligned — model name takes the rest).
 const MODEL_GRID =
-  'grid grid-cols-[1fr_3rem_5rem_3.5rem] items-center gap-3';
+  'grid grid-cols-[1fr_2.75rem_4rem_4rem_3.25rem] items-center gap-2';
 const MODEL_HEAD_CELL =
   'font-mono text-[10px] font-semibold uppercase tracking-wider text-text-secondary';
 
@@ -76,29 +75,29 @@ function ModelHeader() {
     <div className={`${MODEL_GRID} border-b border-border/60 pb-1`}>
       <span className={MODEL_HEAD_CELL}>Model</span>
       <span className={`${MODEL_HEAD_CELL} text-right`}>Req</span>
+      <span className={`${MODEL_HEAD_CELL} text-right`}>Lat</span>
       <span className={`${MODEL_HEAD_CELL} text-right`}>p95</span>
       <span className={`${MODEL_HEAD_CELL} text-right`}>Err</span>
     </div>
   );
 }
 
-function ModelRow({ m, index }: { m: LatencyByModel; index: number }) {
+function ModelRow({ m }: { m: LatencyByModel }) {
   const errPct =
     m.requests > 0 ? ((m.failed / m.requests) * 100).toFixed(1) : null;
   const stripped = m.model.includes('/')
     ? m.model.slice(m.model.indexOf('/') + 1)
     : m.model;
-  const pill = PILL_COLORS[index % PILL_COLORS.length];
   return (
     <li title={m.model} className={`${MODEL_GRID} py-1`}>
-      <span
-        className="max-w-full truncate justify-self-start rounded px-1.5 py-0.5 font-mono text-xs"
-        style={{ backgroundColor: pill, color: '#0f172a' }}
-      >
+      <span className="max-w-full truncate justify-self-start font-mono text-xs text-text-primary">
         {stripped}
       </span>
       <span className="text-right font-mono text-xs text-text-secondary tabular-nums">
         {formatInt(m.requests)}
+      </span>
+      <span className="text-right font-mono text-xs text-text-secondary tabular-nums">
+        {formatMs(m.p50_ms)}
       </span>
       <span className="text-right font-mono text-xs text-text-secondary tabular-nums">
         {formatMs(m.p95_ms)}
@@ -131,45 +130,55 @@ export function LatencyPanel({
   }
 
   const l = data.latency;
+  const err = errorRate(data.outcomes);
   return (
     <div className="flex flex-col gap-4">
-      {/* p50 / p95 / p99 headline */}
-      <div className="grid grid-cols-3 gap-3">
-        <Stat label="p50" value={formatMs(l.p50_ms)} />
-        <Stat label="p95" value={formatMs(l.p95_ms)} />
-        <Stat label="p99" value={formatMs(l.p99_ms)} />
+      {/* Headline: the at-a-glance figures — throughput, typical latency, error
+          rate, TTFT. (Request volume lives in the Request Outcomes panel; the tail
+          percentiles are demoted to the per-model table's p95 column.) */}
+      <div className="grid grid-cols-4 gap-3 max-[400px]:grid-cols-2">
+        <StatTile
+          label="THROUGHPUT"
+          title="Output tokens per second (p50)"
+          value={formatTps(l.tokens_per_sec_p50)}
+        />
+        <StatTile
+          label="LATENCY"
+          title="Median request latency (p50)"
+          value={formatMs(l.p50_ms)}
+        />
+        <StatTile
+          label="ERROR RATE"
+          value={formatPct(err)}
+          tone={err !== null && err > 0 ? 'bad' : 'default'}
+        />
+        <StatTile
+          label="TTFT"
+          title="Time to first token (p50)"
+          value={formatMs(l.ttft_p50_ms)}
+        />
       </div>
 
-      {/* TTFT + throughput sub-line */}
-      <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-border pt-3 font-mono text-xs text-text-secondary">
-        <span>
-          TTFT p50 <span className="text-text-primary">{formatMs(l.ttft_p50_ms)}</span>
-        </span>
-        <span>
-          TTFT p95 <span className="text-text-primary">{formatMs(l.ttft_p95_ms)}</span>
-        </span>
-        <span>
-          Throughput{' '}
-          <span className="text-text-primary">{formatTps(l.tokens_per_sec_p50)}</span>
-        </span>
-      </div>
-
-      {/* Per-model latency + error split (headed table, aligned columns) */}
+      {/* Per-model latency + error split (headed table, aligned columns). Extra
+          top padding sets it apart from the headline summary (no divider line). */}
       {data.by_model.length > 0 ? (
-        <div className="flex flex-col">
+        <div className="flex flex-col pt-2">
           <ModelHeader />
           <ul className="flex flex-col divide-y divide-border/60">
-            {data.by_model.map((m, i) => (
-              <ModelRow key={m.model} m={m} index={i} />
+            {data.by_model.map((m) => (
+              <ModelRow key={m.model} m={m} />
             ))}
           </ul>
         </div>
       ) : null}
 
-      <div className="font-mono text-[10px] text-text-tertiary">
-        {formatInt(data.row_count)} requests
-        {data.sampled ? ' · sampled' : ''}
-      </div>
+      {/* REQUESTS is now a headline stat, so the footer only carries the
+          sample-truncation caveat when the row cap kicked in. */}
+      {data.sampled ? (
+        <div className="font-mono text-[10px] text-text-tertiary">
+          {formatInt(data.row_count)} requests · sampled
+        </div>
+      ) : null}
     </div>
   );
 }

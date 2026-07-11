@@ -51,6 +51,7 @@ import { useTeams } from '@/hooks/use-teams';
 import { formatDate, formatInt } from '@/lib/format';
 import { isBlocked, isExpired, selectKeyRows } from '@/lib/keys';
 import { isStale, relativeTime } from '@/lib/relative-time';
+import { teamColorVar } from '@/lib/team-color';
 import { cn } from '@/lib/utils';
 import type { KeyRow } from '@/lib/api-types';
 
@@ -166,12 +167,12 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                 {name}
               </span>
               {row.is_default ? (
-                // Neutral GREY pill — DEFAULT is a property of the key, not a
-                // status, so it matches the muted catalog pills used elsewhere
-                // (e.g. the Models table) rather than the green accent badge.
+                // Accent star pill — the default key is the one Chat uses and
+                // the only one that can't be deleted, so it earns an elevated
+                // marker (primary tint + filled star) instead of a muted pill.
                 <span
                   data-slot="key-default-badge"
-                  className="inline-flex shrink-0 items-center rounded-md border border-border bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-text-secondary"
+                  className="inline-flex shrink-0 items-center rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-primary"
                 >
                   DEFAULT
                 </span>
@@ -194,7 +195,20 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       key: 'team',
       header: 'Team',
       className: 'font-mono text-xs whitespace-nowrap',
-      cell: (row) => teamAlias(row.team_id),
+      cell: (row) => (
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="size-2 shrink-0 rounded-full"
+            style={{
+              background: teamColorVar(
+                teams.findIndex((t) => t.id === row.team_id)
+              ),
+            }}
+            aria-hidden="true"
+          />
+          {teamAlias(row.team_id)}
+        </span>
+      ),
       sortAccessor: (row) => teamAlias(row.team_id),
     },
     {
@@ -283,10 +297,16 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         // every other column header stays click-to-sort.
         defaultSort={{ key: 'created', dir: 'desc' }}
         getRowId={(row) => row.id ?? ''}
-        // Dim a disabled (blocked) row so it reads as inactive at a glance. The
-        // kebab content is portaled to <body>, so its Enable item stays full
-        // opacity even though the trigger is dimmed with the row.
-        rowClassName={(row) => (row.blocked ? 'opacity-40' : undefined)}
+        // Dim a disabled (blocked) row so it reads as inactive at a glance (the
+        // kebab is portaled to <body>, so its Enable item stays full opacity).
+        // The default key gets an accent left-rail + faint tint so the one key
+        // Chat uses is findable at a glance.
+        rowClassName={(row) =>
+          cn(
+            row.blocked && 'opacity-40',
+            row.is_default && 'border-l-2 border-l-primary bg-primary/[0.04]'
+          )
+        }
         actionsHeader="Action"
         empty={
           <div data-slot="keys-table-empty" className="py-6">
@@ -297,31 +317,10 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
           </div>
         }
         rowActions={(row) => (
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              data-slot="key-delete"
-              aria-label="Revoke"
-              title={
-                row.is_default
-                  ? 'Make another key default before deleting'
-                  : 'Revoke'
-              }
-              disabled={row.is_default}
-              onClick={() => onDelete(row)}
-              className={cn(
-                'inline-flex size-7 items-center justify-center rounded-md border transition-colors',
-                row.is_default
-                  ? 'text-muted-foreground border-border cursor-not-allowed opacity-50'
-                  : 'text-destructive border-destructive/40 hover:border-destructive cursor-pointer'
-              )}
-            >
-              <Trash2 className="size-[15px]" aria-hidden="true" />
-            </button>
-
-            {/* Kebab menu — per-row actions beyond Revoke. "Set as default" is the
-                only item today (omitted on the default key, which shows a disabled
-                marker so the menu is never empty). Room for more (e.g. Disable). */}
+          <div className="flex justify-end">
+            {/* Single per-row control — a kebab menu. Revoke lives INSIDE it (as a
+                destructive item) rather than as an always-visible red trash on
+                every row, so the table doesn't read as "delete everything". */}
             <DropdownMenu>
               <DropdownMenuTrigger
                 data-slot="key-menu"
@@ -368,6 +367,18 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                     Change team…
                   </DropdownMenuItem>
                 ) : null}
+                <DropdownMenuSeparator />
+                {/* Revoke — destructive, and disabled on the default key (Chat is
+                    gated on a default; make another key default first). */}
+                <DropdownMenuItem
+                  data-slot="key-delete"
+                  disabled={row.is_default}
+                  onSelect={() => onDelete(row)}
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                >
+                  <Trash2 aria-hidden="true" />
+                  {row.is_default ? 'Revoke (make another default first)' : 'Revoke key'}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

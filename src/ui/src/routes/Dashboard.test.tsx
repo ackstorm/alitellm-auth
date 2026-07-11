@@ -322,12 +322,16 @@ describe('Dashboard — keys section + modals', () => {
     expect(useCreateKeyModalStore.getState().open).toBe(true);
   });
 
-  it('clicking a row Revoke opens the DeleteKeyModal ("Revoke Key" title appears)', () => {
+  it('choosing a row Revoke opens the DeleteKeyModal ("Revoke Key" title appears)', async () => {
     setKeysSuccess([makeRow({ id: 'key-del' })]);
     render(<Dashboard me={makeMe()} />);
-    // No delete modal until a row's revoke action fires.
+    // No delete modal until a row's revoke action (now in the kebab) fires.
     expect(screen.queryByText('Revoke Key')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'Enter',
+    });
+    const item = await screen.findByRole('menuitem', { name: 'Revoke key' });
+    fireEvent.keyDown(item, { key: 'Enter' });
     expect(screen.getByText('Revoke Key')).toBeInTheDocument();
   });
 });

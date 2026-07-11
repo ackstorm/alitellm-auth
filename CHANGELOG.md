@@ -2,6 +2,27 @@
 
 ## [unreleased]
 
+### Added
+
+- **STATS — LATENCY headline restructured.** The panel now leads with the metrics that matter operationally — **Throughput · Latency (p50) · Error rate · TTFT** — as a tile row; the percentiles are de-prioritized to the per-model table (which keeps a **p95** column). The per-model name pills lost their clashing colors and render as plain mono text.
+- **STATS — TOP API KEYS summary.** A top summary row (**Active keys · Requests · Spend**) mirroring the LATENCY panel, plus a prettier gradient usage bar.
+- **STATS — custom date-range label.** Picking a **Custom** range now shows the resolved `start – end` under the presets (right-aligned with the subtitle); presets already name their own window, so the label is Custom-only.
+- **MODELS — mode filter.** A data-driven **Mode** filter row (**Chat / Embeddings / Audio / Image / Video**) sits above the search/capabilities row, showing only the buckets actually present.
+- **Team colors.** A stable per-team categorical color (`--cat-1..5`, by position in the shared teams list) so a team reads as the same hue everywhere it appears — the Dashboard **Teams** tile and the Keys table.
+- **Budget run-rate projection.** A shared budget meter (used by both the Dashboard budget bar and the Stats BUDGET panel, so they can't drift) draws a translucent "on track to reach here" ghost from current spend to the month-end projection (monthly durations only, when projected > current).
+
+### Changed
+
+- **STATS — KPI cards made uniform.** All four cards share one layout: the value with its optional detail inline beside it (muted parens), and the period-over-period delta chip on its own line below. **TOTAL TOKENS** now shows the **output-token share** (`… out · N%`) instead of the cache-hit rate (which confused more than it helped).
+- **STATS — USAGE BY MODEL dominant slice** now uses the active skin's **primary** color instead of a fixed green, so the leading model tracks the theme (matches the `TOTAL` figure) instead of clashing on the non-green skins.
+- **MODELS — "WEB" capability chip renamed to "SEARCH."**
+- **DASHBOARD — metric / team / budget cards compacted** (tighter padding and sparkline band).
+- **Date-range preset pills** get a faint surface fill so the idle frame stays visible on the pastel skin (where the border alone vanished against the gradient).
+
+### Fixed
+
+- **STATS — clicking CUSTOM no longer changes the charts before you pick a range.** Opening the calendar used to immediately refetch a default 30-day window; the range (and the switch to the Custom preset) now commit only on **Apply**.
+
 ## [0.5.30] - 2026-07-11
 
 ### Added

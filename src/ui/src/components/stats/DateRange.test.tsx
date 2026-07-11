@@ -74,13 +74,15 @@ describe('DateRange', () => {
     expect(getByText('Range exceeds 366 days')).toBeInTheDocument();
   });
 
-  it('clicking Custom opens the calendar (weekday labels appear) and calls onPreset', () => {
-    const { getByRole, getByLabelText, onPreset } = setup();
+  it('clicking Custom only opens the calendar — it does NOT change the range yet', () => {
+    const { getByRole, getByLabelText, onPreset, onCustomRange } = setup();
     fireEvent.click(getByRole('button', { name: 'Custom' }));
-    expect(onPreset).toHaveBeenCalledWith('Custom');
     // The calendar dialog is open: its month-nav buttons exist.
     expect(getByLabelText('Previous month')).toBeInTheDocument();
     expect(getByLabelText('Next month')).toBeInTheDocument();
+    // But nothing committed — opening the picker must not refetch the charts.
+    expect(onPreset).not.toHaveBeenCalled();
+    expect(onCustomRange).not.toHaveBeenCalled();
   });
 
   it('picking two days then Apply calls onCustomRange with {start,end} (start<=end)', () => {

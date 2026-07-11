@@ -247,8 +247,10 @@ export function DateRange({
 
   const clickPreset = (p: string): void => {
     if (p === CUSTOM_PRESET) {
+      // Only OPEN the calendar — do NOT touch the range/preset yet. The range
+      // (and the active-preset switch to Custom) commits on Apply via
+      // onCustomRange; opening the picker must not refetch the charts.
       setCalOpen(true);
-      onPreset(p);
       return;
     }
     setCalOpen(false);

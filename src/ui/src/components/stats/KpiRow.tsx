@@ -19,36 +19,20 @@ function formatSignedPct(fraction: number): string {
   return fraction >= 0 ? `+${pct}%` : `${pct}%`;
 }
 
-// The per-card delta chip. Three states:
-//   • finite pct          -> signed percent + direction arrow/color;
-//   • pct null but isNew  -> a "new" chip (prior baseline was 0, current > 0 —
-//                            an undefined %, NOT an infinite one);
-//   • otherwise           -> nothing (no prior AND no current activity).
+// The per-card delta chip. Two states:
+//   • finite pct -> signed percent + direction arrow/color;
+//   • otherwise  -> nothing. When there is no prior baseline to compare against
+//                   (prior window was 0/absent) there is no real trend, so we
+//                   render NO chip rather than a confusing "▲ 100% (no info)".
 function DeltaChip({
   pct,
   invert,
-  isNew,
 }: {
   pct: number | null | undefined;
   invert?: boolean;
-  isNew?: boolean;
 }): React.ReactElement | null {
   const hasPct = typeof pct === 'number' && Number.isFinite(pct);
-
-  if (!hasPct) {
-    if (!isNew) return null;
-    // Prior baseline was 0/absent: the jump from nothing is a full +100%, but
-    // there is no real trend to judge — a NEUTRAL grey note, not a good/bad
-    // colored delta.
-    return (
-      <div
-        data-slot="kpi-delta"
-        className="font-mono text-[11px] text-text-secondary"
-      >
-        ▲ 100% <span className="text-text-tertiary">(no info)</span>
-      </div>
-    );
-  }
+  if (!hasPct) return null;
 
   const value = pct as number;
   const up = value > 0;
@@ -69,33 +53,18 @@ function DeltaChip({
   );
 }
 
-// "new" = the prior-period baseline was 0/undefined (so no % change exists) yet
-// the current window has real activity. Distinguishes genuinely-new usage from a
-// fully-idle metric (where both windows are 0 → no chip at all).
-function isNewMetric(
-  pct: number | null | undefined,
-  current: number | null | undefined,
-): boolean {
-  const hasPct = typeof pct === 'number' && Number.isFinite(pct);
-  return (
-    !hasPct &&
-    typeof current === 'number' &&
-    Number.isFinite(current) &&
-    current > 0
-  );
-}
-
-// One of the four cards: an 11px caption label, then the 24px heading value with
-// the optional sub (failed-requests / cached-input) inlined in muted parentheses
-// next to it (baseline-aligned), and the period-over-period chip on its own line
-// below. `sub` must be inline (a <span>) so it nests inside the parens.
+// One of the four cards, all with the SAME three-part layout: an 11px caption
+// label, the 24px value with its optional detail inline beside it (in muted
+// parens, e.g. "5 failed · 6.5%"), and the period-over-period delta chip on its
+// own line below. Uniform across the four cards so the detail rows and the chip
+// rows line up column-for-column. `sub` is inline content (a <span>) nested in
+// the parens; keep it short enough to sit beside the value without wrapping.
 function KpiCard({
   label,
   labelTitle,
   value,
   deltaPct,
   invert,
-  isNew,
   sub,
   icon: Icon,
 }: {
@@ -104,13 +73,12 @@ function KpiCard({
   value: string;
   deltaPct: number | null | undefined;
   invert?: boolean;
-  isNew?: boolean;
   /** Short inline note next to the value, in muted parens (e.g. "5 failed · 6.5%"). */
   sub?: React.ReactNode;
   icon: typeof BarChart3;
 }): React.ReactElement {
   // DeltaChip holds no hooks, so call it directly to render the chip below.
-  const chip = DeltaChip({ pct: deltaPct, invert, isNew });
+  const chip = DeltaChip({ pct: deltaPct, invert });
   const hasSub = sub != null && sub !== false;
 
   return (
@@ -118,8 +86,8 @@ function KpiCard({
       {/* Icon chip + label row — mirrors the Dashboard MetricTile so the two
           pages' KPI tiles read as the same component. */}
       <div className="flex items-center gap-2">
-        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg border border-border">
-          <Icon className="size-[15px] text-primary" aria-hidden="true" />
+        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="size-[15px]" aria-hidden="true" />
         </span>
         <div
           data-testid={label === 'SPEND' ? 'kpi-spend-label' : undefined}
@@ -134,9 +102,7 @@ function KpiCard({
           {value}
         </span>
         {hasSub ? (
-          <span className="font-mono text-[10px] text-text-tertiary">
-            ({sub})
-          </span>
+          <span className="font-mono text-[10px] text-text-tertiary">({sub})</span>
         ) : null}
       </div>
       {chip}
@@ -162,7 +128,6 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: abbreviate(t?.requests),
       deltaPct: d?.requests_pct,
       invert: false,
-      isNew: isNewMetric(d?.requests_pct, t?.requests),
       sub:
         typeof t?.failed_requests === 'number' && t.failed_requests > 0 ? (
           <span data-slot="kpi-failed" className="text-destructive">
@@ -179,18 +144,21 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: abbreviate(t?.tokens),
       deltaPct: d?.tokens_pct,
       invert: false,
-      isNew: isNewMetric(d?.tokens_pct, t?.tokens),
       // The headline total already shows the full token count, so the inline sub
-      // only adds the output split + cache-hit rate: "6.8M out · 93% cached".
+      // adds the OUTPUT split and its share of the total: "6.8M out · 22%". Short
+      // enough to sit beside the value without wrapping; the title spells it out.
       sub: ((): React.ReactNode => {
-        const parts: string[] = [];
-        if (typeof t?.output_tokens === 'number' && t.output_tokens > 0)
-          parts.push(`${abbreviate(t.output_tokens)} out`);
-        if (typeof t?.cache_hit_pct === 'number' && t.cache_hit_pct > 0)
-          parts.push(`${(t.cache_hit_pct * 100).toFixed(1)}% cached`);
-        return parts.length ? (
-          <span data-slot="kpi-tokens">{parts.join(' · ')}</span>
-        ) : null;
+        const out =
+          typeof t?.output_tokens === 'number' ? t.output_tokens : null;
+        if (out === null || out <= 0) return null;
+        const total = typeof t?.tokens === 'number' ? t.tokens : null;
+        const pct =
+          total && total > 0 ? ` · ${((out / total) * 100).toFixed(1)}%` : '';
+        return (
+          <span data-slot="kpi-tokens" title="Output tokens · share of total tokens">
+            {abbreviate(out)} out{pct}
+          </span>
+        );
       })(),
     },
     {
@@ -200,7 +168,6 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       labelTitle: 'Gateway-computed spend — includes cache & provider pricing',
       deltaPct: d?.spend_pct,
       invert: true,
-      isNew: isNewMetric(d?.spend_pct, t?.spend),
     },
     {
       label: 'AVG COST / 1M TOKENS',
@@ -208,10 +175,6 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: formatCurrency(t?.avg_cost_per_1m_tokens),
       deltaPct: d?.avg_cost_per_1m_tokens_pct,
       invert: true,
-      isNew: isNewMetric(
-        d?.avg_cost_per_1m_tokens_pct,
-        t?.avg_cost_per_1m_tokens,
-      ),
     },
   ];
 
@@ -227,7 +190,6 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
             value={c.value}
             deltaPct={c.deltaPct}
             invert={c.invert}
-            isNew={c.isNew}
             sub={'sub' in c ? c.sub : undefined}
           />
         ))}

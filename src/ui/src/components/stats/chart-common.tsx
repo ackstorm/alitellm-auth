@@ -9,6 +9,7 @@
 // hand-rolled panels. DRY: SpendChart + RequestsChart both import from here.
 
 import * as React from 'react';
+import { CalendarRange } from 'lucide-react';
 import type { TooltipProps } from 'recharts';
 
 import { formatDate } from '@/lib/format';
@@ -41,17 +42,54 @@ export const TOOLTIP_LABEL_STYLE = { color: 'var(--text-secondary)' } as const;
 export const TOOLTIP_ITEM_STYLE = { color: 'var(--text-primary)' } as const;
 
 /**
- * ChartEmpty — the locked empty state shown when there is no usage in the range
- * (NOT an empty Recharts grid). Centered, muted, min-height matches CHART_HEIGHT.
- * Ports charts.js EmptyPanel.
+ * ChartEmpty — the empty state shown when there is no usage in the range (NOT an
+ * empty Recharts grid, and NOT the zero-filled blank axis grid — the charts gate
+ * on seriesHasActivity). A muted icon + the locked copy + a "widen the range"
+ * hint so it reads as intentional, not broken. Min-height matches CHART_HEIGHT.
  */
 export function ChartEmpty(): React.ReactElement {
   return (
     <div
-      className="flex items-center justify-center text-sm text-text-tertiary"
+      className="flex flex-col items-center justify-center gap-2 text-center"
       style={{ minHeight: CHART_HEIGHT }}
     >
-      {CHART_EMPTY_COPY}
+      <CalendarRange className="size-6 text-text-tertiary/60" aria-hidden="true" />
+      <div className="text-sm text-text-secondary">{CHART_EMPTY_COPY}</div>
+      <div className="text-xs text-text-tertiary">Try a wider date range.</div>
+    </div>
+  );
+}
+
+/**
+ * StatTile — a headline metric tile (10px caption label above, 20px value below),
+ * shared by the Latency + Top-Keys panel summaries so their top rows read
+ * identically. `tone="bad"` reddens the value (e.g. a non-zero error rate);
+ * `title` adds a hover hint on the label.
+ */
+export function StatTile({
+  label,
+  value,
+  title,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  title?: string;
+  tone?: 'default' | 'bad';
+}): React.ReactElement {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div
+        title={title}
+        className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text-secondary"
+      >
+        {label}
+      </div>
+      <div
+        className={`font-sans text-xl font-semibold leading-tight tabular-nums ${tone === 'bad' ? 'text-destructive' : 'text-text-primary'}`}
+      >
+        {value}
+      </div>
     </div>
   );
 }

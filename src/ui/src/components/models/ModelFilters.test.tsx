@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { applyModelFilters } from '@/components/models/ModelFilters';
+import {
+  applyModelFilters,
+  applyModeFilter,
+  modelModeOptions,
+} from '@/components/models/ModelFilters';
 
 const row = (over: Partial<Record<string, unknown>>) => ({
   name: 'm', providers: [], mode: 'chat',
@@ -24,5 +28,41 @@ describe('applyModelFilters', () => {
     expect(
       applyModelFilters(rows as never, new Set(['vision', 'reasoning'])),
     ).toHaveLength(1);
+  });
+});
+
+describe('modelModeOptions', () => {
+  it('lists distinct mode buckets in user-facing order (chat before embeddings)', () => {
+    const rows = [
+      row({ mode: 'embedding' }),
+      row({ mode: 'chat' }),
+      row({ mode: 'completion' }), // buckets into "chat" — deduped
+    ];
+    expect(modelModeOptions(rows as never)).toEqual([
+      { key: 'chat', label: 'Chat' },
+      { key: 'embeddings', label: 'Embeddings' },
+    ]);
+  });
+
+  it('title-cases an unknown mode and sorts it after the known ones', () => {
+    const rows = [row({ mode: 'rerank' }), row({ mode: 'chat' })];
+    expect(modelModeOptions(rows as never)).toEqual([
+      { key: 'chat', label: 'Chat' },
+      { key: 'rerank', label: 'Rerank' },
+    ]);
+  });
+});
+
+describe('applyModeFilter', () => {
+  it('keeps rows whose mode bucket is active (OR semantics)', () => {
+    const rows = [
+      row({ name: 'c', mode: 'chat' }),
+      row({ name: 'e', mode: 'embedding' }),
+      row({ name: 'i', mode: 'image_generation' }),
+    ];
+    expect(applyModeFilter(rows as never, new Set(['chat', 'image'])).map((r) => r.name)).toEqual(
+      ['c', 'i'],
+    );
+    expect(applyModeFilter(rows as never, new Set())).toHaveLength(3);
   });
 });

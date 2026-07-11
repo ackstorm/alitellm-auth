@@ -47,13 +47,20 @@ const DONUT_HEIGHT = 200;
 const INNER_RADIUS = 56;
 const OUTER_RADIUS = 80;
 
-// Slice color ramp (parity with stats-donut.js §4/§Color): all Top-5 slices use
-// the accent token at stepped opacities (largest -> opaque), so the largest
-// model reads strongest. NEVER a raw hex — the green is var(--primary). The
-// trailing `Other` bucket is forced to the neutral var(--text-tertiary) so it
-// never competes with a real model.
-const SLICE_FILL = 'var(--primary)';
-const SLICE_OPACITY = [1, 0.7, 0.5, 0.35, 0.2];
+// Slice colors: the Top-5 models read as DISTINCT hues instead of a single-green
+// opacity ramp (4 near-identical greens were indistinguishable). Slice 1 is
+// var(--primary) so the dominant model tracks the active skin (the categorical
+// --cat-1 is a fixed green and clashed on the non-green skins, e.g. the red one);
+// the remaining slices step the categorical palette. NEVER a raw hex — the tokens
+// live in index.css. The trailing `Other` bucket stays neutral var(--text-tertiary)
+// so it never competes.
+const SLICE_FILLS = [
+  'var(--primary)',
+  'var(--cat-2)',
+  'var(--cat-3)',
+  'var(--cat-4)',
+  'var(--cat-5)',
+];
 const OTHER_FILL = 'var(--text-tertiary)';
 
 /** One ranked donut slice. */
@@ -136,16 +143,11 @@ export function displayNames(slices: Slice[]): string[] {
   );
 }
 
-// The fill token for a slice: the neutral token for `Other`, else the accent.
-function sliceFill(slice: Slice): string {
-  return slice.isOther ? OTHER_FILL : SLICE_FILL;
-}
-
-// The fill opacity for a slice: 1 for `Other` (a flat neutral), else the stepped
-// accent ramp (clamped to the last step past index 4).
-function sliceOpacity(slice: Slice, index: number): number {
-  if (slice.isOther) return 1;
-  return SLICE_OPACITY[index] ?? SLICE_OPACITY[SLICE_OPACITY.length - 1];
+// The fill token for a slice: the neutral token for `Other`, else the categorical
+// hue at this rank (clamped to the last past index 4).
+function sliceFill(slice: Slice, index: number): string {
+  if (slice.isOther) return OTHER_FILL;
+  return SLICE_FILLS[index] ?? SLICE_FILLS[SLICE_FILLS.length - 1];
 }
 
 export interface UsageDonutProps {
@@ -240,11 +242,7 @@ export function UsageDonut({
               isAnimationActive={false}
             >
               {slices.map((s, i) => (
-                <Cell
-                  key={`${s.model}-${i}`}
-                  fill={sliceFill(s)}
-                  fillOpacity={sliceOpacity(s, i)}
-                />
+                <Cell key={`${s.model}-${i}`} fill={sliceFill(s, i)} />
               ))}
             </Pie>
           </PieChart>
@@ -270,7 +268,7 @@ export function UsageDonut({
           >
             <span
               className="size-2.5 shrink-0 rounded-full"
-              style={{ background: sliceFill(s), opacity: sliceOpacity(s, i) }}
+              style={{ background: sliceFill(s, i) }}
               aria-hidden="true"
             />
             <span className="truncate font-mono text-xs text-text-primary">

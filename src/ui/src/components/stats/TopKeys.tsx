@@ -20,6 +20,7 @@ import type { StatsCapabilities, StatsKeyRow } from '@/lib/api-types';
 import { formatCurrency, formatInt, maskKey } from '@/lib/format';
 import { sortRows, type SortDir } from '@/lib/sort';
 import { capabilityRenderMode } from '@/lib/stats-presets';
+import { StatTile } from './chart-common';
 
 // The em-dash placeholder (matches format.ts EM_DASH).
 const EM_DASH = '—';
@@ -113,10 +114,10 @@ function KeyRowItem({ item: k }: { item: StatsKeyRow }): React.ReactElement {
         {label == null ? EM_DASH : label}
       </div>
       <div className="w-full">
-        <div className="h-2 overflow-hidden rounded-full border border-border bg-background">
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-primary/10">
           <div
             data-slot="top-keys-fill"
-            className="h-full bg-primary transition-[width] duration-200"
+            className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary transition-[width] duration-300"
             style={{ width: `${width}%` }}
           />
         </div>
@@ -179,6 +180,10 @@ export function TopKeys({
     );
   const active = rows.filter((k) => (k.requests ?? 0) > 0 || (k.spend ?? 0) > 0);
   const idleCount = rows.length - active.length;
+  // Summary totals across every key (idle keys carry 0, so this equals the active
+  // sum) — the at-a-glance headline mirroring the Latency panel's top summary.
+  const totalRequests = rows.reduce((s, k) => s + (k.requests ?? 0), 0);
+  const totalSpend = rows.reduce((s, k) => s + (k.spend ?? 0), 0);
   const visible = sortRows(
     showIdle ? rows : active,
     KEY_SORT_ACCESSORS[sort.key],
@@ -244,6 +249,13 @@ export function TopKeys({
 
   return (
     <Panel>
+      {/* At-a-glance summary (active-key count · total requests · total spend) —
+          mirrors the Latency panel's top summary. */}
+      <div data-slot="top-keys-summary" className="grid grid-cols-3 gap-3">
+        <StatTile label="ACTIVE KEYS" value={formatInt(active.length)} />
+        <StatTile label="REQUESTS" value={formatInt(totalRequests)} />
+        <StatTile label="SPEND" value={formatCurrency(totalSpend)} />
+      </div>
       <div data-slot="top-keys-table" className="flex flex-col gap-2">
         <div
           className={`${GRID_COLS} border-b border-border pb-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary`}

@@ -327,6 +327,44 @@ def _scale_metrics(node: Any, f: float) -> None:
             _scale_metrics(item, f)
 
 
+# DEV-ONLY: the LOCKED repo fixture carries ONE api_keys entry, so the Top API Keys
+# panel shows a single bar. Split each day's key spend/requests across the 4 mock
+# keys (hashes + aliases mirror fixtures/keys.json) by fixed weights so the panel
+# shows 4 varied bars locally. Weights sum to 1.0 → the day key-total is unchanged.
+_MOCK_KEY_SPLIT = [
+    ("195b8b1f2c4e46945209387ec13e08ea7d74714fd088cd118b928630a03f2317", "prod-pipeline", 0.50),
+    ("hash-key-staging-bot-7d088cd118b928630a03f2317195b8b1f", "staging-bot", 0.27),
+    ("hash-key-local-dev-c2886fd87f99b135e41dd879b467954e", "local-dev", 0.15),
+    ("hash-key-notebook-036f24a2ac987e55dadfa77400ce2546", "notebook-scratch", 0.08),
+]
+
+
+def _inject_mock_keys(day: dict) -> None:
+    """Rewrite a day's ``breakdown.api_keys`` into the 4 weighted mock keys IN PLACE.
+
+    Uses the single template key's (already scaled) metrics as the day key-total and
+    splits requests + spend by ``_MOCK_KEY_SPLIT`` weights. DEV-ONLY visual signal;
+    stats.py reads only ``api_requests`` + ``spend`` per key.
+    """
+    bk = day.get("breakdown") or {}
+    ak = bk.get("api_keys") or {}
+    base = next(iter(ak.values()), {}) if isinstance(ak, dict) else {}
+    m = base.get("metrics") or {}
+    total_req = int(m.get("api_requests", 0) or 0)
+    total_spend = float(m.get("spend", 0.0) or 0.0)
+    bk["api_keys"] = {
+        kh: {
+            "metrics": {
+                "api_requests": max(0, round(total_req * w)),
+                "spend": total_spend * w,
+            },
+            "metadata": {"key_alias": alias},
+        }
+        for kh, alias, w in _MOCK_KEY_SPLIT
+    }
+    day["breakdown"] = bk
+
+
 def _expand_days(fixture: dict, start_date: str | None, end_date: str | None) -> dict:
     """Replicate the fixture's single template day across [start_date, end_date].
 
@@ -365,6 +403,7 @@ def _expand_days(fixture: dict, start_date: str | None, end_date: str | None) ->
         day = copy.deepcopy(template)
         day["date"] = (sd + timedelta(days=i)).isoformat()
         _scale_metrics(day, f)
+        _inject_mock_keys(day)
         results.append(day)
         m = day.get("metrics") or {}
         # DEV-ONLY synthetic signals so the Stats "failed requests" + "cached
@@ -373,6 +412,14 @@ def _expand_days(fixture: dict, start_date: str | None, end_date: str | None) ->
         # day["metrics"]) also feeds the per-day series, and the sums below roll up
         # into metadata.total_*.
         reqs = int(m.get("api_requests", 0) or 0)
+        # DEV-ONLY: the LOCKED prior fixture has 0 tokens (model-less failed reqs),
+        # so the tokens (and avg-cost) delta would be null → no "vs prev" chip on
+        # the Tokens KPI. Synthesize a token volume from the request count for any
+        # zero-token day so every KPI card shows a delta on localhost.
+        if int(m.get("total_tokens", 0) or 0) == 0 and reqs > 0:
+            m["prompt_tokens"] = reqs * 550
+            m["completion_tokens"] = reqs * 350
+            m["total_tokens"] = m["prompt_tokens"] + m["completion_tokens"]
         prompt = int(m.get("prompt_tokens", 0) or 0)
         m["failed_requests"] = max(0, round(reqs * 0.06))  # ~6% failed
         m["successful_requests"] = max(0, reqs - m["failed_requests"])

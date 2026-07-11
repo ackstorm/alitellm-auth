@@ -34,11 +34,12 @@ import type {
   SessionSpend,
   Team,
 } from '@/lib/api-types';
-import { budgetFillClass } from '@/lib/budget';
+import { BudgetMeter } from '@/components/ui/budget-meter';
 import { abbreviate, formatCurrency, formatInt } from '@/lib/format';
 import { budgetPctLabel, isMonthlyDuration, projectMonthEnd } from '@/lib/spend-projection';
 import { isRevoked, selectKeyRows } from '@/lib/keys';
 import { presetToRange } from '@/lib/stats-presets';
+import { teamColorVar } from '@/lib/team-color';
 import { cn } from '@/lib/utils';
 import { useCreateKeyModalStore } from '@/stores/create-key-modal';
 
@@ -84,23 +85,68 @@ function EndpointChip({ endpoint }: { endpoint: string }) {
   );
 }
 
+// ── Sparkline ────────────────────────────────────────────────────────────────
+// A tiny inline-SVG area+line trend for the flow-metric tiles (requests, spend).
+// Deliberately NOT Recharts — a 96×32 area chart is ~15 lines of SVG and mounting
+// a chart lib per card is wasteful. Theme-token colored (stroke/fill primary), so
+// it follows dark/light/pastel/red. Returns null for <2 points or an all-flat
+// series (nothing to show). Purely decorative → aria-hidden.
+function Sparkline({ data, className }: { data: number[]; className?: string }) {
+  if (data.length < 2) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min;
+  if (range === 0) return null; // flat line carries no signal
+  const W = 96;
+  const H = 32;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * W;
+    // 2px top/bottom inset so the peak/trough strokes aren't clipped.
+    const y = H - 2 - ((v - min) / range) * (H - 4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const line = pts.join(' ');
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      className={className}
+      aria-hidden="true"
+    >
+      <polygon points={`0,${H} ${line} ${W},${H}`} className="fill-primary/10" />
+      <polyline
+        points={line}
+        className="fill-none stroke-primary"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
 // ── MetricTile ───────────────────────────────────────────────────────────────
-// One of the four numeric/text tiles (DASH-06): a small lucide accent icon +
-// 11px caption label + 24px heading value. Value-only — no sparkline/chart.
+// One of the four numeric/text tiles (DASH-06): a tinted lucide accent-chip +
+// 11px caption label + 24px heading value. Flow metrics (requests/spend) also
+// pass `spark` — a per-day series rendered as a right-aligned sparkline that
+// fills the card's wide horizontal dead space (all four tiles stay equal height).
 function MetricTile({
   label,
   value,
   icon: Icon,
+  spark,
 }: {
   label: string;
   value: ReactNode;
   icon: typeof Key;
+  spark?: number[];
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
+    <div className="flex flex-col gap-1.5 overflow-hidden rounded-xl border border-border bg-surface p-4">
       <div className="flex items-center gap-2">
-        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg border border-border">
-          <Icon className="size-[15px] text-primary" aria-hidden="true" />
+        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="size-[15px]" aria-hidden="true" />
         </span>
         <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
           {label}
@@ -109,6 +155,13 @@ function MetricTile({
       <div className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
         {value}
       </div>
+      {spark && spark.length > 1 ? (
+        // Full-width trend band bled to the card's bottom+side edges (offsets the
+        // p-4); `overflow-hidden` on the card clips it to the rounded corners.
+        <div className="-mx-4 -mb-4 mt-2 h-8">
+          <Sparkline data={spark} className="h-full w-full" />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -120,10 +173,10 @@ function MetricTile({
 // the single 24px value look of the other tiles (falling back to me.team_id).
 function TeamTile({ teams, fallback }: { teams: Team[]; fallback: string }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
+    <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-4">
       <div className="flex items-center gap-2">
-        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg border border-border">
-          <Users className="size-[15px] text-primary" aria-hidden="true" />
+        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Users className="size-[15px]" aria-hidden="true" />
         </span>
         <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
           Teams
@@ -131,12 +184,17 @@ function TeamTile({ teams, fallback }: { teams: Team[]; fallback: string }) {
       </div>
       {teams.length > 1 ? (
         <div className="flex flex-wrap gap-1.5">
-          {teams.map((t) => (
+          {teams.map((t, i) => (
             <span
               key={t.id}
               data-slot="team-pill"
-              className="inline-flex items-center rounded-md border border-border bg-surface-elevated px-2 py-0.5 font-sans text-xs font-medium text-text-secondary"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-elevated px-2 py-0.5 font-sans text-xs font-medium text-text-secondary"
             >
+              <span
+                className="size-2 shrink-0 rounded-full"
+                style={{ background: teamColorVar(i) }}
+                aria-hidden="true"
+              />
               {t.alias}
             </span>
           ))}
@@ -171,7 +229,7 @@ function BudgetBar({
 
   if (maxBudget === null || maxBudget <= 0) {
     return (
-      <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4">
         <div className="flex items-baseline justify-between gap-3">
           <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
             Account budget
@@ -180,18 +238,15 @@ function BudgetBar({
             {formatCurrency(current)} · no budget set
           </span>
         </div>
-        <div className="flex h-2 overflow-hidden rounded-full border border-border bg-background">
+        <div className="flex h-3 overflow-hidden rounded-full border border-border bg-background">
           <div className="h-full bg-border" style={{ width: '0%' }} />
         </div>
       </div>
     );
   }
 
-  const ratio = current / maxBudget;
-  const fillPct = Math.max(0, Math.min(1, ratio)) * 100;
-
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4">
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
           Account budget
@@ -212,13 +267,11 @@ function BudgetBar({
           ) : null}
         </span>
       </div>
-      <div className="flex h-2 overflow-hidden rounded-full border border-border bg-background">
-        <div
-          data-slot="budget-fill"
-          className={`h-full ${budgetFillClass(ratio)}`}
-          style={{ width: `${fillPct}%` }}
-        />
-      </div>
+      <BudgetMeter
+        current={current}
+        maxBudget={maxBudget}
+        duration={limits?.budget_duration}
+      />
     </div>
   );
 }
@@ -261,6 +314,13 @@ export function Dashboard({ me }: DashboardProps) {
   // Spend MTD uses the documented me.spend.current fallback from dashboard.js;
   // the stats-window total replaces it in Phase 4.
   const spendValue = formatCurrency(me.spend.current);
+  // Per-day sparkline series for the flow tiles — free, drawn from the SAME
+  // MTD stats query the Requests tile already reads (no extra fetch). Empty
+  // while the query is pending/errored; Sparkline no-ops on <2 pts / flat.
+  const series =
+    stats.isSuccess && stats.data?.series ? stats.data.series : [];
+  const requestsSpark = useMemo(() => series.map((p) => p.requests), [series]);
+  const spendSpark = useMemo(() => series.map((p) => p.spend), [series]);
   // Team tile lists ALL the user's member teams (read-only — no active-team
   // switching). Falls back to the single me.team_id, then EM_DASH, when the
   // teams query is empty/unavailable.
@@ -278,9 +338,19 @@ export function Dashboard({ me }: DashboardProps) {
       {/* DASH-06: four-tile metric header */}
       <div className="grid grid-cols-4 gap-3 max-[880px]:grid-cols-2 max-[520px]:grid-cols-1">
         <MetricTile label="Active keys" value={activeKeys} icon={Key} />
-        <MetricTile label="Requests (MTD)" value={requestsValue} icon={BarChart3} />
-        <MetricTile label="Spend (MTD)" value={spendValue} icon={DollarSign} />
         <TeamTile teams={teams ?? []} fallback={me.team_id || EM_DASH} />
+        <MetricTile
+          label="Requests (MTD)"
+          value={requestsValue}
+          icon={BarChart3}
+          spark={requestsSpark}
+        />
+        <MetricTile
+          label="Spend (MTD)"
+          value={spendValue}
+          icon={DollarSign}
+          spark={spendSpark}
+        />
       </div>
 
       {/* DASH-06: account budget bar */}
