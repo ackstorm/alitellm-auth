@@ -143,8 +143,16 @@ function MetricTile({
   spark?: number[];
 }) {
   return (
-    <div className="flex flex-col gap-1.5 overflow-hidden rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-center gap-2">
+    <div className="relative flex flex-col gap-1 overflow-hidden rounded-xl border border-border bg-surface p-3">
+      {spark && spark.length > 1 ? (
+        // Full-bleed trend anchored to the card's bottom, sitting BEHIND the
+        // label+value (content carries `relative` to stack above it). Softened so
+        // the text stays legible; `overflow-hidden` clips it to the rounded card.
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 opacity-25" aria-hidden="true">
+          <Sparkline data={spark} className="h-full w-full" />
+        </div>
+      ) : null}
+      <div className="relative flex items-center gap-2">
         <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Icon className="size-[15px]" aria-hidden="true" />
         </span>
@@ -152,16 +160,9 @@ function MetricTile({
           {label}
         </div>
       </div>
-      <div className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
+      <div className="relative break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
         {value}
       </div>
-      {spark && spark.length > 1 ? (
-        // Full-width trend band bled to the card's bottom+side edges (offsets the
-        // p-4); `overflow-hidden` on the card clips it to the rounded corners.
-        <div className="-mx-4 -mb-4 mt-2 h-8">
-          <Sparkline data={spark} className="h-full w-full" />
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -173,7 +174,7 @@ function MetricTile({
 // the single 24px value look of the other tiles (falling back to me.team_id).
 function TeamTile({ teams, fallback }: { teams: Team[]; fallback: string }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-4">
+    <div className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3">
       <div className="flex items-center gap-2">
         <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Users className="size-[15px]" aria-hidden="true" />
