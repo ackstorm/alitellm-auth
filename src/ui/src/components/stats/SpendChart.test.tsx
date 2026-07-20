@@ -31,9 +31,9 @@ vi.mock('recharts', async (importOriginal) => {
 import { SpendChart } from './SpendChart';
 
 const SERIES: StatsSeriesPoint[] = [
-  { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234, failed: 2 },
-  { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678, failed: 0 },
-  { date: '2026-03-03', spend: 0, requests: 0, tokens: 0, failed: 0 },
+  { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234, input_tokens: 1000, output_tokens: 234, failed: 2 },
+  { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678, input_tokens: 4000, output_tokens: 1678, failed: 0 },
+  { date: '2026-03-03', spend: 0, requests: 0, tokens: 0, input_tokens: 0, output_tokens: 0, failed: 0 },
 ];
 
 describe('SpendChart', () => {

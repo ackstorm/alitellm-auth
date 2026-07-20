@@ -22,6 +22,8 @@ export interface SpendRequestsPoint {
   spend: number;
   requests: number;
   tokens: number;
+  inputTokens: number;
+  outputTokens: number;
   failed: number;
   success: number;
 }
@@ -72,6 +74,8 @@ export function seriesToRecharts(
       spend: asNumber(point.spend),
       requests,
       tokens: asNumber(point.tokens),
+      inputTokens: asNumber(point.input_tokens),
+      outputTokens: asNumber(point.output_tokens),
       failed,
       // Stacked-bar split: success + failed always re-sums to requests.
       success: Math.max(0, requests - failed),

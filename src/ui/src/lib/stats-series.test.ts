@@ -17,17 +17,17 @@ import type { StatsSeriesPoint } from './api-types';
 // charts.test.js). Typed as StatsSeriesPoint[] so the literals satisfy the
 // contract (date string, spend/requests number) with no casts.
 const SERIES: StatsSeriesPoint[] = [
-  { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234, failed: 2 },
-  { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678, failed: 0 },
-  { date: '2026-03-03', spend: 0, requests: 0, tokens: 0, failed: 0 },
+  { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234, input_tokens: 1000, output_tokens: 234, failed: 2 },
+  { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678, input_tokens: 4000, output_tokens: 1678, failed: 0 },
+  { date: '2026-03-03', spend: 0, requests: 0, tokens: 0, input_tokens: 0, output_tokens: 0, failed: 0 },
 ];
 
 describe('seriesToRecharts — row-object mapping', () => {
   it('maps to row objects aligned and IN ORDER', () => {
     expect(seriesToRecharts(SERIES)).toEqual([
-      { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234, failed: 2, success: 8 },
-      { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678, failed: 0, success: 20 },
-      { date: '2026-03-03', spend: 0, requests: 0, tokens: 0, failed: 0, success: 0 },
+      { date: '2026-03-01', spend: 1.5, requests: 10, tokens: 1234, inputTokens: 1000, outputTokens: 234, failed: 2, success: 8 },
+      { date: '2026-03-02', spend: 2.25, requests: 20, tokens: 5678, inputTokens: 4000, outputTokens: 1678, failed: 0, success: 20 },
+      { date: '2026-03-03', spend: 0, requests: 0, tokens: 0, inputTokens: 0, outputTokens: 0, failed: 0, success: 0 },
     ]);
   });
 
@@ -40,7 +40,7 @@ describe('seriesToRecharts — row-object mapping', () => {
 
   it('clamps failed to requests and derives success = requests - failed', () => {
     const rows = seriesToRecharts([
-      { date: '2026-03-04', spend: 0, requests: 5, tokens: 0, failed: 99 },
+      { date: '2026-03-04', spend: 0, requests: 5, tokens: 0, input_tokens: 0, output_tokens: 0, failed: 99 },
     ]);
     expect(rows[0].failed).toBe(5); // clamped to requests
     expect(rows[0].success).toBe(0); // never negative
@@ -69,8 +69,8 @@ describe('seriesHasActivity', () => {
     // The server zero-fills an empty range — non-empty but all-zero requests.
     expect(
       seriesHasActivity([
-        { date: '2026-03-01', spend: 0, requests: 0, tokens: 0, failed: 0 },
-        { date: '2026-03-02', spend: 0, requests: 0, tokens: 0, failed: 0 },
+        { date: '2026-03-01', spend: 0, requests: 0, tokens: 0, input_tokens: 0, output_tokens: 0, failed: 0 },
+        { date: '2026-03-02', spend: 0, requests: 0, tokens: 0, input_tokens: 0, output_tokens: 0, failed: 0 },
       ]),
     ).toBe(false);
   });
@@ -78,8 +78,8 @@ describe('seriesHasActivity', () => {
   it('is true when any day has requests', () => {
     expect(
       seriesHasActivity([
-        { date: '2026-03-01', spend: 0, requests: 0, tokens: 0, failed: 0 },
-        { date: '2026-03-02', spend: 0, requests: 3, tokens: 0, failed: 0 },
+        { date: '2026-03-01', spend: 0, requests: 0, tokens: 0, input_tokens: 0, output_tokens: 0, failed: 0 },
+        { date: '2026-03-02', spend: 0, requests: 3, tokens: 0, input_tokens: 0, output_tokens: 0, failed: 0 },
       ]),
     ).toBe(true);
   });
@@ -88,7 +88,7 @@ describe('seriesHasActivity', () => {
 describe('seriesToRecharts — purity', () => {
   it('does not mutate the input series', () => {
     const input: StatsSeriesPoint[] = [
-      { date: '2026-03-01', spend: 1, requests: 2, tokens: 3, failed: 1 },
+      { date: '2026-03-01', spend: 1, requests: 2, tokens: 3, input_tokens: 2, output_tokens: 1, failed: 1 },
     ];
     const snapshot = JSON.stringify(input);
     seriesToRecharts(input);

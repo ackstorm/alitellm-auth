@@ -15,7 +15,7 @@ Contract shape produced by ``build_stats_contract`` (RESEARCH §4):
                   cache_read_tokens, cache_hit_pct, avg_cost_per_1m_tokens,
                   deltas:{requests_pct, tokens_pct, spend_pct,
                           avg_cost_per_1m_tokens_pct}},
-      "series":  [{date, spend, requests, tokens, failed}, ...],
+      "series":  [{date, spend, requests, tokens, input_tokens, output_tokens, failed}, ...],
       "models":  [{model, requests, input_tokens, output_tokens, total_tokens,
                    spend, spend_pct, last_used}, ...],
       "keys":    [{id, key_alias, requests, spend, spend_pct}, ...],  # spend desc
@@ -130,7 +130,16 @@ def _zero_fill_series(
     while d <= end:
         key = d.isoformat()
         filled.append(
-            by_day.get(key) or {"date": key, "spend": 0.0, "requests": 0, "tokens": 0, "failed": 0}
+            by_day.get(key)
+            or {
+                "date": key,
+                "spend": 0.0,
+                "requests": 0,
+                "tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "failed": 0,
+            }
         )
         d += timedelta(days=1)
     return filled
@@ -143,6 +152,8 @@ def _day_series_entry(day: dict[str, Any]) -> dict[str, Any]:
         "spend": _num(m.get("spend")),
         "requests": int(_num(m.get("api_requests"))),
         "tokens": int(_num(m.get("total_tokens"))),
+        "input_tokens": int(_num(m.get("prompt_tokens"))),
+        "output_tokens": int(_num(m.get("completion_tokens"))),
         "failed": int(_num(m.get("failed_requests"))),
     }
 

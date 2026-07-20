@@ -208,6 +208,10 @@ export interface StatsSeriesPoint {
   requests: number;
   /** Per-day total tokens (prompt + completion). */
   tokens: number;
+  /** Per-day input (prompt) tokens. */
+  input_tokens: number;
+  /** Per-day output (completion) tokens. */
+  output_tokens: number;
   /** Per-day failed requests (metrics.failed_requests). */
   failed: number;
 }

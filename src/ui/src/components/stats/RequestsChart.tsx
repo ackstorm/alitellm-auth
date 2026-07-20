@@ -155,7 +155,17 @@ export function RequestsChart({
           />
         )}
         {metric === 'tokens' && (
-          <Bar key="tokens" dataKey="tokens" fill={SERIES_COLOR} radius={[3, 3, 0, 0]} />
+          <Bar key="in" name="input" dataKey="inputTokens" stackId="tok" fill={SERIES_COLOR} />
+        )}
+        {metric === 'tokens' && (
+          <Bar
+            key="out"
+            name="output"
+            dataKey="outputTokens"
+            stackId="tok"
+            fill="var(--cat-2)"
+            radius={[3, 3, 0, 0]}
+          />
         )}
         {metric === 'failed' && (
           <Bar key="failed-only" dataKey="failed" fill="var(--destructive)" radius={[3, 3, 0, 0]} />
