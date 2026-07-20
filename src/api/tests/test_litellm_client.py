@@ -56,9 +56,6 @@ async def test_generate_litellm_key_success():
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": team_id})
     )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
-    )
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
     )
@@ -147,9 +144,6 @@ async def test_generate_litellm_key_uses_opaque_alias():
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "team-platform"})
     )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "g"})
-    )
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
     )
@@ -193,9 +187,6 @@ async def test_generate_litellm_key_is_not_route_restricted_by_default():
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "team-platform"})
     )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
-    )
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
     )
@@ -220,9 +211,6 @@ async def test_generate_litellm_key_team_id_is_shared():
 
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "team-platform"})
-    )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
     )
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
@@ -256,9 +244,6 @@ async def test_generate_litellm_key_handles_existing_team_409():
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(409, json={"error": "team already exists"})
     )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
-    )
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
     )
@@ -279,9 +264,6 @@ async def test_generate_litellm_key_handles_existing_team_capitalized_400():
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(400, json={"error": {"message": "Team Already Exists"}})
     )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
-    )
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
     )
@@ -300,9 +282,6 @@ async def test_generate_litellm_key_raises_on_key_error():
 
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "team-platform"})
-    )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
     )
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
@@ -516,9 +495,6 @@ async def test_generate_litellm_key_scopes_key_to_user():
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": team_id})
     )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
-    )
     user_route = respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
     )
@@ -545,9 +521,6 @@ async def test_generate_key_uses_explicit_team_id():
 
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "run"})
-    )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
     )
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
@@ -655,9 +628,6 @@ async def test_budget_rewiring():
         respx.post("http://litellm.test/team/new").mock(
             return_value=httpx.Response(200, json={"team_id": "team-platform"})
         )
-        respx.post("http://litellm.test/v1/access_group").mock(
-            return_value=httpx.Response(200, json={"access_group_id": "group-1"})
-        )
         user_route = respx.post("http://litellm.test/user/new").mock(
             return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
         )
@@ -707,9 +677,6 @@ async def test_generate_key_duration():
         def _setup_mocks():
             respx.post("http://litellm.test/team/new").mock(
                 return_value=httpx.Response(200, json={"team_id": "team-platform"})
-            )
-            respx.post("http://litellm.test/v1/access_group").mock(
-                return_value=httpx.Response(200, json={"access_group_id": "group-1"})
             )
             respx.post("http://litellm.test/user/new").mock(
                 return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
@@ -764,9 +731,6 @@ async def test_generate_key_alias():
         def _setup_mocks():
             respx.post("http://litellm.test/team/new").mock(
                 return_value=httpx.Response(200, json={"team_id": "team-platform"})
-            )
-            respx.post("http://litellm.test/v1/access_group").mock(
-                return_value=httpx.Response(200, json={"access_group_id": "group-1"})
             )
             respx.post("http://litellm.test/user/new").mock(
                 return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
@@ -845,9 +809,6 @@ async def test_lazy_backfill():
         # Team + access group setup
         respx.post("http://litellm.test/team/new").mock(
             return_value=httpx.Response(200, json={"team_id": "team-platform"})
-        )
-        respx.post("http://litellm.test/v1/access_group").mock(
-            return_value=httpx.Response(200, json={"access_group_id": "group-1"})
         )
         # User already exists
         respx.post("http://litellm.test/user/new").mock(
@@ -1079,9 +1040,6 @@ async def test_ensure_team_member_budget_wired_into_ensure_team_and_user():
         respx.post("http://litellm.test/team/new").mock(
             return_value=httpx.Response(200, json={"team_id": "team-platform"})
         )
-        respx.post("http://litellm.test/v1/access_group").mock(
-            return_value=httpx.Response(200, json={"access_group_id": "group-1"})
-        )
         respx.post("http://litellm.test/user/new").mock(
             return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
         )
@@ -1120,9 +1078,6 @@ async def test_step_a3_skipped_when_user_exists():
 
         respx.post("http://litellm.test/team/new").mock(
             return_value=httpx.Response(200, json={"team_id": "team-platform"})
-        )
-        respx.post("http://litellm.test/v1/access_group").mock(
-            return_value=httpx.Response(200, json={"access_group_id": "group-1"})
         )
         # user already exists -> existed=True
         respx.post("http://litellm.test/user/new").mock(
@@ -1789,9 +1744,6 @@ async def test_generate_litellm_key_loads_factory_config_once(monkeypatch):
 
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": team_id})
-    )
-    respx.post("http://litellm.test/v1/access_group").mock(
-        return_value=httpx.Response(200, json={"access_group_id": "group-123"})
     )
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})

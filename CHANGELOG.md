@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Fixed
+
+- **Minted keys no longer join a per-client LiteLLM access group.** Key generation used to create/attach an access group named after `OAUTH_CLIENT_ID` (a DEX-auth concern only) and set it on every key's `access_group_ids`. Because the key-level access group is an **additive** grant that bypasses the team ceiling, this silently granted every user whatever MCP servers / models happened to be attached to the equally-named group — e.g. an ACH `Environment` sharing the client id `platform` leaked its GitLab/Slack/Zoho servers to all users. Keys now carry **only their team**; resources are scoped exclusively via team membership (`team.models`, `team.object_permission`, ACH `authorizedTeams`). Removed `_ensure_access_group` and both call sites. **Backfill**: pre-existing keys still carry the stale `access_group_ids` and must be cleared out-of-band (kubectl / LiteLLM API).
+
 ## [0.5.31] - 2026-07-11
 
 ### Added

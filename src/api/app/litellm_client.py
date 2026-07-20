@@ -134,22 +134,6 @@ def _already_exists(resp) -> bool:
     )
 
 
-async def _ensure_access_group(client: httpx.AsyncClient, headers: dict, name: str) -> str | None:
-    """Create the named access group if it doesn't exist; return its ID (or None on failure)."""
-    resp = await client.post("/v1/access_group", headers=headers, json={"access_group_name": name})
-    if resp.is_success:
-        return resp.json().get("access_group_id")
-    already_exists = _already_exists(resp)
-    if already_exists:
-        list_resp = await client.get("/v1/access_group", headers=headers)
-        if list_resp.is_success:
-            for group in list_resp.json():
-                if group.get("access_group_name") == name:
-                    return group.get("access_group_id")
-    logger.warning("Could not ensure access group %r: %s", name, resp.text)
-    return None
-
-
 def _admin_headers(settings: Settings) -> dict:
     """Build LiteLLM admin authorization headers."""
     return {
@@ -264,9 +248,9 @@ async def ensure_team_and_user(
     factory: dict | None = None,
     team_id: str | None = None,
 ) -> str:
-    """Idempotently ensure the shared team, access group, and LiteLLM user exist.
+    """Idempotently ensure the shared team and LiteLLM user exist.
 
-    Performs Steps A (team), B (access group), A2 (user), and A3 (member budget)
+    Performs Steps A (team), A2 (user), and A3 (member budget)
     in that order. This is a shared prerequisite for both key minting
     (generate_litellm_key) and the eager /ui login path (D-13). Returns the team_id.
 
@@ -308,9 +292,6 @@ async def ensure_team_and_user(
         team_exists = _already_exists(team_resp)
         if team_resp.status_code != 200 and not team_exists:
             _raise_litellm(team_resp, "/team/new")
-
-        # Step B: Ensure shared access group exists (same name as team/client_id).
-        await _ensure_access_group(client, headers, settings.oauth_client_id)
 
         # Step A2: Ensure user exists with D-15 factory user budget block.
         user_result = await ensure_litellm_user(
@@ -408,16 +389,13 @@ async def generate_litellm_key(
     # A security-conscious deployment can re-restrict via factory `key.allowed_routes`.
     factory_key_extra = {k: v for k, v in factory.get("key", {}).items() if k != "metadata"}
 
-    # Steps A, B, A2: ensure team → access group → user (shared prerequisite, D-13).
+    # Steps A, A2: ensure team → user (shared prerequisite, D-13).
     # Reuse the factory dict loaded above so the disk read happens once per mint (#11).
     team_id = await ensure_team_and_user(
         email, settings, name=name, factory=factory, team_id=team_id
     )
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
-        # Re-resolve access_group_id for the key payload (needed for access_group_ids field).
-        access_group_id = await _ensure_access_group(client, headers, settings.oauth_client_id)
-
         # Step C: Generate virtual key scoped to the shared team, with full model access.
         # D-15: keys carry NO budget fields (budget is at the user level).
         # D-10: caller-supplied alias wins; default is readable AND second-unique
@@ -440,7 +418,6 @@ async def generate_litellm_key(
             **factory_key_extra,
             "team_id": team_id,  # validated team choice, else default
             "user_id": email,  # scope key to LiteLLM user (USER-02)
-            "access_group_ids": [access_group_id] if access_group_id else [],
             "key_alias": key_alias,  # opaque lk-{random} (globally unique)
             "metadata": {
                 "email": email,
