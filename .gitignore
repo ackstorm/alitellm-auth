@@ -23,6 +23,11 @@ src/api/coverage.xml
 # git worktrees (superpowers)
 .worktrees/
 
+# dev screenshots / browser-automation artifacts
+/*.png
+.playwright-mcp/
+src/api/uv.lock
+
 # BEGIN ach-cli — agent config with embedded credentials, do not commit
 .ach/
 .agents/
