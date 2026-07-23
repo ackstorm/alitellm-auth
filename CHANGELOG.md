@@ -2,6 +2,17 @@
 
 ## [unreleased]
 
+## [0.5.33] - 2026-07-23
+
+### Added
+
+- **Foreign keys are shown but management-locked.** Keys not minted by this service (`metadata.source != "token-factory"`, e.g. `ekid_`/`pkid_`) now appear in the console but cannot be deleted, made default, or moved between teams (the backend returns `409`); only disable/enable is allowed. Each key carries a `managed` flag and the UI hides the locked actions.
+- **Internal teams are masked.** A key sitting in a team the user does not belong to (e.g. internal `ach-*` teams) shows its team as `(internal)`; the real team id/alias is masked server-side in `/api/session/keys` and never reaches the browser (degrades to the raw id only on a teams-fetch failure).
+
+### Changed
+
+- **STATS layout.** TOP API KEYS and LATENCY each get a full-width row (the usage-by-model and request-outcome donuts pair in one row above them) so long model/key names have room. The Keys table Key ID column is width-capped so long foreign aliases truncate instead of forcing horizontal scroll. The USAGE BREAKDOWN `CACHED IN` column header is renamed to `CACHED`.
+
 ## [0.5.32] - 2026-07-20
 
 ### Fixed
