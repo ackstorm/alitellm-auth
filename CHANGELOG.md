@@ -2,6 +2,12 @@
 
 ## [unreleased]
 
+## [0.5.34] - 2026-07-23
+
+### Changed
+
+- **STATS — panel summary rows span the full widget width.** Reverted the v0.5.33 full-width row reflow (LATENCY and TOP API KEYS are back in their side-by-side pairings). Instead, inside each widget the headline stat row (THROUGHPUT/LATENCY/ERROR RATE/TTFT and ACTIVE KEYS/REQUESTS/SPEND) now uses `flex justify-between` instead of an equal-column grid, so it stretches edge-to-edge instead of stopping at ~80% with a trailing empty column.
+
 ## [0.5.33] - 2026-07-23
 
 ### Added
