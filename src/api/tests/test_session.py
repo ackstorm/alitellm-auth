@@ -312,6 +312,26 @@ def test_list_keys_strips_metadata_but_keeps_is_default(client):
     assert body["is_default"] is True
 
 
+def test_list_keys_masks_internal_teams(client):
+    """A key in a team the user does NOT belong to → team_id masked to "(internal)";
+    a key in a member team is left untouched (no internal-team name leak)."""
+    keys = [
+        {"id": "k1", "token": "t1", "key_alias": "a", "team_id": "default", "metadata": {}},
+        {"id": "k2", "token": "t2", "key_alias": "b", "team_id": "ach-env-zohodesk", "metadata": {}},
+    ]
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.list_user_teams", new_callable=AsyncMock) as mock_teams,
+    ):
+        mock_list.return_value = keys
+        mock_teams.return_value = [{"id": "default", "alias": "default"}]
+        response = client.get("/api/session/keys", cookies=_authed_cookie())
+    assert response.status_code == 200
+    rows = {r["id"]: r["team_id"] for r in response.json()["keys"]}
+    assert rows["k1"] == "default"
+    assert rows["k2"] == "(internal)", "internal team id must not reach the browser"
+
+
 def test_keys_fallback(client):
     """GET /keys still returns correctly when list_session_keys triggers fallback."""
     fallback_keys = [
@@ -548,7 +568,9 @@ def test_delete_own_key(client):
     hashed "token" (the delete id) and NO plaintext "key" (the proxy /key/list never
     returns sk-). The handler must resolve the token to call /key/delete.
     """
-    owned_keys = [{"id": "my-key-id", "token": "ltoken-myhash", "key_alias": "my-alias"}]
+    owned_keys = [
+        {"id": "my-key-id", "token": "ltoken-myhash", "key_alias": "my-alias", "managed": True}
+    ]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.delete_litellm_key", new_callable=AsyncMock) as mock_delete,
@@ -576,7 +598,9 @@ def test_delete_foreign_key_403(client):
 
     The response body and status MUST be identical for both foreign and nonexistent ids.
     """
-    owned_keys = [{"id": "my-key-id", "token": "ltoken-myhash", "key_alias": "my-alias"}]
+    owned_keys = [
+        {"id": "my-key-id", "token": "ltoken-myhash", "key_alias": "my-alias", "managed": True}
+    ]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.delete_litellm_key", new_callable=AsyncMock),
@@ -616,6 +640,7 @@ def test_delete_default_key_blocked_409(client):
             "token": "tok-a",
             "key_alias": "a",
             "is_default": True,
+            "managed": True,
             "metadata": {"is_default": True},
         }
     ]
@@ -637,7 +662,14 @@ def test_delete_default_key_blocked_409(client):
 def test_delete_non_default_key_ok(client):
     """A non-default key still deletes normally (happy path unchanged)."""
     owned = [
-        {"id": "key-b", "token": "tok-b", "key_alias": "b", "is_default": False, "metadata": {}}
+        {
+            "id": "key-b",
+            "token": "tok-b",
+            "key_alias": "b",
+            "is_default": False,
+            "managed": True,
+            "metadata": {},
+        }
     ]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
@@ -673,6 +705,7 @@ def test_make_default_promotes_and_demotes(client):
             "token": "tok-b",
             "key_alias": "b",
             "is_default": False,
+            "managed": True,
             "metadata": {"email": "alice@example.com"},
         },
     ]
@@ -712,6 +745,7 @@ def test_make_default_demotes_before_promoting(client):
             "token": "tok-new",
             "key_alias": "new",
             "is_default": False,
+            "managed": True,
             "metadata": {"email": "alice@example.com"},
         },
     ]
@@ -739,7 +773,14 @@ def test_make_default_demotes_before_promoting(client):
 def test_make_default_foreign_key_403(client):
     """A foreign/unknown id → 403 and NO /key/update call (D-12, no existence leak)."""
     owned = [
-        {"id": "key-a", "token": "tok-a", "key_alias": "a", "is_default": False, "metadata": {}}
+        {
+            "id": "key-a",
+            "token": "tok-a",
+            "key_alias": "a",
+            "is_default": False,
+            "managed": True,
+            "metadata": {},
+        }
     ]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
@@ -770,7 +811,14 @@ def test_make_default_requires_origin(client):
 def test_make_default_502_on_litellm_error(client):
     """A /key/update failure → 502."""
     owned = [
-        {"id": "key-a", "token": "tok-a", "key_alias": "a", "is_default": False, "metadata": {}}
+        {
+            "id": "key-a",
+            "token": "tok-a",
+            "key_alias": "a",
+            "is_default": False,
+            "managed": True,
+            "metadata": {},
+        }
     ]
     err = httpx.HTTPStatusError(
         "boom",
@@ -873,6 +921,53 @@ def test_block_key_foreign_id_403(client):
     mock_block.assert_not_awaited()
 
 
+def test_foreign_unmanaged_key_locks_mutations_but_allows_block(client):
+    """A key not minted here (managed=False) is listed but locked: delete /
+    make-default / change-team → 409; only disable/enable (block) is allowed."""
+    foreign = [
+        {"id": "ekid_01", "token": "tok-x", "is_default": False, "managed": False, "metadata": {}}
+    ]
+    hdr = {"content-type": "application/json", "origin": "http://localhost:8080"}
+
+    with (
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+        patch("app.session.delete_litellm_key", new_callable=AsyncMock) as mock_delete,
+        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
+        patch("app.session.update_litellm_key_team", new_callable=AsyncMock) as mock_team,
+        patch("app.session.assert_team_membership", new_callable=AsyncMock),
+        patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
+    ):
+        mock_list.return_value = foreign
+
+        d = client.delete("/api/session/keys/ekid_01", headers=hdr, cookies=_authed_cookie())
+        assert d.status_code == 409
+        mock_delete.assert_not_awaited()
+
+        p = client.post(
+            "/api/session/keys/ekid_01/default", headers=hdr, cookies=_authed_cookie(), content="{}"
+        )
+        assert p.status_code == 409
+        mock_set.assert_not_awaited()
+
+        t = client.post(
+            "/api/session/keys/ekid_01/team",
+            headers=hdr,
+            cookies=_authed_cookie(),
+            json={"team_id": "default"},
+        )
+        assert t.status_code == 409
+        mock_team.assert_not_awaited()
+
+        b = client.post(
+            "/api/session/keys/ekid_01/block",
+            headers=hdr,
+            cookies=_authed_cookie(),
+            json={"blocked": True},
+        )
+        assert b.status_code == 200
+        mock_block.assert_awaited_once()
+
+
 def test_block_key_invalid_body_422(client):
     """A body missing `blocked` → 422."""
     owned = [{"id": "key-a", "token": "tok-a", "is_default": False, "metadata": {}}]
@@ -894,7 +989,7 @@ def test_block_key_invalid_body_422(client):
 
 def test_change_key_team_moves_owned_key(client):
     """An owned key + a team the user belongs to → /key/update with the hashed token."""
-    owned = [{"id": "id-1", "token": "hash-1", "is_default": False, "metadata": {}}]
+    owned = [{"id": "id-1", "token": "hash-1", "is_default": False, "managed": True, "metadata": {}}]
     with (
         patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,

@@ -150,8 +150,10 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
       // align-top (the cell is a two-line stack). The PUBLIC key id is shown
       // MASKED to a short prefix…last4 (maskKey) — the full 64-char hash would
       // force the table wider than the ~800px main column and scroll Status +
-      // the row action off the right edge under overflow-x-auto.
-      className: 'align-top',
+      // the row action off the right edge under overflow-x-auto. max-w caps the
+      // column so a long alias (e.g. foreign ekid_/pkid_ names) truncates instead
+      // of forcing the whole table to scroll horizontally.
+      className: 'align-top max-w-[220px]',
       cell: (row) => {
         const short = shortKeyId(row.id);
         // The primary line: the human alias when set, else the truncated id.
@@ -330,7 +332,14 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                 <MoreVertical className="size-[15px]" aria-hidden="true" />
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                {row.is_default ? (
+                {/* Foreign keys (managed === false, e.g. ekid_/pkid_) are locked:
+                    only Disable/Enable is offered. Set-default, change-team, and
+                    revoke are hidden — the backend also 409s them. */}
+                {row.managed === false ? (
+                  <DropdownMenuItem disabled data-slot="key-unmanaged">
+                    Managed externally
+                  </DropdownMenuItem>
+                ) : row.is_default ? (
                   <DropdownMenuItem disabled data-slot="key-is-default">
                     Default key
                   </DropdownMenuItem>
@@ -345,7 +354,7 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                 <DropdownMenuSeparator />
                 {/* Disable/Enable — reversible LiteLLM block. Any key may be
                     disabled, including the default (Chat then stays gated until
-                    re-enabled). */}
+                    re-enabled) and foreign keys. */}
                 <DropdownMenuItem
                   data-slot="key-toggle-block"
                   onSelect={() =>
@@ -354,9 +363,9 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                 >
                   {row.blocked ? 'Enable key' : 'Disable key'}
                 </DropdownMenuItem>
-                {/* Change team — only when the user belongs to >1 team; opens
-                    the dialog seeded with the row's current team. */}
-                {teams.length > 0 ? (
+                {/* Change team — only when the user belongs to >1 team AND the key
+                    is managed here; opens the dialog seeded with the row's team. */}
+                {teams.length > 0 && row.managed !== false ? (
                   <DropdownMenuItem
                     data-slot="key-change-team"
                     onSelect={() => {
@@ -367,18 +376,22 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                     Change team…
                   </DropdownMenuItem>
                 ) : null}
-                <DropdownMenuSeparator />
-                {/* Revoke — destructive, and disabled on the default key (Chat is
-                    gated on a default; make another key default first). */}
-                <DropdownMenuItem
-                  data-slot="key-delete"
-                  disabled={row.is_default}
-                  onSelect={() => onDelete(row)}
-                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                >
-                  <Trash2 aria-hidden="true" />
-                  {row.is_default ? 'Revoke (make another default first)' : 'Revoke key'}
-                </DropdownMenuItem>
+                {/* Revoke — destructive; disabled on the default key AND on foreign
+                    keys (this service does not own their provisioning). */}
+                {row.managed !== false ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      data-slot="key-delete"
+                      disabled={row.is_default}
+                      onSelect={() => onDelete(row)}
+                      className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    >
+                      <Trash2 aria-hidden="true" />
+                      {row.is_default ? 'Revoke (make another default first)' : 'Revoke key'}
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

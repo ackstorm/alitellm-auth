@@ -123,7 +123,7 @@ export function ModelTable({
     },
     {
       key: 'cached',
-      header: 'CACHED IN',
+      header: 'CACHED',
       headerClassName: 'text-right',
       className: 'font-mono text-xs text-right whitespace-nowrap',
       cell: (m) => (isMcpModelRow(m.model) ? EM_DASH : abbreviate(m.cache_read_tokens)),

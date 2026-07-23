@@ -486,6 +486,11 @@ def _project_session_key(k: dict, md: dict) -> dict:
         "blocked": bool(k.get("blocked")),
         # Explicit "default key" flag (metadata-backed). Absent/false => not default.
         "is_default": bool(md.get("is_default")),
+        # True only for keys THIS service minted (metadata.source == "token-factory").
+        # Foreign keys (e.g. ekid_/pkid_) are listed but locked: no delete, no
+        # make-default, no change-team — only disable/enable. Safe to expose (drives
+        # the UI's action gating); NOT in the session_list_keys strip set.
+        "managed": md.get("source") == "token-factory",
         # Raw metadata for SERVER-SIDE use only (Make-default read-modify-write).
         # The session router MUST strip this before returning to the browser
         # (it may hold factory user_meta_extra) — see session_list_keys strip set.
@@ -508,6 +513,7 @@ _EMPTY_SESSION_KEY = {
     "last_used": None,
     "blocked": False,
     "is_default": False,
+    "managed": False,
     "metadata": {},
 }
 
