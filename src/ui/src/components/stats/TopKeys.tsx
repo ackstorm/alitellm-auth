@@ -251,7 +251,7 @@ export function TopKeys({
     <Panel>
       {/* At-a-glance summary (active-key count · total requests · total spend) —
           mirrors the Latency panel's top summary. */}
-      <div data-slot="top-keys-summary" className="grid grid-cols-3 gap-3">
+      <div data-slot="top-keys-summary" className="flex flex-wrap justify-between gap-3">
         <StatTile label="ACTIVE KEYS" value={formatInt(active.length)} />
         <StatTile label="REQUESTS" value={formatInt(totalRequests)} />
         <StatTile label="SPEND" value={formatCurrency(totalSpend)} />
