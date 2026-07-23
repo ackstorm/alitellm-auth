@@ -2,7 +2,7 @@
 // Pure presentational: assert which of the three branches renders + key copy.
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import type { LatencyResponse } from '@/lib/api-types';
 import { LatencyPanel } from './LatencyPanel';
@@ -65,6 +65,33 @@ describe('LatencyPanel', () => {
     expect(screen.getByText('ERROR RATE')).toBeInTheDocument();
     expect(screen.getByText('7.1%')).toBeInTheDocument(); // 20 / 280
     expect(screen.getByText('TTFT')).toBeInTheDocument();
+  });
+
+  it('sorts the per-model table by a clicked column (Req desc default, toggles)', () => {
+    const data = makeLatency({
+      by_model: [
+        { model: 'a/low', requests: 10, failed: 0, p50_ms: 100, p95_ms: 200 },
+        { model: 'b/high', requests: 90, failed: 0, p50_ms: 500, p95_ms: 900 },
+      ],
+    });
+    render(<LatencyPanel data={data} isError={false} />);
+
+    const modelName = (li: HTMLElement) =>
+      within(li).getAllByText(/high|low/)[0].textContent;
+
+    // Default REQUESTS desc → high (90) before low (10).
+    let rows = screen.getAllByRole('listitem');
+    expect(rows.map(modelName)).toEqual(['high', 'low']);
+
+    // Clicking the active REQUESTS header toggles to asc → low before high.
+    fireEvent.click(screen.getByRole('button', { name: /req/i }));
+    rows = screen.getAllByRole('listitem');
+    expect(rows.map(modelName)).toEqual(['low', 'high']);
+
+    // Switching to a new column defaults to desc → MODEL desc puts 'b/high' first.
+    fireEvent.click(screen.getByRole('button', { name: /model/i }));
+    rows = screen.getAllByRole('listitem');
+    expect(rows.map(modelName)).toEqual(['high', 'low']);
   });
 
   it('formats sub-second latency as ms', () => {

@@ -14,8 +14,12 @@
 // Latency is SUPPLEMENTARY: it never throws the whole page. All figures are
 // null-guarded (D-08 null-vs-0) and render an em-dash when absent.
 
+import * as React from 'react';
+
+import { SortIndicator } from '@/components/ui/data-table';
 import type { LatencyByModel, LatencyResponse } from '@/lib/api-types';
 import { formatInt } from '@/lib/format';
+import { sortRows, type SortDir } from '@/lib/sort';
 import { StatTile } from './chart-common';
 
 const EM_DASH = '—';
@@ -70,14 +74,64 @@ const MODEL_GRID =
 const MODEL_HEAD_CELL =
   'font-mono text-[10px] font-semibold uppercase tracking-wider text-text-secondary';
 
-function ModelHeader() {
+// The sortable columns and how each maps to a comparable value (null sorts last).
+// `err` is the failure ratio; requests===0 → null so those rows sort last.
+type ModelSortKey = 'model' | 'requests' | 'latency' | 'p95' | 'err';
+const MODEL_SORT_ACCESSORS: Record<
+  ModelSortKey,
+  (m: LatencyByModel) => number | string | null
+> = {
+  model: (m) => m.model,
+  requests: (m) => m.requests,
+  latency: (m) => m.p50_ms,
+  p95: (m) => m.p95_ms,
+  err: (m) => (m.requests > 0 ? m.failed / m.requests : null),
+};
+
+// A clickable column header reusing the DataTable sort triangle so the LATENCY
+// table sorts identically to TOP API KEYS. Model left-aligned, figures right.
+function SortHeader({
+  label,
+  sortKey,
+  active,
+  dir,
+  onSort,
+  align = 'left',
+}: {
+  label: string;
+  sortKey: ModelSortKey;
+  active: boolean;
+  dir: SortDir;
+  onSort: (key: ModelSortKey) => void;
+  align?: 'left' | 'right';
+}) {
+  return (
+    <button
+      type="button"
+      data-slot="latency-sort"
+      onClick={() => onSort(sortKey)}
+      className={`flex w-full cursor-pointer items-center gap-1 ${MODEL_HEAD_CELL} transition-colors hover:text-text-primary ${align === 'right' ? 'justify-end' : 'justify-start'} ${active ? 'text-text-primary' : ''}`}
+    >
+      <span>{label}</span>
+      <SortIndicator active={active} dir={active ? dir : 'desc'} />
+    </button>
+  );
+}
+
+function ModelHeader({
+  sort,
+  onSort,
+}: {
+  sort: { key: ModelSortKey; dir: SortDir };
+  onSort: (key: ModelSortKey) => void;
+}) {
   return (
     <div className={`${MODEL_GRID} border-b border-border/60 pb-1`}>
-      <span className={MODEL_HEAD_CELL}>Model</span>
-      <span className={`${MODEL_HEAD_CELL} text-right`}>Req</span>
-      <span className={`${MODEL_HEAD_CELL} text-right`}>Lat</span>
-      <span className={`${MODEL_HEAD_CELL} text-right`}>p95</span>
-      <span className={`${MODEL_HEAD_CELL} text-right`}>Err</span>
+      <SortHeader label="Model" sortKey="model" active={sort.key === 'model'} dir={sort.dir} onSort={onSort} />
+      <SortHeader label="Req" sortKey="requests" active={sort.key === 'requests'} dir={sort.dir} onSort={onSort} align="right" />
+      <SortHeader label="Lat" sortKey="latency" active={sort.key === 'latency'} dir={sort.dir} onSort={onSort} align="right" />
+      <SortHeader label="p95" sortKey="p95" active={sort.key === 'p95'} dir={sort.dir} onSort={onSort} align="right" />
+      <SortHeader label="Err" sortKey="err" active={sort.key === 'err'} dir={sort.dir} onSort={onSort} align="right" />
     </div>
   );
 }
@@ -122,6 +176,18 @@ export function LatencyPanel({
   data,
   isError,
 }: LatencyPanelProps): React.ReactElement {
+  // Interactive column sort; default REQUESTS desc (the contract's incoming order).
+  const [sort, setSort] = React.useState<{ key: ModelSortKey; dir: SortDir }>({
+    key: 'requests',
+    dir: 'desc',
+  });
+  const onSort = (key: ModelSortKey) =>
+    setSort((cur) =>
+      cur.key === key
+        ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: 'desc' }
+    );
+
   if (isError || !data || !data.available) {
     return <StatePanel>{UNAVAILABLE_COPY}</StatePanel>;
   }
@@ -131,6 +197,7 @@ export function LatencyPanel({
 
   const l = data.latency;
   const err = errorRate(data.outcomes);
+  const models = sortRows(data.by_model, MODEL_SORT_ACCESSORS[sort.key], sort.dir);
   return (
     <div className="flex flex-col gap-4">
       {/* Headline: the at-a-glance figures — throughput, typical latency, error
@@ -161,11 +228,11 @@ export function LatencyPanel({
 
       {/* Per-model latency + error split (headed table, aligned columns). Extra
           top padding sets it apart from the headline summary (no divider line). */}
-      {data.by_model.length > 0 ? (
+      {models.length > 0 ? (
         <div className="flex flex-col pt-2">
-          <ModelHeader />
+          <ModelHeader sort={sort} onSort={onSort} />
           <ul className="flex flex-col divide-y divide-border/60">
-            {data.by_model.map((m) => (
+            {models.map((m) => (
               <ModelRow key={m.model} m={m} />
             ))}
           </ul>

@@ -232,7 +232,7 @@ export function Stats() {
           <Skeleton variant="card" />
         </div>
       ) : (
-        <KpiRow totals={totals} />
+        <KpiRow totals={totals} series={series} />
       )}
 
       {/* §7 Account budget — full-width band */}

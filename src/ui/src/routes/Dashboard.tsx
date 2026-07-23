@@ -18,11 +18,12 @@
 //   • T-10-16 (info disclosure, endpoint Copy): the Copy button writes only
 //     me.endpoint (a public base URL), on an explicit user click.
 
-import { useMemo, useState, type ReactNode } from 'react';
-import { BarChart3, DollarSign, Key, Users } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Key } from 'lucide-react';
 
 import { DeleteKeyModal } from '@/components/keys/DeleteKeyModal';
 import { KeysTable } from '@/components/keys/KeysTable';
+import { KpiRow } from '@/components/stats/KpiRow';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useKeys } from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
@@ -35,7 +36,7 @@ import type {
   Team,
 } from '@/lib/api-types';
 import { BudgetMeter } from '@/components/ui/budget-meter';
-import { abbreviate, formatCurrency, formatInt } from '@/lib/format';
+import { formatCurrency, formatInt } from '@/lib/format';
 import { budgetPctLabel, isMonthlyDuration, projectMonthEnd } from '@/lib/spend-projection';
 import { isRevoked, selectKeyRows } from '@/lib/keys';
 import { presetToRange } from '@/lib/stats-presets';
@@ -85,109 +86,55 @@ function EndpointChip({ endpoint }: { endpoint: string }) {
   );
 }
 
-// ── Sparkline ────────────────────────────────────────────────────────────────
-// A tiny inline-SVG area+line trend for the flow-metric tiles (requests, spend).
-// Deliberately NOT Recharts — a 96×32 area chart is ~15 lines of SVG and mounting
-// a chart lib per card is wasteful. Theme-token colored (stroke/fill primary), so
-// it follows dark/light/pastel/red. Returns null for <2 points or an all-flat
-// series (nothing to show). Purely decorative → aria-hidden.
-function Sparkline({ data, className }: { data: number[]; className?: string }) {
-  if (data.length < 2) return null;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min;
-  if (range === 0) return null; // flat line carries no signal
-  const W = 96;
-  const H = 32;
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * W;
-    // 2px top/bottom inset so the peak/trough strokes aren't clipped.
-    const y = H - 2 - ((v - min) / range) * (H - 4);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const line = pts.join(' ');
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-      className={className}
-      aria-hidden="true"
-    >
-      <polygon points={`0,${H} ${line} ${W},${H}`} className="fill-primary/10" />
-      <polyline
-        points={line}
-        className="fill-none stroke-primary"
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-}
-
-// ── MetricTile ───────────────────────────────────────────────────────────────
-// One of the four numeric/text tiles (DASH-06): a tinted lucide accent-chip +
-// 11px caption label + 24px heading value. Flow metrics (requests/spend) also
-// pass `spark` — a per-day series rendered as a right-aligned sparkline that
-// fills the card's wide horizontal dead space (all four tiles stay equal height).
-function MetricTile({
-  label,
-  value,
-  icon: Icon,
-  spark,
+// ── KeysTeamsTile ────────────────────────────────────────────────────────────
+// The 4th KPI-row cell on the KEYS tab (swaps in for AVG COST). Shares the
+// KpiCard card chrome (see stats/KpiRow) so it reads as the same component: a
+// tinted Key accent-chip + 11px caption, the active-key COUNT as the 24px value,
+// and — below — the distinct teams those keys belong to as colored pills
+// (merging the old separate Active-keys + Teams tiles into one). Count is
+// EM_DASH until the keys query resolves; pills fall back to me.team_id, then
+// EM_DASH, when no key carries a team.
+function KeysTeamsTile({
+  keyRows,
+  teams,
+  fallback,
 }: {
-  label: string;
-  value: ReactNode;
-  icon: typeof Key;
-  spark?: number[];
+  keyRows: KeyRow[] | null;
+  teams: Team[];
+  fallback: string;
 }) {
+  const active = keyRows ? keyRows.filter((k) => !isRevoked(k)) : null;
+  const count = active ? formatInt(active.length) : EM_DASH;
+  // Distinct, order-preserving team ids across the active keys (null team_id =
+  // not team-scoped → skipped), resolved to a display alias via the teams list.
+  const teamIds = active
+    ? [...new Set(active.map((k) => k.team_id).filter((id): id is string => !!id))]
+    : [];
   return (
-    <div className="relative flex flex-col gap-1 overflow-hidden rounded-xl border border-border bg-surface p-3">
-      {spark && spark.length > 1 ? (
-        // Full-bleed trend anchored to the card's bottom, sitting BEHIND the
-        // label+value (content carries `relative` to stack above it). Softened so
-        // the text stays legible; `overflow-hidden` clips it to the rounded card.
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 opacity-25" aria-hidden="true">
-          <Sparkline data={spark} className="h-full w-full" />
-        </div>
-      ) : null}
-      <div className="relative flex items-center gap-2">
-        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="size-[15px]" aria-hidden="true" />
-        </span>
-        <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-          {label}
-        </div>
-      </div>
-      <div className="relative break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
-        {value}
-      </div>
-    </div>
-  );
-}
-
-// ── TeamTile ─────────────────────────────────────────────────────────────────
-// The TEAM tile (DASH-06). A user may belong to several teams, so a single
-// 24px value would wrap into an unreadable multi-line blob. With ≥2 teams the
-// aliases render as compact muted pills (a wrapped row); with 0/1 team it keeps
-// the single 24px value look of the other tiles (falling back to me.team_id).
-function TeamTile({ teams, fallback }: { teams: Team[]; fallback: string }) {
-  return (
-    <div className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3">
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
       <div className="flex items-center gap-2">
         <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Users className="size-[15px]" aria-hidden="true" />
+          <Key className="size-[15px]" aria-hidden="true" />
         </span>
-        <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-          Teams
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+          KEYS &amp; TEAMS
         </div>
       </div>
-      {teams.length > 1 ? (
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="font-sans text-2xl font-semibold leading-tight text-text-primary">
+          {count}
+        </span>
+        {active ? (
+          <span className="font-mono text-[10px] text-text-tertiary">
+            {active.length === 1 ? 'key' : 'keys'}
+          </span>
+        ) : null}
+      </div>
+      {teamIds.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
-          {teams.map((t, i) => (
+          {teamIds.map((id, i) => (
             <span
-              key={t.id}
+              key={id}
               data-slot="team-pill"
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-elevated px-2 py-0.5 font-sans text-xs font-medium text-text-secondary"
             >
@@ -196,13 +143,13 @@ function TeamTile({ teams, fallback }: { teams: Team[]; fallback: string }) {
                 style={{ background: teamColorVar(i) }}
                 aria-hidden="true"
               />
-              {t.alias}
+              {teams.find((t) => t.id === id)?.alias ?? id}
             </span>
           ))}
         </div>
       ) : (
-        <div className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
-          {teams[0]?.alias || fallback}
+        <div className="break-words font-sans text-xs text-text-secondary">
+          {fallback}
         </div>
       )}
     </div>
@@ -286,45 +233,14 @@ export function Dashboard({ me }: DashboardProps) {
   // sets it via onDelete, and DeleteKeyModal is prop-driven by it.
   const [keyToDelete, setKeyToDelete] = useState<KeyRow | null>(null);
 
-  // ── Metric tile values (DASH-06 numeric) ───────────────────────────────────
-  // Active keys = non-revoked row count, but ONLY once the keys query has loaded
-  // successfully — EM_DASH while pending/errored so we never show a misleading 0.
-  const activeKeys =
-    query.isSuccess && query.data
-      ? formatInt(selectKeyRows(query.data).filter((k) => !isRevoked(k)).length)
-      : EM_DASH;
-  // Requests (MTD) + tokens (MTD) come from /api/session/stats over the
-  // month-to-date range. The range is computed once on mount (a fresh `new Date()`
-  // each render would thrash the query key). While loading/errored or absent it
-  // degrades to EM_DASH; otherwise we show "<req>req / <tokens>tokens" with the
-  // units de-emphasized at a smaller size so the composite fits the tile.
+  // ── Metric tiles (DASH-06) ──────────────────────────────────────────────────
+  // The top row is the STATS KPI cards (requests/tokens/spend — with deltas +
+  // sub-notes) over the month-to-date range, plus a combined keys+teams tile in
+  // the 4th slot. The range is computed once on mount (a fresh `new Date()` each
+  // render would thrash the query key). Pending/errored figures degrade to
+  // EM_DASH inside KpiCard automatically, so no per-tile guards are needed here.
   const mtdRange = useMemo(() => presetToRange('This month', new Date()), []);
   const stats = useStats(mtdRange);
-  const requestsValue: ReactNode =
-    stats.isSuccess && stats.data ? (
-      <span className="text-lg">
-        {abbreviate(stats.data.totals.requests)}
-        <span className="text-text-tertiary text-xs font-normal"> req</span>
-        <span className="text-text-tertiary"> / </span>
-        {abbreviate(stats.data.totals.tokens)}
-        <span className="text-text-tertiary text-xs font-normal"> tokens</span>
-      </span>
-    ) : (
-      EM_DASH
-    );
-  // Spend MTD uses the documented me.spend.current fallback from dashboard.js;
-  // the stats-window total replaces it in Phase 4.
-  const spendValue = formatCurrency(me.spend.current);
-  // Per-day sparkline series for the flow tiles — free, drawn from the SAME
-  // MTD stats query the Requests tile already reads (no extra fetch). Empty
-  // while the query is pending/errored; Sparkline no-ops on <2 pts / flat.
-  const series =
-    stats.isSuccess && stats.data?.series ? stats.data.series : [];
-  const requestsSpark = useMemo(() => series.map((p) => p.requests), [series]);
-  const spendSpark = useMemo(() => series.map((p) => p.spend), [series]);
-  // Team tile lists ALL the user's member teams (read-only — no active-team
-  // switching). Falls back to the single me.team_id, then EM_DASH, when the
-  // teams query is empty/unavailable.
 
   return (
     <div className="flex flex-col gap-8">
@@ -336,23 +252,22 @@ export function Dashboard({ me }: DashboardProps) {
         <EndpointChip endpoint={me.endpoint} />
       </div>
 
-      {/* DASH-06: four-tile metric header */}
-      <div className="grid grid-cols-4 gap-3 max-[880px]:grid-cols-2 max-[520px]:grid-cols-1">
-        <MetricTile label="Active keys" value={activeKeys} icon={Key} />
-        <TeamTile teams={teams ?? []} fallback={me.team_id || EM_DASH} />
-        <MetricTile
-          label="Requests (MTD)"
-          value={requestsValue}
-          icon={BarChart3}
-          spark={requestsSpark}
-        />
-        <MetricTile
-          label="Spend (MTD)"
-          value={spendValue}
-          icon={DollarSign}
-          spark={spendSpark}
-        />
-      </div>
+      {/* DASH-06: metric header — the STATS KPI cards (requests/tokens/spend,
+          with deltas) over MTD, with a combined keys+teams tile in the 4th slot
+          in place of AVG COST. */}
+      <KpiRow
+        totals={stats.isSuccess ? stats.data?.totals : undefined}
+        series={stats.isSuccess ? stats.data?.series : undefined}
+        fourthCard={
+          <KeysTeamsTile
+            keyRows={
+              query.isSuccess && query.data ? selectKeyRows(query.data) : null
+            }
+            teams={teams ?? []}
+            fallback={me.team_id || EM_DASH}
+          />
+        }
+      />
 
       {/* DASH-06: account budget bar */}
       <BudgetBar limits={me.limits} spend={me.spend} />

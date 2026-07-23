@@ -10,8 +10,50 @@
 import { BarChart3, Coins, DollarSign, Gauge } from 'lucide-react';
 import * as React from 'react';
 
-import type { StatsTotals } from '@/lib/api-types';
+import type { StatsSeriesPoint, StatsTotals } from '@/lib/api-types';
 import { abbreviate, formatCurrency, formatInt } from '@/lib/format';
+
+// ── Sparkline ────────────────────────────────────────────────────────────────
+// A tiny inline-SVG area+line trend rendered faintly behind a KPI card's figure
+// (the "transparent graphic" on the tiles). Deliberately NOT Recharts — a 96×32
+// area chart is ~15 lines of SVG and mounting a chart lib per card is wasteful.
+// Theme-token colored (stroke/fill primary), so it follows dark/light/pastel/red.
+// Returns null for <2 points or an all-flat series (nothing to show). Purely
+// decorative → aria-hidden.
+function Sparkline({ data, className }: { data: number[]; className?: string }) {
+  if (data.length < 2) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min;
+  if (range === 0) return null; // flat line carries no signal
+  const W = 96;
+  const H = 32;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * W;
+    // 2px top/bottom inset so the peak/trough strokes aren't clipped.
+    const y = H - 2 - ((v - min) / range) * (H - 4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const line = pts.join(' ');
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      className={className}
+      aria-hidden="true"
+    >
+      <polygon points={`0,${H} ${line} ${W},${H}`} className="fill-primary/10" />
+      <polyline
+        points={line}
+        className="fill-none stroke-primary"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
 
 // Signed one-decimal percent: 0.182 -> "+18.2%", -0.05 -> "-5.0%".
 function formatSignedPct(fraction: number): string {
@@ -45,7 +87,7 @@ function DeltaChip({
       : 'text-destructive';
   const arrow = flat ? '' : up ? '▲ ' : '▼ ';
   return (
-    <div data-slot="kpi-delta" className={`font-mono text-[11px] ${color}`}>
+    <div data-slot="kpi-delta" className={`relative font-mono text-[11px] ${color}`}>
       {arrow}
       {formatSignedPct(value)}{' '}
       <span className="text-text-tertiary">vs prev</span>
@@ -66,6 +108,7 @@ function KpiCard({
   deltaPct,
   invert,
   sub,
+  spark,
   icon: Icon,
 }: {
   label: string;
@@ -75,6 +118,8 @@ function KpiCard({
   invert?: boolean;
   /** Short inline note next to the value, in muted parens (e.g. "5 failed · 6.5%"). */
   sub?: React.ReactNode;
+  /** Per-day series for the faint background sparkline (requests/tokens/spend). */
+  spark?: number[];
   icon: typeof BarChart3;
 }): React.ReactElement {
   // DeltaChip holds no hooks, so call it directly to render the chip below.
@@ -82,10 +127,22 @@ function KpiCard({
   const hasSub = sub != null && sub !== false;
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
+    <div className="relative flex flex-col gap-2 overflow-hidden rounded-xl border border-border bg-surface p-5">
+      {spark && spark.length > 1 ? (
+        // Full-bleed trend anchored to the card's bottom, sitting BEHIND the
+        // content (each content row carries `relative` to stack above it).
+        // Softened so the figures stay legible; overflow-hidden clips it round.
+        <div
+          data-slot="kpi-spark"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 opacity-25"
+          aria-hidden="true"
+        >
+          <Sparkline data={spark} className="h-full w-full" />
+        </div>
+      ) : null}
       {/* Icon chip + label row — mirrors the Dashboard MetricTile so the two
           pages' KPI tiles read as the same component. */}
-      <div className="flex items-center gap-2">
+      <div className="relative flex items-center gap-2">
         <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Icon className="size-[15px]" aria-hidden="true" />
         </span>
@@ -97,7 +154,7 @@ function KpiCard({
           {label}
         </div>
       </div>
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <div className="relative flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className="break-words font-sans text-2xl font-semibold leading-tight text-text-primary">
           {value}
         </span>
@@ -113,13 +170,35 @@ function KpiCard({
 export interface KpiRowProps {
   /** The `totals` slice (requests/tokens/spend/avg + deltas). */
   totals: StatsTotals | null | undefined;
+  /**
+   * Per-day `series` slice. When given, the flow cards (requests/tokens/spend)
+   * render a faint background sparkline from it. Omitted → no sparklines.
+   */
+  series?: StatsSeriesPoint[] | null;
+  /**
+   * Optional node rendered in the 4th grid cell INSTEAD of the AVG COST card.
+   * The KEYS tab (Dashboard) reuses this row for its richer header but swaps the
+   * avg-cost card for a combined keys+teams tile. Omitted on the Stats page, so
+   * the 4th card stays AVG COST there.
+   */
+  fourthCard?: React.ReactNode;
 }
 
-// Renders exactly four cards (TOTAL REQUESTS / TOTAL TOKENS / SPEND /
-// AVG COST / 1M TOKENS) in a 4->2->1 responsive grid.
-export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
+// Renders four cards (TOTAL REQUESTS / TOTAL TOKENS / SPEND / AVG COST / 1M
+// TOKENS) in a 4->2->1 responsive grid. When `fourthCard` is given, cards 1-3
+// come from `totals` and the 4th cell renders that node instead of AVG COST.
+export function KpiRow({
+  totals,
+  series,
+  fourthCard,
+}: KpiRowProps): React.ReactElement {
   const t = totals ?? null;
   const d = t?.deltas ?? null;
+  // Per-day spark arrays for the flow cards (empty → Sparkline no-ops).
+  const pts = series ?? [];
+  const reqSpark = pts.map((p) => p.requests);
+  const tokSpark = pts.map((p) => p.tokens);
+  const spendSpark = pts.map((p) => p.spend);
 
   const cards = [
     {
@@ -128,6 +207,7 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: abbreviate(t?.requests),
       deltaPct: d?.requests_pct,
       invert: false,
+      spark: reqSpark,
       sub:
         typeof t?.failed_requests === 'number' && t.failed_requests > 0 ? (
           <span data-slot="kpi-failed" className="text-destructive">
@@ -144,6 +224,7 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       value: abbreviate(t?.tokens),
       deltaPct: d?.tokens_pct,
       invert: false,
+      spark: tokSpark,
       // The headline total already shows the full token count, so the inline sub
       // adds the OUTPUT split and its share of the total: "6.8M out · 22%". Short
       // enough to sit beside the value without wrapping; the title spells it out.
@@ -168,6 +249,7 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
       labelTitle: 'Gateway-computed spend — includes cache & provider pricing',
       deltaPct: d?.spend_pct,
       invert: true,
+      spark: spendSpark,
     },
     {
       label: 'AVG COST / 1M TOKENS',
@@ -178,10 +260,13 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
     },
   ];
 
+  // With a custom 4th tile, drop the AVG COST card and render the node instead.
+  const shown = fourthCard ? cards.slice(0, 3) : cards;
+
   return (
     <div data-slot="kpi-row" className="flex flex-col gap-2">
       <div className="grid grid-cols-4 gap-3 max-[880px]:grid-cols-2 max-[520px]:grid-cols-1">
-        {cards.map((c) => (
+        {shown.map((c) => (
           <KpiCard
             key={c.label}
             label={c.label}
@@ -191,8 +276,10 @@ export function KpiRow({ totals }: KpiRowProps): React.ReactElement {
             deltaPct={c.deltaPct}
             invert={c.invert}
             sub={'sub' in c ? c.sub : undefined}
+            spark={'spark' in c ? c.spark : undefined}
           />
         ))}
+        {fourthCard}
       </div>
     </div>
   );
