@@ -262,9 +262,9 @@ export function Stats() {
         </Panel>
       </div>
 
-      {/* §5 usage-by-model donut + request-outcomes donut, side-by-side. The two
-          wide tables (top keys, latency) get their own full-width rows below so
-          long model/key names have room instead of truncating at half width. */}
+      {/* §5 usage-by-model donut + §6 top keys. No items-start: the cells
+          stretch to equal height, and both panels are h-full so the shorter
+          one (top keys) matches its taller sibling (empty space below is fine). */}
       <div className="grid grid-cols-2 gap-3 max-[880px]:grid-cols-1">
         <Panel label={SECTION_USAGE_BY_MODEL}>
           {loading ? (
@@ -274,6 +274,28 @@ export function Stats() {
               models={models}
               totalSpend={totals?.spend ?? null}
               capabilities={capabilities}
+            />
+          )}
+        </Panel>
+        {loading ? (
+          <div className="h-full rounded-xl border border-border bg-surface p-5">
+            <Skeleton variant="table-rows" rows={5} />
+          </div>
+        ) : (
+          <TopKeys keys={keys} capabilities={capabilities} />
+        )}
+      </div>
+
+      {/* Latency + request outcomes — sourced from /api/session/latency over the
+          same date range as the page. Own (independent) loading state. */}
+      <div className="grid grid-cols-2 gap-3 max-[880px]:grid-cols-1">
+        <Panel label={SECTION_LATENCY}>
+          {latencyQuery.isPending ? (
+            <Skeleton variant="chart" />
+          ) : (
+            <LatencyPanel
+              data={latencyQuery.data}
+              isError={latencyQuery.isError}
             />
           )}
         </Panel>
@@ -288,25 +310,6 @@ export function Stats() {
           )}
         </Panel>
       </div>
-
-      {/* §6 top keys — full-width band. */}
-      {loading ? (
-        <div className="h-full rounded-xl border border-border bg-surface p-5">
-          <Skeleton variant="table-rows" rows={5} />
-        </div>
-      ) : (
-        <TopKeys keys={keys} capabilities={capabilities} />
-      )}
-
-      {/* Latency — full-width band. Sourced from /api/session/latency over the
-          same date range as the page. Own (independent) loading state. */}
-      <Panel label={SECTION_LATENCY}>
-        {latencyQuery.isPending ? (
-          <Skeleton variant="chart" />
-        ) : (
-          <LatencyPanel data={latencyQuery.data} isError={latencyQuery.isError} />
-        )}
-      </Panel>
 
       {/* §4 Model Breakdown */}
       <div className="min-w-0">

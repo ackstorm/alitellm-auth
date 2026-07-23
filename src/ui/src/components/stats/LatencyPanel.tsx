@@ -136,7 +136,7 @@ export function LatencyPanel({
       {/* Headline: the at-a-glance figures — throughput, typical latency, error
           rate, TTFT. (Request volume lives in the Request Outcomes panel; the tail
           percentiles are demoted to the per-model table's p95 column.) */}
-      <div className="grid grid-cols-4 gap-3 max-[400px]:grid-cols-2">
+      <div className="flex flex-wrap justify-between gap-3">
         <StatTile
           label="THROUGHPUT"
           title="Output tokens per second (p50)"
