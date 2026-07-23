@@ -164,6 +164,17 @@ kubectl create secret generic alitellm-auth-secret -n test \
 
 ---
 
+## Release Process
+
+**A GitHub Actions pipeline owns releases — DO NOT hand-roll one, and NEVER
+`git tag` / `git push --tags` by hand** (it races the pipeline's own tag step and
+skips GitHub Release creation). To cut a release: `make release-bump VERSION=X.Y.Z`
+→ commit → `make release-cut VERSION=X.Y.Z` → `git push origin main`; CI does the
+image, chart, tag, and Release. **Full steps, version-file table, and the manual-tag
+failure/recovery: [docs/references/release-process.md](docs/references/release-process.md).**
+
+---
+
 ## Common Failure Modes
 
 ### 1. MismatchingStateError on callback
