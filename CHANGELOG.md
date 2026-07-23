@@ -2,6 +2,20 @@
 
 ## [unreleased]
 
+## [0.6.0] - 2026-07-23
+
+### Added
+
+- **STATS — sortable LATENCY per-model table.** The per-model latency table now sorts by column (Model/Req/Lat/p95/Err), reusing the same `SortIndicator`/`sortRows` infra as TOP API KEYS so it behaves identically; default sort is Req desc.
+
+### Changed
+
+- **KEYS header now matches STATS.** The KEYS tab (Dashboard) header replaces its bespoke 4-tile sparkline row with the STATS `KpiRow` — TOTAL REQUESTS · TOTAL TOKENS · SPEND (deltas + failed/output sub-notes over MTD) — plus a custom keys/teams tile, and adopts the same translucent sparkline treatment as STATS.
+
+### Fixed
+
+- **KEYS Spend tile matched to STATS.** The KEYS-tab Spend tile read `me.spend.current` and showed `0.00` while STATS showed the real figure for the same window; it now reads `stats.data.totals.spend` (the source STATS aggregates), degrading to an em-dash while stats are pending/errored.
+
 ## [0.5.34] - 2026-07-23
 
 ### Changed
