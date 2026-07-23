@@ -317,7 +317,13 @@ def test_list_keys_masks_internal_teams(client):
     a key in a member team is left untouched (no internal-team name leak)."""
     keys = [
         {"id": "k1", "token": "t1", "key_alias": "a", "team_id": "default", "metadata": {}},
-        {"id": "k2", "token": "t2", "key_alias": "b", "team_id": "ach-env-zohodesk", "metadata": {}},
+        {
+            "id": "k2",
+            "token": "t2",
+            "key_alias": "b",
+            "team_id": "ach-env-zohodesk",
+            "metadata": {},
+        },
     ]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
@@ -989,7 +995,9 @@ def test_block_key_invalid_body_422(client):
 
 def test_change_key_team_moves_owned_key(client):
     """An owned key + a team the user belongs to → /key/update with the hashed token."""
-    owned = [{"id": "id-1", "token": "hash-1", "is_default": False, "managed": True, "metadata": {}}]
+    owned = [
+        {"id": "id-1", "token": "hash-1", "is_default": False, "managed": True, "metadata": {}}
+    ]
     with (
         patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
