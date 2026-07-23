@@ -53,7 +53,7 @@ describe('ModelTable', () => {
       'INPUT',
       'OUTPUT',
       'TOTAL',
-      'CACHED IN',
+      'CACHED',
       'SPEND',
       '% SPEND',
       'LAST USED',

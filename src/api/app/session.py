@@ -234,6 +234,20 @@ async def _relist_or_502(email: str, settings: Settings, ctx: str) -> list[dict]
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
 
+def _require_managed(target: dict) -> None:
+    """409 for a foreign key (not minted here) on a management action.
+
+    Foreign keys (metadata.source != "token-factory", e.g. ekid_/pkid_) are
+    listed and can be disabled/enabled, but never deleted, made default, or
+    moved between teams — those mutate provisioning this service does not own.
+    """
+    if not target.get("managed"):
+        raise HTTPException(
+            status_code=409,
+            detail="This key is managed externally and cannot be modified here.",
+        )
+
+
 # ---------------------------------------------------------------------------
 # /api/session/* routes
 # ---------------------------------------------------------------------------
@@ -322,6 +336,20 @@ async def session_list_keys(
     safe_keys = [
         {k: v for k, v in kd.items() if k not in ("key", "token", "metadata")} for kd in keys
     ]
+    # Privacy: a key may sit in a team the user does NOT belong to (e.g. internal
+    # ach-* teams). The browser must never receive that team's id/alias, so mask
+    # it to "(internal)". Degrades to the raw team_id on a teams-fetch failure —
+    # same never-502 posture as the listing itself.
+    try:
+        member_team_ids: set[str] | None = {t["id"] for t in await list_user_teams(email, settings)}
+    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+        logger.warning("session_list_keys: internal-team mask fetch failed for %s: %s", email, exc)
+        member_team_ids = None
+    if member_team_ids is not None:
+        for kd in safe_keys:
+            tid = kd.get("team_id")
+            if tid and tid not in member_team_ids:
+                kd["team_id"] = "(internal)"
     return JSONResponse({"keys": safe_keys})
 
 
@@ -537,6 +565,7 @@ async def session_delete_key(
     if target is None:
         # D-12: 403 regardless of whether the key exists elsewhere or nowhere
         raise HTTPException(status_code=403, detail="Not authorized")
+    _require_managed(target)
     if target.get("is_default"):
         # The default key is undeletable until another key is promoted.
         raise HTTPException(
@@ -582,6 +611,7 @@ async def session_make_default(
     if target is None:
         # D-12: 403 regardless of whether the key exists elsewhere or nowhere
         raise HTTPException(status_code=403, detail="Not authorized")
+    _require_managed(target)
 
     try:
         # Demote any OTHER current default FIRST, then promote the target LAST.
@@ -692,6 +722,7 @@ async def session_change_key_team(
     target = next((k for k in user_keys if k.get("id") == key_id), None)
     if target is None:
         raise HTTPException(status_code=403, detail="Not authorized")
+    _require_managed(target)
 
     try:
         await update_litellm_key_team(target["token"], team_id, settings)

@@ -323,6 +323,20 @@ describe('KeysTable — default key', () => {
     );
   });
 
+  it('an unmanaged (foreign) key locks its kebab to Disable only', async () => {
+    setRows([makeRow({ id: 'ekid_01', managed: false, is_default: false })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'Enter',
+    });
+    await screen.findByRole('menuitem', { name: 'Managed externally' });
+    // Disable is still allowed; the three management actions are gone.
+    expect(screen.getByRole('menuitem', { name: 'Disable key' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Set as default' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Change team/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Revoke/ })).not.toBeInTheDocument();
+  });
+
   it('nudges to set a default when there are keys but none is default', () => {
     setRows([
       makeRow({ id: 'key-1', is_default: false }),

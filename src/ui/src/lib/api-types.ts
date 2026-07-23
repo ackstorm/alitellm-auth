@@ -74,6 +74,13 @@ export interface KeyRow {
   last_used: string | null;
   /** Explicit default-key flag (metadata-backed; session API derives it). */
   is_default: boolean;
+  /**
+   * True only for keys THIS service minted (metadata.source == "token-factory").
+   * Foreign keys (e.g. ekid_/pkid_) are shown but locked: no delete, make-default,
+   * or change-team — only disable/enable. Backend enforces (409); the UI hides the
+   * locked actions so users don't hit the error.
+   */
+  managed?: boolean;
   // Not emitted by the current backend; isRevoked() reads them defensively.
   revoked?: boolean;
   blocked?: boolean;
