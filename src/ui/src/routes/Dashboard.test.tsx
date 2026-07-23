@@ -183,8 +183,10 @@ describe('Dashboard — top row + tiles', () => {
     expect(screen.getByText('team-platform')).toBeInTheDocument();
   });
 
-  it('Team tile lists all member team aliases as pills when useTeams returns teams', () => {
-    setKeysSuccess([]);
+  it('KEYS & TEAMS tile shows a pill per distinct team the keys belong to', () => {
+    // Pills now derive from the KEYS' team_id (deduped), resolved to the team
+    // alias — NOT the full member-teams list. Two keys on team 'a', one on 'b',
+    // none on 'c' -> Alpha + Bravo pills, no Charlie.
     useTeamsMock.mockReturnValue({
       data: [
         { id: 'a', alias: 'Alpha' },
@@ -192,20 +194,45 @@ describe('Dashboard — top row + tiles', () => {
         { id: 'c', alias: 'Charlie' },
       ],
     } as unknown as ReturnType<typeof useTeams>);
-    render(<Dashboard me={makeMe({ team_id: 'team-platform' })} />);
-    // Each alias renders as its own pill (not a comma-joined blob).
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Bravo')).toBeInTheDocument();
-    expect(screen.getByText('Charlie')).toBeInTheDocument();
+    setKeysSuccess([
+      makeRow({ id: 'key-1', team_id: 'a' }),
+      makeRow({ id: 'key-2', team_id: 'a' }),
+      makeRow({ id: 'key-3', team_id: 'b' }),
+    ]);
+    const { container } = render(
+      <Dashboard me={makeMe({ team_id: 'team-platform' })} />,
+    );
+    // Scope to the KPI row's pills — the KeysTable below also renders each key's
+    // team alias, so an unscoped getByText('Alpha') would match multiple nodes.
+    const row = container.querySelector('[data-slot="kpi-row"]') as HTMLElement;
+    const pills = [...row.querySelectorAll('[data-slot="team-pill"]')].map((e) =>
+      e.textContent?.trim(),
+    );
+    expect(pills).toEqual(['Alpha', 'Bravo']); // deduped, no Charlie
   });
 
-  it('Spend MTD shows formatCurrency(me.spend.current)', () => {
+  it('Spend (MTD) shows formatCurrency(stats.totals.spend) when stats load', () => {
     setKeysSuccess([]);
+    useStatsMock.mockReturnValue({
+      data: { totals: { requests: 4600, tokens: 8_200_000, spend: 15.94 } },
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useStats>);
+    // me.spend.current is a different (enforced-cap) counter and must NOT drive the tile.
     render(<Dashboard me={makeMe({ spend: { current: 1249.5, source: 'user' } })} />);
-    expect(screen.getByText(formatCurrency(1249.5))).toBeInTheDocument();
+    expect(screen.getByText(formatCurrency(15.94))).toBeInTheDocument();
+    expect(screen.queryByText(formatCurrency(1249.5))).not.toBeInTheDocument();
   });
 
-  it('Requests (MTD) tile shows abbreviated requests + tokens when stats load', () => {
+  it('Spend (MTD) tile shows the em-dash while stats are unavailable', () => {
+    setKeysSuccess([]);
+    // useStats defaults (beforeEach) to non-success -> EM_DASH.
+    render(<Dashboard me={makeMe({ spend: { current: 1249.5, source: 'user' } })} />);
+    expect(screen.queryByText(formatCurrency(1249.5))).not.toBeInTheDocument();
+  });
+
+  it('TOTAL REQUESTS / TOTAL TOKENS cards show abbreviated figures when stats load', () => {
     setKeysSuccess([]);
     useStatsMock.mockReturnValue({
       data: { totals: { requests: 4600, tokens: 8_200_000, spend: 15.94 } },
@@ -214,19 +241,18 @@ describe('Dashboard — top row + tiles', () => {
       isError: false,
     } as unknown as ReturnType<typeof useStats>);
     render(<Dashboard me={makeMe()} />);
-    expect(screen.getByText('Requests (MTD)')).toBeInTheDocument();
-    // abbreviate(4600)='4.6K', abbreviate(8_200_000)='8.2M' — rendered in one
-    // composite span ("4.6K / 8.2M" with de-emphasized units).
-    const tileValue = screen.getByText(/4\.6K/);
-    expect(tileValue).toHaveTextContent('4.6K');
-    expect(tileValue).toHaveTextContent('8.2M');
+    // Now two separate KPI cards (abbreviate(4600)='4.6K', abbreviate(8.2M)='8.2M').
+    expect(screen.getByText('TOTAL REQUESTS')).toBeInTheDocument();
+    expect(screen.getByText('4.6K')).toBeInTheDocument();
+    expect(screen.getByText('TOTAL TOKENS')).toBeInTheDocument();
+    expect(screen.getByText('8.2M')).toBeInTheDocument();
   });
 
-  it('Requests (MTD) tile shows the em-dash while stats are unavailable', () => {
+  it('TOTAL REQUESTS card shows the em-dash while stats are unavailable', () => {
     setKeysSuccess([]);
-    // useStats defaults (beforeEach) to non-success -> EM_DASH.
+    // useStats defaults (beforeEach) to non-success -> EM_DASH inside KpiCard.
     render(<Dashboard me={makeMe()} />);
-    expect(screen.getByText('Requests (MTD)')).toBeInTheDocument();
+    expect(screen.getByText('TOTAL REQUESTS')).toBeInTheDocument();
   });
 });
 

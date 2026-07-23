@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-import type { StatsTotals } from '@/lib/api-types';
+import type { StatsSeriesPoint, StatsTotals } from '@/lib/api-types';
 import { KpiRow } from './KpiRow';
 
 const TOTALS: StatsTotals = {
@@ -118,5 +118,34 @@ describe('KpiRow', () => {
   it('adds a spend pricing tooltip', () => {
     render(<KpiRow totals={TOTALS} />);
     expect(screen.getByTestId('kpi-spend-label').getAttribute('title')).toMatch(/cache/i);
+  });
+
+  it('renders a background sparkline on flow cards when series is given', () => {
+    const series: StatsSeriesPoint[] = [
+      { date: '2026-07-01', spend: 1, requests: 10, tokens: 100, input_tokens: 80, output_tokens: 20, failed: 0 },
+      { date: '2026-07-02', spend: 3, requests: 40, tokens: 400, input_tokens: 320, output_tokens: 80, failed: 1 },
+      { date: '2026-07-03', spend: 2, requests: 25, tokens: 250, input_tokens: 200, output_tokens: 50, failed: 0 },
+    ];
+    const { container } = render(<KpiRow totals={TOTALS} series={series} />);
+    // One sparkline per flow card (requests/tokens/spend) — AVG COST has no spark.
+    expect(container.querySelectorAll('[data-slot="kpi-spark"]')).toHaveLength(3);
+  });
+
+  it('renders no sparkline when series is omitted', () => {
+    const { container } = render(<KpiRow totals={TOTALS} />);
+    expect(container.querySelectorAll('[data-slot="kpi-spark"]')).toHaveLength(0);
+  });
+
+  it('renders a custom fourthCard in place of the AVG COST card', () => {
+    // The KEYS tab reuses this row but swaps the 4th cell: cards 1-3 stay
+    // (requests/tokens/spend), AVG COST is gone, and the node renders instead.
+    const { getByText, queryByText } = render(
+      <KpiRow totals={TOTALS} fourthCard={<div>KEYS &amp; TEAMS</div>} />,
+    );
+    expect(getByText('TOTAL REQUESTS')).toBeInTheDocument();
+    expect(getByText('TOTAL TOKENS')).toBeInTheDocument();
+    expect(getByText('SPEND')).toBeInTheDocument();
+    expect(queryByText('AVG COST / 1M TOKENS')).not.toBeInTheDocument();
+    expect(getByText('KEYS & TEAMS')).toBeInTheDocument();
   });
 });
