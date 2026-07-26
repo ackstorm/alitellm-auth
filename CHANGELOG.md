@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.6.1] - 2026-07-26
+
 ### Removed
 
 - **BREAKING (deploy): the Kustomize base and overlay are gone.** `deploy/kustomize/` duplicated the Helm chart's Deployment/Service/Ingress/ConfigMap and had to be version-bumped in lockstep with it. The Helm chart (`deploy/helm/alitellm-auth/`, also published as an OCI artifact) is now the only install path. Users of `kubectl apply -k deploy/kustomize/...` must switch to `helm install` (see `deploy/README.md`) or vendor the last-released manifests. `make kustomize-build` is removed and `make release-bump` no longer rewrites an overlay tag.
