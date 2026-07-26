@@ -85,18 +85,14 @@ cd src/api && uvicorn app.main:app --reload --port 8080
 
 ## Deployment
 
-A Helm chart (`deploy/helm/alitellm-auth/`) and a Kustomize base (`deploy/kustomize/base/`) are
-provided. See [deploy/README.md](deploy/README.md) for details.
+A Helm chart (`deploy/helm/alitellm-auth/`) is provided. See
+[deploy/README.md](deploy/README.md) for details.
 
 ```bash
-# Helm
 helm install alitellm-auth deploy/helm/alitellm-auth -n test
-
-# Kustomize
-kubectl apply -k deploy/kustomize/base -n test
 ```
 
-Both inject `SESSION_HTTPS_ONLY` (prod default `true`) and mount the factory-config ConfigMap.
+It injects `SESSION_HTTPS_ONLY` (prod default `true`) and mounts the factory-config ConfigMap.
 `GET /health` is the liveness/readiness probe target.
 
 ## Contributing & License

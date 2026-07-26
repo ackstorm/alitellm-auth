@@ -185,9 +185,8 @@ For every release after the initial push:
    ```
    This rewrites: `src/api/pyproject.toml` version field, `src/api/app/main.py` version,
    the Helm chart (`deploy/helm/alitellm-auth/Chart.yaml` version + appVersion and
-   `values.yaml` image tag), the Kustomize example overlay image tag
-   (`deploy/kustomize/overlays/example/kustomization.yaml`), and promotes the CHANGELOG
-   `[unreleased]` section to `[X.Y.Z]`.
+   `values.yaml` image tag), and promotes the CHANGELOG `[unreleased]` section to
+   `[X.Y.Z]`.
 3. **Commit the bumped files:** `git add src/api/pyproject.toml src/api/app/main.py deploy/ CHANGELOG.md && git commit -m "chore: bump to vX.Y.Z"`
 4. **Trigger the release pipeline:**
    ```bash

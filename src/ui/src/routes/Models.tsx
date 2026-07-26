@@ -48,7 +48,7 @@ import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useModels } from '@/hooks/use-models';
 import type { ModelRow } from '@/lib/api-types';
-import { formatPricePerMillion, formatTokens } from '@/lib/format';
+import { abbreviate, formatPricePerMillion } from '@/lib/format';
 import { isRouterModel } from '@/lib/model-classify';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/stores/session';
@@ -144,9 +144,9 @@ function ContextCell({ row }: { row: ModelRow }) {
   if (!hasIn && !hasOut) return <span className="text-muted-foreground">{EM_DASH}</span>;
   return (
     <span className="font-mono text-xs whitespace-nowrap text-foreground">
-      {hasIn ? formatTokens(row.max_input_tokens) : EM_DASH}
+      {hasIn ? abbreviate(row.max_input_tokens) : EM_DASH}
       <span className="text-muted-foreground"> / </span>
-      {hasOut ? formatTokens(row.max_output_tokens) : EM_DASH}
+      {hasOut ? abbreviate(row.max_output_tokens) : EM_DASH}
     </span>
   );
 }

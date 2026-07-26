@@ -1,15 +1,10 @@
 # Deploying alitellm-auth
 
-Two install paths ship in this repo. Pick one — they deploy the same workload.
+The [Helm chart](helm/alitellm-auth) is the only install path: parameterized
+installs, OCI distribution, GitOps via Helm.
 
-| Path | When |
-|------|------|
-| [Helm chart](helm/alitellm-auth) | Parameterized installs, OCI distribution, GitOps via Helm |
-| [Kustomize](kustomize) | Plain manifests + overlays, no Helm dependency |
-
-Both expect a pre-created Secret named `alitellm-auth-secret` with three keys:
-`SESSION_SECRET_KEY`, `OAUTH_CLIENT_SECRET`, `LITELLM_MASTER_KEY` (see
-[`kustomize/base/secret.example.yaml`](kustomize/base/secret.example.yaml)).
+It expects a pre-created Secret named `alitellm-auth-secret` with three keys:
+`SESSION_SECRET_KEY`, `OAUTH_CLIENT_SECRET`, `LITELLM_MASTER_KEY`.
 
 ```bash
 kubectl create secret generic alitellm-auth-secret -n <namespace> \
@@ -46,22 +41,9 @@ make helm-template
 The chart's `image.tag` defaults to the released `vX.Y.Z`. Before the first release
 exists in GHCR, override it: `--set image.tag=latest`.
 
-## Kustomize
-
-```bash
-kubectl apply -k deploy/kustomize/overlays/example
-```
-
-Copy `overlays/example/` per environment and edit namespace, the image `newTag`, and
-patches (ingress host, replicas, env). Render locally:
-
-```bash
-make kustomize-build
-```
-
 ## Versioning
 
-`make release-bump VERSION=X.Y.Z` updates the image tag in **both** paths
-(`helm/alitellm-auth/Chart.yaml` + `values.yaml`, and `kustomize/overlays/example`)
-alongside the app version, so the chart, the kustomize overlay, and the runtime image
-stay lockstep. See the repo root `PUBLISH.md` → *Release flow*.
+`make release-bump VERSION=X.Y.Z` updates the chart image tag
+(`helm/alitellm-auth/Chart.yaml` + `values.yaml`) alongside the app version, so the
+chart and the runtime image stay lockstep. See the repo root `PUBLISH.md` →
+*Release flow*.

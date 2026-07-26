@@ -11,11 +11,9 @@ export type Theme = 'dark' | 'light' | 'pastel' | 'red';
 
 export const THEME_STORAGE_KEY = 'alitellm-theme';
 
-/** The toggle cycle order: dark → light → pastel → red → (dark). */
+/** The toggle cycle order — and the full set of classes this app ever puts on
+ *  <html> for theming: dark → light → pastel → red → (dark). */
 export const THEME_ORDER: readonly Theme[] = ['dark', 'light', 'pastel', 'red'];
-
-/** The class names this app ever puts on <html> for theming. */
-const THEME_CLASSES = ['dark', 'light', 'pastel', 'red'] as const;
 
 /** The next theme in the cycle (wraps around). */
 export function nextTheme(theme: Theme): Theme {
@@ -53,7 +51,7 @@ export function resolveInitialTheme(): Theme {
 export function applyThemeClass(theme: Theme): void {
   if (typeof document === 'undefined') return;
   const el = document.documentElement;
-  el.classList.remove(...THEME_CLASSES);
+  el.classList.remove(...THEME_ORDER);
   el.classList.add(theme);
 }
 

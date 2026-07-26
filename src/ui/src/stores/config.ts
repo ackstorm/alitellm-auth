@@ -30,7 +30,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   brand_short: 'LiteLLM',
   tagline: '',
   accent_segment: '-auth',
-  provider_label: 'dex',
   public_host: '',
   chat_public_url: '',
   providers: [{ label: 'Google' }, { label: 'Dex' }, { label: 'OIDC' }],

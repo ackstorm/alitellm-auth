@@ -154,29 +154,8 @@ class BlockKeyBody(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Helper: derive spend.source from LiteLLM user data (RESEARCH RQ-1 / D-09a)
+# Helper: the canonical budget block for /me and /stats (RESEARCH RQ-1 / D-09a)
 # ---------------------------------------------------------------------------
-
-_SPEND_SOURCE_UNKNOWN = "unknown"
-
-
-def _derive_spend(user: dict[str, Any]) -> dict[str, Any]:
-    """User-level {current, source} from the LiteLLM user budget fields.
-
-    The team-member cap is owned by _budget_block (read from the live membership);
-    the prior team_member/team branches here were unreachable because
-    _normalize_user never carried those fields (#1), so they are dropped.
-
-    `spend` defaults to 0.0 in _normalize_user even when absent, so it is NOT a
-    reliable "user has budget data" signal on its own. Gate the user branch on a
-    configured budget OR a genuinely non-zero spend; otherwise report "unknown"
-    so "no budget configured" users are not mislabeled as source="user" (WR-01).
-    """
-    user_spend = user.get("spend", 0.0)
-    user_budget = user.get("max_budget")
-    if user_budget is not None or user_spend:
-        return {"current": float(user_spend or 0), "source": "user"}
-    return {"current": 0.0, "source": _SPEND_SOURCE_UNKNOWN}
 
 
 def _budget_block(user: dict[str, Any], member: dict[str, Any] | None) -> dict[str, Any]:
@@ -187,6 +166,12 @@ def _budget_block(user: dict[str, Any], member: dict[str, Any] | None) -> dict[s
     when no membership budget is available. budget_duration on the membership is
     usually null in this deployment, so it falls back to the user-level value
     (informational only).
+
+    On the user-level fallback: `spend` defaults to 0.0 in _normalize_user even
+    when absent, so it is NOT a reliable "user has budget data" signal on its own.
+    source="user" requires a configured budget OR a genuinely non-zero spend;
+    otherwise it is "unknown", so "no budget configured" users are not mislabeled
+    (WR-01).
     """
     if member is not None:
         return {
@@ -195,12 +180,13 @@ def _budget_block(user: dict[str, Any], member: dict[str, Any] | None) -> dict[s
             "budget_duration": member.get("budget_duration") or user.get("budget_duration"),
             "source": "team_member",
         }
-    spend = _derive_spend(user)
+    user_spend = user.get("spend", 0.0)
+    has_user_data = user.get("max_budget") is not None or user_spend
     return {
-        "current": spend["current"],
+        "current": float(user_spend or 0) if has_user_data else 0.0,
         "max_budget": user.get("max_budget"),
         "budget_duration": user.get("budget_duration"),
-        "source": spend["source"],
+        "source": "user" if has_user_data else "unknown",
     }
 
 

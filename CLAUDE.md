@@ -53,7 +53,7 @@ GET /api/users (+ /{email}, DELETE /{email})
 | `src/api/app/main.py` | `create_app()` factory + SessionMiddleware + lifespan contract check |
 | `src/api/app/contract.py` | startup verification of the LiteLLM user-scoping contract (non-fatal CRITICAL banner) |
 | `src/api/app/templates/` | `error.html` (dark terminal card; rendered on OIDC/callback failure) |
-| `deploy/helm/`, `deploy/kustomize/` | Helm chart + Kustomize base/overlays (deployment, service, ingress, configmap, secret example) |
+| `deploy/helm/` | Helm chart (deployment, service, ingress, configmap, secret) — the only install path |
 | `deploy/litellm/` | **canonical** `sso_key_swapper` custom-auth (runs on the LiteLLM proxy) + install README — the user-scoping contract |
 
 ---

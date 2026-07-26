@@ -49,7 +49,6 @@ describe('config store', () => {
     expect(config.brand_short).toBe(DEFAULT_CONFIG.brand_short);
     expect(config.tagline).toBe(DEFAULT_CONFIG.tagline);
     expect(config.accent_segment).toBe(DEFAULT_CONFIG.accent_segment);
-    expect(config.provider_label).toBe(DEFAULT_CONFIG.provider_label);
     expect(config.public_host).toBe(DEFAULT_CONFIG.public_host);
     expect(config.providers).toEqual(DEFAULT_CONFIG.providers);
     // `links` is REPLACED wholesale by the server's (NOT deep-merged):

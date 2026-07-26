@@ -27,6 +27,7 @@ a non-streaming window has no TTFT; an all-error window has no durations.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from typing import Any
 
@@ -54,11 +55,7 @@ def percentile(sorted_vals: list[float], p: float) -> float | None:
         return None
     if p <= 0:
         return sorted_vals[0]
-    # ceil without importing math: -(-x // 1) style via int() + boundary bump.
-    rank = int(p / 100 * n)
-    if p / 100 * n > rank:
-        rank += 1
-    idx = min(max(rank - 1, 0), n - 1)
+    idx = min(max(math.ceil(p / 100 * n) - 1, 0), n - 1)
     return sorted_vals[idx]
 
 

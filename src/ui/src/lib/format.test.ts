@@ -16,7 +16,6 @@ import {
   formatDate,
   maskKey,
   formatPricePerMillion,
-  formatTokens,
 } from './format';
 
 const EM_DASH = '—'; // — (U+2014)
@@ -33,16 +32,6 @@ describe('formatPricePerMillion — per-1M-token USD price (×1e6)', () => {
   it('returns the em-dash for null/undefined/non-numeric', () => {
     expect(formatPricePerMillion(null)).toBe(EM_DASH);
     expect(formatPricePerMillion(undefined)).toBe(EM_DASH);
-  });
-});
-
-describe('formatTokens — abbreviated token counts', () => {
-  it('abbreviates large counts', () => {
-    expect(formatTokens(128000)).toBe('128K');
-    expect(formatTokens(1048576)).toBe('1.05M');
-  });
-  it('returns the em-dash for null', () => {
-    expect(formatTokens(null)).toBe(EM_DASH);
   });
 });
 

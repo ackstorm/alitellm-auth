@@ -55,7 +55,6 @@ def test_brand_link_fields_default_neutral():
     assert settings.brand_short == "LiteLLM"
     assert settings.tagline == ""
     assert settings.accent_segment == "-auth"
-    assert settings.provider_label == "dex"
     assert settings.link_docs is None
     assert settings.link_status is None
     assert settings.link_support is None

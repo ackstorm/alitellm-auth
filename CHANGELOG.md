@@ -2,6 +2,17 @@
 
 ## [unreleased]
 
+### Removed
+
+- **BREAKING (deploy): the Kustomize base and overlay are gone.** `deploy/kustomize/` duplicated the Helm chart's Deployment/Service/Ingress/ConfigMap and had to be version-bumped in lockstep with it. The Helm chart (`deploy/helm/alitellm-auth/`, also published as an OCI artifact) is now the only install path. Users of `kubectl apply -k deploy/kustomize/...` must switch to `helm install` (see `deploy/README.md`) or vendor the last-released manifests. `make kustomize-build` is removed and `make release-bump` no longer rewrites an overlay tag.
+- `PROVIDER_LABEL` setting and its `provider_label` key in `GET /api/config` — plumbed end to end but rendered nowhere (the sign-in provider chips are driven by `providers[]`).
+- One-shot budget-migration CLI `scripts/backfill_user_budgets.py` — the D-16 lazy backfill in `ensure_team_and_user()` covers it on every login.
+- Unimported shadcn primitives `components/ui/scroll-area.tsx` and `components/ui/separator.tsx`.
+- Unwired `tests/playwright/` screenshot harness (no Make target, no workflow).
+- `python-multipart` dependency — the API defines no `Form`/`File`/`UploadFile` route.
+- `docker-compose.dev.override.yml` — a per-machine port remap; now gitignored.
+- `formatTokens()` — a re-export of `abbreviate()`; call sites use `abbreviate` directly.
+
 ## [0.6.0] - 2026-07-23
 
 ### Added

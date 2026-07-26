@@ -86,12 +86,6 @@ export function formatPricePerMillion(
   return _currencyFmt.format(num * 1e6);
 }
 
-// formatTokens(n) -> "128K" / "1M" (abbreviate), with null/undefined -> "—".
-// A thin alias so the models table reads intent at the call site.
-export function formatTokens(n: number | string | null | undefined): string {
-  return abbreviate(n);
-}
-
 const _MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',

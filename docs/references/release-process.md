@@ -52,7 +52,6 @@ files carry the version**. Never edit these by hand:
 | `src/api/app/main.py` | FastAPI `version="X.Y.Z"` — **the one most easily missed** |
 | `deploy/helm/alitellm-auth/Chart.yaml` | `version: X.Y.Z` (bare SemVer) + `appVersion: vX.Y.Z` |
 | `deploy/helm/alitellm-auth/values.yaml` | `tag: "vX.Y.Z"` |
-| `deploy/kustomize/overlays/example/kustomization.yaml` | `newTag: vX.Y.Z` |
 | `CHANGELOG.md` | promotes `[unreleased]` → `## [X.Y.Z] - <today>`, leaves a fresh empty `[unreleased]` |
 
 ## Which bump (SemVer)

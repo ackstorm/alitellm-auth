@@ -56,7 +56,6 @@ class Settings(BaseSettings):
     brand_short: str = "LiteLLM"
     tagline: str = ""
     accent_segment: str = "-auth"  # wordmark segment rendered in --accent2; empty → no accent span
-    provider_label: str = "dex"
 
     # Real-links-only targets (D-02/D-03) — None/empty means the link is OMITTED from
     # the SPA (no dead anchor). NEVER add a secret-bearing field to this set.

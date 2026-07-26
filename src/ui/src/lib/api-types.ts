@@ -22,10 +22,10 @@ export interface SessionLimits {
   rpm_limit: number | null;
 }
 
-/** Source of the spend figure. session.py::_derive_spend / _SPEND_SOURCE_UNKNOWN. */
+/** Source of the spend figure. session.py::_budget_block. */
 export type SpendSource = 'team_member' | 'user' | 'unknown';
 
-/** Spend block on /me. session.py::_derive_spend. `current` is always a number. */
+/** Spend block on /me. session.py::_budget_block. `current` is always a number. */
 export interface SessionSpend {
   current: number;
   source: SpendSource;
@@ -467,7 +467,6 @@ export interface AppConfig {
   brand_short: string;
   tagline: string;
   accent_segment: string;
-  provider_label: string;
   public_host: string;
   // Explicit hosted-chat URL. Empty string => the SPA derives chat.<domain> from
   // the gateway host (deriveSubdomainUrl over me.endpoint).

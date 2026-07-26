@@ -26,6 +26,9 @@ src/api/coverage.xml
 # dev screenshots / browser-automation artifacts
 /*.png
 .playwright-mcp/
+
+# per-machine compose tweaks (port remaps etc.) — never shared
+docker-compose.dev.override.yml
 src/api/uv.lock
 
 # BEGIN ach-cli — agent config with embedded credentials, do not commit
