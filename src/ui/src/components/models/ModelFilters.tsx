@@ -3,6 +3,7 @@
 // CAPABILITY row (Vision / Thinking / Tools / Search).
 import * as React from 'react';
 import type { ModelRow } from '@/lib/api-types';
+import { chipClass } from '@/lib/chip';
 
 export type ModelCapKey = 'vision' | 'reasoning' | 'function_calling' | 'web_search';
 
@@ -19,12 +20,6 @@ const CAP_LABEL: Record<ModelCapKey, string> = {
   function_calling: 'Tools',
   web_search: 'Search',
 };
-
-// Shared chip button styling (active vs idle) for both filter rows.
-const chipClass = (on: boolean): string =>
-  `cursor-pointer rounded-md border px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide transition-colors ${
-    on ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text-secondary hover:border-primary'
-  }`;
 
 // Keep only rows where EVERY active capability is supported (AND semantics).
 export function applyModelFilters(rows: ModelRow[], active: Set<ModelCapKey>): ModelRow[] {
