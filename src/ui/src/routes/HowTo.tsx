@@ -282,13 +282,17 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
     caption?: string;
     note?: string;
     guide?: { url: string; label: string };
-    // Optional trailing caveat with its own copyable snippet (e.g. disabling
-    // Anthropic server-side tools that can't run through the gateway).
+    // Optional trailing note with its own copyable snippet — a caveat (e.g.
+    // disabling Anthropic server-side tools that can't run through the gateway)
+    // or a follow-up config file (e.g. pi's settings.json next to models.json).
     caveat?: { note: string; caption: string; code: string };
   };
   const TOOL_GROUPS: {
     id: string;
     label: string;
+    // `false` keeps the entry in source (deprecated / unmaintained setups stay
+    // documented here) but hides it from the page — see VISIBLE_TOOLS below.
+    enabled?: boolean;
     variants: ToolVariant[];
   }[] = [
     {
@@ -359,6 +363,73 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
       ],
     },
     {
+      id: 'pi',
+      label: 'Pi agent',
+      variants: [
+        {
+          id: 'pi',
+          ready: true,
+          caption: '~/.pi/agent/models.json',
+          // Pi is configured by JSON, not env vars: providers keyed by name, each
+          // pointing at the gateway. `$LITELLM_API_KEY` is pi's own env
+          // interpolation, so the key never lands in the file.
+          code: `{
+  "providers": {
+    "google": {
+      "api": "google-generative-ai",
+      "baseUrl": "${apiBase}/v1beta",
+      "apiKey": "$LITELLM_API_KEY"
+    },
+    "litellm": {
+      "api": "openai-completions",
+      "baseUrl": "${apiBase}/v1",
+      "apiKey": "$LITELLM_API_KEY",
+      "models": [
+        {
+          "id": "ackstorm.fast",
+          "name": "ACKstorm Fast",
+          "reasoning": false,
+          "input": ["text", "image"]
+        },
+        {
+          "id": "ackstorm.smart",
+          "name": "ACKstorm Smart",
+          "reasoning": true,
+          "input": ["text", "image"]
+        },
+        {
+          "id": "gemini-flash-latest",
+          "name": "Gemini Flash Latest",
+          "reasoning": true,
+          "input": ["text", "image"]
+        }
+      ]
+    }
+  }
+}`,
+          note: 'Install with npm install -g --ignore-scripts @earendil-works/pi-coding-agent (or curl -fsSL https://pi.dev/install.sh | sh), export the key pi interpolates — export LITELLM_API_KEY="sk-..." — then run pi. An openai-completions provider needs an explicit models array: pi ships no catalog for custom gateways, so add one entry per alias you use. The google provider needs no list — it reuses pi’s built-in Gemini catalog against the gateway.',
+          guide: {
+            url: 'https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md',
+            label: 'Pi providers doc',
+          },
+          caveat: {
+            note: 'Pick the default and which models show up in the model picker. Entries in enabledModels are namespaced provider/model-id:',
+            caption: '~/.pi/agent/settings.json',
+            code: `{
+  "defaultProvider": "litellm",
+  "defaultModel": "ackstorm.fast",
+  "enabledModels": [
+    "litellm/ackstorm.fast",
+    "litellm/ackstorm.smart",
+    "litellm/gemini-flash-latest",
+    "google/gemini-flash-latest"
+  ]
+}`,
+          },
+        },
+      ],
+    },
+    {
       id: 'claude',
       label: 'Claude Code',
       variants: [
@@ -415,22 +486,6 @@ claude`,
       ],
     },
     {
-      id: 'gemini',
-      label: 'Gemini CLI',
-      variants: [
-        {
-          id: 'gemini',
-          ready: true,
-          code: `# Gemini CLI → LiteLLM
-export GOOGLE_GEMINI_BASE_URL=${apiBase}/gemini
-export GEMINI_BASE_URL=${apiBase}/gemini/v1beta
-export GEMINI_API_KEY=${KEY_PLACEHOLDER}
-
-gemini`,
-        },
-      ],
-    },
-    {
       id: 'codex',
       label: 'Codex',
       variants: [
@@ -460,8 +515,48 @@ supports_websockets = false`,
       ],
     },
     {
+      id: 'qwen',
+      label: 'Qwen Code',
+      variants: [
+        {
+          id: 'qwen',
+          ready: true,
+          code: `# Qwen Code CLI → LiteLLM (OpenAI-compatible)
+export OPENAI_BASE_URL="${apiBase}/v1"
+export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
+export OPENAI_MODEL="${MODEL_ALIAS}"
+
+qwen`,
+          guide: {
+            url: 'https://docs.litellm.ai/docs/tutorials/litellm_qwen_code_cli',
+            label: 'Qwen Code + LiteLLM guide',
+          },
+        },
+      ],
+    },
+    // Below this line: hidden from the page, kept for reference.
+    {
+      id: 'gemini',
+      label: 'Gemini CLI',
+      // Deprecated upstream — use the Pi agent `google` provider instead.
+      enabled: false,
+      variants: [
+        {
+          id: 'gemini',
+          ready: true,
+          code: `# Gemini CLI → LiteLLM
+export GOOGLE_GEMINI_BASE_URL=${apiBase}/gemini
+export GEMINI_BASE_URL=${apiBase}/gemini/v1beta
+export GEMINI_API_KEY=${KEY_PLACEHOLDER}
+
+gemini`,
+        },
+      ],
+    },
+    {
       id: 'copilot',
       label: 'GitHub Copilot',
+      enabled: false,
       variants: [
         {
           id: 'copilot',
@@ -483,27 +578,8 @@ supports_websockets = false`,
         },
       ],
     },
-    {
-      id: 'qwen',
-      label: 'Qwen Code',
-      variants: [
-        {
-          id: 'qwen',
-          ready: true,
-          code: `# Qwen Code CLI → LiteLLM (OpenAI-compatible)
-export OPENAI_BASE_URL="${apiBase}/v1"
-export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
-export OPENAI_MODEL="${MODEL_ALIAS}"
-
-qwen`,
-          guide: {
-            url: 'https://docs.litellm.ai/docs/tutorials/litellm_qwen_code_cli',
-            label: 'Qwen Code + LiteLLM guide',
-          },
-        },
-      ],
-    },
   ];
+  const VISIBLE_TOOLS = TOOL_GROUPS.filter((g) => g.enabled !== false);
   const [toolGroup, setToolGroup] = useState<string>('opencode');
   const [toolVariant, setToolVariant] = useState<Record<string, string>>(() =>
     Object.fromEntries(TOOL_GROUPS.map((g) => [g.id, g.variants[0].id])),
@@ -694,13 +770,13 @@ qwen`,
           >
             <Tabs value={toolGroup} onValueChange={setToolGroup}>
               <TabsList variant="line" className="flex-wrap">
-                {TOOL_GROUPS.map((g) => (
+                {VISIBLE_TOOLS.map((g) => (
                   <TabsTrigger key={g.id} value={g.id}>
                     {g.label}
                   </TabsTrigger>
                 ))}
               </TabsList>
-              {TOOL_GROUPS.map((g) => (
+              {VISIBLE_TOOLS.map((g) => (
                 <TabsContent key={g.id} value={g.id} className="mt-4">
                   {g.variants.length > 1 ? (
                     <Tabs
