@@ -32,6 +32,11 @@ import { KpiRow } from '@/components/stats/KpiRow';
 import { LatencyPanel } from '@/components/stats/LatencyPanel';
 import { ModelTable } from '@/components/stats/ModelTable';
 import {
+  UsageTypeFilter,
+  applyUsageTypeFilter,
+  type UsageType,
+} from '@/components/stats/UsageTypeFilter';
+import {
   RequestsChart,
   RequestsMetricToggle,
   type RequestsMetric,
@@ -119,6 +124,8 @@ export function Stats() {
     useState<RequestsMetric>('requests');
   // USAGE BREAKDOWN client-side name filter.
   const [modelSearch, setModelSearch] = useState('');
+  // USAGE BREAKDOWN row-type filter (ALL / MODEL / MCP TOOL).
+  const [usageType, setUsageType] = useState<UsageType>('all');
 
   const query = useStats(range);
   // The user's full key list — merged into the TOP API KEYS panel so idle keys
@@ -149,7 +156,9 @@ export function Stats() {
   const totals = data?.totals ?? null;
   const series = data?.series ?? [];
   const models = data?.models ?? [];
-  const visibleModels = models.filter((m) => matchesSearch(modelSearch, m.model));
+  const visibleModels = applyUsageTypeFilter(models, usageType).filter((m) =>
+    matchesSearch(modelSearch, m.model),
+  );
   // Activity rows unioned with the user's keys (idle keys padded with zeros),
   // ranked by spend — so TOP API KEYS lists all keys, not only the active ones.
   const keys = mergeTopKeys(data?.keys ?? [], selectKeyRows(keysQuery.data));
@@ -315,8 +324,15 @@ export function Stats() {
       <div className="min-w-0">
         <div className="mb-3 flex min-h-6 flex-wrap items-center justify-between gap-3">
           <div className={SECTION_LABEL_CLASS}>{SECTION_MODEL_BREAKDOWN}</div>
+          {/* One line: chips + search + export. No flex-wrap on the inner row —
+              TableSearch is w-full and would push itself onto a second row. The
+              chips are shrink-0, so the search input absorbs any width squeeze;
+              the outer row still wraps, dropping this block under the label. */}
           {loading ? null : (
             <div className="flex items-center gap-2">
+              <UsageTypeFilter value={usageType} onChange={setUsageType} />
+              {/* Decorative divider between the type chips and the search box. */}
+              <div className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
               <TableSearch
                 value={modelSearch}
                 onChange={setModelSearch}
