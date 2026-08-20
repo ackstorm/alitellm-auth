@@ -380,10 +380,10 @@ release job <strong>only</strong> when the head commit message starts with <code
 <span class="c1"># 2. Bump EVERY version file + promote the CHANGELOG [unreleased] section.</span>
 <span class="c1">#    release-bump edits files but does NOT commit.</span>
 make<span class="w"> </span>release-bump<span class="w"> </span><span class="nv">VERSION</span><span class="o">=</span><span class="m">0</span>.5.33
-git<span class="w"> </span>commit<span class="w"> </span>-am<span class="w"> </span><span class="s2">&quot;chore(release): bump version to 0.5.33&quot;</span>
+git<span class="w"> </span>commit<span class="w"> </span>-am<span class="w"> </span><span class="s2">"chore(release): bump version to 0.5.33"</span>
 
 <span class="c1"># 3. Marker commit that triggers CI (an empty commit is fine).</span>
-make<span class="w"> </span>release-cut<span class="w"> </span><span class="nv">VERSION</span><span class="o">=</span><span class="m">0</span>.5.33<span class="w">      </span><span class="c1"># git commit --allow-empty -m &quot;chore(release): v0.5.33&quot;</span>
+make<span class="w"> </span>release-cut<span class="w"> </span><span class="nv">VERSION</span><span class="o">=</span><span class="m">0</span>.5.33<span class="w">      </span><span class="c1"># git commit --allow-empty -m "chore(release): v0.5.33"</span>
 
 <span class="c1"># 4. Push — CI fires and produces the image, chart, tag, and GitHub Release.</span>
 git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>main
