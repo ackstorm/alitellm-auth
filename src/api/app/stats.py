@@ -158,6 +158,40 @@ def _day_series_entry(day: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _accumulate_day_series(day_acc: dict[Any, dict[str, Any]], day: dict[str, Any]) -> None:
+    """Merge one ``results[]`` row into the accumulator for its date, keyed on date.
+
+    LiteLLM's ``/user/daily/activity`` pagination is not always day-aligned — a
+    single busy day's rows can be split across multiple pages, each carrying its
+    OWN row for the SAME date. Without merging, a later page's row would simply
+    overwrite an earlier page's row for that date (via the ``by_day`` dict in
+    ``_zero_fill_series``), silently undercounting the Daily Spend / Requests-by-
+    Day series for that day even though the headline totals (summed from
+    ``metadata`` across all pages) stay correct. A ``None`` date can't be merged
+    meaningfully, so each such row gets its own accumulator slot.
+    """
+    entry = _day_series_entry(day)
+    key = entry["date"] if entry["date"] is not None else object()
+    acc = day_acc.setdefault(
+        key,
+        {
+            "date": entry["date"],
+            "spend": 0.0,
+            "requests": 0,
+            "tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+        },
+    )
+    acc["spend"] += entry["spend"]
+    acc["requests"] += entry["requests"]
+    acc["tokens"] += entry["tokens"]
+    acc["input_tokens"] += entry["input_tokens"]
+    acc["output_tokens"] += entry["output_tokens"]
+    acc["failed"] += entry["failed"]
+
+
 def _accumulate_day_models(model_acc: dict[str, dict[str, Any]], breakdown: dict[str, Any]) -> None:
     models = breakdown.get("models") or {}
     if not isinstance(models, dict):
@@ -217,7 +251,10 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     Window totals come from ``data["metadata"]``, whose ``total_*`` are summed
     across all pages by ``user_daily_activity`` (LiteLLM's per-response metadata is
     only a per-page partial, NOT a full-range aggregate).
-    ``series`` is one entry per ``results[]`` day. Per-model and per-key metrics are
+    ``series`` is one entry per distinct date, summed across any ``results[]`` rows
+    sharing that date (LiteLLM's pagination can split a single busy day across
+    multiple pages, each with its own row for the same date). Per-model and
+    per-key metrics are
     summed ACROSS days from each ``results[].breakdown.models`` /
     ``results[].breakdown.api_keys`` (the breakdowns are per-day; the window total
     is the sum). Models/keys absent in-window are simply absent (no fabricated
@@ -247,14 +284,14 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     completion_tokens = int(_num(metadata.get("total_completion_tokens")))
     cache_read_tokens = int(_num(metadata.get("total_cache_read_input_tokens")))
 
-    series: list[dict[str, Any]] = []
+    day_acc: dict[Any, dict[str, Any]] = {}
     model_acc: dict[str, dict[str, Any]] = {}
     key_acc: dict[str, dict[str, Any]] = {}
 
     for day in results:
         if not isinstance(day, dict):
             continue
-        series.append(_day_series_entry(day))
+        _accumulate_day_series(day_acc, day)
         breakdown = day.get("breakdown") or {}
         _accumulate_day_models(model_acc, breakdown)
         _accumulate_day_keys(key_acc, breakdown)
@@ -262,7 +299,7 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     # Chart x-axis runs oldest → newest (left → right). LiteLLM may return
     # ``results[]`` newest-first, so sort the series chronologically by date
     # (None dates sink to the front via the empty-string fallback).
-    series.sort(key=lambda s: s.get("date") or "")
+    series = sorted(day_acc.values(), key=lambda s: s.get("date") or "")
 
     return {
         "requests": requests,

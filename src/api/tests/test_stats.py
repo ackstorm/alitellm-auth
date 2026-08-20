@@ -102,6 +102,29 @@ def test_aggregate_window_models_summed_across_days():
     assert len(agg["series"]) == 2
 
 
+def test_aggregate_window_series_merges_same_date_across_pages():
+    """A busy day split across 2 LiteLLM pages (both rows dated the same day)
+    must be SUMMED into one series entry, not overwritten by the last page.
+
+    Reproduces the prod bug: /user/daily/activity pagination is not always
+    day-aligned, so page 1 and page 2 can both carry a row for the same date.
+    """
+    data = _load("daily_activity_current.json")
+    same_day = {
+        "results": [data["results"][0], copy.deepcopy(data["results"][0])],
+        "metadata": data["metadata"],
+    }
+    # both rows keep the SAME date (unlike the two_day fixture above).
+
+    agg = aggregate_window(same_day)
+
+    assert len(agg["series"]) == 1
+    entry = agg["series"][0]
+    assert entry["date"] == "2026-04-01"
+    assert entry["spend"] == pytest.approx(0.023427 * 2)
+    assert entry["requests"] == 22
+
+
 def test_aggregate_window_keys_summed_and_present():
     data = _load("daily_activity_current.json")
     agg = aggregate_window(data)
