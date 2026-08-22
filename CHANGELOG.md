@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.7.1] - 2026-08-22
+
 ### Fixed
 
 - **`GET /api/session/stats` under-reported older days in a window as heavy usage
