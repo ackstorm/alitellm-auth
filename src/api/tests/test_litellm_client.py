@@ -1240,6 +1240,53 @@ async def test_two_page_daily_activity():
     assert "page" in params
 
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_daily_activity_many_pages_not_truncated():
+    """Regression (prod, 2026-08): page count tracks VOLUME, not days-in-range — a
+    single busy day can span several pages. A 7-day window needed 15 pages live, one
+    day alone spanning 6 of them. The old max_pages=12 (sized for "days") silently
+    dropped the oldest pages once volume grew, which read as spend/requests having
+    all happened on the last day or two. 15 pages must fully load, not truncate.
+    """
+    from app.litellm_client import user_daily_activity
+
+    settings = make_settings()
+
+    total_pages = 15
+    pages = [
+        {
+            "results": [
+                {
+                    "date": f"2026-08-{16 + (p - 1) % 7:02d}",
+                    "metrics": {"spend": 1.0, "api_requests": 1},
+                }
+            ],
+            "metadata": {
+                "total_spend": 1.0,
+                "total_api_requests": 1,
+                "page": p,
+                "total_pages": total_pages,
+                "has_more": p < total_pages,
+            },
+        }
+        for p in range(1, total_pages + 1)
+    ]
+
+    def _responder(request: httpx.Request) -> httpx.Response:
+        page = int(request.url.params.get("page", "1"))
+        return httpx.Response(200, json=pages[page - 1])
+
+    route = respx.get("http://litellm.test/user/daily/activity").mock(side_effect=_responder)
+
+    result = await user_daily_activity("alice@example.com", settings, "2026-08-16", "2026-08-22")
+
+    assert route.call_count == total_pages
+    assert len(result["results"]) == total_pages
+    assert result["metadata"]["total_api_requests"] == total_pages
+    assert result["metadata"]["total_spend"] == pytest.approx(float(total_pages))
+
+
 # ---------------------------------------------------------------------------
 # Read-only catalogs: list_litellm_models + list_litellm_mcp_servers
 # ---------------------------------------------------------------------------

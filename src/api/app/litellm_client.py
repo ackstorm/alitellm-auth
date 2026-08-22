@@ -586,6 +586,12 @@ async def list_session_keys(email: str, settings: Settings) -> list[dict]:
     return out
 
 
+# Safety ceiling only — NOT sized to "days in range" (a single busy day can span
+# many pages under load; see user_daily_activity's docstring). 100 * 500 = 50k
+# day-rows, far past anything a 366-day window should ever produce.
+_DAILY_ACTIVITY_MAX_PAGES = 500
+
+
 async def user_daily_activity(
     email: str,
     settings: Settings,
@@ -607,6 +613,14 @@ async def user_daily_activity(
     that page), NOT a full-range aggregate, so the window total must be accumulated
     page by page — see the summed_totals loop below.
 
+    Page count does NOT correlate with day count: LiteLLM splits a single busy day's
+    rows across as many pages as its volume needs (verified live — a 7-day window
+    with heavy traffic needed 15 pages, one day alone spanning 6 of them), not one
+    page per day. A page cap sized for "days in range" silently truncates the OLDEST
+    pages once volume grows, which reads as the whole window's spend/requests having
+    happened on the last day or two. So the loop follows has_more/total_pages to
+    completion, bounded only by a generous safety cap against a runaway/buggy API.
+
     Used by GET /api/session/stats.
 
     Args:
@@ -616,13 +630,8 @@ async def user_daily_activity(
         end_date: ISO date string, e.g. "2026-05-31".
     """
     headers = _admin_headers(settings)
-    # WR-02: results[] are per-DAY rows. Pin an explicit page_size so the 366-day
-    # max range (RESEARCH §4) deterministically fits inside the page budget:
-    # page_size=100 * max_pages=12 = 1200 day-rows >> 366, leaving large headroom
-    # so series/per-model/per-key breakdowns are never silently truncated for any
-    # in-range window (the prior implicit page size could truncate past page 12).
     page_size = 100
-    max_pages = 12
+    max_pages = _DAILY_ACTIVITY_MAX_PAGES
     page = 1
     accumulated: list = []
     last_metadata: dict = {}

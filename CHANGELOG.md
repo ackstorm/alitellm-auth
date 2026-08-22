@@ -2,6 +2,18 @@
 
 ## [unreleased]
 
+### Fixed
+
+- **`GET /api/session/stats` under-reported older days in a window as heavy usage
+  grew.** `user_daily_activity`'s pagination page count tracks request *volume*, not
+  days-in-range — LiteLLM splits a single busy day's rows across as many pages as
+  its volume needs (confirmed live: a 7-day window needed 15 pages, one day alone
+  spanning 6 of them). The old `max_pages=12` (sized for "days in a 366-day range")
+  silently dropped the oldest pages once volume grew past that, which read in the
+  dashboard as spend/requests having all happened on the last day or two instead of
+  spread across the window. `max_pages` is now a generous safety ceiling (500), not
+  a days-based estimate.
+
 ## [0.7.0] - 2026-08-15
 
 ## [0.6.1] - 2026-07-26
