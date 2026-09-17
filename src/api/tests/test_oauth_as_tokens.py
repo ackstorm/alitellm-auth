@@ -39,7 +39,7 @@ def test_jwks_exposes_one_public_rsa_key_with_kid_and_no_private_material():
     key = keys[0]
     assert key["kty"] == "RSA" and key["alg"] == "RS256" and key["use"] == "sig"
     assert key["kid"] == signer.kid
-    assert "d" not in key and "p" not in key
+    assert not {"d", "p", "q", "dp", "dq", "qi", "oth"} & key.keys()
 
 
 def test_same_pem_gives_same_kid():
