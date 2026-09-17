@@ -1,0 +1,1003 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="OIDC identity + LiteLLM User/VirtualKey provisioning">
+      
+      
+      
+      
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.49">
+    
+    
+      
+        <title>UI Review Backlog - alitellm-auth</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.6f8fc17f.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ui-review-backlog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="alitellm-auth" class="md-header__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            alitellm-auth
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              UI Review Backlog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="alitellm-auth" class="md-nav__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    alitellm-auth
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dex-integration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dex / OIDC integration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#keys-screen-routesdashboardtsx-componentskeyskeystabletsx" class="md-nav__link">
+    <span class="md-ellipsis">
+      KEYS screen (routes/Dashboard.tsx, components/keys/KeysTable.tsx)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="KEYS screen (routes/Dashboard.tsx, components/keys/KeysTable.tsx)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worth-implementing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Worth implementing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-reason" class="md-nav__link">
+    <span class="md-ellipsis">
+      Rejected (reason)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#models-screen-routesmodelstsx" class="md-nav__link">
+    <span class="md-ellipsis">
+      MODELS screen (routes/Models.tsx)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MODELS screen (routes/Models.tsx)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worth-implementing_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Worth implementing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open-jc-to-decide" class="md-nav__link">
+    <span class="md-ellipsis">
+      Open (JC to decide)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-reason_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Rejected (reason)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stats-screen-routesstatstsx" class="md-nav__link">
+    <span class="md-ellipsis">
+      STATS screen (routes/Stats.tsx)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="STATS screen (routes/Stats.tsx)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worth-implementing_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Worth implementing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wanted-blocked-on-upstream-litellm" class="md-nav__link">
+    <span class="md-ellipsis">
+      Wanted — blocked on upstream LiteLLM
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-reason_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Rejected (reason)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stats-part-2-the-model-breakdown-table-componentsstatsmodeltabletsx" class="md-nav__link">
+    <span class="md-ellipsis">
+      STATS part 2 — the Model Breakdown table (components/stats/ModelTable.tsx)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="STATS part 2 — the Model Breakdown table (components/stats/ModelTable.tsx)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worth-implementing_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Worth implementing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#feasible-but-not-requested-parked-same-backend-change-as-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Feasible but not requested (parked — same backend change as #3)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-reason_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Rejected (reason)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-screen-routeshowtotsx-801-lines" class="md-nav__link">
+    <span class="md-ellipsis">
+      HOW-TO screen (routes/HowTo.tsx, 801 lines)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="HOW-TO screen (routes/HowTo.tsx, 801 lines)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worth-implementing_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Worth implementing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-reason_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Rejected (reason)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consolidated-plan-go-deep-after-this-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consolidated plan (go-deep after this session)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Consolidated plan (go-deep after this session)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tier-1-frontend-only-cheap-high-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tier 1 — frontend-only, cheap, high value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-2-frontend-only-moderate" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tier 2 — frontend-only, moderate
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-3-small-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tier 3 — small backend
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-4-large-blocked-upstream" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tier 4 — large / blocked upstream
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dropped-by-jc" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dropped by JC
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="ui-review-backlog">UI Review Backlog</h1>
+<p>External GenAI-agent feedback on the <code>/ui</code> console screenshots, triaged against
+the real code + backend data model. One section per screen. Only <strong>worth-implementing</strong>
+items are kept here (with feasibility + where to go); rejected items get a one-line
+reason so we don't re-litigate them.</p>
+<p><strong>Framing that killed half the raw feedback:</strong> the reviewer graded the console as an
+<em>admin multi-tenant key vault</em> (manage other people's keys). It's a <em>per-user
+self-service console</em> — every key belongs to the signed-in user. So "Created by",
+per-key permissions, environments (dev/staging/prod), IP/region all assume the wrong
+product.</p>
+<hr />
+<h2 id="keys-screen-routesdashboardtsx-componentskeyskeystabletsx">KEYS screen (<code>routes/Dashboard.tsx</code>, <code>components/keys/KeysTable.tsx</code>)</h2>
+<p>Backend key fields (<code>KeyRow</code>, projected by <code>litellm_client.py::_project_session_key</code>):
+<code>id, key_alias, spend, tpm_limit, rpm_limit, models, team_id, created_at, expires,
+last_used, is_default, blocked</code>. No permissions / IP / rotation / budget-reset-date.</p>
+<h3 id="worth-implementing">Worth implementing</h3>
+<ol>
+<li><strong>Relative "Last used" + stale warning</strong> — <em>frontend only, best ROI</em></li>
+<li>Now: <code>KeysTable.tsx</code> "Last used" column prints absolute <code>formatDate(row.last_used)</code>.</li>
+<li>Want: <code>2h ago</code> / <code>3 days ago</code> / <code>Never used</code>; warning tone (amber) on stale keys
+     (e.g. &gt;30d or never-used-but-old).</li>
+<li>Feasibility: <code>last_used</code> present. <strong>No relative-time helper exists in <code>lib/format.ts</code></strong> —
+     add a small <code>relativeTime(iso)</code> there and reuse.</li>
+<li>
+<p>Where: <code>lib/format.ts</code> (new helper), <code>KeysTable.tsx</code> lastused cell.</p>
+</li>
+<li>
+<p><strong>Rate-limit column (TPM / RPM)</strong> — <em>JC wants it</em></p>
+</li>
+<li>Now: not shown. <code>tpm_limit</code>/<code>rpm_limit</code> already on <code>KeyRow</code> (from LiteLLM
+     <code>k.get("tpm_limit")</code>, <code>litellm_client.py:498-499</code>).</li>
+<li>Feasibility: frontend only. Populated when a per-key limit is set; <strong>null (→ em-dash)
+     when inherited from user/team</strong>, which is the common case — expect many em-dashes.</li>
+<li>
+<p>Where: add column(s) to <code>KeysTable.tsx</code>. Consider one compact <code>TPM/RPM</code> cell.</p>
+</li>
+<li>
+<p><strong>Budget card: "% used"</strong> — <em>trivial</em></p>
+</li>
+<li>Now: <code>BudgetBar</code> shows <code>$current of $max / duration</code>.</li>
+<li>Want: append <code>· N% used</code> (we already compute <code>ratio</code>).</li>
+<li>
+<p>Where: <code>Dashboard.tsx::BudgetBar</code> figure line (~1 line).</p>
+</li>
+<li>
+<p><strong>Budget card: projected spend</strong> — <em>"si no es difícil, mola"; it isn't</em></p>
+</li>
+<li>Want: naive linear run-rate — <code>current / daysElapsed * daysInPeriod</code>, labelled
+     "projected".</li>
+<li>Feasibility: pure frontend from <code>me.spend.current</code> + current date. ~5 lines.</li>
+<li>Caveat: naive linear only; label clearly as <em>projected</em>. Skip if <code>budget_duration</code>
+     isn't monthly-ish (projection is meaningless for a 24h window).</li>
+<li>
+<p>Where: <code>Dashboard.tsx::BudgetBar</code>.</p>
+</li>
+<li>
+<p><strong>Team card caption</strong> — <em>trivial, low value</em></p>
+</li>
+<li>Now: <code>TeamTile</code> renders team-alias pills (<code>default</code>, <code>run</code>, <code>dream</code>) under a "Team"
+     label; ambiguous whether selected/available/tags.</li>
+<li>Want: small sub-label/tooltip like "Your teams".</li>
+<li>Where: <code>Dashboard.tsx::TeamTile</code>.</li>
+</ol>
+<h3 id="rejected-reason">Rejected (reason)</h3>
+<ul>
+<li><strong>Model access per key</strong> — permission == team membership; we don't define more (JC).</li>
+<li><strong>View usage per key</strong> — already covered by the STATS screen (JC).</li>
+<li><strong>Filters above table (team/status/last-used/expiring)</strong> — YAGNI; users have few keys (JC).</li>
+<li><strong>Disable action</strong> — already exists in the kebab menu (<code>Disable key</code>); reviewer missed it.</li>
+<li><strong>Copy key ID / Rotate / Edit permissions</strong> — deliberate no-secret table; no rotation
+  concept; no permission model.</li>
+<li><strong>Scope/permissions, Created by, Last IP/region, Rotation status</strong> — not in data model /
+  self-service console (Created by is always the signed-in user).</li>
+<li><strong>Environment dev/staging/prod</strong> — no environment concept.</li>
+<li><strong>Budget: days remaining</strong> — needs budget-reset date; backend doesn't expose it.</li>
+<li><strong>Budget: alert threshold</strong> — no threshold config exists.</li>
+</ul>
+<hr />
+<h2 id="models-screen-routesmodelstsx">MODELS screen (<code>routes/Models.tsx</code>)</h2>
+<p>Backend fields (<code>ModelRow</code>, projected by <code>litellm_client.py::_project_model_group</code> from
+LiteLLM <code>/model_group/info</code> — the <strong>safe public</strong> group view):
+<code>name, providers[], mode, max_input_tokens, max_output_tokens, input_cost_per_token,
+output_cost_per_token, supports_vision, supports_function_calling, supports_reasoning,
+supports_web_search</code>. Deliberately <strong>no</strong> upstream model id / api_base / api_key, and no
+description / rate-limits / allowed-teams / latency fields.</p>
+<p>This screen is already ahead of the reviewer: capability icons <strong>already have tooltips</strong>
+(<code>CapBadge</code>/<code>ThinkingCell</code> <code>title=</code>), and pricing is <strong>already labelled</strong> (<code>$ / 1M (in / out)</code>
+header + "per 1M tokens" subtitle).</p>
+<h3 id="worth-implementing_1">Worth implementing</h3>
+<ol>
+<li><strong>Capability filter toolbar</strong> — <em>frontend only, JC scoped it to capabilities</em></li>
+<li>Quick-filter toggles by <code>mode</code> (chat / image / audio / …) + the four <code>supports_*</code>
+     booleans (vision / thinking / tools / web).</li>
+<li>"Cheaper" is continuous, not boolean — the price column already sorts, so treat
+     cheapest as sort (or an optional <code>≤ $X</code> toggle), not a filter chip.</li>
+<li>Feasibility: all fields on <code>ModelRow</code>; filter rows client-side before the DataTable.
+     Needs a little filter-state + a toggle row above the table.</li>
+<li>
+<p>Where: <code>Models.tsx</code> (new toolbar), filter <code>models</code> before passing to <code>DataTable</code>.</p>
+</li>
+<li>
+<p><strong>Router <code>$0.00 / $0.00</code> → "Dynamic"</strong> — <em>frontend only</em></p>
+</li>
+<li>Now: <code>PriceCell</code> renders literal <code>$0.00</code> for a 0-cost row (0 is a number), so the
+     auto-router alias shows <code>$0.00 / $0.00</code>, which reads as unfinished.</li>
+<li>Want: detect a router row via <code>providers</code> ⊇ <code>auto_router</code> → show <code>Dynamic</code> for both
+     price and context.</li>
+<li>
+<p>Where: <code>Models.tsx::PriceCell</code> + <code>ContextCell</code> (add a <code>isRouter(row)</code> guard).</p>
+</li>
+<li>
+<p><strong>Example API call snippet</strong> — <em>frontend only, the one real win from the "detail panel" idea</em></p>
+</li>
+<li>Per-model curl / python snippet built from <code>me.endpoint</code> + the alias (copy button or
+     small expand). Genuine dev value; nothing else in a detail panel adds data we don't
+     already show in the row.</li>
+<li>Where: <code>Models.tsx</code> — per-row expand or a copy-snippet action.</li>
+</ol>
+<h3 id="open-jc-to-decide">Open (JC to decide)</h3>
+<ul>
+<li><strong>Alias taglines</strong> (<code>ackstorm.fast</code> = low-latency, etc.) — real value, but <strong>needs a
+  backend <code>description</code> field</strong> surfaced from LiteLLM <code>model_info</code> (can't hardcode:
+  aliases are deployment-configured, not always <code>ackstorm.*</code>). Biggest value / biggest cost.</li>
+<li><strong>Computed badges</strong> (Cheapest / Largest context) — derivable frontend, but <strong>redundant</strong>
+  with the already-sortable price/context columns. Skip unless wanted.</li>
+</ul>
+<h3 id="rejected-reason_1">Rejected (reason)</h3>
+<ul>
+<li><strong>Capability icon tooltips</strong> — already implemented (<code>title=</code> on every badge).</li>
+<li><strong>"Price per 1M" clarity</strong> — header + subtitle already state it; <code>In$/Out$</code> relabel is taste.</li>
+<li><strong>Editorial badges</strong> (Recommended / Fastest / Best quality) — no data; = the alias-tagline
+  backend work above.</li>
+<li><strong>Full detail side-panel</strong> — full model id <strong>deliberately hidden</strong> (security); rate limits /
+  allowed teams / latency / supported-params <strong>not in data</strong>; panel would just repeat the row.</li>
+<li><strong>Multi-state placeholders</strong> (Coming soon / Inherited / Custom for <code>—</code>) — backend only
+  emits null; we can't distinguish those states. Router "Dynamic" (worth #2) is the one
+  detectable case.</li>
+</ul>
+<hr />
+<h2 id="stats-screen-routesstatstsx">STATS screen (<code>routes/Stats.tsx</code>)</h2>
+<p>Contract (<code>stats.py::build_stats_contract</code>, sourced from LiteLLM <code>/user/daily/activity</code>):
+<code>totals{requests, tokens, spend, failed_requests, input_tokens, output_tokens,
+cache_read_tokens, cache_hit_pct, avg_cost_per_1m_tokens, deltas}</code>, per-day
+<code>series[]{date, spend, requests, tokens, failed}</code>, per-model + per-key breakdowns,
+<code>budget</code>, <code>capabilities</code>. <strong>No latency, no error codes, no per-model/per-key failure
+split, no logs</strong> in the daily aggregate.</p>
+<h3 id="worth-implementing_2">Worth implementing</h3>
+<ol>
+<li><strong>Projected spend</strong> — <em>frontend only; same item JC liked on KEYS #6c, better home here</em></li>
+<li>Naive month-end run-rate on the budget panel: <code>budget.current / daysElapsed *
+     daysInPeriod</code>, labelled "projected".</li>
+<li>Implement once (shared helper) and reuse on the KEYS dashboard budget bar.</li>
+<li>
+<p>Where: <code>components/stats/BudgetPanel.tsx</code> (+ <code>Dashboard.tsx::BudgetBar</code>).</p>
+</li>
+<li>
+<p><strong>Failed-requests trend</strong> — <em>frontend only</em></p>
+</li>
+<li><code>series[].failed</code> already exists and <code>RequestsChart</code> already has a metric toggle
+     (requests / tokens) — add <code>failed</code> as a third metric to get the failure-rate trend.</li>
+<li>
+<p>Where: <code>components/stats/RequestsChart.tsx</code> (<code>RequestsMetric</code> union + toggle).</p>
+</li>
+<li>
+<p><strong>Split the Total-Tokens KPI card</strong> — <em>taste, JC approved</em></p>
+</li>
+<li>One-line <code>209M in · 1.05M out · 99% cached</code> → three lines (or a small stacked bar).
+     Data present (<code>input_tokens</code>, <code>output_tokens</code>, <code>cache_hit_pct</code>).</li>
+<li>
+<p>Where: <code>components/stats/KpiRow.tsx</code>.</p>
+</li>
+<li>
+<p><strong>Spend tooltip</strong> — <em>frontend only, cheap</em></p>
+</li>
+<li>LiteLLM spend already accounts for cache/provider pricing → add a tooltip on the
+     spend KPI: "gateway-computed spend; includes cache &amp; provider pricing".</li>
+<li>Where: <code>components/stats/KpiRow.tsx</code>.</li>
+</ol>
+<h3 id="wanted-blocked-on-upstream-litellm">Wanted — blocked on upstream LiteLLM</h3>
+<ol>
+<li><strong>Latency (p50/p95/p99, TTFT, tokens/sec)</strong> — <em>JC wants it; investigated</em></li>
+<li>Data EXISTS per request: LiteLLM <code>/spend/logs</code> rows carry <code>request_duration_ms</code>
+     (total latency) and <code>completionStartTime</code> (→ TTFT). Percentiles + tok/s are derivable.</li>
+<li>BLOCKER: <code>/spend/logs</code> was removed from this repo (<code>session.py:790</code>) because its
+     <code>user_id</code>/<code>date</code> filters are silently ignored (<strong>cross-user leak</strong>) and it returns the
+     entire table (~83 MB/user/7d → <strong>OOM-killed the pod</strong>). The daily aggregate we use has
+     no latency. This service can't measure latency itself (it doesn't proxy LLM traffic).</li>
+<li>NEXT ACTION: recheck <code>/spend/logs</code> filtering + pagination on the current LiteLLM
+     version. If honored now → a bounded per-request fetch + server-side percentile
+     aggregation becomes feasible (heavier query, no leak/OOM). Else: upstream PR to add
+     latency to the daily aggregate, or a Prometheus/otel metrics path (new infra).</li>
+<li><strong>RECHECK 2026-07-09 (live probe, <code>api.ackstorm.ai</code>, a real user <code>sk-</code>) → GO (bounded).</strong><ul>
+<li><strong>No cross-user leak on the user-key path.</strong> <code>GET /spend/logs?summarize=false</code> called
+   with a plain user <code>sk-</code> <strong>auto-scopes to the caller</strong>: all 138 rows had
+   <code>user=&lt;key owner&gt;</code>, and the daily-aggregate <code>users</code> block listed only that user. The
+   original leak was the <em>master-key</em> path (<code>user_id</code> param ignored); server-side we must
+   call it via the <code>sso_key_swapper</code> impersonation (master + <code>x-user-id</code>, same as
+   models/mcp) so it auto-scopes, NEVER master alone with a <code>user_id</code> filter.</li>
+<li><strong>Latency fields ARE present per request:</strong> <code>request_duration_ms</code> (138/138 rows),
+   <code>startTime</code>, <code>endTime</code>, <code>completionStartTime</code>, <code>status</code>, tokens. Probe percentiles for
+   one day: p50 3251 ms, p95 7226 ms, p99 9231 ms. TTFT = <code>completionStartTime − startTime</code>.</li>
+<li><strong>Date filters honored; pagination IGNORED.</strong> <code>start_date</code>/<code>end_date</code> bound the window;
+   <code>page</code>/<code>page_size</code> are silently ignored (10-page-size request still returned all 138
+   rows). So the fetch is bounded ONLY by the date range, not by pages.</li>
+<li><strong>Size:</strong> 1 day ≈ 138 rows ≈ <strong>3.7 MB</strong> raw — bloated by <code>proxy_server_request</code> (16 KB),
+   <code>metadata</code> (6 KB), <code>response</code> (3 KB) per row. The <strong>lean latency subset is 375 B/row</strong>
+   (72× smaller). A wide window on a heavy user still risks the old OOM (30 d ≈ 100 MB+).</li>
+<li><strong>Follow-up plan (build):</strong> alitellm-auth backend fetches <code>/spend/logs?summarize=false</code>
+   server-side via <code>sso_key_swapper</code> impersonation (auto-scoped), <strong>capped by a short date
+   window (≤7 d) + a hard row cap</strong> (stop after N rows, label "sampled" — since pagination
+   is a no-op), computes p50/p95/p99 + TTFT + tok/s server-side, and returns ONLY the
+   computed metrics (or the 375 B lean subset) — <strong>never</strong> forwarding
+   <code>messages</code>/<code>response</code>/<code>proxy_server_request</code>/<code>metadata</code> to the browser (kills both the
+   info-disclosure and payload-size problems). New route e.g. <code>GET /api/session/latency</code>.</li>
+</ul>
+</li>
+</ol>
+<h3 id="rejected-reason_2">Rejected (reason)</h3>
+<ul>
+<li><strong>Interactive charts</strong> — already done: both charts have Recharts hover tooltips.</li>
+<li><strong>Error drilldowns</strong> (top error codes / failed-by-model / failed-by-key / error logs) —
+  only a total + per-day <code>failed</code> count exists; no error codes, no per-entity split, no logs.</li>
+<li><strong>Model/key row drilldowns</strong> — no per-entity time series, no detail pages; scope creep.</li>
+<li><strong>"Top model/key per day" in chart hover</strong> — series is a daily aggregate; no per-day split.</li>
+</ul>
+<hr />
+<h2 id="stats-part-2-the-model-breakdown-table-componentsstatsmodeltabletsx">STATS part 2 — the Model Breakdown table (<code>components/stats/ModelTable.tsx</code>)</h2>
+<p><code>StatsModelRow</code> today: <code>model, requests, input_tokens, output_tokens, total_tokens,
+spend, spend_pct, last_used</code>. LiteLLM feeds <code>MCP: …</code> tool rows through the <strong>models</strong>
+breakdown itself (consistent <code>MCP:</code> prefix), so they land in this same table.</p>
+<p><strong>Data-availability correction:</strong> the raw LiteLLM per-model metrics block carries MORE
+than we project — verified in <code>daily_activity_current.json</code>:
+<code>cache_read_input_tokens, cache_creation_input_tokens, failed_requests,
+successful_requests</code> are all present per model. We just don't aggregate them in
+<code>stats.py::_accumulate_day_models</code> or expose them on <code>StatsModelRow</code>. So per-model
+<strong>cached-input</strong> and <strong>errors</strong> are feasible with a small backend change (NOT no-data as
+first triaged). Latency remains the only genuinely-absent metric.</p>
+<h3 id="worth-implementing_3">Worth implementing</h3>
+<ol>
+<li><strong>Option A — "Usage Breakdown" + <code>TYPE</code> column + blank cost cells for MCP rows</strong> —
+   <em>frontend only; the reviewer's own simplest fix; subsumes 3 of their bullets</em></li>
+<li>Rename the section <code>MODEL BREAKDOWN</code> → <code>USAGE BREAKDOWN</code>.</li>
+<li>Add a <code>TYPE</code> column: <code>MCP Tool</code> when <code>model.startsWith("MCP:")</code>, else <code>Model</code>
+     (optionally strip the <code>MCP:</code> prefix from the name cell).</li>
+<li>On MCP-type rows, render <code>—</code> (not <code>$0.00</code> / <code>0</code>) for the token + cost columns
+     (INPUT/OUTPUT/TOTAL/SPEND-per-1M) — kills the "MCP looks free" misread and the
+     empty-column visual noise in one move.</li>
+<li>Rejects Options B (tabs) and C (grouped sections): a column + row-classing gets the
+     same result with no tab/section machinery.</li>
+<li>Where: <code>ModelTable.tsx</code> (+ the section label in <code>Stats.tsx</code>).</li>
+<li>
+<p>Detection caveat: confirm the <code>MCP:</code> prefix against live data before shipping.</p>
+</li>
+<li>
+<p><strong>Table search (name)</strong> — <em>frontend only</em></p>
+</li>
+<li>Filter rows by substring (<code>gitlab</code>, <code>slack</code>, <code>gemini</code>…). Same pattern as MODELS #1.</li>
+<li>
+<p>Where: <code>Stats.tsx</code> / <code>ModelTable.tsx</code>.</p>
+</li>
+<li>
+<p><strong>Per-model "Cached input" column</strong> — <em>small backend + frontend; JC asked, data confirmed</em></p>
+</li>
+<li>Aggregate <code>cache_read_input_tokens</code> in <code>_accumulate_day_models</code>, add
+     <code>cache_read_tokens</code> to <code>StatsModelRow</code> (backend + <code>api-types.ts</code>), render a column.</li>
+<li>Where: <code>stats.py::_accumulate_day_models</code>, <code>api-types.ts::StatsModelRow</code>, <code>ModelTable.tsx</code>.</li>
+</ol>
+<h3 id="feasible-but-not-requested-parked-same-backend-change-as-3">Feasible but not requested (parked — same backend change as #3)</h3>
+<ul>
+<li><strong>Per-model Errors / Error %</strong> — <code>failed_requests</code> is in the same metrics block. If wanted
+  later, add it alongside cached-input for near-zero extra cost. (Corrects the earlier
+  "no per-model errors" reject.)</li>
+</ul>
+<h3 id="rejected-reason_3">Rejected (reason)</h3>
+<ul>
+<li><strong>Options B / C</strong> (tabs / grouped sections) — Option A subsumes the value with less UI.</li>
+<li><strong>Latency column</strong> — genuinely not in daily activity; blocked upstream (STATS #7).</li>
+<li><strong>Clickable row → side panel</strong> (usage-over-time / related keys / recent errors / samples) —
+  no per-entity time series, no key↔model mapping, no error detail, no sample requests.</li>
+<li><strong>Sticky first column</strong> — JC declined (shared <code>DataTable</code> change).</li>
+</ul>
+<hr />
+<h2 id="how-to-screen-routeshowtotsx-801-lines">HOW-TO screen (<code>routes/HowTo.tsx</code>, 801 lines)</h2>
+<p>The most mature screen. Much of the review is <strong>already built</strong>: <code>apiBase = me.endpoint</code>
+is injected into every snippet (endpoint personalization done); the Editors &amp; CLIs section
+has full tabbed setup (OpenCode Gemini/OpenAI, Claude Code, Gemini CLI, codex, each with
+config + notes + guide + caveats); MCP already has <code>MCP Access</code> / <code>MCP Group access</code> /
+<code>Try with curl</code> tabs; the No-terminal section has ACKstorm Chat (ready) + openwork (<code>Soon</code>).</p>
+<p><strong>Two factual corrections (reviewer wrong):</strong>
+- MCP auth <code>x-litellm-api-key: Bearer sk-...</code> <strong>is</strong> the gateway's required format (not a
+  mistake); don't switch to <code>Authorization: Bearer</code>.
+- <code>LITELLM_API_KEY</code> is read verbatim by the tool configs (<code>{env:LITELLM_API_KEY}</code> in
+  opencode/codex); renaming to <code>ACKSTORM_API_KEY</code> breaks them. <code>brand_short</code> already brands display.</p>
+<h3 id="worth-implementing_4">Worth implementing</h3>
+<ol>
+<li><strong>Quickstart SDK tabs + expected-response block</strong> — <em>frontend only; reviewer's #1</em></li>
+<li>Quickstart is curl-only today. Add Python / TypeScript / OpenAI-SDK tabs (static
+     snippets with <code>apiBase</code> injected, <code>sk-...</code> placeholder) + a small expected-response JSON.</li>
+<li>
+<p>Where: <code>HowTo.tsx</code> Quickstart <code>Section</code> (reuse <code>Tabs</code> + <code>CodeBlock</code>).</p>
+</li>
+<li>
+<p><strong>Troubleshooting section (401 / 404 / 429 / MCP errors)</strong> — <em>frontend only; highest-value add</em></p>
+</li>
+<li>Genuinely absent. Static content + a new TOC entry. Cuts onboarding support load.</li>
+<li>
+<p>Where: <code>HowTo.tsx</code> (new <code>Section</code> + <code>TOC</code> item).</p>
+</li>
+<li>
+<p><strong><code>export OPENAI_API_KEY=$LITELLM_API_KEY</code> compat hint</strong> — <em>frontend only, cheap</em></p>
+</li>
+<li>
+<p>The correct version of the naming feedback: preempts confusion without breaking the
+     tool var references.</p>
+</li>
+<li>
+<p><strong>openwork <code>Soon</code> → <code>Coming soon</code></strong> — <em>trivial</em> (relabel + keep muted styling).</p>
+</li>
+<li>
+<p><strong>Client-specific MCP config tabs</strong> (Cursor / Claude Desktop / VS Code + where to place the
+   config) — <em>frontend, content work</em> — extends the existing MCP tabs with per-client placement.</p>
+</li>
+<li>
+<p><strong>Model picker to personalize snippets</strong> — <em>frontend</em> — a <code>useModels</code>-backed picker that
+   swaps the <code>MODEL_ALIAS</code> token across the page's snippets (endpoint already personalizes).</p>
+</li>
+</ol>
+<h3 id="rejected-reason_4">Rejected (reason)</h3>
+<ul>
+<li><strong>Standardize MCP auth header</strong> — current format is the gateway's requirement (correction above).</li>
+<li><strong>Rename env var to <code>ACKSTORM_API_KEY</code></strong> — breaks tool config references (correction above).</li>
+<li><strong>Personalize with the real key</strong> — <code>sk-</code> shown once, never on this page (hard security
+  constraint, already enforced with <code>KEY_PLACEHOLDER</code>).</li>
+<li><strong>Onboarding checklist with completion states</strong> — "first request sent / editor connected /
+  usage viewed" are unobservable by this app; a static list only would be low value.</li>
+<li><strong>Endpoint personalization / editor tabs / MCP 3-case tabs / no-terminal cards</strong> — already built.</li>
+<li><strong>Video/GIF, collapsible sections, copy-all, downloadable configs</strong> — YAGNI / scope.</li>
+<li><strong>Cross-links "next steps" + live MCP tools preview</strong> — deferred by JC (not selected).</li>
+</ul>
+<hr />
+<h2 id="consolidated-plan-go-deep-after-this-session">Consolidated plan (go-deep after this session)</h2>
+<p>Covers the 6 surfaces reviewed: KEYS, MODELS, MCP, STATS (KPIs/charts), STATS (breakdown),
+HOW-TO. Ordered by ROI. Frontend-only unless marked.</p>
+<h3 id="tier-1-frontend-only-cheap-high-value">Tier 1 — frontend-only, cheap, high value</h3>
+<ul>
+<li><strong>Projected spend</strong> (shared: STATS <code>BudgetPanel</code> + KEYS budget bar) — one helper, two call sites.</li>
+<li><strong>Relative "Last used" + stale state</strong> (KEYS) — needs a small <code>relativeTime()</code> in <code>lib/format.ts</code>.</li>
+<li><strong>Failed-requests trend</strong> — add <code>failed</code> to the <code>RequestsChart</code> metric toggle (STATS).</li>
+<li><strong>Budget "% used"</strong> (KEYS budget bar).</li>
+<li><strong>Router <code>$0.00/$0.00</code> → "Dynamic"</strong> (MODELS) — <code>providers ⊇ auto_router</code>.</li>
+<li><strong>Usage Breakdown rename + TYPE column + blank MCP cost cells</strong> (STATS p2, Option A).</li>
+<li><strong>Spend tooltip</strong> (cache/provider pricing note) (STATS KPI).</li>
+<li><strong>MCP: <code>auth</code> relabel + tooltip</strong> + <strong>summary bar</strong> + <strong>tool-count prominence / collapse tool list</strong>.</li>
+<li><strong>Team card caption</strong> (KEYS, trivial).</li>
+<li><strong>HOW-TO: Quickstart SDK tabs + expected response</strong>, <strong>Troubleshooting section</strong>,
+  <strong><code>OPENAI_API_KEY</code> compat hint</strong>, <strong>openwork "Coming soon"</strong> relabel.</li>
+</ul>
+<h3 id="tier-2-frontend-only-moderate">Tier 2 — frontend-only, moderate</h3>
+<ul>
+<li><strong>Capability filter toolbar</strong> (MODELS) + <strong>table search</strong> (MODELS, STATS breakdown, <strong>MCP</strong>)
+  — one shared filter pattern across the catalogs (MCP search folded in here).</li>
+<li><strong>TPM/RPM column</strong> (KEYS) — expect many em-dashes (limits usually inherited).</li>
+<li><strong>Example API call snippet</strong> (MODELS) — curl/python from <code>endpoint</code> + alias.</li>
+<li><strong>Split the Total-Tokens KPI card</strong> (STATS).</li>
+<li><strong>HOW-TO: client-specific MCP config tabs</strong> (Cursor / Claude Desktop / VS Code + file paths).</li>
+<li><strong>HOW-TO: model picker</strong> to personalize snippets (<code>useModels</code> → swap <code>MODEL_ALIAS</code>).</li>
+</ul>
+<h3 id="tier-3-small-backend">Tier 3 — small backend</h3>
+<ul>
+<li><strong>Per-model "Cached input" column</strong> — aggregate <code>cache_read_input_tokens</code> (STATS p2 #3).
+  Optional same-change add: per-model Errors / Error %.</li>
+</ul>
+<h3 id="tier-4-large-blocked-upstream">Tier 4 — large / blocked upstream</h3>
+<ul>
+<li><strong>Latency</strong> (p50/p95/p99, TTFT, tok/s) — blocked: only in <code>/spend/logs</code>, which is removed
+  for cross-user-leak + OOM. NEXT ACTION: recheck <code>/spend/logs</code> filtering/pagination on the
+  current LiteLLM version before any build.</li>
+</ul>
+<h3 id="dropped-by-jc">Dropped by JC</h3>
+<ul>
+<li>MODELS <strong>alias taglines</strong> (would need a backend <code>description</code> field / editorial copy).</li>
+<li>MODELS <strong>Cheapest / Largest-context badges</strong> (redundant with sortable columns).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.88dd0f4e.min.js"></script>
+      
+    
+  </body>
+</html>
