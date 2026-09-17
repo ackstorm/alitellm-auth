@@ -52,6 +52,25 @@ func TestAgentKeyInTheInboundHeaderIsRenamedAndAuthorizationIsLeftAlone(t *testi
 	}
 }
 
+func TestXAPIKeyIsASecondInboundHeader(t *testing.T) {
+	// Claude Code with ANTHROPIC_API_KEY, or an apiKeyHelper printing a front
+	// token: the Anthropic SDK sends x-api-key, never Authorization.
+	d := decide(map[string]string{"x-api-key": "sk-abc"}, fakeVerifier{}, &fakeResolver{})
+	if !d.Allow || d.Set["x-litellm-api-key"] != "Bearer sk-abc" || !contains(d.Remove, "x-api-key") {
+		t.Fatalf("key via x-api-key: %+v", d)
+	}
+	r := &fakeResolver{key: "sk-front"}
+	d = decide(map[string]string{"x-api-key": "eyJ.x.y"}, fakeVerifier{sub: "u@x.com", scopes: []string{"alitellm"}}, r)
+	if !d.Allow || d.Set["x-litellm-api-key"] != "Bearer sk-front" || !contains(d.Remove, "x-api-key") {
+		t.Fatalf("jwt via x-api-key: %+v", d)
+	}
+	// The custom header wins when both are present.
+	d = decide(map[string]string{"x-genai-api-key": "sk-custom", "x-api-key": "sk-anthropic"}, fakeVerifier{}, &fakeResolver{})
+	if d.Set["x-litellm-api-key"] != "Bearer sk-custom" {
+		t.Fatalf("precedence: %+v", d)
+	}
+}
+
 func TestUserJWTInTheInboundHeaderIsMappedAndAuthorizationIsLeftAlone(t *testing.T) {
 	r := &fakeResolver{key: "sk-front"}
 	d := decide(map[string]string{"x-genai-api-key": "Bearer eyJ.x.y", "authorization": "Bearer sk-ant-oat01-xyz"}, fakeVerifier{sub: "u@x.com", scopes: []string{"alitellm"}}, r)

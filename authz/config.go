@@ -38,7 +38,7 @@ func LoadConfig() Config {
 		LegacyPassthrough:   envOr("AUTHZ_LEGACY_PASSTHROUGH", "true") == "true",
 		Issuer:              strings.TrimRight(os.Getenv("AUTHZ_ISSUER"), "/"),
 		Audience:            envOr("AUTHZ_AUDIENCE", "alitellm"),
-		ResourceMetadataURL: os.Getenv("AUTHZ_RESOURCE_METADATA_URL"),
+		ResourceMetadataURL: strings.TrimRight(os.Getenv("AUTHZ_RESOURCE_METADATA_URL"), "/"),
 		KeyResolverURL:      os.Getenv("AUTHZ_KEY_RESOLVER_URL"),
 		InternalToken:       os.Getenv("AUTHZ_INTERNAL_TOKEN"),
 		KeyCacheTTL:         time.Duration(ttl) * time.Second,

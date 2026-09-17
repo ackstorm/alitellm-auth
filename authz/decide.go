@@ -34,8 +34,8 @@ type Decision struct {
 // carries OUR JWT, we consume it — verify, map, remove — so LiteLLM receives
 // exactly one thing from us, the outbound header.
 //
-//  1. custom header present → a LiteLLM key (sk-…) is renamed; our JWT is
-//     verified and mapped. The custom header is removed. Authorization untouched.
+//  1. custom header (or x-api-key) present → a LiteLLM key (sk-…) is renamed;
+//     our JWT is verified and mapped. That header is removed. Authorization untouched.
 //  2. (transition) the outbound header already present → untouched
 //  3. Authorization: Bearer <not a JWS> → a LiteLLM key in the OpenAI-SDK shape:
 //     untouched while the transition lasts, refused with a challenge after
@@ -50,9 +50,16 @@ func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v
 	// from the internet may carry it. Also stripped at the route.
 	strip := []string{"x-user-id"}
 
-	if raw := h[cfg.InboundHeader]; raw != "" {
+	// x-api-key is where the Anthropic SDK puts an API key: Claude Code with
+	// ANTHROPIC_API_KEY or an apiKeyHelper sends it there, never in
+	// Authorization. Same two shapes as the custom header.
+	for _, name := range []string{cfg.InboundHeader, "x-api-key"} {
+		raw := h[name]
+		if raw == "" {
+			continue
+		}
 		tok := bareKey(raw)
-		remove := append(strip, cfg.InboundHeader)
+		remove := append(strip, name)
 		if !looksLikeJWS(tok) {
 			return allowWithKey(cfg, tok, remove)
 		}

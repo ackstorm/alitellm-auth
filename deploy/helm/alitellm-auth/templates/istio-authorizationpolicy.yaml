@@ -10,7 +10,7 @@
 #         port: 9001
 #         timeout: 2s
 #         failOpen: false
-#         includeRequestHeadersInCheck: ["authorization", "{{ .Values.authz.inboundHeader }}", "{{ .Values.authz.outboundHeader }}", "x-user-id"]
+#         includeRequestHeadersInCheck: ["authorization", "{{ .Values.authz.inboundHeader }}", "x-api-key", "{{ .Values.authz.outboundHeader }}", "x-user-id"]
 #
 # Also in gitops (litellm namespace / HTTPRoute):
 #  - RequestHeaderModifier remove: [x-user-id] on the LiteLLM route
