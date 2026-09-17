@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+from cryptography.fernet import Fernet
 import pytest
 from unittest.mock import patch
 
@@ -131,21 +132,47 @@ def test_as_is_off_by_default():
     s = Settings(**_base())
     assert s.as_enabled is False
     assert s.as_issuer == "http://localhost:8080"
+    assert s.as_refresh_ttl_seconds == 7 * 86400
 
 
 def test_as_issuer_url_overrides_app_base_url_and_strips_slash():
     from app.config import Settings
 
-    s = Settings(**_base(as_issuer_url="https://platform.test/"))
-    assert s.as_issuer == "https://platform.test"
+    assert Settings(**_base(as_issuer_url="https://platform.test/")).as_issuer == "https://platform.test"
 
 
-def test_as_enabled_requires_signing_key_and_encryption_key():
+def _as_on(**over):
+    kw = dict(
+        as_enabled=True,
+        as_signing_key_pem="-----BEGIN",
+        as_key_encryption_key=Fernet.generate_key().decode(),
+        as_redis_url="memory://",
+        internal_token="shh",
+    )
+    kw.update(over)
+    return _base(**kw)
+
+
+def test_as_enabled_requires_every_secret():
     from pydantic import ValidationError
 
     from app.config import Settings
 
-    with pytest.raises(ValidationError, match="AS_SIGNING_KEY_PEM"):
-        Settings(**_base(as_enabled=True, as_key_encryption_key="x" * 44))
-    with pytest.raises(ValidationError, match="AS_KEY_ENCRYPTION_KEY"):
-        Settings(**_base(as_enabled=True, as_signing_key_pem="-----BEGIN"))
+    Settings(**_as_on())  # complete configuration → fine
+    for field, env in (
+        ("as_signing_key_pem", "AS_SIGNING_KEY_PEM"),
+        ("as_key_encryption_key", "AS_KEY_ENCRYPTION_KEY"),
+        ("as_redis_url", "AS_REDIS_URL"),
+        ("internal_token", "INTERNAL_TOKEN"),
+    ):
+        with pytest.raises(ValidationError, match=env):
+            Settings(**_as_on(**{field: ""}))
+
+
+def test_as_enabled_rejects_an_invalid_fernet_key_at_startup():
+    from pydantic import ValidationError
+
+    from app.config import Settings
+
+    with pytest.raises(ValidationError, match="Fernet"):
+        Settings(**_as_on(as_key_encryption_key="x" * 44))

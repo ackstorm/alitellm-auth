@@ -2,6 +2,7 @@
 """Application settings loaded from environment variables."""
 
 from __future__ import annotations
+from cryptography.fernet import Fernet
 from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
@@ -39,10 +40,12 @@ class Settings(BaseSettings):
     as_audience: str = "alitellm"  # `aud` of every access token; the authz checks it
     as_signing_key_pem: str = ""  # RSA private key, PEM. Same on every replica → same JWKS
     as_access_ttl_seconds: int = 3600
-    as_refresh_ttl_seconds: int = 30 * 86400
-    as_redis_url: str = ""  # empty → in-memory store: single replica, state lost on restart
-    # Fernet key for the per-user LiteLLM key stored in Redis (Task 9). LiteLLM hands out
-    # the plaintext key exactly once, at /key/generate, so we hold it — encrypted.
+    # A refresh re-validates the user in LiteLLM (Task 7), bounding browser-free access.
+    as_refresh_ttl_seconds: int = 7 * 86400
+    # Required except for memory://, which is for tests and one-replica development only.
+    as_redis_url: str = ""
+    # Fernet key for the per-user LiteLLM key at rest. LiteLLM hands out the plaintext
+    # once, at /key/generate, so we hold the only copy — encrypted.
     as_key_encryption_key: str = ""
     # Shared secret between the Go authz and /api/internal/* (Task 9). Both containers
     # read it from the same Secret via envFrom.
@@ -53,12 +56,25 @@ class Settings(BaseSettings):
         return (self.as_issuer_url or self.app_base_url).rstrip("/")
 
     @model_validator(mode="after")
-    def _as_requires_keys(self) -> "Settings":
-        if self.as_enabled:
-            if not self.as_signing_key_pem:
-                raise ValueError("AS_SIGNING_KEY_PEM is required when AS_ENABLED=true")
-            if not self.as_key_encryption_key:
-                raise ValueError("AS_KEY_ENCRYPTION_KEY is required when AS_ENABLED=true")
+    def _as_requires_its_secrets(self) -> "Settings":
+        if not self.as_enabled:
+            return self
+        missing = [
+            env
+            for env, value in (
+                ("AS_SIGNING_KEY_PEM", self.as_signing_key_pem),
+                ("AS_KEY_ENCRYPTION_KEY", self.as_key_encryption_key),
+                ("AS_REDIS_URL", self.as_redis_url),
+                ("INTERNAL_TOKEN", self.internal_token),
+            )
+            if not value
+        ]
+        if missing:
+            raise ValueError(f"{', '.join(missing)} required when AS_ENABLED=true")
+        try:
+            Fernet(self.as_key_encryption_key.encode())
+        except (ValueError, TypeError) as exc:
+            raise ValueError("AS_KEY_ENCRYPTION_KEY is not a valid Fernet key") from exc
         return self
 
     # Neutral default (D-01): keep OSS forks brand-neutral. Deployments set the
