@@ -51,6 +51,16 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
   both), the second copy currently travels to LiteLLM untouched. Strip an
   `Authorization` bearer that equals the mapped token. Measure first whether Claude
   Code does that.
+- [ ] **Codex with a ChatGPT subscription through LiteLLM** (like Claude Code's
+  Anthropic subscription): Codex side is config-only (custom provider with
+  `requires_openai_auth = true`, `base_url`, `http_headers` with our key — never
+  `[model_providers.openai]`, silently ignored; `OPENAI_BASE_URL` is not read).
+  LiteLLM side blocks: `forward_client_headers_to_llm_api` forwards `Authorization`
+  only for `sk-ant-oat*` to provider `anthropic`; the `chatgpt/` provider uses one
+  server-side device-code token per proxy. Needs an upstream change (~20 lines:
+  ChatGPT-JWT detector scoped to `chatgpt`, `validate_environment` accepting a
+  forwarded bearer + `ChatGPT-Account-ID`; discussion BerriAI/litellm#26010) or a
+  gitops patch like `patch_mcp_server.py`. Until then Codex = API-key billing.
 - [ ] Runbook rows not yet exercised: 4d/4e (Claude Code model path via
   `ANTHROPIC_CUSTOM_HEADERS=x-genai-api-key: …` with a LiteLLM key and with a front
   JWT), 7d (revoke the grant → next refresh drops the scope → 403 again).
