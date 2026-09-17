@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.14.1",
     "redis>=5.0.0",
     "cryptography>=43.0.0",
+    "python-multipart>=0.0.20",  # starlette request.form() in /oauth/token
 ]
 
 [project.optional-dependencies]
