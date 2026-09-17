@@ -64,14 +64,26 @@ async def as_metadata() -> JSONResponse:
 
 
 @router.get("/.well-known/oauth-protected-resource")
-async def protected_resource() -> JSONResponse:
-    """RFC 9728 document for the API resource."""
+@router.get("/.well-known/oauth-protected-resource/{suffix:path}")
+async def protected_resource(suffix: str = "") -> JSONResponse:
+    """RFC 9728 for the API and for every MCP path under it. Served on the
+    platform host and, through a gitops route prefix, at the same path on the
+    API host — where a compliant client checks `resource` against the URL it
+    dialled. We compose every one of these; LiteLLM composes none."""
     assert _settings is not None
+    resource = _settings.api_public_url.rstrip("/")
+    scopes = [_settings.as_audience]
+    suffix = suffix.strip("/")
+    if suffix:
+        resource += "/" + suffix
+        head, _, svc = suffix.partition("/")
+        if head == "mcp" and svc:
+            scopes.append(svc.split("/", 1)[0])
     return JSONResponse(
         {
-            "resource": _settings.api_public_url.rstrip("/"),
+            "resource": resource,
             "authorization_servers": [_settings.as_issuer],
-            "scopes_supported": [_settings.as_audience],
+            "scopes_supported": scopes,
             "bearer_methods_supported": ["header"],
         }
     )

@@ -86,6 +86,16 @@ def test_protected_resource_document_names_the_api_and_this_as():
     assert document["bearer_methods_supported"] == ["header"]
 
 
+def test_protected_resource_document_exists_for_every_mcp_path():
+    response = make_client().get("/.well-known/oauth-protected-resource/mcp/mcp-aws-eks-ro")
+    assert response.status_code == 200
+    document = response.json()
+    assert document["resource"] == "https://api.test/mcp/mcp-aws-eks-ro"
+    assert document["authorization_servers"] == ["https://platform.test"]
+    assert document["scopes_supported"] == ["alitellm", "mcp-aws-eks-ro"]
+    assert document["bearer_methods_supported"] == ["header"]
+
+
 def test_register_accepts_a_public_client_with_loopback_and_https_redirects():
     response = make_client().post(
         "/oauth/register",
