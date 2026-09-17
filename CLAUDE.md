@@ -137,6 +137,29 @@ Authorization uses `hmac.compare_digest` (constant-time, defends against timing 
 
 **WHERE**: `src/api/app/admin.py`
 
+### Public Static Artifacts
+
+`GET /public/<path>` — a `StaticFiles` mount serving files placed in `/app/public`
+by a volume, with no authentication at all. Today that is the OpenCode model
+catalog alitellm-operator renders from `LiteLLMModelAlias` CRs, at
+`/public/opencode/api.json`, consumed via
+`OPENCODE_MODELS_URL=https://<host>/public/opencode`.
+
+**This mount is world-readable.** The app has no global auth middleware (only
+`SessionMiddleware`), and a `StaticFiles` sub-app carries no
+`Depends(require_session_user)`. Mount ONLY non-secret artifacts. It is
+registered AFTER every `/api/*` router so it cannot shadow them (T-09-06), and
+uses `check_dir=False` because the directory is populated by a projected volume
+at runtime, not at image build time.
+
+Enabled by the chart's `publicArtifacts` values. The volume is `projected`, not
+a plain `configMap` volume — a configMap volume owns the whole directory, which
+would make a second artifact impossible to add — and carries NO `subPath`: a
+subPath mount is resolved once at container start and never sees a ConfigMap
+update, so the file would freeze at boot forever with no error surfaced.
+
+**WHERE**: `src/api/app/main.py` (mount), `deploy/helm/alitellm-auth/templates/deployment.yaml` (volume)
+
 ---
 
 ## Critical Commands
@@ -268,6 +291,36 @@ callback_url = f"{settings.app_base_url}/api/oauth/callback"
 **WHY**: nginx terminates TLS and forwards plain HTTP to the pod. `request.url_for()` sees `http://` scheme. Dex only has `https://` registered → `Unregistered redirect_uri`.
 
 ---
+
+### 8. `make release-cut` without `make release-bump` first
+
+❌ **WRONG** — cutting straight from a clean tree
+```bash
+make release-cut VERSION=0.7.2   # creates an EMPTY commit and pushes
+```
+The release tags and publishes with no error, and chart `version` /
+`appVersion` are correct — but `values.yaml` still carries the PREVIOUS
+`image.tag`, so the chart deploys the old image. Code that shipped in the new
+image is simply absent from the cluster with nothing logged anywhere. Observed
+on v0.7.2: the `/public` mount was in the image, the volume was mounted
+correctly, and `/public/opencode/api.json` still returned 404 because the pod
+ran v0.7.1.
+
+✅ **RIGHT** — bump, commit, then cut (the order already stated under Release Process)
+```bash
+make release-bump VERSION=0.7.3        # Chart.yaml, values.yaml image.tag, pyproject.toml, main.py, CHANGELOG
+git commit -am 'chore(release): v0.7.3'
+git push origin main
+```
+
+**WHY IT IS EASY TO GET WRONG**: the sibling repo alitellm-operator has a target
+with the SAME name whose `release.yml` runs `release-bump` itself and commits
+the result, so an empty release commit is correct *there*. This repo's
+`release.yml` does not bump anything — it expects the release commit to arrive
+with the manifests already bumped. Verify after any release:
+```bash
+helm show values oci://ghcr.io/ackstorm/charts/alitellm-auth --version X.Y.Z | grep 'tag:'
+```
 
 ### 7. OIDC provider registered as wrong name
 
