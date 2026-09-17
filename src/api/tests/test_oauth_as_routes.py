@@ -34,8 +34,10 @@ def make_settings(**over) -> Settings:
         litellm_master_key="sk-test",
         api_public_url="https://api.test",
         as_enabled=True,
+        as_redis_url="memory://",
         as_signing_key_pem=_pem(),
         as_key_encryption_key=Fernet.generate_key().decode(),
+        internal_token="shh",
         session_https_only=True,
     )
     kw.update(over)
@@ -166,6 +168,19 @@ def test_redirect_matches_exactly_except_loopback_port():
     assert not matches("http://127.0.0.1:1000/cb", "http://localhost:2000/cb")
 
 
+async def test_registrations_expire_after_client_ttl(monkeypatch):
+    import app.oauth_as.store as store
+
+    now = [1000.0]
+    monkeypatch.setattr(store.time, "time", lambda: now[0])
+    client = make_client()
+    client_id = _register(client)
+    assert await routes._store.get("client", client_id) is not None
+
+    now[0] += routes.CLIENT_TTL + 1
+    assert await routes._store.get("client", client_id) is None
+
+
 def _authorize_params(client_id: str, **over) -> dict:
     params = {
         "response_type": "code",
@@ -198,6 +213,29 @@ def test_authorize_stores_request_and_redirects_to_dex_with_https_callback():
     assert response.headers["location"].startswith("http://dex.test/dex/auth")
     args, _ = mock_oauth.oidc.authorize_redirect.call_args
     assert args[1] == "https://platform.test/oauth/as-callback"
+
+
+async def test_authorize_refreshes_the_client_registration_ttl(monkeypatch):
+    import app.oauth_as.store as store
+
+    now = [1000.0]
+    monkeypatch.setattr(store.time, "time", lambda: now[0])
+    client = make_client()
+    client_id = _register(client)
+    now[0] += routes.CLIENT_TTL - 10
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        response = client.get(
+            "/oauth/authorize",
+            params=_authorize_params(client_id),
+            follow_redirects=False,
+        )
+    assert response.status_code == 302
+
+    now[0] += 20  # past the original expiry, inside the refreshed expiry
+    assert await routes._store.get("client", client_id) is not None
 
 
 def test_authorize_never_redirects_to_an_unregistered_uri():

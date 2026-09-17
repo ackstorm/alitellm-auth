@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 _settings: Settings | None = None
 _store: Store | None = None
 _signer: Signer | None = None
+CLIENT_TTL = 90 * 86400  # an unused client re-registers after 90 days
 PENDING_TTL = 600
 CODE_TTL = 120
 
@@ -176,7 +177,7 @@ async def register(request: Request) -> JSONResponse:
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
     }
-    await _store.put("client", client_id, record)
+    await _store.put("client", client_id, record, ttl=CLIENT_TTL)
     logger.info("Registered OAuth client %s (%s)", client_id, record["client_name"])
     return JSONResponse(record, status_code=201, headers={"Cache-Control": "no-store"})
 
@@ -219,6 +220,7 @@ async def authorize(request: Request):
             params["state"] = state
         return _client_redirect(redirect_uri, params)
 
+    await _store.put("client", client["client_id"], client, ttl=CLIENT_TTL)
     pending_id = secrets.token_urlsafe(24)
     await _store.put("pending", pending_id, {
         "client_id": client["client_id"],
