@@ -2,6 +2,14 @@
 
 ## [unreleased]
 
+### Security
+
+- Clear all 16 open Dependabot alerts (8 high, 8 moderate). UI: `react-router`
+  7.16→7.18.4, `vitest` 3→4.1.11 (only patched line), transitive `browserslist`,
+  `baseline-browser-mapping`, `postcss`, `nanoid`, `form-data`. Docs:
+  `mkdocs-material` 9.5.49→9.7.7. None were reachable at runtime except the
+  react-router `<Link>` open-redirect bypass; the rest are build/test/docs-time.
+
 ### Fixed
 
 - `python-multipart` was missing from the runtime dependencies, so

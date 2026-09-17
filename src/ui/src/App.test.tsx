@@ -51,14 +51,14 @@ const ME: SessionMe = {
 };
 
 // Spies stand in for the store boot actions so mounting App never fetches.
-let loadSessionSpy: ReturnType<typeof vi.fn>;
-let loadConfigSpy: ReturnType<typeof vi.fn>;
-let markExpiredSpy: ReturnType<typeof vi.fn>;
+let loadSessionSpy: ReturnType<typeof vi.fn<() => Promise<void>>>;
+let loadConfigSpy: ReturnType<typeof vi.fn<() => Promise<void>>>;
+let markExpiredSpy: ReturnType<typeof vi.fn<() => void>>;
 
 beforeEach(() => {
-  loadSessionSpy = vi.fn();
-  loadConfigSpy = vi.fn();
-  markExpiredSpy = vi.fn();
+  loadSessionSpy = vi.fn<() => Promise<void>>();
+  loadConfigSpy = vi.fn<() => Promise<void>>();
+  markExpiredSpy = vi.fn<() => void>();
   // Replace whole state, re-supplying the (spied) actions.
   useSessionStore.setState(
     { ...initialSessionState, loadSession: loadSessionSpy, markExpired: markExpiredSpy },
