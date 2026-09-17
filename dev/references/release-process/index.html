@@ -424,6 +424,9 @@ files carry the version</strong>. Never edit these by hand:</p>
 </tr>
 </tbody>
 </table>
+<p><code>scripts/release-check.sh X.Y.Z</code> verifies the first four (not CHANGELOG) and is run
+by both <code>make release-cut</code> and <code>release.yml</code> — a cut without a bump fails instead of
+publishing a chart that points at the previous image (see CLAUDE.md failure mode 8).</p>
 <h2 id="which-bump-semver">Which bump (SemVer)</h2>
 <ul>
 <li><strong>patch</strong> → <code>fix</code> / <code>hotfix</code> commits</li>
