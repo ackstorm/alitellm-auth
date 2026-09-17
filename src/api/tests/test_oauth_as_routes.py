@@ -3,6 +3,7 @@ from cryptography.fernet import Fernet
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import RedirectResponse
 
 from app.config import Settings
 from app.oauth_as import routes
@@ -152,3 +153,120 @@ def test_redirect_matches_exactly_except_loopback_port():
     assert not matches("http://127.0.0.1:1000/cb?state=x", "http://127.0.0.1:2000/cb?state=y")
     assert not matches("http://127.0.0.1:1000/cb;one", "http://127.0.0.1:2000/cb;two")
     assert not matches("http://127.0.0.1:1000/cb", "http://localhost:2000/cb")
+
+
+def _authorize_params(client_id: str, **over) -> dict:
+    params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": "http://127.0.0.1:5000/cb",
+        "state": "xyz",
+        "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        "code_challenge_method": "S256",
+        "scope": "alitellm",
+    }
+    params.update(over)
+    return params
+
+
+def _register(c: TestClient, uri="http://127.0.0.1:5000/cb") -> str:
+    return c.post("/oauth/register", json={"redirect_uris": [uri]}).json()["client_id"]
+
+
+def test_authorize_stores_request_and_redirects_to_dex_with_https_callback():
+    from unittest.mock import AsyncMock, patch
+
+    c = make_client()
+    client_id = _register(c)
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/dex/auth?x=1", status_code=302)
+        )
+        response = c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"].startswith("http://dex.test/dex/auth")
+    args, _ = mock_oauth.oidc.authorize_redirect.call_args
+    assert args[1] == "https://platform.test/oauth/as-callback"
+
+
+def test_authorize_never_redirects_to_an_unregistered_uri():
+    c = make_client()
+    client_id = _register(c)
+    response = c.get(
+        "/oauth/authorize",
+        params=_authorize_params(client_id, redirect_uri="https://evil.example/cb"),
+        follow_redirects=False,
+    )
+    assert response.status_code == 400
+    assert "location" not in response.headers
+
+
+def test_authorize_unsupported_scope_redirects_with_invalid_scope_and_state():
+    c = make_client()
+    client_id = _register(c)
+    response = c.get(
+        "/oauth/authorize",
+        params=_authorize_params(client_id, scope="openid profile", state="keep-me"),
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    location = response.headers["location"]
+    assert location.startswith("http://127.0.0.1:5000/cb?")
+    assert "error=invalid_scope" in location and "state=keep-me" in location
+
+
+def test_authorize_missing_scope_defaults_to_configured_audience():
+    from unittest.mock import AsyncMock, patch
+
+    c = make_client()
+    client_id = _register(c)
+    params = _authorize_params(client_id)
+    params.pop("scope")
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        response = c.get("/oauth/authorize", params=params, follow_redirects=False)
+    assert response.status_code == 302
+    pending_id = c.cookies.get("session")
+    assert pending_id
+
+
+def test_authorize_without_pkce_redirects_back_with_invalid_request():
+    c = make_client()
+    client_id = _register(c)
+    params = _authorize_params(client_id)
+    del params["code_challenge"]
+    response = c.get("/oauth/authorize", params=params, follow_redirects=False)
+    assert response.status_code == 302
+    location = response.headers["location"]
+    assert location.startswith("http://127.0.0.1:5000/cb?")
+    assert "error=invalid_request" in location and "state=xyz" in location
+
+
+def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
+    from unittest.mock import AsyncMock, patch
+
+    c = make_client()
+    client_id = _register(c)
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        mock_oauth.oidc.authorize_access_token = AsyncMock(
+            return_value={"userinfo": {"email": "u@x.com", "name": "U"}}
+        )
+        with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")) as ensure:
+            response = c.get("/oauth/as-callback?code=dexcode&state=s", follow_redirects=False)
+    assert response.status_code == 302
+    location = response.headers["location"]
+    assert location.startswith("http://127.0.0.1:5000/cb?")
+    assert "code=" in location and "state=xyz" in location
+    ensure.assert_awaited_once()
+    assert ensure.await_args.args[0] == "u@x.com"
+
+
+def test_as_callback_without_pending_request_is_a_400():
+    response = make_client().get("/oauth/as-callback?code=x&state=y", follow_redirects=False)
+    assert response.status_code == 400

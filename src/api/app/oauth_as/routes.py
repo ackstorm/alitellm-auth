@@ -6,12 +6,14 @@ from __future__ import annotations
 import logging
 import secrets
 import time
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 from fastapi import APIRouter, Request
-from starlette.responses import JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.config import Settings
+from app.auth import oauth
+from app.litellm_client import ensure_team_and_user
 from app.oauth_as.store import Store, create_store
 from app.oauth_as.tokens import Signer
 
@@ -21,6 +23,8 @@ logger = logging.getLogger(__name__)
 _settings: Settings | None = None
 _store: Store | None = None
 _signer: Signer | None = None
+PENDING_TTL = 600
+CODE_TTL = 120
 
 
 def configure_as(
@@ -170,3 +174,77 @@ async def register(request: Request) -> JSONResponse:
     await _store.put("client", client_id, record)
     logger.info("Registered OAuth client %s (%s)", client_id, record["client_name"])
     return JSONResponse(record, status_code=201, headers={"Cache-Control": "no-store"})
+
+
+def _client_redirect(redirect_uri: str, params: dict) -> RedirectResponse:
+    sep = "&" if "?" in redirect_uri else "?"
+    return RedirectResponse(f"{redirect_uri}{sep}{urlencode(params)}", status_code=302)
+
+
+def _html_error(status: int, message: str) -> HTMLResponse:
+    return HTMLResponse(f"<h1>Authorization failed</h1><p>{message}</p>", status_code=status)
+
+
+@router.get("/oauth/authorize")
+async def authorize(request: Request):
+    assert _store is not None and _settings is not None
+    q = request.query_params
+    client = await _store.get("client", q.get("client_id", ""))
+    if client is None:
+        return _html_error(400, "unknown client_id")
+    redirect_uri = q.get("redirect_uri", "")
+    if not any(_redirect_matches(uri, redirect_uri) for uri in client["redirect_uris"]):
+        return _html_error(400, "redirect_uri is not registered for this client")
+
+    state = q.get("state")
+    scope = q.get("scope", _settings.as_audience)
+    if scope != _settings.as_audience:
+        params = {"error": "invalid_scope", "error_description": "requested scope is not supported"}
+        if state:
+            params["state"] = state
+        return _client_redirect(redirect_uri, params)
+    if (q.get("response_type") != "code" or q.get("code_challenge_method") != "S256"
+            or not q.get("code_challenge")):
+        params = {"error": "invalid_request", "error_description": "response_type=code with PKCE S256 is required"}
+        if state:
+            params["state"] = state
+        return _client_redirect(redirect_uri, params)
+
+    pending_id = secrets.token_urlsafe(24)
+    await _store.put("pending", pending_id, {
+        "client_id": client["client_id"],
+        "redirect_uri": redirect_uri,
+        "state": state,
+        "code_challenge": q["code_challenge"],
+        "scope": scope,
+    }, ttl=PENDING_TTL)
+    request.session["as_pending"] = pending_id
+    # The ingress terminates TLS, so request.url_for may incorrectly report http.
+    callback = _settings.app_base_url.rstrip("/") + "/oauth/as-callback"
+    return await oauth.oidc.authorize_redirect(request, callback)
+
+
+@router.get("/oauth/as-callback", name="as_callback")
+async def as_callback(request: Request):
+    assert _store is not None and _settings is not None
+    pending_id = request.session.pop("as_pending", None)
+    pending = await _store.pop("pending", pending_id) if pending_id else None
+    if pending is None:
+        return _html_error(400, "no authorization request is pending — start again from your client")
+    try:
+        token = await oauth.oidc.authorize_access_token(request)
+    except Exception as exc:  # Authlib raises several OAuthError subclasses.
+        logger.warning("Dex callback failed: %s", exc)
+        return _html_error(400, "the identity provider did not complete the login")
+    userinfo = token.get("userinfo") or {}
+    email = userinfo.get("email")
+    if not email:
+        return _html_error(400, "the identity provider returned no email")
+    await ensure_team_and_user(email, _settings, name=userinfo.get("name"))
+    code = secrets.token_urlsafe(32)
+    await _store.put("code", code, {**pending, "sub": email}, ttl=CODE_TTL)
+    params = {"code": code}
+    if pending.get("state"):
+        params["state"] = pending["state"]
+    logger.info("Authorization code issued to client %s", pending["client_id"])
+    return _client_redirect(pending["redirect_uri"], params)
