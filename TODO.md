@@ -34,6 +34,14 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
   opencode config the platform serves (`.well-known/opencode` → `config.plugin`), so a
   user runs `opencode auth login https://platform.ackstorm.ai` once and never installs
   anything by hand. Source of truth for the plugin: this repo (`clients/opencode/`?).
+- [ ] **Upstream the opencode method**: no client does OAuth (8414 + DCR + PKCE) for a
+  *model* provider; opencode's OpenAI/Anthropic/Copilot logins are vendor-specific
+  plugins. Propose a generic `oauth` auth method keyed on `provider.<id>.options.oauth.issuer`
+  to anomalyco/opencode; the plugin is the reference implementation.
+- [ ] **Claude Code / Codex model path**: their contract is "a command that prints a
+  credential" (`apiKeyHelper`, `auth.command`). Ship a small CLI (`alitellm-auth token`?)
+  that logs in once (DCR + PKCE + loopback), keeps the refresh token in the OS keyring
+  or a 0600 file, and prints a fresh access token; hydrate points the two settings at it.
 - [ ] Runbook rows not yet exercised: 4d/4e (Claude Code model path via
   `ANTHROPIC_CUSTOM_HEADERS=x-genai-api-key: …` with a LiteLLM key and with a front
   JWT), 7d (revoke the grant → next refresh drops the scope → 403 again).
