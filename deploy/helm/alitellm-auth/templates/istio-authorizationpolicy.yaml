@@ -11,6 +11,11 @@
 #         timeout: 2s
 #         failOpen: false
 #         includeRequestHeadersInCheck: ["authorization", "{{ .Values.authz.inboundHeader }}", "{{ .Values.authz.outboundHeader }}", "x-user-id"]
+#
+# Also in gitops (litellm namespace / HTTPRoute):
+#  - RequestHeaderModifier remove: [x-user-id] on the LiteLLM route
+#  - prefix rule /.well-known/oauth-protected-resource → alitellm-auth (ReferenceGrant)
+#  - NetworkPolicy: ingress to litellm:4000 only from istio-ingress, alitellm-auth, alitellm-operator
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:

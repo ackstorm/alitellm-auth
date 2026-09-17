@@ -151,6 +151,11 @@ authServer:
   audience: "alitellm"
   accessTtlSeconds: 3600
   refreshTtlSeconds: 604800   # 7 d; a refresh re-checks the user in LiteLLM
+  # MCP services a user token may carry as scopes; scope = the /mcp/ path segment.
+  services: {}
+  #  mcp-aws-eks-ro: { store: aws-eks-ro, broker: https://api.ackstorm.ai/aws-eks-ro-callback }
+  #  mcp-google-drive: { store: google-drive, broker: https://api.ackstorm.ai/google-drive-callback }
+  mcpRedisUrl: ""   # the pods' Redis (grant projection); empty → AS_REDIS_URL
 
 # The Envoy ext_authz service Istio calls per request. failOpen is false in the
 # provider, so this is a hard dependency of the whole API: two replicas, spread,
@@ -165,13 +170,11 @@ authz:
   inboundHeader: "x-genai-api-key"    # what agents send
   outboundHeader: "x-litellm-api-key" # what LiteLLM wants
   legacyPassthrough: true             # accept LiteLLM key during transition
-  # Every issuer whose tokens may arrive at api.*: front door plus each broker.
-  issuers: []
-  #  - https://platform.ackstorm.ai
-  #  - https://api.ackstorm.ai/aws-eks-ro-callback
+  issuer: ""           # empty → authServer.issuerUrl or config.appBaseUrl
   audience: "alitellm"
-  resourceBase: "https://api.ackstorm.ai"   # broker aud = resourceBase + path
-  resourceMetadataUrl: "" # empty → <issuerUrl>/.well-known/oauth-protected-resource
+  # The base; the authz appends /mcp/<svc> for MCP paths. Served by this API
+  # on api.* through a gitops route prefix.
+  resourceMetadataUrl: "https://api.ackstorm.ai/.well-known/oauth-protected-resource"
   keyCacheTtlSeconds: 300
   resources:
     requests: { cpu: 50m, memory: 32Mi }

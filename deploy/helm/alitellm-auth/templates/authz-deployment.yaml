@@ -44,14 +44,12 @@ spec:
               value: {{ .Values.authz.outboundHeader | quote }}
             - name: AUTHZ_LEGACY_PASSTHROUGH
               value: {{ .Values.authz.legacyPassthrough | quote }}
-            - name: AUTHZ_ISSUERS
-              value: {{ join "," .Values.authz.issuers | quote }}
+            - name: AUTHZ_ISSUER
+              value: {{ .Values.authz.issuer | default .Values.authServer.issuerUrl | default .Values.config.appBaseUrl | quote }}
             - name: AUTHZ_AUDIENCE
               value: {{ .Values.authz.audience | quote }}
-            - name: AUTHZ_RESOURCE_BASE
-              value: {{ .Values.authz.resourceBase | quote }}
             - name: AUTHZ_RESOURCE_METADATA_URL
-              value: {{ .Values.authz.resourceMetadataUrl | default (printf "%s/.well-known/oauth-protected-resource" (.Values.authServer.issuerUrl | default .Values.config.appBaseUrl)) | quote }}
+              value: {{ .Values.authz.resourceMetadataUrl | quote }}
             - name: AUTHZ_KEY_RESOLVER_URL
               value: {{ printf "http://%s:%d/api/internal/front-key" (include "alitellm-auth.fullname" .) (int .Values.service.port) | quote }}
             - name: AUTHZ_INTERNAL_TOKEN
