@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""Print a fresh access token for the ACKstorm platform (OAuth front door).
+
+The model-path contract of Claude Code (`apiKeyHelper`) and Codex (`auth.command`)
+is "a command that prints a credential". This is that command: the first run does
+the browser ceremony against the platform's authorization server (RFC 8414
+discovery, RFC 7591 DCR, PKCE, loopback redirect) and keeps the refresh token in
+a 0600 file; every later run prints a valid access token, refreshing when needed.
+
+    ackstorm-token            # print a token (logs in if there is nothing to refresh)
+    ackstorm-token login      # force a new browser login
+    ackstorm-token logout     # forget the tokens
+
+Only the token goes to stdout; everything else to stderr. Stdlib only.
+"""
+
+import base64
+import fcntl
+import hashlib
+import http.server
+import json
+import os
+import secrets
+import sys
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import webbrowser
+
+ISSUER = os.environ.get("ACKSTORM_ISSUER", "https://platform.ackstorm.ai")
+SCOPE = os.environ.get("ACKSTORM_SCOPE", "alitellm")
+STATE_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "ackstorm-ai")
+STATE_FILE = os.path.join(STATE_DIR, "token.json")
+SKEW = 60  # refresh this many seconds before expiry
+
+
+def log(msg: str) -> None:
+    print(msg, file=sys.stderr, flush=True)
+
+
+def call(url: str, data: dict | None = None, form: bool = False) -> dict:
+    body = None
+    headers = {"accept": "application/json"}
+    if data is not None:
+        if form:
+            body = urllib.parse.urlencode(data).encode()
+            headers["content-type"] = "application/x-www-form-urlencoded"
+        else:
+            body = json.dumps(data).encode()
+            headers["content-type"] = "application/json"
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST" if body else "GET")
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.load(resp)
+
+
+def load() -> dict:
+    try:
+        with open(STATE_FILE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save(state: dict) -> None:
+    os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
+    tmp = STATE_FILE + ".tmp"
+    with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        json.dump(state, f)
+    os.replace(tmp, STATE_FILE)
+
+
+def metadata() -> dict:
+    return call(f"{ISSUER}/.well-known/oauth-authorization-server")
+
+
+def client_id(state: dict, meta: dict) -> str:
+    """Register once as a public client (RFC 7591); the AS ignores the loopback port."""
+    if state.get("client_id"):
+        return state["client_id"]
+    reg = call(meta["registration_endpoint"], {
+        "client_name": "ackstorm-token",
+        "redirect_uris": ["http://127.0.0.1/callback"],
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "token_endpoint_auth_method": "none",
+    })
+    state["client_id"] = reg["client_id"]
+    return state["client_id"]
+
+
+def exchange(meta: dict, form: dict) -> dict:
+    tok = call(meta["token_endpoint"], form, form=True)
+    return {
+        "access_token": tok["access_token"],
+        "refresh_token": tok.get("refresh_token"),
+        "expires_at": time.time() + tok.get("expires_in", 3600),
+    }
+
+
+def login(state: dict, meta: dict) -> dict:
+    cid = client_id(state, meta)
+    verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    expected_state = secrets.token_urlsafe(16)
+    got: dict = {}
+    done = threading.Event()
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            got.update({k: v[0] for k, v in q.items()})
+            self.send_response(200)
+            self.send_header("content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Logged in. You can close this tab.")
+            done.set()
+
+        def log_message(self, *_):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    redirect_uri = f"http://127.0.0.1:{srv.server_port}/callback"
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = meta["authorization_endpoint"] + "?" + urllib.parse.urlencode({
+        "response_type": "code", "client_id": cid, "redirect_uri": redirect_uri, "scope": SCOPE,
+        "state": expected_state, "code_challenge": challenge, "code_challenge_method": "S256",
+    })
+    log(f"Open this URL to sign in:\n{url}")
+    webbrowser.open(url)
+    if not done.wait(300):
+        srv.shutdown()
+        sys.exit("login timed out")
+    srv.shutdown()
+    if got.get("state") != expected_state or "code" not in got:
+        sys.exit(f"login failed: {got.get('error', 'no code')}")
+    tok = exchange(meta, {"grant_type": "authorization_code", "code": got["code"], "redirect_uri": redirect_uri,
+                          "client_id": cid, "code_verifier": verifier})
+    state.update(tok)
+    return state
+
+
+def main() -> None:
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "print"
+    if cmd == "logout":
+        try:
+            os.remove(STATE_FILE)
+        except FileNotFoundError:
+            pass
+        return
+    os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
+    # One process at a time: two helpers refreshing at once would spend one
+    # rotated refresh token and strand the other.
+    with open(os.path.join(STATE_DIR, "token.lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state = load()
+        meta = metadata()
+        if cmd == "login" or not state.get("refresh_token"):
+            state = login(state, meta)
+        elif state.get("expires_at", 0) < time.time() + SKEW:
+            try:
+                state.update(exchange(meta, {"grant_type": "refresh_token", "refresh_token": state["refresh_token"],
+                                             "client_id": client_id(state, meta)}))
+            except urllib.error.HTTPError as exc:
+                log(f"refresh rejected ({exc.code}); logging in again")
+                state = login(state, meta)
+        save(state)
+    if cmd == "login":
+        log("Logged in.")
+        return
+    print(state["access_token"])
+
+
+if __name__ == "__main__":
+    main()

@@ -38,10 +38,19 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
   *model* provider; opencode's OpenAI/Anthropic/Copilot logins are vendor-specific
   plugins. Propose a generic `oauth` auth method keyed on `provider.<id>.options.oauth.issuer`
   to anomalyco/opencode; the plugin is the reference implementation.
-- [ ] **Claude Code / Codex model path**: their contract is "a command that prints a
-  credential" (`apiKeyHelper`, `auth.command`). Ship a small CLI (`alitellm-auth token`?)
-  that logs in once (DCR + PKCE + loopback), keeps the refresh token in the OS keyring
-  or a 0600 file, and prints a fresh access token; hydrate points the two settings at it.
+- [x] **Claude Code / Codex model path** — `clients/ackstorm-token` (Python 3, stdlib):
+  logs in once (DCR + PKCE + loopback), keeps the refresh token in
+  `~/.config/ackstorm-ai/token.json` (0600, flock against concurrent refreshes) and
+  prints a fresh access token. Verified 2026-09-17: Claude Code `apiKeyHelper` and
+  Codex `[model_providers.<id>.auth] command = "…"` (a string, not an array) both
+  answer through the front door.
+- [ ] Distribute `ackstorm-token` (package/installer; hydrate writes the two settings)
+  and decide keyring vs file for the refresh token.
+- [ ] authz hardening: when the custom header / `x-api-key` carries OUR JWT and
+  `Authorization` carries the same JWT (Claude Code may send the helper's value in
+  both), the second copy currently travels to LiteLLM untouched. Strip an
+  `Authorization` bearer that equals the mapped token. Measure first whether Claude
+  Code does that.
 - [ ] Runbook rows not yet exercised: 4d/4e (Claude Code model path via
   `ANTHROPIC_CUSTOM_HEADERS=x-genai-api-key: …` with a LiteLLM key and with a front
   JWT), 7d (revoke the grant → next refresh drops the scope → 403 again).
