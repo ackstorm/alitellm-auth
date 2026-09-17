@@ -2,6 +2,7 @@
 import asyncio
 import base64
 import hashlib
+import json
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -14,8 +15,10 @@ from starlette.responses import RedirectResponse
 
 from app.config import Settings
 from app.oauth_as import routes
+from app.oauth_as.grants import Grants
 from app.oauth_as.store import MemoryStore
 from app.oauth_as.tokens import Signer
+from tests.test_oauth_as_grants import FakeRedis
 from tests.test_oauth_as_tokens import _pem
 
 
@@ -46,12 +49,17 @@ def make_settings(**over) -> Settings:
     return Settings(**kw)
 
 
-def make_client(settings: Settings | None = None) -> TestClient:
+def make_client(settings: Settings | None = None, grants: Grants | None = None) -> TestClient:
     """A bare app with only the AS router — no Dex wiring, no SPA mount."""
     settings = settings or make_settings()
     app = FastAPI()
     app.add_middleware(SessionMiddleware, secret_key=settings.session_secret_key)
-    routes.configure_as(settings, store=MemoryStore(), signer=Signer(settings.as_signing_key_pem))
+    routes.configure_as(
+        settings,
+        store=MemoryStore(),
+        signer=Signer(settings.as_signing_key_pem),
+        grants=grants or Grants(FakeRedis({}), {}),
+    )
     app.include_router(routes.router)
     return TestClient(app, raise_server_exceptions=False)
 
@@ -294,7 +302,7 @@ def test_authorize_missing_scope_defaults_to_configured_audience():
     assert response.status_code == 302
     pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
     pending = asyncio.run(routes._store.get("pending", pending_id))
-    assert pending["scope"] == "alitellm"
+    assert pending["scopes"] == ["alitellm"]
 
 
 def test_authorize_without_pkce_redirects_back_with_invalid_request():
@@ -352,6 +360,79 @@ def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
     assert ensure.await_args.args[0] == "u@x.com"
     code = location.partition("code=")[2].partition("&")[0]
     assert asyncio.run(routes._store.get("code", code))["sub"] == "u@x.com"
+
+
+SERVICES = {"mcp-aws-eks-ro": {"store": "aws-eks-ro", "broker": "https://b"}}
+GRANTED = {"oauth:aws-eks-ro:state:u@x.com": json.dumps({"granted": True})}
+
+
+def _login_with(c: TestClient, client_id: str, scope: str) -> str:
+    """Run /authorize → Dex → /as-callback and return the minted code."""
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        r = c.get(
+            "/oauth/authorize",
+            params=_authorize_params(client_id, scope=scope),
+            follow_redirects=False,
+        )
+        assert r.status_code == 302, r.text
+        pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
+        mock_oauth.oidc.authorize_access_token = AsyncMock(
+            return_value={"userinfo": {"email": "u@x.com"}}
+        )
+        with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")):
+            r = c.get(f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False)
+    assert r.status_code == 302, r.text
+    return r.headers["location"].partition("code=")[2].partition("&")[0]
+
+
+def test_code_carries_the_mcp_scopes_the_user_holds_a_grant_for():
+    c = make_client(
+        make_settings(as_services=json.dumps(SERVICES)), Grants(FakeRedis(dict(GRANTED)), SERVICES)
+    )
+    client_id = _register(c)
+    code = _login_with(c, client_id, "alitellm mcp-aws-eks-ro")
+    assert asyncio.run(routes._store.get("code", code))["scope"] == "alitellm mcp-aws-eks-ro"
+
+
+def test_authorize_rejects_a_scope_outside_the_service_registry():
+    c = make_client(make_settings(as_services=json.dumps(SERVICES)))
+    client_id = _register(c)
+    r = c.get(
+        "/oauth/authorize",
+        params=_authorize_params(client_id, scope="alitellm mcp-google-drive"),
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    location = r.headers["location"]
+    assert "error=invalid_scope" in location and "mcp-google-drive" in location
+
+
+def test_refresh_drops_a_scope_whose_grant_was_revoked():
+    projection = dict(GRANTED)
+    c = make_client(
+        make_settings(as_services=json.dumps(SERVICES)), Grants(FakeRedis(projection), SERVICES)
+    )
+    client_id = _register(c)
+    code = _login_with(c, client_id, "alitellm mcp-aws-eks-ro")
+    first = c.post("/oauth/token", data=_token_form(client_id, code=code)).json()
+    assert first["scope"] == "alitellm mcp-aws-eks-ro"
+    projection.clear()  # the pod condemned the grant
+    with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)):
+        r = c.post(
+            "/oauth/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": first["refresh_token"],
+                "client_id": client_id,
+            },
+        )
+    assert r.status_code == 200
+    assert r.json()["scope"] == "alitellm"
+    claims = _jwt.decode(r.json()["access_token"], routes._signer.jwks())
+    assert claims["scope"] == "alitellm"
 
 
 def test_as_callback_without_pending_request_is_a_400():

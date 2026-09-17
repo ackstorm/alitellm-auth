@@ -19,6 +19,7 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from app.config import Settings
 from app.auth import oauth
 from app.litellm_client import LiteLLMUserNotFound, ensure_team_and_user, get_litellm_user
+from app.oauth_as.grants import Grants, create_grants
 from app.oauth_as.store import Store, create_store
 from app.oauth_as.tokens import Signer
 
@@ -28,18 +29,24 @@ logger = logging.getLogger(__name__)
 _settings: Settings | None = None
 _store: Store | None = None
 _signer: Signer | None = None
+_grants: Grants | None = None
 CLIENT_TTL = 90 * 86400  # an unused client re-registers after 90 days
 PENDING_TTL = 600
 CODE_TTL = 120
 
 
 def configure_as(
-    settings: Settings, *, store: Store | None = None, signer: Signer | None = None
+    settings: Settings,
+    *,
+    store: Store | None = None,
+    signer: Signer | None = None,
+    grants: Grants | None = None,
 ) -> None:
-    global _settings, _store, _signer
+    global _settings, _store, _signer, _grants
     _settings = settings
     _store = store or create_store(settings)
     _signer = signer or Signer(settings.as_signing_key_pem)
+    _grants = grants or create_grants(settings)
 
 
 def authorization_server_metadata(issuer: str, audience: str) -> dict:
@@ -215,9 +222,13 @@ async def authorize(request: Request):
         return _html_error(400, "redirect_uri is not registered for this client")
 
     state = q.get("state")
-    scope = q.get("scope", _settings.as_audience)
-    if scope != _settings.as_audience:
-        params = {"error": "invalid_scope", "error_description": "requested scope is not supported"}
+    requested = (q.get("scope") or _settings.as_audience).split()
+    unknown = [s for s in requested if s != _settings.as_audience and s not in _settings.services]
+    if unknown:
+        params = {
+            "error": "invalid_scope",
+            "error_description": f"unknown scope: {' '.join(unknown)}",
+        }
         if state:
             params["state"] = state
         return _client_redirect(redirect_uri, params)
@@ -245,7 +256,7 @@ async def authorize(request: Request):
             "redirect_uri": redirect_uri,
             "state": state,
             "code_challenge": q["code_challenge"],
-            "scope": scope,
+            "scopes": requested,
         },
         ttl=PENDING_TTL,
     )
@@ -257,7 +268,7 @@ async def authorize(request: Request):
 
 @router.get("/oauth/as-callback", name="as_callback")
 async def as_callback(request: Request):
-    assert _store is not None and _settings is not None
+    assert _store is not None and _settings is not None and _grants is not None
     pending_id = request.query_params.get("state", "")
     pending = await _store.pop("pending", pending_id) if pending_id else None
     if pending is None:
@@ -274,12 +285,33 @@ async def as_callback(request: Request):
     if not email:
         return _html_error(400, "the identity provider returned no email")
     await ensure_team_and_user(email, _settings, name=userinfo.get("name"))
+    pending["sub"] = email
+    todo = [
+        s
+        for s in pending["scopes"]
+        if s in _settings.services and not await _grants.granted(email, s)
+    ]
+    if todo:
+        return await _chain_next(request, {**pending, "todo": todo})
+    return await _finish(pending)
+
+
+async def _chain_next(request: Request, pending: dict) -> RedirectResponse:
+    # A5 replaces this: chain to the first `todo` service's broker for its grant.
+    return await _finish(pending)
+
+
+async def _finish(pending: dict) -> RedirectResponse:
+    assert _store is not None and _grants is not None and _settings is not None
+    scopes = await _grants.scopes_for(pending["sub"], pending["scopes"], _settings.as_audience)
     code = secrets.token_urlsafe(32)
-    await _store.put("code", code, {**pending, "sub": email}, ttl=CODE_TTL)
+    await _store.put("code", code, {**pending, "scope": " ".join(scopes)}, ttl=CODE_TTL)
     params = {"code": code}
     if pending.get("state"):
         params["state"] = pending["state"]
-    logger.info("Authorization code issued to client %s", pending["client_id"])
+    logger.info(
+        "Authorization code issued to client %s (scopes %s)", pending["client_id"], " ".join(scopes)
+    )
     return _client_redirect(pending["redirect_uri"], params)
 
 
@@ -333,7 +365,7 @@ async def _user_exists(sub: str) -> bool:
 
 @router.post("/oauth/token")
 async def token(request: Request) -> JSONResponse:
-    assert _store is not None
+    assert _store is not None and _settings is not None and _grants is not None
     form = await request.form()
     grant = form.get("grant_type")
     client_id = str(form.get("client_id", ""))
@@ -363,5 +395,9 @@ async def token(request: Request) -> JSONResponse:
         if not alive:
             logger.info("Refused a refresh for a user no longer in LiteLLM")
             return _error(400, "invalid_grant")
-        return await _issue(consumed["sub"], client_id, consumed["scope"])
+        # Re-derived on every refresh: a revoked grant drops off within one access-token TTL.
+        scopes = await _grants.scopes_for(
+            consumed["sub"], consumed["scope"].split(), _settings.as_audience
+        )
+        return await _issue(consumed["sub"], client_id, " ".join(scopes))
     return _error(400, "unsupported_grant_type")

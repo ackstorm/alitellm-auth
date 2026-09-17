@@ -179,3 +179,12 @@ def test_as_enabled_rejects_an_invalid_fernet_key_at_startup():
 
     with pytest.raises(ValidationError, match="Fernet"):
         Settings(**_as_on(as_key_encryption_key="x" * 44))
+
+
+def test_as_services_is_a_json_registry_keyed_by_scope():
+    from app.config import Settings
+
+    assert Settings(**_as_on()).services == {}
+    assert Settings(
+        **_as_on(as_services='{"mcp-x": {"store": "x", "broker": "https://b"}}')
+    ).services == {"mcp-x": {"store": "x", "broker": "https://b"}}

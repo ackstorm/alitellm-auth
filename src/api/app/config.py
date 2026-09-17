@@ -2,6 +2,9 @@
 """Application settings loaded from environment variables."""
 
 from __future__ import annotations
+
+import json
+
 from cryptography.fernet import Fernet
 from pydantic import model_validator
 from pydantic_settings import BaseSettings
@@ -50,6 +53,18 @@ class Settings(BaseSettings):
     # Shared secret between the Go authz and /api/internal/* (Task 9). Both containers
     # read it from the same Secret via envFrom.
     internal_token: str = ""
+    # MCP services a user token may carry as scopes. JSON: scope name (the path
+    # segment under /mcp/) → {"store": the pods' service name in Redis,
+    # "broker": that service's authorization server}. Empty → no MCP scopes.
+    #   {"mcp-aws-eks-ro": {"store": "aws-eks-ro", "broker": "https://api.ackstorm.ai/aws-eks-ro-callback"}}
+    as_services: str = ""
+    # Where the MCP pods keep their cleartext grant projection
+    # (oauth:{store}:state:{email}). Empty → same Redis as AS_REDIS_URL.
+    as_mcp_redis_url: str = ""
+
+    @property
+    def services(self) -> dict[str, dict]:
+        return json.loads(self.as_services) if self.as_services else {}
 
     @property
     def as_issuer(self) -> str:
