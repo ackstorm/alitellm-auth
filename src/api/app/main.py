@@ -70,6 +70,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # /ui StaticFiles mount below so /api/config is never shadowed by the static mount.
     app.include_router(public_router)
 
+    # OAuth front door (docs/plans/2026-09-17-oauth-front-door.md). Off unless AS_ENABLED.
+    if settings.as_enabled:
+        from app.oauth_as.routes import configure_as, router as as_router
+
+        configure_as(settings)
+        app.include_router(as_router)
+
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
