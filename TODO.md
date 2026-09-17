@@ -23,17 +23,15 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
 
 ## Clients
 
-- [x] **OpenCode model-path OAuth** — plugin `~/.config/opencode/plugins/ackstorm-auth.mjs`
-  (DCR + PKCE + loopback + refresh in a custom `fetch`) works: `opencode auth login -p
-  ackstorm` → Dex → token in `auth.json`; `opencode run -m ackstorm/ackstorm.fast` answers
-  through the front door. The literal `apiKey` is gone from `opencode.json`
-  (2026-09-17, Juan Carlos's box only).
-- [ ] **Distribute the plugin**: the served catalog (`/public/opencode/api.json`, models.dev
-  format) cannot express OAuth — opencode only does provider OAuth through a plugin
-  `auth` hook. Publish `ackstorm-auth.mjs` as an npm package and list it in the
-  opencode config the platform serves (`.well-known/opencode` → `config.plugin`), so a
-  user runs `opencode auth login https://platform.ackstorm.ai` once and never installs
-  anything by hand. Source of truth for the plugin: this repo (`clients/opencode/`?).
+- [x] **OpenCode model-path OAuth** — `clients/opencode` (DCR + PKCE + loopback + refresh
+  in a custom `fetch`), zero config: provider API URL from opencode → RFC 9728 → RFC 8414.
+  Served by the API as an npm tarball, `GET /public/opencode-auth` (v0.8.2):
+  `opencode plugin https://platform.ackstorm.ai/public/opencode-auth -g`, then
+  `opencode auth login -p ackstorm`. Verified incl. refresh (2026-09-17).
+  Measured: opencode fetches the tarball at install and once on the first launch, then
+  never — a new release needs `opencode plugin <url> -g -f`. The served `api.json` still
+  lists `env: ["LITELLM_API_KEY"]`; an exported key masks a logout (OAuth wins when both
+  exist). Drop `env` from `/public/opencode` when everyone is on the plugin.
 - [ ] **Upstream the opencode method**: no client does OAuth (8414 + DCR + PKCE) for a
   *model* provider; opencode's OpenAI/Anthropic/Copilot logins are vendor-specific
   plugins. Propose a generic `oauth` auth method keyed on `provider.<id>.options.oauth.issuer`
