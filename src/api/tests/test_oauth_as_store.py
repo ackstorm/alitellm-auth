@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+import logging
+
 from app.oauth_as.store import MemoryStore
 
 
@@ -29,10 +31,35 @@ async def test_ttl_expires(monkeypatch):
     assert await store.get("code", "k") is None
 
 
-def test_create_store_picks_memory_without_redis_url():
+async def test_acquire_is_exclusive_until_released_or_expired(monkeypatch):
+    import app.oauth_as.store as store_module
+
+    now = [1000.0]
+    monkeypatch.setattr(store_module.time, "time", lambda: now[0])
+    store = MemoryStore()
+    assert await store.acquire("mint:u", ttl=10) is True
+    assert await store.acquire("mint:u", ttl=10) is False
+    await store.release("mint:u")
+    assert await store.acquire("mint:u", ttl=10) is True
+    now[0] = 1011.0
+    assert await store.acquire("mint:u", ttl=10) is True
+
+
+def test_create_store_memory_sentinel_is_loud(caplog):
     from app.oauth_as.store import create_store
 
     class Settings:
-        as_redis_url = ""
+        as_redis_url = "memory://"
 
-    assert isinstance(create_store(Settings()), MemoryStore)
+    with caplog.at_level(logging.CRITICAL):
+        assert isinstance(create_store(Settings()), MemoryStore)
+    assert "memory://" in caplog.text
+
+
+def test_create_store_uses_redis_otherwise():
+    from app.oauth_as.store import RedisStore, create_store
+
+    class Settings:
+        as_redis_url = "redis://localhost:6379/0"
+
+    assert isinstance(create_store(Settings()), RedisStore)

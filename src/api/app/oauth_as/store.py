@@ -7,17 +7,19 @@ Four kinds live here: `client` (DCR registrations, no TTL), `pending` (an
 (the user's encrypted LiteLLM key, Task 9). Ported from mcp-oauth/auth/broker.py:
 same three verbs, same JSON-in-Redis shape.
 
-MemoryStore is for one replica and dev. Two replicas with MemoryStore means a
-code minted on one is unknown on the other — a 50% failure rate that looks like
-flakiness. Set AS_REDIS_URL for anything with replicaCount > 1.
+MemoryStore is for tests and a one-replica dev box. Two replicas on it means a
+code minted on one is unknown on the other, and a restart orphans every front
+key. Settings refuse to enable the AS without AS_REDIS_URL for that reason.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import time
 from typing import Any, Protocol
 
+logger = logging.getLogger(__name__)
 _PREFIX = "alitellm-auth:as"
 
 
@@ -27,6 +29,10 @@ class Store(Protocol):
     async def put(self, kind: str, key: str, value: dict, ttl: int | None = None) -> None: ...
 
     async def pop(self, kind: str, key: str) -> dict | None: ...
+
+    async def acquire(self, name: str, ttl: int) -> bool: ...
+
+    async def release(self, name: str) -> None: ...
 
 
 class MemoryStore:
@@ -56,6 +62,16 @@ class MemoryStore:
         hit = self._bucket(kind).pop(key, None)
         return dict(hit[0]) if hit else None
 
+    async def acquire(self, name: str, ttl: int) -> bool:
+        self._expire("lock")
+        if name in self._bucket("lock"):
+            return False
+        await self.put("lock", name, {}, ttl=ttl)
+        return True
+
+    async def release(self, name: str) -> None:
+        self._bucket("lock").pop(name, None)
+
 
 class RedisStore:
     def __init__(self, client: Any) -> None:
@@ -76,10 +92,19 @@ class RedisStore:
         raw = await self._r.getdel(self._key(kind, key))  # atomic single use
         return json.loads(raw) if raw else None
 
+    async def acquire(self, name: str, ttl: int) -> bool:
+        return bool(await self._r.set(self._key("lock", name), "1", ex=ttl, nx=True))
+
+    async def release(self, name: str) -> None:
+        await self._r.delete(self._key("lock", name))
+
 
 def create_store(settings: Any) -> Store:
-    if settings.as_redis_url:
-        import redis.asyncio as redis  # lazy import; memory path does not need Redis
+    if settings.as_redis_url == "memory://":
+        logger.critical(
+            "AS_REDIS_URL=memory://: front keys will NOT survive a restart — dev/test only"
+        )
+        return MemoryStore()
+    import redis.asyncio as redis  # lazy import; production path needs Redis
 
-        return RedisStore(redis.from_url(settings.as_redis_url, decode_responses=True))
-    return MemoryStore()
+    return RedisStore(redis.from_url(settings.as_redis_url, decode_responses=True))
