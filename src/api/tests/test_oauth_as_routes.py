@@ -20,7 +20,9 @@ from tests.test_oauth_as_tokens import _pem
 
 
 VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-CHALLENGE = base64.urlsafe_b64encode(hashlib.sha256(VERIFIER.encode()).digest()).rstrip(b"=").decode()
+CHALLENGE = (
+    base64.urlsafe_b64encode(hashlib.sha256(VERIFIER.encode()).digest()).rstrip(b"=").decode()
+)
 
 
 def make_settings(**over) -> Settings:
@@ -208,7 +210,9 @@ def test_authorize_stores_request_and_redirects_to_dex_with_https_callback():
         mock_oauth.oidc.authorize_redirect = AsyncMock(
             return_value=RedirectResponse("http://dex.test/dex/auth?x=1", status_code=302)
         )
-        response = c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        response = c.get(
+            "/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False
+        )
     assert response.status_code == 302
     assert response.headers["location"].startswith("http://dex.test/dex/auth")
     args, kwargs = mock_oauth.oidc.authorize_redirect.call_args
@@ -324,8 +328,12 @@ def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
         mock_oauth.oidc.authorize_access_token = AsyncMock(
             return_value={"userinfo": {"email": " U@X.COM ", "name": "U"}}
         )
-        with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")) as ensure:
-            response = c.get(f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False)
+        with patch(
+            "app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")
+        ) as ensure:
+            response = c.get(
+                f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False
+            )
     assert response.status_code == 302
     location = response.headers["location"]
     assert location.startswith("http://127.0.0.1:5000/cb?")
@@ -362,8 +370,12 @@ def test_concurrent_authorization_requests_keep_independent_states():
             return_value={"userinfo": {"email": "u@x.com"}}
         )
         with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")):
-            first = c.get(f"/oauth/as-callback?code=one&state={first_state}", follow_redirects=False)
-            second = c.get(f"/oauth/as-callback?code=two&state={second_state}", follow_redirects=False)
+            first = c.get(
+                f"/oauth/as-callback?code=one&state={first_state}", follow_redirects=False
+            )
+            second = c.get(
+                f"/oauth/as-callback?code=two&state={second_state}", follow_redirects=False
+            )
 
     assert first.status_code == second.status_code == 302
     assert "state=xyz" in first.headers["location"]
@@ -396,7 +408,9 @@ def test_authlib_preserves_first_saved_state_after_a_second_real_authorize_redir
         patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")),
     ):
         client_id = _register(c)
-        first = c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        first = c.get(
+            "/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False
+        )
         first_state = parse_qs(urlparse(first.headers["location"]).query)["state"][0]
         second = c.get(
             "/oauth/authorize",
@@ -415,15 +429,31 @@ def test_authlib_preserves_first_saved_state_after_a_second_real_authorize_redir
 
 
 def _seed_code(client_id: str, code="thecode") -> None:
-    asyncio.run(routes._store.put("code", code, {
-        "client_id": client_id, "redirect_uri": "http://127.0.0.1:5000/cb", "state": "s",
-        "code_challenge": CHALLENGE, "scope": "alitellm", "sub": "u@x.com",
-    }, ttl=120))
+    asyncio.run(
+        routes._store.put(
+            "code",
+            code,
+            {
+                "client_id": client_id,
+                "redirect_uri": "http://127.0.0.1:5000/cb",
+                "state": "s",
+                "code_challenge": CHALLENGE,
+                "scope": "alitellm",
+                "sub": "u@x.com",
+            },
+            ttl=120,
+        )
+    )
 
 
 def _token_form(client_id: str, **over) -> dict:
-    f = {"grant_type": "authorization_code", "code": "thecode", "client_id": client_id,
-         "redirect_uri": "http://127.0.0.1:5000/cb", "code_verifier": VERIFIER}
+    f = {
+        "grant_type": "authorization_code",
+        "code": "thecode",
+        "client_id": client_id,
+        "redirect_uri": "http://127.0.0.1:5000/cb",
+        "code_verifier": VERIFIER,
+    }
     f.update(over)
     return f
 
@@ -438,7 +468,11 @@ def test_token_exchanges_a_code_for_a_jwt_and_a_refresh_token():
     assert body["token_type"] == "Bearer" and body["expires_in"] == 3600 and body["refresh_token"]
     claims = _jwt.decode(body["access_token"], routes._signer.jwks())
     claims.validate()
-    assert claims["sub"] == "u@x.com" and claims["client_id"] == client_id and claims["aud"] == "alitellm"
+    assert (
+        claims["sub"] == "u@x.com"
+        and claims["client_id"] == client_id
+        and claims["aud"] == "alitellm"
+    )
     assert r.headers["cache-control"] == "no-store"
 
 
@@ -475,13 +509,25 @@ def test_refresh_rotates_and_the_old_token_dies():
     _seed_code(client_id)
     first = c.post("/oauth/token", data=_token_form(client_id)).json()
     with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)):
-        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
-                                         "refresh_token": first["refresh_token"], "client_id": client_id})
+        r = c.post(
+            "/oauth/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": first["refresh_token"],
+                "client_id": client_id,
+            },
+        )
         assert r.status_code == 200
         second = r.json()
         assert second["refresh_token"] != first["refresh_token"]
-        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
-                                         "refresh_token": first["refresh_token"], "client_id": client_id})
+        r = c.post(
+            "/oauth/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": first["refresh_token"],
+                "client_id": client_id,
+            },
+        )
     assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
 
 
@@ -491,8 +537,14 @@ def test_refresh_for_an_offboarded_user_consumes_token_without_replacement():
     _seed_code(client_id)
     first = c.post("/oauth/token", data=_token_form(client_id)).json()
     with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=False)):
-        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
-                                         "refresh_token": first["refresh_token"], "client_id": client_id})
+        r = c.post(
+            "/oauth/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": first["refresh_token"],
+                "client_id": client_id,
+            },
+        )
     assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
     assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is None
 
@@ -502,9 +554,17 @@ def test_refresh_litellm_outage_preserves_refresh_token():
     client_id = _register(c)
     _seed_code(client_id)
     first = c.post("/oauth/token", data=_token_form(client_id)).json()
-    with patch("app.oauth_as.routes._user_exists", AsyncMock(side_effect=httpx.ConnectError("down"))):
-        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
-                                         "refresh_token": first["refresh_token"], "client_id": client_id})
+    with patch(
+        "app.oauth_as.routes._user_exists", AsyncMock(side_effect=httpx.ConnectError("down"))
+    ):
+        r = c.post(
+            "/oauth/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": first["refresh_token"],
+                "client_id": client_id,
+            },
+        )
     assert r.status_code == 503 and r.json()["error"] == "temporarily_unavailable"
     assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is not None
 
@@ -515,8 +575,14 @@ def test_wrong_client_refresh_does_not_consume_token():
     _seed_code(client_id)
     first = c.post("/oauth/token", data=_token_form(client_id)).json()
     with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)) as exists:
-        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
-                                         "refresh_token": first["refresh_token"], "client_id": other_id})
+        r = c.post(
+            "/oauth/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": first["refresh_token"],
+                "client_id": other_id,
+            },
+        )
     assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
     exists.assert_not_awaited()
     assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is not None

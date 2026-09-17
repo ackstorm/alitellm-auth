@@ -215,20 +215,28 @@ async def authorize(request: Request):
         or q.get("code_challenge_method") != "S256"
         or re.fullmatch(r"[A-Za-z0-9_-]{43}", challenge) is None
     ):
-        params = {"error": "invalid_request", "error_description": "response_type=code with PKCE S256 is required"}
+        params = {
+            "error": "invalid_request",
+            "error_description": "response_type=code with PKCE S256 is required",
+        }
         if state:
             params["state"] = state
         return _client_redirect(redirect_uri, params)
 
     await _store.put("client", client["client_id"], client, ttl=CLIENT_TTL)
     pending_id = secrets.token_urlsafe(24)
-    await _store.put("pending", pending_id, {
-        "client_id": client["client_id"],
-        "redirect_uri": redirect_uri,
-        "state": state,
-        "code_challenge": q["code_challenge"],
-        "scope": scope,
-    }, ttl=PENDING_TTL)
+    await _store.put(
+        "pending",
+        pending_id,
+        {
+            "client_id": client["client_id"],
+            "redirect_uri": redirect_uri,
+            "state": state,
+            "code_challenge": q["code_challenge"],
+            "scope": scope,
+        },
+        ttl=PENDING_TTL,
+    )
     # The ingress terminates TLS, so request.url_for may incorrectly report http.
     callback = _settings.app_base_url.rstrip("/") + "/oauth/as-callback"
     # Each in-flight request has its own state; Authlib tracks OAuth state per ID.
@@ -241,7 +249,9 @@ async def as_callback(request: Request):
     pending_id = request.query_params.get("state", "")
     pending = await _store.pop("pending", pending_id) if pending_id else None
     if pending is None:
-        return _html_error(400, "no authorization request is pending — start again from your client")
+        return _html_error(
+            400, "no authorization request is pending — start again from your client"
+        )
     try:
         token = await oauth.oidc.authorize_access_token(request)
     except Exception as exc:  # Authlib raises several OAuthError subclasses.
@@ -264,7 +274,9 @@ async def as_callback(request: Request):
 def _pkce_ok(challenge: str, verifier: str) -> bool:
     if re.fullmatch(r"[A-Za-z0-9._~-]{43,128}", verifier) is None:
         return False
-    digest = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    digest = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    )
     return hmac.compare_digest(challenge, digest)
 
 

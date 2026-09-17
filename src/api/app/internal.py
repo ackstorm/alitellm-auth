@@ -36,9 +36,7 @@ def _settings(request: Request) -> Settings:
 
 def _authorized(request: Request, settings: Settings) -> bool:
     presented = request.headers.get("x-internal-token", "")
-    return bool(settings.internal_token) and hmac.compare_digest(
-        presented, settings.internal_token
-    )
+    return bool(settings.internal_token) and hmac.compare_digest(presented, settings.internal_token)
 
 
 async def _key_alive(key: str, settings: Settings) -> bool:

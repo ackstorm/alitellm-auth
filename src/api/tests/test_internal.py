@@ -18,9 +18,7 @@ def _client() -> TestClient:
 
 
 def _404() -> httpx.HTTPStatusError:
-    response = httpx.Response(
-        404, request=httpx.Request("GET", "http://litellm.test/key/info")
-    )
+    response = httpx.Response(404, request=httpx.Request("GET", "http://litellm.test/key/info"))
     return httpx.HTTPStatusError("gone", request=response.request, response=response)
 
 

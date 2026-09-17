@@ -138,7 +138,10 @@ def test_as_is_off_by_default():
 def test_as_issuer_url_overrides_app_base_url_and_strips_slash():
     from app.config import Settings
 
-    assert Settings(**_base(as_issuer_url="https://platform.test/")).as_issuer == "https://platform.test"
+    assert (
+        Settings(**_base(as_issuer_url="https://platform.test/")).as_issuer
+        == "https://platform.test"
+    )
 
 
 def _as_on(**over):
