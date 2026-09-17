@@ -2,6 +2,27 @@
 
 ## [unreleased]
 
+### Added
+
+- **OAuth front door for `api.*`.** An Envoy ext_authz service (`authz/`, Go) in
+  front of LiteLLM and an OAuth 2.1 authorization server in the API
+  (`/oauth/*`, `/.well-known/oauth-authorization-server`, RFC 7591 DCR, PKCE
+  S256, RS256 tokens, refresh rotation with a LiteLLM re-check). The authz maps
+  a platform credential — a LiteLLM key or a front-door JWT, in `x-genai-api-key`
+  or `x-api-key`, or the JWT in `Authorization` — to the caller's LiteLLM key in
+  `x-litellm-api-key`; any other `Authorization` belongs to the upstream provider
+  and is left alone. Anonymous requests get a 401 with `resource_metadata`.
+- **Every RFC 9728 protected-resource document is ours**, root and one per
+  `/mcp/<svc>`, on `api.*` (gitops route prefix). LiteLLM composes none.
+- **MCP grants as token scopes.** The token's `scope` lists the MCP services the
+  user holds a grant for, read from the MCP pods' Redis projection
+  (`AS_SERVICES`, `AS_MCP_REDIS_URL`). On `/mcp/<svc>` a user token without
+  scope `<svc>` gets a 403 `insufficient_scope` pointing at that service's
+  document; the `/authorize` ceremony chains to the service's mcp-oauth broker
+  for the missing consent, one browser round, no tool call.
+- Chart: `authz.*`, `authServer.services`, `authServer.mcpRedisUrl`; the Istio
+  `AuthorizationPolicy` template documents the gitops-side prerequisites.
+
 ## [0.7.3] - 2026-09-17
 
 ## [0.7.1] - 2026-08-22
