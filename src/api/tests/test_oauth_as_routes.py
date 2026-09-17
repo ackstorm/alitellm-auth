@@ -370,6 +370,50 @@ def test_concurrent_authorization_requests_keep_independent_states():
     assert "state=second" in second.headers["location"]
 
 
+def test_authlib_preserves_first_saved_state_after_a_second_real_authorize_redirect():
+    from urllib.parse import parse_qs, urlparse
+
+    from authlib.integrations.starlette_client import OAuth
+    from app.auth import ConcurrentStateStarletteIntegration
+
+    real_oauth = OAuth()
+    real_oauth.framework_integration_cls = ConcurrentStateStarletteIntegration
+    real_oauth.register(
+        name="oidc",
+        authorize_url="https://dex.test/auth",
+        access_token_url="https://dex.test/token",
+        client_id="test-client",
+        client_secret="test-secret",
+    )
+    c = make_client()
+    with (
+        patch("app.oauth_as.routes.oauth", real_oauth),
+        patch.object(
+            real_oauth.oidc,
+            "fetch_access_token",
+            AsyncMock(return_value={"userinfo": {"email": "u@x.com"}}),
+        ),
+        patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")),
+    ):
+        client_id = _register(c)
+        first = c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        first_state = parse_qs(urlparse(first.headers["location"]).query)["state"][0]
+        second = c.get(
+            "/oauth/authorize",
+            params=_authorize_params(client_id, state="second"),
+            follow_redirects=False,
+        )
+        second_state = parse_qs(urlparse(second.headers["location"]).query)["state"][0]
+        assert first_state != second_state
+
+        callback = c.get(
+            f"/oauth/as-callback?code=first-code&state={first_state}", follow_redirects=False
+        )
+
+    assert callback.status_code == 302
+    assert "state=xyz" in callback.headers["location"]
+
+
 def _seed_code(client_id: str, code="thecode") -> None:
     asyncio.run(routes._store.put("code", code, {
         "client_id": client_id, "redirect_uri": "http://127.0.0.1:5000/cb", "state": "s",

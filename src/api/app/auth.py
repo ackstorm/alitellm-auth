@@ -9,12 +9,15 @@ Keys are created explicitly from inside the console (POST /api/session/keys).
 
 from __future__ import annotations
 
+import json
 import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
+from authlib.integrations.starlette_client import StarletteIntegration
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -32,6 +35,32 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 oauth = OAuth()  # module-level so tests can patch it
+
+
+class ConcurrentStateStarletteIntegration(StarletteIntegration):
+    """Preserve valid OAuth states when a browser starts overlapping flows.
+
+    Authlib's default Starlette integration clears every state for this client
+    whenever it saves a new one. Keep its session binding and expiry markers,
+    but prune only expired entries; Authlib still validates and clears each
+    callback state through the normal get/clear methods.
+    """
+
+    async def set_state_data(self, session, state, data):
+        key = f"_state_{self.name}_{state}"
+        now = time.time()
+        if self.cache:
+            await self.cache.set(key, json.dumps({"data": data}), self.expires_in)
+            if session is not None:
+                session[key] = {"exp": now + self.expires_in}
+        elif session is not None:
+            session[key] = {"data": data, "exp": now + self.expires_in}
+        if session is not None:
+            self._clear_session_state(session)
+
+
+# BaseOAuth reads this when it constructs the registered OIDC client.
+oauth.framework_integration_cls = ConcurrentStateStarletteIntegration
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
