@@ -46,26 +46,29 @@ func TestCheckAllowMapsHeaderMutations(t *testing.T) {
 
 func TestCheckDenyMapsStatusHeadersBodyAndStripsQueryFromDecisionPath(t *testing.T) {
 	s := &Server{cfg: cfg, verifier: fakeVerifier{}, resolver: &fakeResolver{}}
-	resp := check(t, s, "/mcp/mcp-aws-eks-ro?session=1", map[string]string{})
-	denied := resp.GetDeniedResponse()
-	if denied == nil || denied.Status.Code != typev3.StatusCode_Unauthorized {
-		t.Fatalf("expected 401, got %+v", resp)
-	}
-	var wa, contentType string
-	for _, h := range denied.Headers {
-		switch h.Header.Key {
-		case "www-authenticate":
-			wa = h.Header.Value
-		case "content-type":
-			contentType = h.Header.Value
+	// The pointer names the service root whatever streamable HTTP appended.
+	for _, path := range []string{"/mcp/mcp-aws-eks-ro?session=1", "/mcp/mcp-aws-eks-ro/messages?session=1"} {
+		resp := check(t, s, path, map[string]string{})
+		denied := resp.GetDeniedResponse()
+		if denied == nil || denied.Status.Code != typev3.StatusCode_Unauthorized {
+			t.Fatalf("%s: expected 401, got %+v", path, resp)
 		}
-	}
-	want := `Bearer resource_metadata="https://api.test/.well-known/oauth-protected-resource/mcp/mcp-aws-eks-ro"`
-	if wa != want {
-		t.Fatalf("www-authenticate: %q", wa)
-	}
-	if contentType != "application/json" || denied.Body != `{"error":"unauthorized","error_description":"present an API key or a bearer token"}` {
-		t.Fatalf("denied response headers/body: %v / %q", denied.Headers, denied.Body)
+		var wa, contentType string
+		for _, h := range denied.Headers {
+			switch h.Header.Key {
+			case "www-authenticate":
+				wa = h.Header.Value
+			case "content-type":
+				contentType = h.Header.Value
+			}
+		}
+		want := `Bearer resource_metadata="` + cfg.ResourceMetadataURL + `/mcp/mcp-aws-eks-ro"`
+		if wa != want {
+			t.Fatalf("%s: www-authenticate: %q", path, wa)
+		}
+		if contentType != "application/json" || denied.Body != `{"error":"unauthorized","error_description":"present an API key or a bearer token"}` {
+			t.Fatalf("%s: denied response headers/body: %v / %q", path, denied.Headers, denied.Body)
+		}
 	}
 }
 

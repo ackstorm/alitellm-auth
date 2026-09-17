@@ -50,7 +50,7 @@ func newVerifier(t *testing.T) (Verifier, *rsa.PrivateKey, string) {
 	t.Helper()
 	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
 	iss := serveIssuer(t, &priv.PublicKey, "k1")
-	v, err := NewVerifier(context.Background(), []string{iss.URL}, "alitellm", "https://api.test")
+	v, err := NewVerifier(context.Background(), iss.URL, "alitellm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,37 +59,25 @@ func newVerifier(t *testing.T) (Verifier, *rsa.PrivateKey, string) {
 
 func exp() int64 { return time.Now().Add(time.Minute).Unix() }
 
-func TestFrontAudienceIsAcceptedOnAnyPath(t *testing.T) {
+func TestVerifyReturnsSubjectAndScopes(t *testing.T) {
 	v, priv, iss := newVerifier(t)
-	tok := sign(t, priv, "k1", jwt.MapClaims{"iss": iss, "aud": "alitellm", "sub": "U@X.COM", "exp": exp()})
-	for _, p := range []string{"/v1/chat/completions", "/mcp/mcp-gitlab-ro"} {
-		if sub, err := v.Verify(tok, p); err != nil || sub != "u@x.com" {
-			t.Fatalf("%s: sub=%q err=%v", p, sub, err)
-		}
+	tok := sign(t, priv, "k1", jwt.MapClaims{"iss": iss, "aud": "alitellm", "sub": "U@X.com",
+		"scope": "alitellm mcp-google-drive", "exp": exp()})
+	sub, scopes, err := v.Verify(tok)
+	if err != nil || sub != "u@x.com" || len(scopes) != 2 || scopes[1] != "mcp-google-drive" {
+		t.Fatalf("sub=%q scopes=%v err=%v", sub, scopes, err)
 	}
 }
 
-func TestBrokerAudienceIsBoundToItsOwnPath(t *testing.T) {
-	v, priv, iss := newVerifier(t)
-	tok := sign(t, priv, "k1", jwt.MapClaims{"iss": iss, "aud": "https://api.test/mcp/mcp-gitlab-ro", "sub": "u@x.com", "exp": exp()})
-	if _, err := v.Verify(tok, "/mcp/mcp-gitlab-ro"); err != nil {
-		t.Fatalf("own path: %v", err)
-	}
-	for _, p := range []string{"/v1/chat/completions", "/mcp/mcp-aws-eks-ro"} {
-		if _, err := v.Verify(tok, p); err == nil {
-			t.Fatalf("%s: a token for one MCP server must not open another path", p)
-		}
-	}
-}
-
-func TestVerifyRejectsUnknownIssuerAndMissingExp(t *testing.T) {
+func TestVerifyRejectsWrongAudienceUnknownIssuerAndMissingExp(t *testing.T) {
 	v, priv, iss := newVerifier(t)
 	bad := []jwt.MapClaims{
+		{"iss": iss, "aud": "https://api.test/mcp/mcp-gitlab-ro", "sub": "u", "exp": exp()},
 		{"iss": "https://nobody.test", "aud": "alitellm", "sub": "u", "exp": exp()},
 		{"iss": iss, "aud": "alitellm", "sub": "u"},
 	}
 	for i, c := range bad {
-		if _, err := v.Verify(sign(t, priv, "k1", c), "/v1/models"); err == nil {
+		if _, _, err := v.Verify(sign(t, priv, "k1", c)); err == nil {
 			t.Fatalf("case %d: expected error", i)
 		}
 	}

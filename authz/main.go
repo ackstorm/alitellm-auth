@@ -15,16 +15,15 @@ import (
 
 func main() {
 	cfg := LoadConfig()
-	if len(cfg.Issuers) == 0 || cfg.KeyResolverURL == "" || cfg.InternalToken == "" ||
-		cfg.ResourceMetadataURL == "" || cfg.ResourceBase == "" {
-		log.Fatal("AUTHZ_ISSUERS, AUTHZ_KEY_RESOLVER_URL, AUTHZ_INTERNAL_TOKEN, AUTHZ_RESOURCE_METADATA_URL and AUTHZ_RESOURCE_BASE are required")
+	if cfg.Issuer == "" || cfg.KeyResolverURL == "" || cfg.InternalToken == "" || cfg.ResourceMetadataURL == "" {
+		log.Fatal("AUTHZ_ISSUER, AUTHZ_KEY_RESOLVER_URL, AUTHZ_INTERNAL_TOKEN and AUTHZ_RESOURCE_METADATA_URL are required")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	verifier, err := NewVerifier(ctx, cfg.Issuers, cfg.Audience, cfg.ResourceBase)
+	verifier, err := NewVerifier(ctx, cfg.Issuer, cfg.Audience)
 	if err != nil {
-		log.Fatalf("issuers: %v", err)
+		log.Fatalf("issuer: %v", err)
 	}
 	srv := &Server{
 		cfg:      cfg,
@@ -46,8 +45,8 @@ func main() {
 		healthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 		g.GracefulStop()
 	}()
-	log.Printf("authz listening on %s (inbound %s → outbound %s, legacy=%v, issuers=%v)",
-		cfg.ListenAddr, cfg.InboundHeader, cfg.OutboundHeader, cfg.LegacyPassthrough, cfg.Issuers)
+	log.Printf("authz listening on %s (inbound %s → outbound %s, legacy=%v, issuer=%s)",
+		cfg.ListenAddr, cfg.InboundHeader, cfg.OutboundHeader, cfg.LegacyPassthrough, cfg.Issuer)
 	if err := g.Serve(lis); err != nil {
 		log.Fatal(err)
 	}

@@ -13,30 +13,26 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// multiVerifier trusts a fixed list of issuers — the front door and each MCP
-// broker — each verified against its own JWKS, discovered once at startup
-// from the issuer's RFC 8414 document and refreshed by keyfunc on unknown kid.
-type multiVerifier struct {
-	keys         map[string]keyfunc.Keyfunc
-	audience     string
-	resourceBase string
+// verifier trusts exactly one issuer — the front door — verified against its
+// JWKS, discovered once at startup from its RFC 8414 document and refreshed
+// by keyfunc on an unknown kid. One audience. Scopes come back as a slice.
+type verifier struct {
+	issuer   string
+	keys     keyfunc.Keyfunc
+	audience string
 }
 
-func NewVerifier(ctx context.Context, issuers []string, audience, resourceBase string) (Verifier, error) {
-	m := &multiVerifier{keys: map[string]keyfunc.Keyfunc{}, audience: audience, resourceBase: strings.TrimRight(resourceBase, "/")}
-	client := &http.Client{Timeout: 5 * time.Second}
-	for _, iss := range issuers {
-		jwksURL, err := discoverJWKS(ctx, client, iss)
-		if err != nil {
-			return nil, fmt.Errorf("issuer %s: %w", iss, err)
-		}
-		kf, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL})
-		if err != nil {
-			return nil, fmt.Errorf("issuer %s jwks %s: %w", iss, jwksURL, err)
-		}
-		m.keys[strings.TrimRight(iss, "/")] = kf
+func NewVerifier(ctx context.Context, issuer, audience string) (Verifier, error) {
+	issuer = strings.TrimRight(issuer, "/")
+	jwksURL, err := discoverJWKS(ctx, &http.Client{Timeout: 5 * time.Second}, issuer)
+	if err != nil {
+		return nil, fmt.Errorf("issuer %s: %w", issuer, err)
 	}
-	return m, nil
+	kf, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL})
+	if err != nil {
+		return nil, fmt.Errorf("issuer %s jwks %s: %w", issuer, jwksURL, err)
+	}
+	return &verifier{issuer: issuer, keys: kf, audience: audience}, nil
 }
 
 func discoverJWKS(ctx context.Context, c *http.Client, issuer string) (string, error) {
@@ -58,47 +54,24 @@ func discoverJWKS(ctx context.Context, c *http.Client, issuer string) (string, e
 	return doc.JWKSURI, nil
 }
 
-func (m *multiVerifier) Verify(raw, path string) (string, error) {
-	// Peek at iss without verifying, to pick the JWKS; verification follows.
-	unverified, _, err := jwt.NewParser().ParseUnverified(raw, jwt.MapClaims{})
-	if err != nil {
-		return "", err
-	}
-	iss, _ := unverified.Claims.GetIssuer()
-	kf, ok := m.keys[strings.TrimRight(iss, "/")]
-	if !ok {
-		return "", fmt.Errorf("issuer not trusted: %q", iss)
-	}
-	tok, err := jwt.Parse(raw, kf.Keyfunc,
-		jwt.WithValidMethods([]string{"RS256", "ES256", "EdDSA"}),
+func (v *verifier) Verify(raw string) (string, []string, error) {
+	tok, err := jwt.Parse(raw, v.keys.Keyfunc,
+		jwt.WithValidMethods([]string{"RS256"}),
 		jwt.WithExpirationRequired(),
-		jwt.WithIssuer(iss),
+		jwt.WithIssuer(v.issuer),
+		jwt.WithAudience(v.audience),
 	)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	auds, err := tok.Claims.GetAudience()
-	if err != nil || !m.audienceOK(auds, path) {
-		return "", errors.New("audience not accepted for this path")
+	claims, ok := tok.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", nil, errors.New("unexpected claims")
 	}
-	sub, err := tok.Claims.GetSubject()
+	sub, err := claims.GetSubject()
 	if err != nil || sub == "" {
-		return "", errors.New("no subject")
+		return "", nil, errors.New("no subject")
 	}
-	return strings.ToLower(sub), nil
-}
-
-// audienceOK: the platform audience opens every path; a resource audience
-// opens exactly the path it names. A token for one MCP server is not a token
-// for the model API or for another server (RFC 8707).
-func (m *multiVerifier) audienceOK(auds []string, path string) bool {
-	for _, a := range auds {
-		if a == m.audience {
-			return true
-		}
-		if m.resourceBase != "" && a == m.resourceBase+path {
-			return true
-		}
-	}
-	return false
+	scope, _ := claims["scope"].(string)
+	return strings.ToLower(sub), strings.Fields(scope), nil
 }
