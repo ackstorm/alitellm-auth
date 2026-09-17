@@ -55,6 +55,22 @@ spec:
             # D-18: Secure cookie flag. True in prod (HTTPS), False for local HTTP dev.
             - name: SESSION_HTTPS_ONLY
               value: {{ .Values.config.sessionHttpsOnly | quote }}
+            {{- if .Values.authServer.enabled }}
+            - name: AS_ENABLED
+              value: "true"
+            - name: AS_ISSUER_URL
+              value: {{ .Values.authServer.issuerUrl | default .Values.config.appBaseUrl | quote }}
+            - name: AS_AUDIENCE
+              value: {{ .Values.authServer.audience | quote }}
+            - name: AS_ACCESS_TTL_SECONDS
+              value: {{ .Values.authServer.accessTtlSeconds | quote }}
+            - name: AS_REFRESH_TTL_SECONDS
+              value: {{ .Values.authServer.refreshTtlSeconds | quote }}
+            - name: AS_SERVICES
+              value: {{ .Values.authServer.services | toJson | quote }}
+            - name: AS_MCP_REDIS_URL
+              value: {{ .Values.authServer.mcpRedisUrl | quote }}
+            {{- end }}
             {{- if .Values.factoryConfig.enabled }}
             - name: FACTORY_CONFIG_PATH
               value: {{ printf "%s/factory-config.json" .Values.factoryConfig.mountPath | quote }}

@@ -12,6 +12,8 @@ Companion to alitellm-operator (Go), which owns model/team discovery but not Use
 
 ## Architecture
 
+`app/oauth_as/` is a port of `mcp-oauth/auth/broker.py` (sibling repo). Fix trust-path bugs in both.
+
 ```
 Browser
   │

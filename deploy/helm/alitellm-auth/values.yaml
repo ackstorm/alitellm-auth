@@ -141,3 +141,59 @@ publicArtifacts:
     - name: opencode-catalog
       key: api.json
       path: opencode/api.json
+
+# ── OAuth front door (docs/plans/2026-09-17-oauth-front-door.md) ─────────────
+# The API's authorization server. Needs AS_SIGNING_KEY_PEM,
+# AS_KEY_ENCRYPTION_KEY, AS_REDIS_URL and INTERNAL_TOKEN in the existingSecret.
+authServer:
+  enabled: false
+  issuerUrl: ""          # empty → config.appBaseUrl
+  audience: "alitellm"
+  accessTtlSeconds: 3600
+  refreshTtlSeconds: 604800   # 7 d; a refresh re-checks the user in LiteLLM
+  # MCP services a user token may carry as scopes; scope = the /mcp/ path segment.
+  services: {}
+  #  mcp-aws-eks-ro: { store: aws-eks-ro, broker: https://api.ackstorm.ai/aws-eks-ro-callback }
+  #  mcp-google-drive: { store: google-drive, broker: https://api.ackstorm.ai/google-drive-callback }
+  mcpRedisUrl: ""   # the pods' Redis (grant projection); empty → AS_REDIS_URL
+
+# The Envoy ext_authz service Istio calls per request. failOpen is false in the
+# provider, so this is a hard dependency of the whole API: two replicas, spread,
+# and a PDB are not optional.
+authz:
+  enabled: false
+  image:
+    repo: ghcr.io/ackstorm/alitellm-authz
+    tag: ""              # empty → .Chart.AppVersion
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  inboundHeader: "x-genai-api-key"    # what agents send
+  outboundHeader: "x-litellm-api-key" # what LiteLLM wants
+  legacyPassthrough: true             # accept LiteLLM key during transition
+  issuer: ""           # empty → authServer.issuerUrl or config.appBaseUrl
+  audience: ""         # empty → authServer.audience
+  # The base; the authz appends /mcp/<svc> for MCP paths. Served by this API
+  # on api.* through a gitops route prefix.
+  resourceMetadataUrl: ""  # empty → <config.apiPublicUrl>/.well-known/oauth-protected-resource
+  keyCacheTtlSeconds: 300
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { memory: 64Mi }
+  pdb:
+    minAvailable: 1
+
+# Istio wiring. The meshConfig extensionProvider is cluster-scoped and lives in
+# gitops; see the runbook in the plan.
+istio:
+  enabled: false
+  providerName: "alitellm-authz"
+  # The Gateway the LiteLLM HTTPRoute attaches to.
+  gateway:
+    name: ""
+    namespace: ""
+  host: "api.ackstorm.ai"
+  # Paths that must stay anonymous; RFC 9728 documents are fetched before a
+  # client holds a token. MCP callbacks use separate HTTPRoutes.
+  exemptPaths:
+    - "/health"
+    - "/.well-known/*"

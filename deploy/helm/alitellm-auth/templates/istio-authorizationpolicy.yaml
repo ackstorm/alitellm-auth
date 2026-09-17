@@ -1,0 +1,57 @@
+{{- if and .Values.authz.enabled .Values.istio.enabled }}
+# Attaches ext_authz to requests for the API host routed by this Gateway.
+# The meshConfig extensionProvider must include these request headers and use
+# failOpen: false; the provider itself lives in gitops.
+#
+#   extensionProviders:
+#     - name: {{ .Values.istio.providerName }}
+#       envoyExtAuthzGrpc:
+#         service: {{ include "alitellm-auth.fullname" . }}-authz.{{ .Release.Namespace }}.svc.cluster.local
+#         port: 9001
+#         timeout: 2s
+#         failOpen: false
+#         includeRequestHeadersInCheck: ["authorization", "{{ .Values.authz.inboundHeader }}", "x-api-key", "{{ .Values.authz.outboundHeader }}", "x-user-id"]
+#
+# Also in gitops (litellm namespace / HTTPRoute):
+#  - RequestHeaderModifier remove: [x-user-id] on the LiteLLM route
+#  - prefix rule /.well-known/oauth-protected-resource → alitellm-auth (ReferenceGrant)
+#  - NetworkPolicy: ingress to litellm:4000 only from istio-ingress, alitellm-auth, alitellm-operator
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "alitellm-auth.fullname" . }}-authz
+  namespace: {{ .Values.istio.gateway.namespace | default .Release.Namespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ required "istio.gateway.name is required when istio.enabled=true" .Values.istio.gateway.name | quote }}
+  action: CUSTOM
+  provider:
+    name: {{ .Values.istio.providerName | quote }}
+  rules:
+    - to:
+        - operation:
+            hosts: [{{ .Values.istio.host | quote }}]
+            notPaths:
+              {{- range .Values.istio.exemptPaths }}
+              - {{ . | quote }}
+              {{- end }}
+---
+# Block all public access to internal endpoints, regardless of ext_authz result.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "alitellm-auth.fullname" . }}-deny-internal
+  namespace: {{ .Values.istio.gateway.namespace | default .Release.Namespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ required "istio.gateway.name is required when istio.enabled=true" .Values.istio.gateway.name | quote }}
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            paths: ["/api/internal/*"]
+{{- end }}
