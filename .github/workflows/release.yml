@@ -24,6 +24,13 @@ jobs:
           test -n "$V" || { echo "no version parsed"; exit 1; }
           echo "v=$V" >> "$GITHUB_OUTPUT"
 
+      # Version files must already be bumped in this commit (this pipeline does NOT
+      # run release-bump — unlike alitellm-operator's). Otherwise the chart ships
+      # pointing at the previous image with no error anywhere (v0.7.2). Fail loud,
+      # never auto-fix, and do it before the multi-arch build.
+      - name: Verify version files match the release (make release-bump was run)
+        run: ./scripts/release-check.sh "${{ steps.ver.outputs.v }}"
+
       # GHCR repository paths must be lowercase (WR-02). The owner may contain
       # uppercase letters (e.g. an org named "ACKstorm"); normalize it once.
       - id: owner

@@ -2,6 +2,12 @@
 
 ## [unreleased]
 
+### Added
+
+- `scripts/release-check.sh`: `release.yml` and `make release-cut` now fail when
+  `Chart.yaml`, `values.yaml` `image.tag`, `pyproject.toml` or `main.py` are not
+  at the version being released (guards against cutting without `release-bump`).
+
 ## [0.8.0] - 2026-09-17
 
 ### Added
