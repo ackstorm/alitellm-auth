@@ -211,8 +211,9 @@ def test_authorize_stores_request_and_redirects_to_dex_with_https_callback():
         response = c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"].startswith("http://dex.test/dex/auth")
-    args, _ = mock_oauth.oidc.authorize_redirect.call_args
+    args, kwargs = mock_oauth.oidc.authorize_redirect.call_args
     assert args[1] == "https://platform.test/oauth/as-callback"
+    assert kwargs["state"]
 
 
 async def test_authorize_refreshes_the_client_registration_ttl(monkeypatch):
@@ -277,8 +278,9 @@ def test_authorize_missing_scope_defaults_to_configured_audience():
         )
         response = c.get("/oauth/authorize", params=params, follow_redirects=False)
     assert response.status_code == 302
-    pending_id = c.cookies.get("session")
-    assert pending_id
+    pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
+    pending = asyncio.run(routes._store.get("pending", pending_id))
+    assert pending["scope"] == "alitellm"
 
 
 def test_authorize_without_pkce_redirects_back_with_invalid_request():
@@ -318,22 +320,54 @@ def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
             return_value=RedirectResponse("http://dex.test/auth", status_code=302)
         )
         c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
         mock_oauth.oidc.authorize_access_token = AsyncMock(
-            return_value={"userinfo": {"email": "u@x.com", "name": "U"}}
+            return_value={"userinfo": {"email": " U@X.COM ", "name": "U"}}
         )
         with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")) as ensure:
-            response = c.get("/oauth/as-callback?code=dexcode&state=s", follow_redirects=False)
+            response = c.get(f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False)
     assert response.status_code == 302
     location = response.headers["location"]
     assert location.startswith("http://127.0.0.1:5000/cb?")
     assert "code=" in location and "state=xyz" in location
     ensure.assert_awaited_once()
     assert ensure.await_args.args[0] == "u@x.com"
+    code = location.partition("code=")[2].partition("&")[0]
+    assert asyncio.run(routes._store.get("code", code))["sub"] == "u@x.com"
 
 
 def test_as_callback_without_pending_request_is_a_400():
     response = make_client().get("/oauth/as-callback?code=x&state=y", follow_redirects=False)
     assert response.status_code == 400
+
+
+def test_concurrent_authorization_requests_keep_independent_states():
+    c = make_client()
+    client_id = _register(c)
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        first_state = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
+        c.get(
+            "/oauth/authorize",
+            params=_authorize_params(client_id, state="second"),
+            follow_redirects=False,
+        )
+        second_state = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
+        assert first_state != second_state
+
+        mock_oauth.oidc.authorize_access_token = AsyncMock(
+            return_value={"userinfo": {"email": "u@x.com"}}
+        )
+        with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")):
+            first = c.get(f"/oauth/as-callback?code=one&state={first_state}", follow_redirects=False)
+            second = c.get(f"/oauth/as-callback?code=two&state={second_state}", follow_redirects=False)
+
+    assert first.status_code == second.status_code == 302
+    assert "state=xyz" in first.headers["location"]
+    assert "state=second" in second.headers["location"]
 
 
 def _seed_code(client_id: str, code="thecode") -> None:

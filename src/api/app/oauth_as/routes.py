@@ -229,16 +229,16 @@ async def authorize(request: Request):
         "code_challenge": q["code_challenge"],
         "scope": scope,
     }, ttl=PENDING_TTL)
-    request.session["as_pending"] = pending_id
     # The ingress terminates TLS, so request.url_for may incorrectly report http.
     callback = _settings.app_base_url.rstrip("/") + "/oauth/as-callback"
-    return await oauth.oidc.authorize_redirect(request, callback)
+    # Each in-flight request has its own state; Authlib tracks OAuth state per ID.
+    return await oauth.oidc.authorize_redirect(request, callback, state=pending_id)
 
 
 @router.get("/oauth/as-callback", name="as_callback")
 async def as_callback(request: Request):
     assert _store is not None and _settings is not None
-    pending_id = request.session.pop("as_pending", None)
+    pending_id = request.query_params.get("state", "")
     pending = await _store.pop("pending", pending_id) if pending_id else None
     if pending is None:
         return _html_error(400, "no authorization request is pending — start again from your client")
@@ -248,7 +248,7 @@ async def as_callback(request: Request):
         logger.warning("Dex callback failed: %s", exc)
         return _html_error(400, "the identity provider did not complete the login")
     userinfo = token.get("userinfo") or {}
-    email = userinfo.get("email")
+    email = (userinfo.get("email") or "").strip().lower()
     if not email:
         return _html_error(400, "the identity provider returned no email")
     await ensure_team_and_user(email, _settings, name=userinfo.get("name"))
