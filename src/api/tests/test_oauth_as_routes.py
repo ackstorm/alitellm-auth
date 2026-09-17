@@ -244,6 +244,21 @@ def test_authorize_without_pkce_redirects_back_with_invalid_request():
     assert "error=invalid_request" in location and "state=xyz" in location
 
 
+def test_authorize_rejects_malformed_pkce_challenges_and_preserves_state():
+    c = make_client()
+    client_id = _register(c)
+    for challenge in ("short", "a" * 42, "a" * 44, "a" * 42 + "!"):
+        response = c.get(
+            "/oauth/authorize",
+            params=_authorize_params(client_id, code_challenge=challenge, state="keep-me"),
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        location = response.headers["location"]
+        assert "error=invalid_request" in location
+        assert "state=keep-me" in location
+
+
 def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
     from unittest.mock import AsyncMock, patch
 

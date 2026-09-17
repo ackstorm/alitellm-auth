@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import secrets
 import time
 from urllib.parse import urlencode, urlparse
@@ -203,8 +204,12 @@ async def authorize(request: Request):
         if state:
             params["state"] = state
         return _client_redirect(redirect_uri, params)
-    if (q.get("response_type") != "code" or q.get("code_challenge_method") != "S256"
-            or not q.get("code_challenge")):
+    challenge = q.get("code_challenge", "")
+    if (
+        q.get("response_type") != "code"
+        or q.get("code_challenge_method") != "S256"
+        or re.fullmatch(r"[A-Za-z0-9_-]{43}", challenge) is None
+    ):
         params = {"error": "invalid_request", "error_description": "response_type=code with PKCE S256 is required"}
         if state:
             params["state"] = state
