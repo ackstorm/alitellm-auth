@@ -32,6 +32,35 @@ class Settings(BaseSettings):
     # Set false for OSS forks / deployments not using per-user catalog scoping.
     # Env var: LITELLM_USER_SCOPING_CHECK
     litellm_user_scoping_check: bool = True
+    # OAuth 2.1 authorization server — the front door (docs/plans/2026-09-17-oauth-front-door.md).
+    # Off by default; nothing below is read unless AS_ENABLED=true.
+    as_enabled: bool = False
+    as_issuer_url: str = ""  # empty → app_base_url. Must be the public URL clients dial.
+    as_audience: str = "alitellm"  # `aud` of every access token; the authz checks it
+    as_signing_key_pem: str = ""  # RSA private key, PEM. Same on every replica → same JWKS
+    as_access_ttl_seconds: int = 3600
+    as_refresh_ttl_seconds: int = 30 * 86400
+    as_redis_url: str = ""  # empty → in-memory store: single replica, state lost on restart
+    # Fernet key for the per-user LiteLLM key stored in Redis (Task 9). LiteLLM hands out
+    # the plaintext key exactly once, at /key/generate, so we hold it — encrypted.
+    as_key_encryption_key: str = ""
+    # Shared secret between the Go authz and /api/internal/* (Task 9). Both containers
+    # read it from the same Secret via envFrom.
+    internal_token: str = ""
+
+    @property
+    def as_issuer(self) -> str:
+        return (self.as_issuer_url or self.app_base_url).rstrip("/")
+
+    @model_validator(mode="after")
+    def _as_requires_keys(self) -> "Settings":
+        if self.as_enabled:
+            if not self.as_signing_key_pem:
+                raise ValueError("AS_SIGNING_KEY_PEM is required when AS_ENABLED=true")
+            if not self.as_key_encryption_key:
+                raise ValueError("AS_KEY_ENCRYPTION_KEY is required when AS_ENABLED=true")
+        return self
+
     # Neutral default (D-01): keep OSS forks brand-neutral. Deployments set the
     # branded public URL via API_PUBLIC_URL. When unset, public_config falls back
     # gracefully (urlparse("").hostname or "" → "").

@@ -109,3 +109,43 @@ def test_settings_team_id_property():
     assert Settings(**base).team_id == "default"
     # Overridable via LITELLM_DEFAULT_TEAM.
     assert Settings(**base, litellm_default_team="platform").team_id == "platform"
+
+
+def _base(**over):
+    kw = dict(
+        app_base_url="http://localhost:8080",
+        session_secret_key="test-secret-32-chars-padding-xxxx",
+        oauth_issuer_url="http://dex.test/dex",
+        oauth_client_id="test-client",
+        oauth_client_secret="test-secret",
+        litellm_url="http://litellm.test",
+        litellm_master_key="sk-test",
+    )
+    kw.update(over)
+    return kw
+
+
+def test_as_is_off_by_default():
+    from app.config import Settings
+
+    s = Settings(**_base())
+    assert s.as_enabled is False
+    assert s.as_issuer == "http://localhost:8080"
+
+
+def test_as_issuer_url_overrides_app_base_url_and_strips_slash():
+    from app.config import Settings
+
+    s = Settings(**_base(as_issuer_url="https://platform.test/"))
+    assert s.as_issuer == "https://platform.test"
+
+
+def test_as_enabled_requires_signing_key_and_encryption_key():
+    from pydantic import ValidationError
+
+    from app.config import Settings
+
+    with pytest.raises(ValidationError, match="AS_SIGNING_KEY_PEM"):
+        Settings(**_base(as_enabled=True, as_key_encryption_key="x" * 44))
+    with pytest.raises(ValidationError, match="AS_KEY_ENCRYPTION_KEY"):
+        Settings(**_base(as_enabled=True, as_signing_key_pem="-----BEGIN"))
