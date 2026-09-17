@@ -50,25 +50,31 @@ def configure_as(
     _grants = grants or create_grants(settings)
 
 
-def authorization_server_metadata(issuer: str, audience: str) -> dict:
+def authorization_server_metadata(issuer: str, audience: str, services: list[str] = ()) -> dict:
     return {
         "issuer": issuer,
         "authorization_endpoint": f"{issuer}/oauth/authorize",
         "token_endpoint": f"{issuer}/oauth/token",
         "registration_endpoint": f"{issuer}/oauth/register",
         "jwks_uri": f"{issuer}/oauth/jwks.json",
-        "scopes_supported": [audience],
+        "scopes_supported": [audience, *services],
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
+        # RFC 9207: every authorization response carries iss (Claude Code checks).
+        "authorization_response_iss_parameter_supported": True,
     }
 
 
 @router.get("/.well-known/oauth-authorization-server")
 async def as_metadata() -> JSONResponse:
     assert _settings is not None
-    return JSONResponse(authorization_server_metadata(_settings.as_issuer, _settings.as_audience))
+    return JSONResponse(
+        authorization_server_metadata(
+            _settings.as_issuer, _settings.as_audience, list(_settings.services)
+        )
+    )
 
 
 @router.get("/.well-known/oauth-protected-resource")
@@ -85,8 +91,9 @@ async def protected_resource(suffix: str = "") -> JSONResponse:
     if suffix:
         resource += "/" + suffix
         head, _, svc = suffix.partition("/")
-        if head == "mcp" and svc:
-            scopes.append(svc.split("/", 1)[0])
+        svc = svc.split("/", 1)[0]
+        if head == "mcp" and svc in _settings.services:
+            scopes.append(svc)
     return JSONResponse(
         {
             "resource": resource,
@@ -203,8 +210,11 @@ async def register(request: Request) -> JSONResponse:
 
 
 def _client_redirect(redirect_uri: str, params: dict) -> RedirectResponse:
+    """Back to the client. Every response, code or error, names the issuer (RFC 9207)."""
+    assert _settings is not None
     sep = "&" if "?" in redirect_uri else "?"
-    return RedirectResponse(f"{redirect_uri}{sep}{urlencode(params)}", status_code=302)
+    query = urlencode({**params, "iss": _settings.as_issuer})
+    return RedirectResponse(f"{redirect_uri}{sep}{query}", status_code=302)
 
 
 def _html_error(status: int, message: str) -> HTMLResponse:

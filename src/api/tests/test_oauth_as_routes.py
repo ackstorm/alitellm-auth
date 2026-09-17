@@ -76,6 +76,7 @@ def test_as_metadata_names_every_endpoint_under_the_issuer():
     assert metadata["registration_endpoint"] == "https://platform.test/oauth/register"
     assert metadata["jwks_uri"] == "https://platform.test/oauth/jwks.json"
     assert metadata["code_challenge_methods_supported"] == ["S256"]
+    assert metadata["authorization_response_iss_parameter_supported"] is True
     assert metadata["grant_types_supported"] == ["authorization_code", "refresh_token"]
     assert metadata["token_endpoint_auth_methods_supported"] == ["none"]
 
@@ -97,13 +98,17 @@ def test_protected_resource_document_names_the_api_and_this_as():
 
 
 def test_protected_resource_document_exists_for_every_mcp_path():
-    response = make_client().get("/.well-known/oauth-protected-resource/mcp/mcp-aws-eks-ro")
+    c = make_client(make_settings(as_services=json.dumps(SERVICES)))
+    response = c.get("/.well-known/oauth-protected-resource/mcp/mcp-aws-eks-ro")
     assert response.status_code == 200
     document = response.json()
     assert document["resource"] == "https://api.test/mcp/mcp-aws-eks-ro"
     assert document["authorization_servers"] == ["https://platform.test"]
     assert document["scopes_supported"] == ["alitellm", "mcp-aws-eks-ro"]
     assert document["bearer_methods_supported"] == ["header"]
+    # A path segment that is not a registered service advertises no scope for it.
+    unknown = c.get("/.well-known/oauth-protected-resource/mcp/mcp-nope").json()
+    assert unknown["scopes_supported"] == ["alitellm"]
 
 
 def test_register_accepts_a_public_client_with_loopback_and_https_redirects():
@@ -287,6 +292,7 @@ def test_authorize_unsupported_scope_redirects_with_invalid_scope_and_state():
     location = response.headers["location"]
     assert location.startswith("http://127.0.0.1:5000/cb?")
     assert "error=invalid_scope" in location and "state=keep-me" in location
+    assert "iss=https%3A%2F%2Fplatform.test" in location  # RFC 9207, on errors too
 
 
 def test_authorize_missing_scope_defaults_to_configured_audience():
@@ -358,6 +364,7 @@ def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
     location = response.headers["location"]
     assert location.startswith("http://127.0.0.1:5000/cb?")
     assert "code=" in location and "state=xyz" in location
+    assert "iss=https%3A%2F%2Fplatform.test" in location  # RFC 9207
     ensure.assert_awaited_once()
     assert ensure.await_args.args[0] == "u@x.com"
     code = location.partition("code=")[2].partition("&")[0]

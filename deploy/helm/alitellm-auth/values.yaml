@@ -171,10 +171,10 @@ authz:
   outboundHeader: "x-litellm-api-key" # what LiteLLM wants
   legacyPassthrough: true             # accept LiteLLM key during transition
   issuer: ""           # empty → authServer.issuerUrl or config.appBaseUrl
-  audience: "alitellm"
+  audience: ""         # empty → authServer.audience
   # The base; the authz appends /mcp/<svc> for MCP paths. Served by this API
   # on api.* through a gitops route prefix.
-  resourceMetadataUrl: "https://api.ackstorm.ai/.well-known/oauth-protected-resource"
+  resourceMetadataUrl: ""  # empty → <config.apiPublicUrl>/.well-known/oauth-protected-resource
   keyCacheTtlSeconds: 300
   resources:
     requests: { cpu: 50m, memory: 32Mi }
