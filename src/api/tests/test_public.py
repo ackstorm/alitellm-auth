@@ -110,3 +110,26 @@ def test_config_defaults_are_neutral():
         {"label": "Dex"},
         {"label": "OIDC"},
     ]
+
+
+def test_public_mount_serves_artifact_unauthenticated(tmp_path, monkeypatch):
+    """/public is a StaticFiles mount: 200 with no session, same as /ui.
+
+    StaticFiles resolves "public" against the process cwd, so chdir into a
+    tmp dir holding the file (same approach as test_session.py's /ui test).
+    """
+    d = tmp_path / "public" / "opencode"
+    d.mkdir(parents=True)
+    (d / "api.json").write_text('{"ackstorm": {"models": {}}}')
+    monkeypatch.chdir(tmp_path)
+
+    client = _client()
+    r = client.get("/public/opencode/api.json")
+    assert r.status_code == 200
+    assert r.json()["ackstorm"]["models"] == {}
+
+
+def test_public_mount_does_not_shadow_api_routes():
+    """The mount is registered AFTER every /api/* router (T-09-06)."""
+    client = _client()
+    assert client.get("/api/config").status_code == 200

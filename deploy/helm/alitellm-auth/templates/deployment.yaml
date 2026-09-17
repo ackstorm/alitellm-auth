@@ -59,11 +59,22 @@ spec:
             - name: FACTORY_CONFIG_PATH
               value: {{ printf "%s/factory-config.json" .Values.factoryConfig.mountPath | quote }}
             {{- end }}
-          {{- if .Values.factoryConfig.enabled }}
+          {{- if or .Values.factoryConfig.enabled .Values.publicArtifacts.enabled }}
           volumeMounts:
+            {{- if .Values.factoryConfig.enabled }}
             - name: factory-config
               mountPath: {{ .Values.factoryConfig.mountPath }}
               readOnly: true
+            {{- end }}
+            {{- if .Values.publicArtifacts.enabled }}
+            # NO subPath: a subPath mount is resolved once at container start
+            # and never sees a ConfigMap update, so the artifacts would freeze
+            # at boot forever with no error anywhere. Mounting the directory
+            # lets the kubelet sync changes in place (~60s).
+            - name: public-artifacts
+              mountPath: {{ .Values.publicArtifacts.mountPath }}
+              readOnly: true
+            {{- end }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -80,12 +91,32 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      {{- if .Values.factoryConfig.enabled }}
+      {{- if or .Values.factoryConfig.enabled .Values.publicArtifacts.enabled }}
       volumes:
+        {{- if .Values.factoryConfig.enabled }}
         - name: factory-config
           configMap:
             name: {{ include "alitellm-auth.fullname" . }}-factory-config
             optional: true
+        {{- end }}
+        {{- if .Values.publicArtifacts.enabled }}
+        # projected, not a plain configMap volume: a configMap volume owns the
+        # whole directory, so a second artifact could never be added alongside
+        # the first. Each source places its key at its own sub-path.
+        - name: public-artifacts
+          projected:
+            sources:
+            {{- range .Values.publicArtifacts.sources }}
+              - configMap:
+                  name: {{ .name }}
+                  # optional: the producer may not have written it yet, and a
+                  # missing artifact must not block the pod from starting.
+                  optional: true
+                  items:
+                    - key: {{ .key }}
+                      path: {{ .path }}
+            {{- end }}
+        {{- end }}
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
