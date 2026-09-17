@@ -2,6 +2,13 @@
 
 ## [unreleased]
 
+### Fixed
+
+- `python-multipart` was missing from the runtime dependencies, so
+  `POST /oauth/token` (`request.form()`) returned 500 in the v0.8.0 image and
+  in CI with a fresh resolve (starlette ≥ 1.6 asserts on it). Added to
+  `pyproject.toml`.
+
 ### Added
 
 - `scripts/release-check.sh`: `release.yml` and `make release-cut` now fail when
