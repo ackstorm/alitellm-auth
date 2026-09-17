@@ -1489,9 +1489,9 @@ def test_cookie_httponly_present(client):
     assert response.status_code == 302
     raw_set_cookie = response.headers.get("set-cookie", "")
     assert "session=" in raw_set_cookie, f"no session Set-Cookie: {raw_set_cookie!r}"
-    assert "httponly" in raw_set_cookie.lower(), (
-        f"HttpOnly missing from Set-Cookie: {raw_set_cookie!r}"
-    )
+    assert (
+        "httponly" in raw_set_cookie.lower()
+    ), f"HttpOnly missing from Set-Cookie: {raw_set_cookie!r}"
 
 
 # ---------------------------------------------------------------------------

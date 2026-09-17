@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.8.0] - 2026-09-17
+
 ### Added
 
 - **OAuth front door for `api.*`.** An Envoy ext_authz service (`authz/`, Go) in
