@@ -68,3 +68,70 @@ def test_protected_resource_document_names_the_api_and_this_as():
     assert document["authorization_servers"] == ["https://platform.test"]
     assert document["scopes_supported"] == ["alitellm"]
     assert document["bearer_methods_supported"] == ["header"]
+
+
+def test_register_accepts_a_public_client_with_loopback_and_https_redirects():
+    response = make_client().post(
+        "/oauth/register",
+        json={
+            "client_name": "opencode",
+            "redirect_uris": ["http://127.0.0.1:19876/callback", "https://app.example/cb"],
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["client_id"]
+    assert body["token_endpoint_auth_method"] == "none"
+    assert body["redirect_uris"] == ["http://127.0.0.1:19876/callback", "https://app.example/cb"]
+    assert body["grant_types"] == ["authorization_code", "refresh_token"]
+
+
+def test_register_rejects_plain_http_off_loopback():
+    response = make_client().post(
+        "/oauth/register", json={"redirect_uris": ["http://evil.example/cb"]}
+    )
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_redirect_uri"
+
+
+def test_register_rejects_confidential_clients_and_missing_redirects():
+    client = make_client()
+    response = client.post(
+        "/oauth/register",
+        json={
+            "redirect_uris": ["https://a/cb"],
+            "token_endpoint_auth_method": "client_secret_basic",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_client_metadata"
+
+    response = client.post("/oauth/register", json={"client_name": "x"})
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_redirect_uri"
+
+
+def test_register_rejects_non_object_json_and_malformed_redirect_uri():
+    client = make_client()
+    response = client.post("/oauth/register", json=["https://app.example/cb"])
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_client_metadata"
+
+    response = client.post(
+        "/oauth/register", content="{", headers={"content-type": "application/json"}
+    )
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_client_metadata"
+
+    response = client.post("/oauth/register", json={"redirect_uris": ["http://[::1/cb"]})
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_redirect_uri"
+
+
+def test_redirect_matches_exactly_except_loopback_port():
+    matches = routes._redirect_matches
+    assert matches("https://app.example/cb", "https://app.example/cb")
+    assert not matches("https://app.example/cb", "https://app.example:443/cb")
+    assert matches("http://127.0.0.1:1000/cb?state=x", "http://127.0.0.1:2000/cb?state=x")
+    assert not matches("http://127.0.0.1:1000/cb?state=x", "http://127.0.0.1:2000/cb?state=y")
+    assert not matches("http://127.0.0.1:1000/cb", "http://localhost:2000/cb")
