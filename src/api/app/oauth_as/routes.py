@@ -12,12 +12,13 @@ import secrets
 import time
 from urllib.parse import urlencode, urlparse
 
+import httpx
 from fastapi import APIRouter, Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.config import Settings
 from app.auth import oauth
-from app.litellm_client import ensure_team_and_user
+from app.litellm_client import LiteLLMUserNotFound, ensure_team_and_user, get_litellm_user
 from app.oauth_as.store import Store, create_store
 from app.oauth_as.tokens import Signer
 
@@ -295,6 +296,15 @@ async def _issue(sub: str, client_id: str, scope: str) -> JSONResponse:
     )
 
 
+async def _user_exists(sub: str) -> bool:
+    assert _settings is not None
+    try:
+        await get_litellm_user(sub, _settings)
+    except LiteLLMUserNotFound:
+        return False
+    return True
+
+
 @router.post("/oauth/token")
 async def token(request: Request) -> JSONResponse:
     assert _store is not None
@@ -313,8 +323,19 @@ async def token(request: Request) -> JSONResponse:
         return await _issue(rec["sub"], client_id, rec["scope"])
     if grant == "refresh_token":
         presented = str(form.get("refresh_token", ""))
-        rec = await _store.pop("refresh", presented)
+        rec = await _store.get("refresh", presented)
         if rec is None or rec["client_id"] != client_id:
             return _error(400, "invalid_grant")
-        return await _issue(rec["sub"], client_id, rec["scope"])
+        try:
+            alive = await _user_exists(rec["sub"])
+        except httpx.HTTPError as exc:
+            logger.warning("Refresh deferred, LiteLLM unreachable: %s", exc)
+            return _error(503, "temporarily_unavailable")
+        consumed = await _store.pop("refresh", presented)
+        if consumed is None or consumed["client_id"] != client_id:
+            return _error(400, "invalid_grant")
+        if not alive:
+            logger.info("Refused a refresh for a user no longer in LiteLLM")
+            return _error(400, "invalid_grant")
+        return await _issue(consumed["sub"], client_id, consumed["scope"])
     return _error(400, "unsupported_grant_type")

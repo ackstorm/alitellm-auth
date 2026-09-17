@@ -2,6 +2,9 @@
 import asyncio
 import base64
 import hashlib
+from unittest.mock import AsyncMock, patch
+
+import httpx
 from authlib.jose import jwt as _jwt
 from cryptography.fernet import Fernet
 from fastapi import FastAPI
@@ -355,14 +358,52 @@ def test_refresh_rotates_and_the_old_token_dies():
     client_id = _register(c)
     _seed_code(client_id)
     first = c.post("/oauth/token", data=_token_form(client_id)).json()
-    r = c.post("/oauth/token", data={"grant_type": "refresh_token",
-                                     "refresh_token": first["refresh_token"], "client_id": client_id})
-    assert r.status_code == 200
-    second = r.json()
-    assert second["refresh_token"] != first["refresh_token"]
-    r = c.post("/oauth/token", data={"grant_type": "refresh_token",
-                                     "refresh_token": first["refresh_token"], "client_id": client_id})
+    with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)):
+        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
+                                         "refresh_token": first["refresh_token"], "client_id": client_id})
+        assert r.status_code == 200
+        second = r.json()
+        assert second["refresh_token"] != first["refresh_token"]
+        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
+                                         "refresh_token": first["refresh_token"], "client_id": client_id})
     assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+
+
+def test_refresh_for_an_offboarded_user_consumes_token_without_replacement():
+    c = make_client()
+    client_id = _register(c)
+    _seed_code(client_id)
+    first = c.post("/oauth/token", data=_token_form(client_id)).json()
+    with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=False)):
+        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
+                                         "refresh_token": first["refresh_token"], "client_id": client_id})
+    assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+    assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is None
+
+
+def test_refresh_litellm_outage_preserves_refresh_token():
+    c = make_client()
+    client_id = _register(c)
+    _seed_code(client_id)
+    first = c.post("/oauth/token", data=_token_form(client_id)).json()
+    with patch("app.oauth_as.routes._user_exists", AsyncMock(side_effect=httpx.ConnectError("down"))):
+        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
+                                         "refresh_token": first["refresh_token"], "client_id": client_id})
+    assert r.status_code == 503 and r.json()["error"] == "temporarily_unavailable"
+    assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is not None
+
+
+def test_wrong_client_refresh_does_not_consume_token():
+    c = make_client()
+    client_id, other_id = _register(c), _register(c)
+    _seed_code(client_id)
+    first = c.post("/oauth/token", data=_token_form(client_id)).json()
+    with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)) as exists:
+        r = c.post("/oauth/token", data={"grant_type": "refresh_token",
+                                         "refresh_token": first["refresh_token"], "client_id": other_id})
+    assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+    exists.assert_not_awaited()
+    assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is not None
 
 
 def test_unsupported_grant_type():
