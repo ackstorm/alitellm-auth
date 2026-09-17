@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+import asyncio
+import base64
+import hashlib
+from authlib.jose import jwt as _jwt
 from cryptography.fernet import Fernet
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -10,6 +14,10 @@ from app.oauth_as import routes
 from app.oauth_as.store import MemoryStore
 from app.oauth_as.tokens import Signer
 from tests.test_oauth_as_tokens import _pem
+
+
+VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+CHALLENGE = base64.urlsafe_b64encode(hashlib.sha256(VERIFIER.encode()).digest()).rstrip(b"=").decode()
 
 
 def make_settings(**over) -> Settings:
@@ -285,3 +293,78 @@ def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
 def test_as_callback_without_pending_request_is_a_400():
     response = make_client().get("/oauth/as-callback?code=x&state=y", follow_redirects=False)
     assert response.status_code == 400
+
+
+def _seed_code(client_id: str, code="thecode") -> None:
+    asyncio.run(routes._store.put("code", code, {
+        "client_id": client_id, "redirect_uri": "http://127.0.0.1:5000/cb", "state": "s",
+        "code_challenge": CHALLENGE, "scope": "alitellm", "sub": "u@x.com",
+    }, ttl=120))
+
+
+def _token_form(client_id: str, **over) -> dict:
+    f = {"grant_type": "authorization_code", "code": "thecode", "client_id": client_id,
+         "redirect_uri": "http://127.0.0.1:5000/cb", "code_verifier": VERIFIER}
+    f.update(over)
+    return f
+
+
+def test_token_exchanges_a_code_for_a_jwt_and_a_refresh_token():
+    c = make_client()
+    client_id = _register(c)
+    _seed_code(client_id)
+    r = c.post("/oauth/token", data=_token_form(client_id))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["token_type"] == "Bearer" and body["expires_in"] == 3600 and body["refresh_token"]
+    claims = _jwt.decode(body["access_token"], routes._signer.jwks())
+    claims.validate()
+    assert claims["sub"] == "u@x.com" and claims["client_id"] == client_id and claims["aud"] == "alitellm"
+    assert r.headers["cache-control"] == "no-store"
+
+
+def test_token_rejects_a_wrong_verifier_and_the_code_is_burned_anyway():
+    c = make_client()
+    client_id = _register(c)
+    _seed_code(client_id)
+    r = c.post("/oauth/token", data=_token_form(client_id, code_verifier="wrong"))
+    assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+    r = c.post("/oauth/token", data=_token_form(client_id))
+    assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+
+
+def test_token_rejects_a_code_for_another_client():
+    c = make_client()
+    a, b = _register(c), _register(c)
+    _seed_code(a)
+    r = c.post("/oauth/token", data=_token_form(b))
+    assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+
+
+def test_token_rejects_verifiers_outside_rfc7636_syntax():
+    c = make_client()
+    client_id = _register(c)
+    for verifier in ("a" * 42, "a" * 129, "a" * 42 + " ", "a" * 42 + "+"):
+        _seed_code(client_id)
+        r = c.post("/oauth/token", data=_token_form(client_id, code_verifier=verifier))
+        assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+
+
+def test_refresh_rotates_and_the_old_token_dies():
+    c = make_client()
+    client_id = _register(c)
+    _seed_code(client_id)
+    first = c.post("/oauth/token", data=_token_form(client_id)).json()
+    r = c.post("/oauth/token", data={"grant_type": "refresh_token",
+                                     "refresh_token": first["refresh_token"], "client_id": client_id})
+    assert r.status_code == 200
+    second = r.json()
+    assert second["refresh_token"] != first["refresh_token"]
+    r = c.post("/oauth/token", data={"grant_type": "refresh_token",
+                                     "refresh_token": first["refresh_token"], "client_id": client_id})
+    assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+
+
+def test_unsupported_grant_type():
+    r = make_client().post("/oauth/token", data={"grant_type": "password"})
+    assert r.status_code == 400 and r.json()["error"] == "unsupported_grant_type"

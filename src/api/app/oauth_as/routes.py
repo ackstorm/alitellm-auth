@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import logging
 import re
 import secrets
@@ -253,3 +256,65 @@ async def as_callback(request: Request):
         params["state"] = pending["state"]
     logger.info("Authorization code issued to client %s", pending["client_id"])
     return _client_redirect(pending["redirect_uri"], params)
+
+
+def _pkce_ok(challenge: str, verifier: str) -> bool:
+    if re.fullmatch(r"[A-Za-z0-9._~-]{43,128}", verifier) is None:
+        return False
+    digest = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    return hmac.compare_digest(challenge, digest)
+
+
+async def _issue(sub: str, client_id: str, scope: str) -> JSONResponse:
+    assert _settings is not None and _store is not None and _signer is not None
+    ttl = _settings.as_access_ttl_seconds
+    access = _signer.issue(
+        issuer=_settings.as_issuer,
+        audience=_settings.as_audience,
+        sub=sub,
+        scope=scope,
+        client_id=client_id,
+        ttl=ttl,
+    )
+    refresh = secrets.token_urlsafe(32)
+    await _store.put(
+        "refresh",
+        refresh,
+        {"sub": sub, "client_id": client_id, "scope": scope},
+        ttl=_settings.as_refresh_ttl_seconds,
+    )
+    return JSONResponse(
+        {
+            "access_token": access,
+            "token_type": "Bearer",
+            "expires_in": ttl,
+            "refresh_token": refresh,
+            "scope": scope,
+        },
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
+@router.post("/oauth/token")
+async def token(request: Request) -> JSONResponse:
+    assert _store is not None
+    form = await request.form()
+    grant = form.get("grant_type")
+    client_id = str(form.get("client_id", ""))
+    if grant == "authorization_code":
+        rec = await _store.pop("code", str(form.get("code", "")))
+        if (
+            rec is None
+            or rec["client_id"] != client_id
+            or not _redirect_matches(rec["redirect_uri"], str(form.get("redirect_uri", "")))
+            or not _pkce_ok(rec["code_challenge"], str(form.get("code_verifier", "")))
+        ):
+            return _error(400, "invalid_grant")
+        return await _issue(rec["sub"], client_id, rec["scope"])
+    if grant == "refresh_token":
+        presented = str(form.get("refresh_token", ""))
+        rec = await _store.pop("refresh", presented)
+        if rec is None or rec["client_id"] != client_id:
+            return _error(400, "invalid_grant")
+        return await _issue(rec["sub"], client_id, rec["scope"])
+    return _error(400, "unsupported_grant_type")
