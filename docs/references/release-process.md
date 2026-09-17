@@ -54,6 +54,10 @@ files carry the version**. Never edit these by hand:
 | `deploy/helm/alitellm-auth/values.yaml` | `tag: "vX.Y.Z"` |
 | `CHANGELOG.md` | promotes `[unreleased]` → `## [X.Y.Z] - <today>`, leaves a fresh empty `[unreleased]` |
 
+`scripts/release-check.sh X.Y.Z` verifies the first four (not CHANGELOG) and is run
+by both `make release-cut` and `release.yml` — a cut without a bump fails instead of
+publishing a chart that points at the previous image (see CLAUDE.md failure mode 8).
+
 ## Which bump (SemVer)
 
 - **patch** → `fix` / `hotfix` commits

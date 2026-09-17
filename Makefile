@@ -162,6 +162,7 @@ release-cut: ## Tag-trigger a release (VERSION=X.Y.Z) -- empty commit on main
 	@test -n "$(VERSION)" || { echo "VERSION required"; exit 1; }
 	@test "$$(git rev-parse --abbrev-ref HEAD)" = "main" || { echo "must be on main"; exit 1; }
 	@git diff --quiet || { echo "dirty tree"; exit 1; }
+	./scripts/release-check.sh $(VERSION)
 	git commit --allow-empty -m "chore(release): v$(VERSION)"
 	./scripts/pre-push-check.sh
 	git push origin main

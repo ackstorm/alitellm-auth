@@ -324,6 +324,11 @@ with the manifests already bumped. Verify after any release:
 helm show values oci://ghcr.io/ackstorm/charts/alitellm-auth --version X.Y.Z | grep 'tag:'
 ```
 
+**GUARDED**: `scripts/release-check.sh X.Y.Z` runs in `make release-cut` (before the
+commit) and in `release.yml` (before the image build) and fails loud when any version
+file is out of lockstep. It never auto-fixes — a self-healing release would hide the
+skipped step.
+
 ### 7. OIDC provider registered as wrong name
 
 ❌ **WRONG** — provider name doesn't match call site
