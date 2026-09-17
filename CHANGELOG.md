@@ -2,6 +2,14 @@
 
 ## [unreleased]
 
+## [0.8.1] - 2026-09-17
+
+### Fixed
+
+- `/oauth/token` answered 500 in the published image: `python-multipart`, which
+  Starlette needs to parse the form body every OAuth token request carries, was
+  only a dev dependency. Now a runtime dependency.
+
 ### Security
 
 - Clear all 16 open Dependabot alerts (8 high, 8 moderate). UI: `react-router`
