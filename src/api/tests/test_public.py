@@ -133,3 +133,19 @@ def test_public_mount_does_not_shadow_api_routes():
     """The mount is registered AFTER every /api/* router (T-09-06)."""
     client = _client()
     assert client.get("/api/config").status_code == 200
+
+
+def test_opencode_plugin_is_served_from_the_image_not_the_mount(tmp_path, monkeypatch):
+    """The tarball lives outside /public (a projected volume at runtime) and is
+    served by a route registered before the mount, so a /public/opencode-auth
+    file in the mount could not shadow it either."""
+    monkeypatch.chdir(tmp_path)
+    client = _client()
+    assert client.get("/public/opencode-auth").status_code == 404
+
+    (tmp_path / "clients").mkdir()
+    (tmp_path / "clients" / "opencode-auth.tgz").write_bytes(b"\x1f\x8b")
+    r = client.get("/public/opencode-auth")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/gzip"
+    assert r.content == b"\x1f\x8b"

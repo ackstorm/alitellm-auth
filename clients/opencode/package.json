@@ -1,0 +1,9 @@
+{
+  "name": "@ackstorm/opencode-auth",
+  "version": "0.1.0",
+  "description": "OpenCode plugin: OAuth login for the ackstorm model provider via the platform's authorization server",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "index.mjs",
+  "files": ["index.mjs"]
+}

@@ -2,6 +2,17 @@
 
 ## [unreleased]
 
+### Added
+
+- OpenCode auth plugin served by the API at `GET /public/opencode-auth` as an npm
+  tarball (baked from `clients/opencode` at image build):
+  `opencode plugin https://platform.ackstorm.ai/public/opencode-auth -g`, then
+  `opencode auth login -p ackstorm`. The plugin has no configuration: it takes the
+  provider's API URL from opencode and discovers the authorization server through
+  RFC 9728 / RFC 8414.
+- README "Clients" section: OpenCode plugin, `ackstorm-token` wiring for Claude Code
+  (`apiKeyHelper`) and Codex (`auth.command`).
+
 ## [0.8.1] - 2026-09-17
 
 ### Fixed

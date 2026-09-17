@@ -15,10 +15,11 @@ session_stats).
 
 from __future__ import annotations
 
+from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.config import Settings
 
@@ -61,3 +62,18 @@ async def public_config(request: Request) -> JSONResponse:
         "links": links,
     }
     return JSONResponse(payload)
+
+
+# Baked by the Dockerfile from clients/opencode. A route rather than a file under
+# /public: that directory is a projected volume at runtime and hides image files.
+_OPENCODE_PLUGIN = Path("clients/opencode-auth.tgz")
+
+
+@router.get("/public/opencode-auth", response_model=None)
+async def opencode_plugin() -> FileResponse:
+    """The OpenCode auth plugin as an npm tarball: `opencode plugin <this URL> -g`."""
+    if not _OPENCODE_PLUGIN.is_file():
+        raise HTTPException(status_code=404)
+    return FileResponse(
+        _OPENCODE_PLUGIN, media_type="application/gzip", filename="opencode-auth.tgz"
+    )

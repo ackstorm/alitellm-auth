@@ -53,6 +53,54 @@ enforce a same-origin `Origin`/`Referer` guard (`403` cross-origin).
 
 See [docs/dex-integration.md](docs/dex-integration.md) for Dex and Keycloak configuration, env-var mapping, and troubleshooting.
 
+## Clients
+
+With the OAuth front door on (`authServer.enabled` + `authz.enabled` + `istio.enabled` in
+the chart), `api.<domain>` accepts a front-door JWT in `Authorization` and maps it to the
+caller's LiteLLM key. Coding agents get that JWT three ways.
+
+### OpenCode
+
+The plugin is served by this API as an npm tarball, so install it from the platform:
+
+```bash
+opencode plugin https://platform.ackstorm.ai/public/opencode-auth -g
+opencode auth login -p ackstorm      # browser SSO; tokens land in opencode's auth store
+```
+
+Nothing to configure: the plugin takes the provider's API URL from opencode, finds the
+authorization server through `/.well-known/oauth-protected-resource` (RFC 9728) and its
+endpoints through RFC 8414. The tarball is fetched once; a new release is picked up by
+re-running the install command with `-f`. Source: [clients/opencode](clients/opencode).
+
+An exported `LITELLM_API_KEY` still works (the served `api.json` lists it), but an OAuth
+credential wins when both are present.
+
+### Claude Code and Codex
+
+Both take "a command that prints a credential". [clients/ackstorm-token](clients/ackstorm-token)
+is that command (stdlib Python, DCR + PKCE, refresh token in `~/.config/ackstorm-ai/token.json`):
+
+```json
+// ~/.claude/settings.json
+{ "apiKeyHelper": "/path/to/ackstorm-token" }
+```
+
+```toml
+# ~/.codex/config.toml
+model_provider = "ackstorm"
+[model_providers.ackstorm]
+name = "ACKstorm"
+base_url = "https://api.ackstorm.ai/v1"
+wire_api = "responses"
+[model_providers.ackstorm.auth]
+command = "/path/to/ackstorm-token"
+refresh_interval_ms = 300000
+```
+
+With `ANTHROPIC_BASE_URL=https://api.ackstorm.ai` for Claude Code. Codex ignores
+`OPENAI_BASE_URL`; the custom provider is required.
+
 ## Development
 
 ```bash
