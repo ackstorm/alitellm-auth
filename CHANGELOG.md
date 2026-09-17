@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.8.2] - 2026-09-17
+
 ### Added
 
 - OpenCode auth plugin served by the API at `GET /public/opencode-auth` as an npm
