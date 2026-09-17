@@ -128,10 +128,27 @@ def test_register_rejects_non_object_json_and_malformed_redirect_uri():
     assert response.json()["error"] == "invalid_redirect_uri"
 
 
+def test_register_rejects_invalid_ports_fragments_and_userinfo():
+    client = make_client()
+    for uri in (
+        "https://app.example:bad/cb",
+        "https://app.example:65536/cb",
+        "http://127.0.0.1:bad/cb",
+        "http://127.0.0.1:65536/cb",
+        "https://app.example/cb#fragment",
+        "https://user@app.example/cb",
+        "http://user@127.0.0.1:1234/cb",
+    ):
+        response = client.post("/oauth/register", json={"redirect_uris": [uri]})
+        assert response.status_code == 400, uri
+        assert response.json()["error"] == "invalid_redirect_uri", uri
+
+
 def test_redirect_matches_exactly_except_loopback_port():
     matches = routes._redirect_matches
     assert matches("https://app.example/cb", "https://app.example/cb")
     assert not matches("https://app.example/cb", "https://app.example:443/cb")
     assert matches("http://127.0.0.1:1000/cb?state=x", "http://127.0.0.1:2000/cb?state=x")
     assert not matches("http://127.0.0.1:1000/cb?state=x", "http://127.0.0.1:2000/cb?state=y")
+    assert not matches("http://127.0.0.1:1000/cb;one", "http://127.0.0.1:2000/cb;two")
     assert not matches("http://127.0.0.1:1000/cb", "http://localhost:2000/cb")

@@ -85,6 +85,7 @@ def _is_loopback(redirect_uri: str) -> bool:
     if parsed is None or parsed.scheme != "http":
         return False
     try:
+        parsed.port  # Accessing the property validates the port syntax and range.
         return parsed.hostname in ("127.0.0.1", "localhost", "::1")
     except ValueError:
         return False
@@ -95,6 +96,14 @@ def _redirect_allowed(redirect_uri: str) -> bool:
     if parsed is None:
         return False
     try:
+        _ = parsed.port  # Raises ValueError for malformed or out-of-range ports.
+        if (
+            parsed.fragment
+            or "#" in redirect_uri
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            return False
         return (parsed.scheme == "https" and bool(parsed.hostname)) or _is_loopback(redirect_uri)
     except ValueError:
         return False
@@ -110,9 +119,10 @@ def _redirect_matches(registered: str, presented: str) -> bool:
     if a is None or b is None:
         return False
     try:
-        return (a.hostname, a.path, a.query, a.fragment, a.username, a.password) == (
+        return (a.hostname, a.path, a.params, a.query, a.fragment, a.username, a.password) == (
             b.hostname,
             b.path,
+            b.params,
             b.query,
             b.fragment,
             b.username,
