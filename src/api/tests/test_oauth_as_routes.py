@@ -4,8 +4,10 @@ import base64
 import hashlib
 import json
 from unittest.mock import AsyncMock, patch
+from urllib.parse import parse_qs, urlparse
 
 import httpx
+import respx
 from authlib.jose import jwt as _jwt
 from cryptography.fernet import Fernet
 from fastapi import FastAPI
@@ -362,12 +364,17 @@ def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
     assert asyncio.run(routes._store.get("code", code))["sub"] == "u@x.com"
 
 
-SERVICES = {"mcp-aws-eks-ro": {"store": "aws-eks-ro", "broker": "https://b"}}
+BROKER = "https://api.test/aws-eks-ro-callback"
+SERVICES = {"mcp-aws-eks-ro": {"store": "aws-eks-ro", "broker": BROKER}}
 GRANTED = {"oauth:aws-eks-ro:state:u@x.com": json.dumps({"granted": True})}
 
 
-def _login_with(c: TestClient, client_id: str, scope: str) -> str:
-    """Run /authorize → Dex → /as-callback and return the minted code."""
+def _query(response) -> dict[str, str]:
+    return {k: v[0] for k, v in parse_qs(urlparse(response.headers["location"]).query).items()}
+
+
+def _login_with(c: TestClient, client_id: str, scope: str):
+    """Run /authorize → Dex → /as-callback and return the callback response."""
     with patch("app.oauth_as.routes.oauth") as mock_oauth:
         mock_oauth.oidc.authorize_redirect = AsyncMock(
             return_value=RedirectResponse("http://dex.test/auth", status_code=302)
@@ -385,7 +392,7 @@ def _login_with(c: TestClient, client_id: str, scope: str) -> str:
         with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")):
             r = c.get(f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False)
     assert r.status_code == 302, r.text
-    return r.headers["location"].partition("code=")[2].partition("&")[0]
+    return r
 
 
 def test_code_carries_the_mcp_scopes_the_user_holds_a_grant_for():
@@ -393,7 +400,7 @@ def test_code_carries_the_mcp_scopes_the_user_holds_a_grant_for():
         make_settings(as_services=json.dumps(SERVICES)), Grants(FakeRedis(dict(GRANTED)), SERVICES)
     )
     client_id = _register(c)
-    code = _login_with(c, client_id, "alitellm mcp-aws-eks-ro")
+    code = _query(_login_with(c, client_id, "alitellm mcp-aws-eks-ro"))["code"]
     assert asyncio.run(routes._store.get("code", code))["scope"] == "alitellm mcp-aws-eks-ro"
 
 
@@ -416,7 +423,7 @@ def test_refresh_drops_a_scope_whose_grant_was_revoked():
         make_settings(as_services=json.dumps(SERVICES)), Grants(FakeRedis(projection), SERVICES)
     )
     client_id = _register(c)
-    code = _login_with(c, client_id, "alitellm mcp-aws-eks-ro")
+    code = _query(_login_with(c, client_id, "alitellm mcp-aws-eks-ro"))["code"]
     first = c.post("/oauth/token", data=_token_form(client_id, code=code)).json()
     assert first["scope"] == "alitellm mcp-aws-eks-ro"
     projection.clear()  # the pod condemned the grant
@@ -433,6 +440,89 @@ def test_refresh_drops_a_scope_whose_grant_was_revoked():
     assert r.json()["scope"] == "alitellm"
     claims = _jwt.decode(r.json()["access_token"], routes._signer.jwks())
     assert claims["scope"] == "alitellm"
+
+
+@respx.mock
+def test_a_missing_grant_sends_the_user_to_the_service_broker_then_back():
+    fake = FakeRedis({})
+    c = make_client(make_settings(as_services=json.dumps(SERVICES)), Grants(fake, SERVICES))
+    client_id = _register(c)
+    reg = respx.post(f"{BROKER}/register").respond(201, json={"client_id": "front-at-broker"})
+    r = _login_with(c, client_id, "alitellm mcp-aws-eks-ro")
+    # off to the broker, with PKCE, our callback, and the chain id as state
+    assert r.headers["location"].startswith(f"{BROKER}/authorize?")
+    q = _query(r)
+    assert q["client_id"] == "front-at-broker"
+    assert q["code_challenge_method"] == "S256" and len(q["code_challenge"]) == 43
+    assert q["scope"] == "aws-eks-ro"
+    assert q["redirect_uri"] == "https://platform.test/oauth/broker-callback"
+    assert reg.called
+    chain_id = q["state"]
+    # the broker stored the grant during its consent; the projection now says so
+    fake.data["oauth:aws-eks-ro:state:u@x.com"] = json.dumps({"granted": True})
+    r = c.get(f"/oauth/broker-callback?code=brokercode&state={chain_id}", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"].startswith("http://127.0.0.1:5000/cb?")
+    q = _query(r)
+    assert q["state"] == "xyz"
+    assert asyncio.run(routes._store.get("code", q["code"]))["scope"] == "alitellm mcp-aws-eks-ro"
+    # the chain id was single-use
+    r = c.get(f"/oauth/broker-callback?code=brokercode&state={chain_id}", follow_redirects=False)
+    assert r.status_code == 400
+
+
+@respx.mock
+def test_broker_registration_is_cached_per_broker():
+    c = make_client(
+        make_settings(as_services=json.dumps(SERVICES)), Grants(FakeRedis({}), SERVICES)
+    )
+    reg = respx.post(f"{BROKER}/register").respond(201, json={"client_id": "front-at-broker"})
+    for _ in range(2):
+        _login_with(c, _register(c), "alitellm mcp-aws-eks-ro")
+    assert reg.call_count == 1
+
+
+@respx.mock
+def test_an_unreachable_broker_finishes_without_the_scope():
+    c = make_client(
+        make_settings(as_services=json.dumps(SERVICES)), Grants(FakeRedis({}), SERVICES)
+    )
+    respx.post(f"{BROKER}/register").mock(side_effect=httpx.ConnectError("down"))
+    r = _login_with(c, _register(c), "alitellm mcp-aws-eks-ro")
+    assert r.headers["location"].startswith("http://127.0.0.1:5000/cb?")
+    assert asyncio.run(routes._store.get("code", _query(r)["code"]))["scope"] == "alitellm"
+
+
+def test_broker_error_finishes_without_the_scope():
+    """The user declined at the provider: the client still gets its token, without that service."""
+    c = make_client(
+        make_settings(as_services=json.dumps(SERVICES)), Grants(FakeRedis({}), SERVICES)
+    )
+    asyncio.run(
+        routes._store.put(
+            "chain",
+            "ch1",
+            {
+                "client_id": "c",
+                "redirect_uri": "http://127.0.0.1:5000/cb",
+                "state": "s",
+                "code_challenge": CHALLENGE,
+                "scopes": ["alitellm", "mcp-aws-eks-ro"],
+                "sub": "u@x.com",
+                "todo": ["mcp-aws-eks-ro"],
+                "verifier": "v",
+            },
+            ttl=600,
+        )
+    )
+    r = c.get("/oauth/broker-callback?error=access_denied&state=ch1", follow_redirects=False)
+    assert r.status_code == 302
+    assert asyncio.run(routes._store.get("code", _query(r)["code"]))["scope"] == "alitellm"
+
+
+def test_broker_callback_without_a_chain_is_a_400():
+    r = make_client().get("/oauth/broker-callback?code=x&state=nope", follow_redirects=False)
+    assert r.status_code == 400
 
 
 def test_as_callback_without_pending_request_is_a_400():

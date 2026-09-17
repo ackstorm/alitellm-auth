@@ -33,6 +33,7 @@ _grants: Grants | None = None
 CLIENT_TTL = 90 * 86400  # an unused client re-registers after 90 days
 PENDING_TTL = 600
 CODE_TTL = 120
+CHAIN_TTL = 600
 
 
 def configure_as(
@@ -296,9 +297,81 @@ async def as_callback(request: Request):
     return await _finish(pending)
 
 
+async def _broker_client_id(broker: str) -> str:
+    """Register once as a public client of this broker (RFC 7591), remember it."""
+    assert _store is not None and _settings is not None
+    cached = await _store.get("brokerclient", broker)
+    if cached:
+        return cached["client_id"]
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            f"{broker}/register",
+            json={
+                "client_name": "alitellm-auth front door",
+                "redirect_uris": [f"{_settings.as_issuer}/oauth/broker-callback"],
+                "token_endpoint_auth_method": "none",
+            },
+        )
+    resp.raise_for_status()
+    client_id = resp.json()["client_id"]
+    await _store.put("brokerclient", broker, {"client_id": client_id}, ttl=CLIENT_TTL)
+    return client_id
+
+
 async def _chain_next(request: Request, pending: dict) -> RedirectResponse:
-    # A5 replaces this: chain to the first `todo` service's broker for its grant.
+    """Send the user to the broker of the next service that has no grant."""
+    assert _store is not None and _settings is not None
+    scope = pending["todo"][0]
+    svc = _settings.services[scope]
+    try:
+        client_id = await _broker_client_id(svc["broker"])
+    except (httpx.HTTPError, ValueError, KeyError) as exc:
+        logger.warning("Broker %s unreachable, skipping scope %s: %s", svc["broker"], scope, exc)
+        return await _skip_and_continue(request, pending)
+    verifier = secrets.token_urlsafe(48)
+    challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    )
+    chain_id = secrets.token_urlsafe(24)
+    # verifier is unused today: the broker's code is never redeemed (the
+    # projection is the truth). Kept so a revision that redeems it can.
+    await _store.put("chain", chain_id, {**pending, "verifier": verifier}, ttl=CHAIN_TTL)
+    params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": f"{_settings.as_issuer}/oauth/broker-callback",
+        "scope": svc["store"],
+        "state": chain_id,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+    }
+    return RedirectResponse(f"{svc['broker']}/authorize?{urlencode(params)}", status_code=302)
+
+
+async def _skip_and_continue(request: Request, pending: dict) -> RedirectResponse:
+    rest = pending["todo"][1:]
+    if rest:
+        return await _chain_next(request, {**pending, "todo": rest})
     return await _finish(pending)
+
+
+@router.get("/oauth/broker-callback")
+async def broker_callback(request: Request):
+    """Back from a service broker. A `code` means the broker ran the provider
+    consent and stored the grant before minting it; the projection is what we
+    trust, so the code is not redeemed. An `error` means the user declined:
+    the token is issued without that scope."""
+    assert _store is not None
+    chain = await _store.pop("chain", request.query_params.get("state", ""))
+    if chain is None:
+        return _html_error(400, "no authorization is in progress — start again from your client")
+    if request.query_params.get("error"):
+        logger.info(
+            "Service broker returned %s for scope %s",
+            request.query_params["error"],
+            chain["todo"][0],
+        )
+    return await _skip_and_continue(request, chain)
 
 
 async def _finish(pending: dict) -> RedirectResponse:
