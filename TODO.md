@@ -23,11 +23,17 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
 
 ## Clients
 
-- [ ] **OpenCode model-path OAuth** — plugin `ackstorm-auth.mjs` (DCR + PKCE +
-  loopback + refresh in a custom `fetch`); `opencode auth login -p ackstorm`; remove
-  the literal `provider.ackstorm.options.apiKey` from `~/.config/opencode/opencode.json`
-  (and the `opencode.json~` backup). Long-term home: served by the platform
-  (`.well-known/opencode` can ship `config`) or `publicArtifacts`.
+- [x] **OpenCode model-path OAuth** — plugin `~/.config/opencode/plugins/ackstorm-auth.mjs`
+  (DCR + PKCE + loopback + refresh in a custom `fetch`) works: `opencode auth login -p
+  ackstorm` → Dex → token in `auth.json`; `opencode run -m ackstorm/ackstorm.fast` answers
+  through the front door. The literal `apiKey` is gone from `opencode.json`
+  (2026-09-17, Juan Carlos's box only).
+- [ ] **Distribute the plugin**: the served catalog (`/public/opencode/api.json`, models.dev
+  format) cannot express OAuth — opencode only does provider OAuth through a plugin
+  `auth` hook. Publish `ackstorm-auth.mjs` as an npm package and list it in the
+  opencode config the platform serves (`.well-known/opencode` → `config.plugin`), so a
+  user runs `opencode auth login https://platform.ackstorm.ai` once and never installs
+  anything by hand. Source of truth for the plugin: this repo (`clients/opencode/`?).
 - [ ] Runbook rows not yet exercised: 4d/4e (Claude Code model path via
   `ANTHROPIC_CUSTOM_HEADERS=x-genai-api-key: …` with a LiteLLM key and with a front
   JWT), 7d (revoke the grant → next refresh drops the scope → 403 again).
