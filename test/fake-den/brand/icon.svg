@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ACKstorm">
+  <defs>
+    <linearGradient id="pastelIcon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#A8E6CF"/>
+      <stop offset="50%" stop-color="#B3E5FC"/>
+      <stop offset="100%" stop-color="#F8BBD0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#pastelIcon)"/>
+  <path d="M36 12 L22 36 h10 l-4 16 18 -26 h-11 z" fill="#ffffff" opacity="0.95"/>
+</svg>
