@@ -57,6 +57,7 @@ GET /api/users (+ /{email}, DELETE /{email})
 | `src/api/app/templates/` | `error.html` (dark terminal card; rendered on OIDC/callback failure) |
 | `deploy/helm/` | Helm chart (deployment, service, ingress, configmap, secret) — the only install path |
 | `deploy/litellm/` | **canonical** `sso_key_swapper` custom-auth (runs on the LiteLLM proxy) + install README — the user-scoping contract |
+| `src/api/app/openwork.py` | OpenWork desktop "Den" contract at `/openwork` (SSO handoff, policy, branding). Off unless `OPENWORK_ENABLED`. **MUST read `docs/plans/2026-09-18-openwork-den.md` §3 (protocol traps) before touching** — error shape, CORS reflection, single-use grant, catch-all order |
 
 ---
 
@@ -439,6 +440,7 @@ Never rely on env vars in tests. All test files have a local `make_test_settings
 | `OAUTH_CLIENT_SECRET` | k8s secret | OIDC client secret (`${GENAI_OAUTH_MCP_SECRET}` in Dex) |
 | `LITELLM_MASTER_KEY` | k8s secret | LiteLLM admin key |
 | `LITELLM_USER_SCOPING_CHECK` | deployment env (opt) | Default `true`. Startup probe of the `sso_key_swapper` contract; `false` disables it (OSS forks / no per-user scoping) |
+| `OPENWORK_ENABLED` | deployment env (opt) | Default `false`. Serves the OpenWork Den at `/openwork`; requires `AS_REDIS_URL`. Branding/policy knobs: `OPENWORK_*` in `config.py`; chart block `openwork:` |
 
 ---
 
