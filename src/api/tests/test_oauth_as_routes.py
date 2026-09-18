@@ -784,3 +784,34 @@ def test_wrong_client_refresh_does_not_consume_token():
 def test_unsupported_grant_type():
     r = make_client().post("/oauth/token", data={"grant_type": "password"})
     assert r.status_code == 400 and r.json()["error"] == "unsupported_grant_type"
+
+
+def test_a_callback_from_a_browser_that_did_not_start_the_request_is_refused():
+    """Login CSRF / code injection. An attacker starts /authorize server-side for
+    his own client and forwards the victim to the Dex URL; Dex sends the victim
+    to /as-callback with the attacker's pending id as state. The pending record
+    is in Redis, keyed by that state alone — what ties the two browsers together
+    is Authlib's session cookie: /authorize stored the state in the session it set
+    on the ATTACKER's response, and the victim's browser has no such session, so
+    Authlib refuses before any identity is used. The pending record is burned
+    either way. Not mocked here: this is the real Authlib check."""
+    fake = FakeRedis({})
+    c = make_client(make_settings(as_services=json.dumps(SERVICES)), Grants(fake, SERVICES))
+    client_id = _register(c)
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        r = c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        assert r.status_code == 302
+        pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
+
+    victim = TestClient(c.app)  # same server, no cookies: a browser that never saw /authorize
+    with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")):
+        r = victim.get(
+            f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False
+        )
+    assert r.status_code == 400
+    assert "did not complete the login" in r.text
+    assert asyncio.run(routes._store.get("pending", pending_id)) is None  # burned
+    assert not fake.data or not any(k.startswith("code") for k in fake.data)
