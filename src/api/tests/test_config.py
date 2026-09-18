@@ -188,3 +188,34 @@ def test_as_services_is_a_json_registry_keyed_by_scope():
     assert Settings(
         **_as_on(as_services='{"mcp-x": {"store": "x", "broker": "https://b"}}')
     ).services == {"mcp-x": {"store": "x", "broker": "https://b"}}
+
+
+def _openwork_base(**overrides):
+    base = dict(
+        session_secret_key="test-secret-32-chars-padding-xxxx",
+        oauth_issuer_url="http://dex.test/dex",
+        oauth_client_id="test-client",
+        oauth_client_secret="test-secret",
+        litellm_url="http://litellm.test",
+        litellm_master_key="sk-test",
+    )
+    base.update(overrides)
+    return base
+
+
+def test_openwork_disabled_by_default():
+    from app.config import Settings
+
+    settings = Settings(**_openwork_base())
+    assert settings.openwork_enabled is False
+    assert settings.openwork_brand_app_name == "ACKstorm Work"
+    assert settings.openwork_accent_color == "mint"
+
+
+def test_openwork_accent_color_must_be_a_radix_family():
+    from pydantic import ValidationError
+
+    from app.config import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(**_openwork_base(openwork_accent_color="#ff00ff"))

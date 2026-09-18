@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from typing import Literal
 
 from cryptography.fernet import Fernet
 from pydantic import model_validator
@@ -61,6 +62,37 @@ class Settings(BaseSettings):
     # Where the MCP pods keep their cleartext grant projection
     # (oauth:{store}:state:{email}). Empty → same Redis as AS_REDIS_URL.
     as_mcp_redis_url: str = ""
+
+    # --- OpenWork organization server (docs/plans/2026-09-18-openwork-den.md) ---
+    # Off by default; nothing below is read unless OPENWORK_ENABLED=true.
+    # Reuses AS_REDIS_URL for grant/token storage (set it to memory:// for local dev).
+    openwork_enabled: bool = False
+    # Session token lifetime. The desktop holds this until sign-out.
+    openwork_token_ttl_seconds: int = 30 * 24 * 3600
+    # One-time sign-in grant lifetime. Keep short: it is a bearer to a session.
+    openwork_grant_ttl_seconds: int = 300
+
+    # Branding pushed to the desktop. accent must be one of the 22 Radix
+    # families OpenWork accepts (packages/types/src/den/desktop-policies.ts:302);
+    # anything else is silently dropped by the client.
+    openwork_brand_app_name: str = "ACKstorm Work"
+    openwork_brand_logo_url: str = ""
+    openwork_brand_icon_url: str = ""
+    openwork_accent_color: Literal[
+        "blue", "crimson", "cyan", "gold", "grass", "green", "indigo", "iris",
+        "jade", "lime", "mint", "orange", "pink", "plum", "purple", "red",
+        "ruby", "sky", "teal", "tomato", "violet", "yellow",
+    ] = "mint"
+
+    # Execution policy. NOTE: a non-empty blocked-command list disables
+    # interactive terminals and saved commands outright in OpenWork
+    # (apps/server/src/managed-policy-rules.ts:77-78). Empty = terminals work.
+    # Patterns are case-insensitive globs (* and ?) over the whole command.
+    openwork_blocked_commands: list[str] = []
+    openwork_block_browser_uploads: bool = False
+    # Organization identity shown in the desktop.
+    openwork_org_name: str = "ACKstorm"
+    openwork_org_slug: str = "ackstorm"
 
     @property
     def services(self) -> dict[str, dict]:
