@@ -334,6 +334,27 @@ def test_callback_eager_creates_without_minting(client):
     mock_ensure.assert_awaited_once()
 
 
+def test_callback_returns_to_the_openwork_handoff_when_that_was_the_intent(client):
+    """A desktop sign-in that detoured through Dex must come back to /openwork.
+
+    Without this the user lands on the SPA and the desktop waits forever.
+    """
+    mock_token = {"userinfo": {"email": "alice@example.com", "name": "Alice Example"}}
+    cookie = _make_session_cookie(_TEST_SESSION_SECRET, {"openwork_handoff": True})
+
+    with (
+        patch("app.auth.oauth") as mock_oauth,
+        patch("app.auth.ensure_team_and_user", new_callable=AsyncMock),
+    ):
+        mock_oauth.oidc.authorize_access_token = AsyncMock(return_value=mock_token)
+        response = client.get(
+            "/api/oauth/callback", cookies={"session": cookie}, follow_redirects=False
+        )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "http://localhost:8080/openwork"
+
+
 # ---------------------------------------------------------------------------
 # GET /api/oauth/logout — app-local logout (SPA "sign out" link)
 # ---------------------------------------------------------------------------

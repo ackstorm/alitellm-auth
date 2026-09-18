@@ -184,7 +184,9 @@ async def logout(request: Request) -> RedirectResponse:
     return RedirectResponse(f"{settings.app_base_url}/ui/", status_code=302)
 
 
-async def _auth_callback_ui(email: str, name: str | None, settings: Settings) -> RedirectResponse:
+async def _auth_callback_ui(
+    email: str, name: str | None, settings: Settings, openwork_handoff: bool = False
+) -> RedirectResponse:
     # Eager-create the LiteLLM user on sign-in (no key minted). Dashboard entry
     # makes the user exist immediately so /me is coherent.
     try:
@@ -192,6 +194,10 @@ async def _auth_callback_ui(email: str, name: str | None, settings: Settings) ->
     except Exception as exc:
         # D-09 graceful degrade — still redirect; /me handles the transient no-user case.
         logger.error("ui: ensure_team_and_user failed for %s: %s", email, exc)
+    # A desktop sign-in detoured through Dex: return to the handoff page that
+    # started it, not the SPA, or the desktop never receives its grant.
+    if openwork_handoff:
+        return RedirectResponse(f"{settings.app_base_url.rstrip('/')}/openwork", status_code=302)
     return RedirectResponse(f"{settings.app_base_url}/ui", status_code=302)
 
 
@@ -242,4 +248,5 @@ async def auth_callback(request: Request) -> HTMLResponse | RedirectResponse:
     request.session["authenticated_at"] = datetime.now(timezone.utc).isoformat()
 
     # 3. Sign-in is UI-only — eager-create the user and redirect to /ui.
-    return await _auth_callback_ui(email, name, settings)
+    openwork_handoff = bool(request.session.pop("openwork_handoff", False))
+    return await _auth_callback_ui(email, name, settings, openwork_handoff=openwork_handoff)
