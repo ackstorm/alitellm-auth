@@ -464,6 +464,11 @@ def test_a_missing_grant_sends_the_user_to_the_service_broker_then_back():
     assert q["scope"] == "aws-eks-ro"
     assert q["redirect_uri"] == "https://platform.test/oauth/broker-callback"
     assert reg.called
+    # and who the ceremony is for, said by us: the broker keys the grant by this
+    # rather than by whatever account gets picked at the provider
+    hint = _jwt.decode(q["login_hint"], routes._signer.jwks()["keys"][0])
+    assert hint["sub"] == "u@x.com" and hint["aud"] == "aws-eks-ro"
+    assert hint["iss"] == "https://platform.test" and hint["exp"] - hint["iat"] == routes.HINT_TTL
     chain_id = q["state"]
     # the broker stored the grant during its consent; the projection now says so
     fake.data["oauth:aws-eks-ro:state:u@x.com"] = json.dumps({"granted": True})

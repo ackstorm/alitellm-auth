@@ -2,6 +2,15 @@
 
 ## [unreleased]
 
+### Fixed
+
+- The broker chain names the grant owner. `_chain_next` now sends the broker a
+  `login_hint`: an RS256 JWT signed by the AS, `sub` the user, `aud` the broker's
+  store name, 10 min. A broker built on mcp-oauth ≥ b4d9d6c with
+  `AUTH_BROKER_HINT_ISSUER` keys the grant by it instead of by the account chosen at
+  the provider, which Zoho never names (`an account the provider did not name`) and
+  which need not be the platform's email at GitLab or Slack.
+
 ## [0.8.2] - 2026-09-17
 
 ### Added

@@ -34,6 +34,7 @@ CLIENT_TTL = 90 * 86400  # an unused client re-registers after 90 days
 PENDING_TTL = 600
 CODE_TTL = 120
 CHAIN_TTL = 600
+HINT_TTL = 600  # the login_hint handed to a broker; one chain step, not a session
 
 
 def configure_as(
@@ -330,7 +331,7 @@ async def _broker_client_id(broker: str) -> str:
 
 async def _chain_next(request: Request, pending: dict) -> RedirectResponse:
     """Send the user to the broker of the next service that has no grant."""
-    assert _store is not None and _settings is not None
+    assert _store is not None and _settings is not None and _signer is not None
     scope = pending["todo"][0]
     svc = _settings.services[scope]
     try:
@@ -354,6 +355,19 @@ async def _chain_next(request: Request, pending: dict) -> RedirectResponse:
         "state": chain_id,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
+        # Who this ceremony is for. The browser reaches the broker with no header
+        # of ours, and the account it then picks at the provider need not carry
+        # the platform's email (Zoho names none at all), so the broker keys the
+        # grant by this instead: signed by us, audience the broker's own store
+        # name so it verifies nowhere else, and short-lived.
+        "login_hint": _signer.issue(
+            issuer=_settings.as_issuer,
+            audience=svc["store"],
+            sub=pending["sub"],
+            scope="",
+            client_id=client_id,
+            ttl=HINT_TTL,
+        ),
     }
     return RedirectResponse(f"{svc['broker']}/authorize?{urlencode(params)}", status_code=302)
 
