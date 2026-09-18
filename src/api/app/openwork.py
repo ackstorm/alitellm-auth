@@ -336,3 +336,71 @@ async def brand_asset(name: str):
     if not filename:
         return den_error(404, "not_found", f"No brand asset {name}")
     return FileResponse(_BRAND_DIR / filename, media_type="image/svg+xml")
+
+
+@router.post("/api/den/api/auth/sign-out", response_model=None)
+async def den_sign_out(request: Request) -> JSONResponse:
+    """Revoke the desktop's session token. Idempotent: an unknown token is fine."""
+    header = request.headers.get("authorization") or ""
+    token = header[7:].strip() if header[:7].lower() == "bearer " else ""
+    if token:
+        await _store(request).pop(TOKEN_KIND, token)
+    return JSONResponse({})
+
+
+@router.post("/api/den/v1/telemetry/ingest", response_model=None)
+async def den_telemetry(request: Request) -> JSONResponse:
+    """Accept and discard. We do not forward desktop telemetry anywhere."""
+    session = await require_den_token(request)
+    if isinstance(session, JSONResponse):
+        return session
+    return JSONResponse({})
+
+
+# Empty-but-valid payloads for an organization that ships no resources. The key
+# names are what each client parser looks for (den.ts getDenOrgLlmProviders,
+# getOrgMarketplaces, getMeLibraryPlugins, getDenExternalMcpConnections, ...);
+# a wrong name parses as "no data" and hides real breakage.
+_EMPTY_GET: dict[str, dict[str, Any]] = {
+    "llm-providers": {"llmProviders": []},
+    "inference-providers": {"inferenceProviders": []},
+    "marketplaces": {"items": []},
+    "resources/marketplace-capabilities": {"items": []},
+    "me/library": {"items": []},
+    "me/dashboards": {"items": []},
+    "mcp-connections": {"connections": []},
+    "mcp-connections/presets": {"presets": []},
+    "apps": {"enabled": False, "sharingEnabled": False, "items": []},
+    "automations": {"items": [], "nextCursor": None},
+    "cloud-automations": {"items": [], "nextCursor": None},
+    "plugins": {"items": []},
+    "inference/analytics/settings": {
+        "available": False,
+        "subscribed": False,
+        "modelsEnabled": False,
+        "enabled": False,
+        "consentedAt": None,
+        "consentVersion": None,
+        "exportEnabled": False,
+        "langfuseHost": None,
+        "langfuseConfigured": False,
+    },
+}
+
+
+# Declared LAST: FastAPI matches in registration order, so every explicit
+# /api/den/v1/... route above wins over this catch-all.
+@router.get("/api/den/v1/{resource:path}", response_model=None)
+async def den_empty_catalog(resource: str, request: Request) -> JSONResponse:
+    """Catch-all for catalogs this deployment does not populate.
+
+    An unknown path returns the Den 404 envelope rather than FastAPI's, which
+    keeps the desktop's error banner readable while we find out what it wanted.
+    """
+    session = await require_den_token(request)
+    if isinstance(session, JSONResponse):
+        return session
+    payload = _EMPTY_GET.get(resource.rstrip("/"))
+    if payload is None:
+        return den_error(404, "not_implemented", f"No handler for /v1/{resource}")
+    return JSONResponse(payload)

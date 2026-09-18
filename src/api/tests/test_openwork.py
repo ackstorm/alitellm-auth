@@ -330,3 +330,62 @@ def test_brand_route_rejects_an_unknown_asset():
     response = _client().get("/openwork/brand/config.py")
     assert response.status_code == 404
     assert response.json()["error"] == "not_found"
+
+
+EMPTY_ENDPOINTS = {
+    "/openwork/api/den/v1/llm-providers": {"llmProviders": []},
+    "/openwork/api/den/v1/inference-providers": {"inferenceProviders": []},
+    "/openwork/api/den/v1/marketplaces": {"items": []},
+    "/openwork/api/den/v1/resources/marketplace-capabilities": {"items": []},
+    "/openwork/api/den/v1/me/library": {"items": []},
+    "/openwork/api/den/v1/me/dashboards": {"items": []},
+    "/openwork/api/den/v1/mcp-connections": {"connections": []},
+    "/openwork/api/den/v1/mcp-connections/presets": {"presets": []},
+    "/openwork/api/den/v1/apps": {"enabled": False, "sharingEnabled": False, "items": []},
+    "/openwork/api/den/v1/automations": {"items": [], "nextCursor": None},
+    "/openwork/api/den/v1/cloud-automations": {"items": [], "nextCursor": None},
+    "/openwork/api/den/v1/plugins": {"items": []},
+}
+
+
+@pytest.mark.parametrize("path,expected", sorted(EMPTY_ENDPOINTS.items()))
+def test_catalog_stubs_are_empty_but_well_formed(den_token_client, path, expected):
+    client, token = den_token_client
+    response = client.get(path, headers={"authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.json() == expected
+
+
+def test_catalog_stubs_require_a_token(den_token_client):
+    client, _ = den_token_client
+    response = client.get("/openwork/api/den/v1/llm-providers")
+    assert response.status_code == 401
+    assert response.json()["error"] == "unauthorized"
+
+
+def test_unknown_catalog_uses_the_den_404_envelope(den_token_client):
+    client, token = den_token_client
+    response = client.get(
+        "/openwork/api/den/v1/some/new/thing", headers={"authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 404
+    assert response.json()["error"] == "not_implemented"
+
+
+def test_telemetry_ingest_accepts_and_discards(den_token_client):
+    client, token = den_token_client
+    response = client.post(
+        "/openwork/api/den/v1/telemetry/ingest",
+        json={"events": [{"name": "whatever"}]},
+        headers={"authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+
+
+def test_sign_out_revokes_the_token(den_token_client):
+    client, token = den_token_client
+    headers = {"authorization": f"Bearer {token}"}
+    assert client.post("/openwork/api/den/api/auth/sign-out", headers=headers).status_code == 200
+    assert client.get("/openwork/api/den/v1/me", headers=headers).status_code == 401
+    # Idempotent: signing out twice is not an error the desktop should see.
+    assert client.post("/openwork/api/den/api/auth/sign-out", headers=headers).status_code == 200
