@@ -316,3 +316,17 @@ def test_desktop_config_sends_brand_urls_when_set():
     body = client.get(DESKTOP_CONFIG, headers={"authorization": f"Bearer {token}"}).json()
     assert body["brandLogoUrl"] == "https://x.test/logo.svg"
     assert body["brandIconUrl"] == "https://x.test/icon.svg"
+
+
+@pytest.mark.parametrize("name", ["logo.svg", "icon.svg"])
+def test_brand_marks_are_served_as_svg_without_auth(name):
+    response = _client().get(f"/openwork/brand/{name}")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert response.text.lstrip().startswith("<svg")
+
+
+def test_brand_route_rejects_an_unknown_asset():
+    response = _client().get("/openwork/brand/config.py")
+    assert response.status_code == 404
+    assert response.json()["error"] == "not_found"

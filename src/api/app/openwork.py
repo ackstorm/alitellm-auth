@@ -19,7 +19,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -35,6 +35,10 @@ GRANT_KIND = "openwork_grant"
 TOKEN_KIND = "openwork_token"
 
 _templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+# src/api/brand/ in the tree, /app/brand in the image (Dockerfile COPY). Not
+# under /public: that is a projected volume at runtime and would hide files.
+_BRAND_DIR = Path(__file__).parent.parent / "brand"
+_BRAND_ASSETS = {"logo.svg": "openwork-logo.svg", "icon.svg": "openwork-icon.svg"}
 
 _DEN_PREFIX = "/openwork/api/den"
 _ALLOWED_HEADERS = (
@@ -319,3 +323,16 @@ async def den_desktop_config(request: Request) -> JSONResponse:
     if settings.openwork_brand_icon_url:
         payload["brandIconUrl"] = settings.openwork_brand_icon_url
     return JSONResponse(payload)
+
+
+@router.get("/brand/{name}", response_model=None)
+async def brand_asset(name: str):
+    """Serve the two published brand marks. Public: they are not secrets.
+
+    An explicit allow-list, not a path join, so this can never read outside
+    the brand directory.
+    """
+    filename = _BRAND_ASSETS.get(name)
+    if not filename:
+        return den_error(404, "not_found", f"No brand asset {name}")
+    return FileResponse(_BRAND_DIR / filename, media_type="image/svg+xml")
