@@ -79,6 +79,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.include_router(as_router)
         app.include_router(internal_router)
 
+    # OpenWork organization server (docs/plans/2026-09-18-openwork-den.md).
+    # Off unless OPENWORK_ENABLED. Registered BEFORE the /ui and /public static
+    # mounts for the same reason the other API routers are (T-09-06).
+    if settings.openwork_enabled:
+        from app.oauth_as.store import create_store
+        from app.openwork import router as openwork_router
+
+        app.state.openwork_store = create_store(settings)
+        app.include_router(openwork_router)
+
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
