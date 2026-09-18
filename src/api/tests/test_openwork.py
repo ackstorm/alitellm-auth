@@ -225,3 +225,42 @@ def test_handoff_page_mints_a_deep_link_for_a_signed_in_user():
     assert exchanged.status_code == 200
     assert exchanged.json()["user"]["email"] == "dev@ackstorm.com"
     assert asyncio.run(client.app.state.openwork_store.get(GRANT_KIND, grant)) is None
+
+
+def test_orgs_lists_the_single_organization(den_token_client):
+    client, token = den_token_client
+    response = client.get(
+        "/openwork/api/den/v1/me/orgs", headers={"authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["orgs"]) == 1
+    assert body["orgs"][0]["slug"] == "ackstorm"
+    assert body["orgs"][0]["name"] == "ACKstorm"
+    assert body["orgs"][0]["role"] == "member"
+    assert body["activeOrgId"] == body["orgs"][0]["id"]
+    assert body["activeOrgSlug"] == "ackstorm"
+
+
+def test_active_organization_is_acknowledged(den_token_client):
+    client, token = den_token_client
+    response = client.post(
+        "/openwork/api/den/v1/me/active-organization",
+        json={"organizationId": "whatever"},
+        headers={"authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["activeOrgSlug"] == "ackstorm"
+
+
+def test_resource_snapshot_timestamps_are_byte_stable(den_token_client):
+    """Any reformat reads as 'modified' to the desktop and re-triggers sync."""
+    client, token = den_token_client
+    headers = {"authorization": f"Bearer {token}"}
+    first = client.get("/openwork/api/den/v1/resources", headers=headers).json()
+    second = client.get("/openwork/api/den/v1/resources", headers=headers).json()
+    assert first == second
+    assert first["organizationId"]
+    assert first["orgMemberId"].startswith("orgmember_")
+    assert first["teamIds"] == []
+    assert first["resources"] == {"llmProviders": {}, "marketplaces": []}

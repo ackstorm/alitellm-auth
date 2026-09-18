@@ -223,3 +223,52 @@ async def handoff_page(request: Request):
             "ttl_minutes": settings.openwork_grant_ttl_seconds // 60,
         },
     )
+
+
+@router.get("/api/den/v1/me/orgs", response_model=None)
+async def den_orgs(request: Request) -> JSONResponse:
+    session = await require_den_token(request)
+    if isinstance(session, JSONResponse):
+        return session
+    settings: Settings = request.app.state.settings
+    org = _organization(settings)
+    return JSONResponse(
+        {
+            "orgs": [{**org, "role": "member"}],
+            "activeOrgId": org["id"],
+            "activeOrgSlug": org["slug"],
+        }
+    )
+
+
+@router.post("/api/den/v1/me/active-organization", response_model=None)
+async def den_set_active_org(request: Request) -> JSONResponse:
+    """Single-org deployment: acknowledge the choice, there is nothing to switch."""
+    session = await require_den_token(request)
+    if isinstance(session, JSONResponse):
+        return session
+    org = _organization(request.app.state.settings)
+    return JSONResponse({"activeOrgId": org["id"], "activeOrgSlug": org["slug"]})
+
+
+@router.get("/api/den/v1/resources", response_model=None)
+async def den_resources(request: Request) -> JSONResponse:
+    """Change-detection snapshot.
+
+    The desktop diffs these timestamps against what it has installed, so the
+    values must be byte-identical while nothing has changed. We ship no
+    resources, so both maps stay empty and the question never arises — but keep
+    that property if anything is ever added here.
+    """
+    session = await require_den_token(request)
+    if isinstance(session, JSONResponse):
+        return session
+    settings: Settings = request.app.state.settings
+    return JSONResponse(
+        {
+            "organizationId": _organization(settings)["id"],
+            "orgMemberId": "orgmember_" + user_id_for(session["email"])[5:],
+            "teamIds": [],
+            "resources": {"llmProviders": {}, "marketplaces": []},
+        }
+    )
