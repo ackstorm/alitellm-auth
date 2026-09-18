@@ -469,6 +469,7 @@ def test_a_missing_grant_sends_the_user_to_the_service_broker_then_back():
     hint = _jwt.decode(q["login_hint"], routes._signer.jwks()["keys"][0])
     assert hint["sub"] == "u@x.com" and hint["aud"] == "aws-eks-ro"
     assert hint["iss"] == "https://platform.test" and hint["exp"] - hint["iat"] == routes.HINT_TTL
+    assert len(hint["jti"]) >= 16  # the broker spends it on first use
     chain_id = q["state"]
     # the broker stored the grant during its consent; the projection now says so
     fake.data["oauth:aws-eks-ro:state:u@x.com"] = json.dumps({"granted": True})

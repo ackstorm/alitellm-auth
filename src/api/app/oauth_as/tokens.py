@@ -8,6 +8,7 @@ is stable. `kid` is the RFC 7638 thumbprint, so rotating the PEM rotates the
 
 from __future__ import annotations
 
+import secrets
 import time
 
 from authlib.jose import JsonWebKey, jwt
@@ -36,6 +37,9 @@ class Signer:
             "sub": sub,
             "iat": now,
             "exp": now + ttl,
+            # A broker spends a login_hint by its jti (single use); every token
+            # gets one so a hint is not a special shape.
+            "jti": secrets.token_urlsafe(16),
             "scope": scope,
             "client_id": client_id,
             "token_use": "user",

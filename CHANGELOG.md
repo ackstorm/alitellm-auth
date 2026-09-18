@@ -2,6 +2,12 @@
 
 ## [unreleased]
 
+### Fixed
+
+- Every token the AS signs carries a `jti`; a broker (mcp-oauth ≥ b9b7638) spends a
+  `login_hint` by it on first use, so a hint kept by an access log or a browser
+  history cannot start a second ceremony in the user's name.
+
 ## [0.8.3] - 2026-09-18
 
 ### Fixed
