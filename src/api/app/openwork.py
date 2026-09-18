@@ -17,6 +17,8 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from app.oauth_as.store import Store
 
@@ -26,6 +28,39 @@ router = APIRouter(prefix="/openwork", tags=["openwork"])
 # desktop's long-lived session credential.
 GRANT_KIND = "openwork_grant"
 TOKEN_KIND = "openwork_token"
+
+_DEN_PREFIX = "/openwork/api/den"
+_ALLOWED_HEADERS = (
+    "authorization,content-type,accept,"
+    "x-organization-id,x-openwork-org-id,x-openwork-legacy-org-id"
+)
+
+
+class DenCorsMiddleware(BaseHTTPMiddleware):
+    """Reflect the caller's origin for Den routes only.
+
+    The desktop is not a browser page on our origin, and it sends
+    credentials: "include", so "*" is not usable. Scoped to the Den prefix so
+    the cookie-authenticated SPA API keeps its same-origin-only posture.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith(_DEN_PREFIX):
+            return await call_next(request)
+
+        origin = request.headers.get("origin")
+        if request.method == "OPTIONS":
+            response = Response(status_code=204)
+        else:
+            response = await call_next(request)
+
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Allow-Methods"] = "GET,POST,DELETE,OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = _ALLOWED_HEADERS
+        return response
 
 
 def den_error(status: int, error: str, message: str) -> JSONResponse:

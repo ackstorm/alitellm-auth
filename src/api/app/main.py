@@ -84,9 +84,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # mounts for the same reason the other API routers are (T-09-06).
     if settings.openwork_enabled:
         from app.oauth_as.store import create_store
-        from app.openwork import router as openwork_router
+        from app.openwork import DenCorsMiddleware, router as openwork_router
 
         app.state.openwork_store = create_store(settings)
+        app.add_middleware(DenCorsMiddleware)
         app.include_router(openwork_router)
 
     @app.get("/health")

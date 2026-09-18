@@ -84,3 +84,37 @@ def test_me_returns_the_token_owner(den_token_client):
     assert user["email"] == "dev@ackstorm.com"
     assert user["name"] == "Dev"
     assert user["id"].startswith("user_")
+
+
+def test_den_cors_reflects_the_requesting_origin():
+    # credentials: "include" on the client (den.ts:2916) means the wildcard
+    # origin is rejected; the exact origin must come back.
+    response = _client().options(
+        "/openwork/api/den/v1/me",
+        headers={
+            "origin": "app://openwork",
+            "access-control-request-method": "GET",
+            "access-control-request-headers": "authorization",
+        },
+    )
+    assert response.status_code in (200, 204)
+    assert response.headers["access-control-allow-origin"] == "app://openwork"
+    assert response.headers["access-control-allow-credentials"] == "true"
+
+
+def test_den_cors_applies_to_real_responses_too(den_token_client):
+    client, token = den_token_client
+    response = client.get(
+        "/openwork/api/den/v1/me",
+        headers={"authorization": f"Bearer {token}", "origin": "app://openwork"},
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "app://openwork"
+
+
+def test_den_cors_does_not_apply_to_the_spa_api():
+    response = _client().options(
+        "/api/config",
+        headers={"origin": "https://evil.test", "access-control-request-method": "GET"},
+    )
+    assert "access-control-allow-origin" not in response.headers
