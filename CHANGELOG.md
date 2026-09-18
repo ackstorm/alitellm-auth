@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.8.3] - 2026-09-18
+
 ### Fixed
 
 - The broker chain names the grant owner. `_chain_next` now sends the broker a
