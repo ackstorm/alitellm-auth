@@ -71,6 +71,32 @@ spec:
             - name: AS_MCP_REDIS_URL
               value: {{ .Values.authServer.mcpRedisUrl | quote }}
             {{- end }}
+            {{- with .Values.openwork }}
+            {{- if .enabled }}
+            - name: OPENWORK_ENABLED
+              value: "true"
+            - name: OPENWORK_BRAND_APP_NAME
+              value: {{ .brandAppName | quote }}
+            - name: OPENWORK_BRAND_LOGO_URL
+              value: {{ .brandLogoUrl | default (printf "%s/openwork/brand/logo.svg" $.Values.config.appBaseUrl) | quote }}
+            - name: OPENWORK_BRAND_ICON_URL
+              value: {{ .brandIconUrl | default (printf "%s/openwork/brand/icon.svg" $.Values.config.appBaseUrl) | quote }}
+            - name: OPENWORK_ACCENT_COLOR
+              value: {{ .accentColor | quote }}
+            - name: OPENWORK_BLOCKED_COMMANDS
+              value: {{ .blockedCommands | toJson | quote }}
+            - name: OPENWORK_BLOCK_BROWSER_UPLOADS
+              value: {{ .blockBrowserUploads | quote }}
+            - name: OPENWORK_ORG_NAME
+              value: {{ .orgName | quote }}
+            - name: OPENWORK_ORG_SLUG
+              value: {{ .orgSlug | quote }}
+            - name: OPENWORK_TOKEN_TTL_SECONDS
+              value: {{ .tokenTtlSeconds | int | quote }}
+            - name: OPENWORK_GRANT_TTL_SECONDS
+              value: {{ .grantTtlSeconds | int | quote }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.factoryConfig.enabled }}
             - name: FACTORY_CONFIG_PATH
               value: {{ printf "%s/factory-config.json" .Values.factoryConfig.mountPath | quote }}

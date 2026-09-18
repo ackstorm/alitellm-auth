@@ -219,3 +219,13 @@ def test_openwork_accent_color_must_be_a_radix_family():
 
     with pytest.raises(ValidationError):
         Settings(**_openwork_base(openwork_accent_color="#ff00ff"))
+
+
+def test_openwork_enabled_requires_a_store_url():
+    from pydantic import ValidationError
+
+    from app.config import Settings
+
+    with pytest.raises(ValidationError, match="AS_REDIS_URL"):
+        Settings(**_openwork_base(openwork_enabled=True))
+    assert Settings(**_openwork_base(openwork_enabled=True, as_redis_url="memory://"))

@@ -122,6 +122,14 @@ class Settings(BaseSettings):
         return (self.as_issuer_url or self.app_base_url).rstrip("/")
 
     @model_validator(mode="after")
+    def _openwork_requires_a_store(self) -> "Settings":
+        # Grants and tokens live in the AS store; without a URL create_store()
+        # would dial redis.from_url("") and die at boot with an opaque error.
+        if self.openwork_enabled and not self.as_redis_url:
+            raise ValueError("OPENWORK_ENABLED=true requires AS_REDIS_URL (memory:// for dev)")
+        return self
+
+    @model_validator(mode="after")
     def _as_requires_its_secrets(self) -> "Settings":
         if not self.as_enabled:
             return self
