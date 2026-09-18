@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
@@ -30,6 +33,8 @@ router = APIRouter(prefix="/openwork", tags=["openwork"])
 # desktop's long-lived session credential.
 GRANT_KIND = "openwork_grant"
 TOKEN_KIND = "openwork_token"
+
+_templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 _DEN_PREFIX = "/openwork/api/den"
 _ALLOWED_HEADERS = (
@@ -170,4 +175,51 @@ async def desktop_handoff_exchange(request: Request) -> JSONResponse:
             # Connect (cloud MCP) is not served; the plan's Phase 6 was skipped.
             "connectEnabled": False,
         }
+    )
+
+
+def den_api_base(settings: Settings) -> str:
+    """The API base the desktop must use — what we hand it in the deep link."""
+    return f"{settings.app_base_url.rstrip('/')}/openwork/api/den"
+
+
+@router.get("", response_model=None)
+@router.get("/", response_model=None)
+async def handoff_page(request: Request):
+    """Mint a one-time grant for the signed-in user and show the handoff link.
+
+    The desktop opens this URL with ?desktopAuth=1. It never reads our response
+    body: it waits for the openwork:// deep link, or for the user to paste the
+    grant. So this page only has to put the value in front of the human.
+    """
+    settings: Settings = request.app.state.settings
+    email = request.session.get("email")
+    if not email:
+        # Remember why we are going to Dex, so the callback returns here
+        # instead of the SPA (auth.py::_auth_callback_ui).
+        request.session["openwork_handoff"] = True
+        return RedirectResponse(
+            f"{settings.app_base_url.rstrip('/')}/api/oauth/login", status_code=302
+        )
+
+    request.session.pop("openwork_handoff", None)
+    grant = secrets.token_urlsafe(24)
+    await _store(request).put(
+        GRANT_KIND,
+        grant,
+        {"email": email, "name": request.session.get("name") or email},
+        ttl=settings.openwork_grant_ttl_seconds,
+    )
+    deep_link = "openwork://den-auth?" + urlencode(
+        {"grant": grant, "denBaseUrl": den_api_base(settings)}
+    )
+    return _templates.TemplateResponse(
+        request,
+        "openwork_handoff.html",
+        {
+            "brand": settings.openwork_brand_app_name,
+            "email": email,
+            "deep_link": deep_link,
+            "ttl_minutes": settings.openwork_grant_ttl_seconds // 60,
+        },
     )

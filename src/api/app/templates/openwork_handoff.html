@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ brand }} — sign in to OpenWork</title>
+  <style>
+    body { font: 15px/1.6 system-ui, sans-serif; max-width: 44rem; margin: 3rem auto; padding: 0 1rem; color: #24303a; }
+    .card { border: 1px solid #dde5ec; border-radius: 12px; padding: 1.25rem; margin: 1.5rem 0; }
+    input { width: 100%; padding: .6rem; font-family: ui-monospace, monospace; font-size: 13px; box-sizing: border-box; }
+    button { padding: .6rem 1.1rem; font-size: 15px; cursor: pointer; border-radius: 8px; border: 1px solid #cfdae3; background: #f6fbf9; }
+    .ok { color: #137333; }
+  </style>
+</head>
+<body>
+  <h1>{{ brand }}</h1>
+  <p>Signed in as <strong>{{ email }}</strong>. This link is valid for {{ ttl_minutes }} minutes and can be used once.</p>
+  <div class="card">
+    <p><button id="open">Open in OpenWork</button></p>
+    <p>If nothing happens, copy this and paste it into OpenWork under <em>account menu &rarr; Paste sign-in code</em>:</p>
+    <input id="link" readonly value="{{ deep_link }}">
+    <p><button id="copy">Copy link</button> <span id="copied" class="ok"></span></p>
+  </div>
+  <script>
+    document.getElementById("open").onclick = () => { location.href = document.getElementById("link").value; };
+    document.getElementById("copy").onclick = async () => {
+      const field = document.getElementById("link");
+      field.select();
+      try { await navigator.clipboard.writeText(field.value); } catch { document.execCommand("copy"); }
+      document.getElementById("copied").textContent = "copied";
+    };
+  </script>
+</body>
+</html>

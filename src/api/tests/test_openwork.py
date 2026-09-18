@@ -173,3 +173,55 @@ def test_exchange_rejects_a_missing_or_malformed_grant():
     )
     assert response.status_code == 400
     assert response.json()["error"] == "invalid_request"
+
+
+def _make_session_cookie(secret: str, data: dict) -> str:
+    """Create a signed Starlette session cookie for test use (as test_auth does)."""
+    import base64
+    import json
+
+    from itsdangerous import TimestampSigner
+
+    payload = base64.b64encode(json.dumps(data).encode()).decode()
+    return TimestampSigner(secret).sign(payload).decode()
+
+
+HANDOFF_URL = "/openwork?mode=sign-in&desktopAuth=1&desktopScheme=openwork"
+
+
+def test_handoff_page_redirects_to_login_when_signed_out():
+    client = _client()
+    response = client.get(HANDOFF_URL, follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "http://localhost:8080/api/oauth/login"
+    # The intent is remembered so the callback returns here rather than /ui.
+    assert client.cookies.get("session") is not None
+
+
+def test_handoff_page_mints_a_deep_link_for_a_signed_in_user():
+    from app.openwork import GRANT_KIND
+
+    client = _client()
+    client.cookies.set(
+        "session",
+        _make_session_cookie(
+            client.app.state.settings.session_secret_key,
+            {"email": "dev@ackstorm.com", "name": "Dev", "openwork_handoff": True},
+        ),
+    )
+    response = client.get(HANDOFF_URL, follow_redirects=False)
+    assert response.status_code == 200
+    assert "dev@ackstorm.com" in response.text
+    assert "openwork://den-auth?grant=" in response.text
+    assert "denBaseUrl=http%3A%2F%2Flocalhost%3A8080%2Fopenwork%2Fapi%2Fden" in response.text
+
+    # The grant on the page is real: it exchanges for the signed-in user.
+    import re
+
+    grant = re.search(r"grant=([A-Za-z0-9_-]+)", response.text).group(1)
+    exchanged = client.post(
+        "/openwork/api/den/v1/auth/desktop-handoff/exchange", json={"grant": grant}
+    )
+    assert exchanged.status_code == 200
+    assert exchanged.json()["user"]["email"] == "dev@ackstorm.com"
+    assert asyncio.run(client.app.state.openwork_store.get(GRANT_KIND, grant)) is None
