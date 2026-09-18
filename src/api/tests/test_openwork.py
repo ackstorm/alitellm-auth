@@ -141,9 +141,7 @@ def test_grant_exchange_returns_a_session_and_is_single_use():
     assert body["connectEnabled"] is False
 
     # The token works.
-    me = client.get(
-        "/openwork/api/den/v1/me", headers={"authorization": f"Bearer {body['token']}"}
-    )
+    me = client.get("/openwork/api/den/v1/me", headers={"authorization": f"Bearer {body['token']}"})
     assert me.status_code == 200
     assert me.json()["user"]["email"] == "dev@ackstorm.com"
 
@@ -165,9 +163,10 @@ def test_exchange_rejects_an_unknown_grant():
 
 def test_exchange_rejects_a_missing_or_malformed_grant():
     client = _client()
-    assert client.post("/openwork/api/den/v1/auth/desktop-handoff/exchange", json={}).json()[
-        "error"
-    ] == "invalid_request"
+    assert (
+        client.post("/openwork/api/den/v1/auth/desktop-handoff/exchange", json={}).json()["error"]
+        == "invalid_request"
+    )
     response = client.post(
         "/openwork/api/den/v1/auth/desktop-handoff/exchange", content=b"not json"
     )

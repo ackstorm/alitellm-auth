@@ -79,9 +79,28 @@ class Settings(BaseSettings):
     openwork_brand_logo_url: str = ""
     openwork_brand_icon_url: str = ""
     openwork_accent_color: Literal[
-        "blue", "crimson", "cyan", "gold", "grass", "green", "indigo", "iris",
-        "jade", "lime", "mint", "orange", "pink", "plum", "purple", "red",
-        "ruby", "sky", "teal", "tomato", "violet", "yellow",
+        "blue",
+        "crimson",
+        "cyan",
+        "gold",
+        "grass",
+        "green",
+        "indigo",
+        "iris",
+        "jade",
+        "lime",
+        "mint",
+        "orange",
+        "pink",
+        "plum",
+        "purple",
+        "red",
+        "ruby",
+        "sky",
+        "teal",
+        "tomato",
+        "violet",
+        "yellow",
     ] = "mint"
 
     # Execution policy. NOTE: a non-empty blocked-command list disables

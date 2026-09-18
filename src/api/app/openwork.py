@@ -130,7 +130,8 @@ async def den_me(request: Request) -> JSONResponse:
 
 def _organization(settings: Settings) -> dict[str, str]:
     return {
-        "id": "organization_" + hashlib.sha256(settings.openwork_org_slug.encode()).hexdigest()[:16],
+        "id": "organization_"
+        + hashlib.sha256(settings.openwork_org_slug.encode()).hexdigest()[:16],
         "slug": settings.openwork_org_slug,
         "name": settings.openwork_org_name,
     }
@@ -157,7 +158,9 @@ async def desktop_handoff_exchange(request: Request) -> JSONResponse:
     claimed = await _store(request).pop(GRANT_KIND, grant)
     if not claimed:
         return den_error(
-            404, "grant_not_found", "This desktop sign-in link is missing, expired, or already used."
+            404,
+            "grant_not_found",
+            "This desktop sign-in link is missing, expired, or already used.",
         )
 
     token = secrets.token_urlsafe(32)
