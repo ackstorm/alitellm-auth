@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.9.0] - 2026-09-18
+
 ### Added
 
 - OpenWork organization server ("Den") at `/openwork`, off unless `OPENWORK_ENABLED`
