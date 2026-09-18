@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.8.4] - 2026-09-18
+
 ### Fixed
 
 - Every token the AS signs carries a `jti`; a broker (mcp-oauth ≥ b9b7638) spends a
