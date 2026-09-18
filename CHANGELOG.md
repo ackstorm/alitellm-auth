@@ -2,6 +2,19 @@
 
 ## [unreleased]
 
+### Added
+
+- OpenWork organization server ("Den") at `/openwork`, off unless `OPENWORK_ENABLED`
+  (docs/plans/2026-09-18-openwork-den.md). The desktop signs in with the existing
+  Dex session through a single-use, 5-minute handoff grant exchanged for a 30-day
+  bearer token (AS store; `AS_REDIS_URL` required), then receives enforced desktop
+  policy (`OPENWORK_BLOCKED_COMMANDS`, `OPENWORK_BLOCK_BROWSER_UPLOADS`) and ACKstorm
+  branding (`/openwork/brand/{logo,icon}.svg`). Empty-but-well-formed catalogs for
+  everything the desktop fetches at boot; a sign-out that revokes the token. No
+  cloud MCP agent (the Connect badge stays "needs attention"). Chart block `openwork:`.
+- `test/fake-den/`: the zero-dependency Node reference Den the contract was verified
+  against with the real desktop.
+
 ## [0.8.4] - 2026-09-18
 
 ### Fixed
