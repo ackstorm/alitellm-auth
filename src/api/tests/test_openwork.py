@@ -118,3 +118,58 @@ def test_den_cors_does_not_apply_to_the_spa_api():
         headers={"origin": "https://evil.test", "access-control-request-method": "GET"},
     )
     assert "access-control-allow-origin" not in response.headers
+
+
+def test_grant_exchange_returns_a_session_and_is_single_use():
+    from app.openwork import GRANT_KIND
+
+    client = _client()
+    asyncio.run(
+        client.app.state.openwork_store.put(
+            GRANT_KIND, "test-grant-value", {"email": "dev@ackstorm.com", "name": "Dev"}, ttl=300
+        )
+    )
+
+    first = client.post(
+        "/openwork/api/den/v1/auth/desktop-handoff/exchange", json={"grant": "test-grant-value"}
+    )
+    assert first.status_code == 200
+    body = first.json()
+    assert body["token"]
+    assert body["user"]["email"] == "dev@ackstorm.com"
+    assert body["organization"]["slug"] == "ackstorm"
+    assert body["connectEnabled"] is False
+
+    # The token works.
+    me = client.get(
+        "/openwork/api/den/v1/me", headers={"authorization": f"Bearer {body['token']}"}
+    )
+    assert me.status_code == 200
+    assert me.json()["user"]["email"] == "dev@ackstorm.com"
+
+    # Replaying the grant does not.
+    replay = client.post(
+        "/openwork/api/den/v1/auth/desktop-handoff/exchange", json={"grant": "test-grant-value"}
+    )
+    assert replay.status_code == 404
+    assert replay.json()["error"] == "grant_not_found"
+
+
+def test_exchange_rejects_an_unknown_grant():
+    response = _client().post(
+        "/openwork/api/den/v1/auth/desktop-handoff/exchange", json={"grant": "nope-nope-nope"}
+    )
+    assert response.status_code == 404
+    assert response.json()["error"] == "grant_not_found"
+
+
+def test_exchange_rejects_a_missing_or_malformed_grant():
+    client = _client()
+    assert client.post("/openwork/api/den/v1/auth/desktop-handoff/exchange", json={}).json()[
+        "error"
+    ] == "invalid_request"
+    response = client.post(
+        "/openwork/api/den/v1/auth/desktop-handoff/exchange", content=b"not json"
+    )
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_request"

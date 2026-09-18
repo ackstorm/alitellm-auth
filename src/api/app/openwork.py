@@ -13,6 +13,7 @@ Only registered when OPENWORK_ENABLED.
 from __future__ import annotations
 
 import hashlib
+import secrets
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -20,6 +21,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+from app.config import Settings
 from app.oauth_as.store import Store
 
 router = APIRouter(prefix="/openwork", tags=["openwork"])
@@ -113,5 +115,59 @@ async def den_me(request: Request) -> JSONResponse:
                 "email": session["email"],
                 "name": session.get("name") or session["email"],
             }
+        }
+    )
+
+
+def _organization(settings: Settings) -> dict[str, str]:
+    return {
+        "id": "organization_" + hashlib.sha256(settings.openwork_org_slug.encode()).hexdigest()[:16],
+        "slug": settings.openwork_org_slug,
+        "name": settings.openwork_org_name,
+    }
+
+
+@router.post("/api/den/v1/auth/desktop-handoff/exchange", response_model=None)
+async def desktop_handoff_exchange(request: Request) -> JSONResponse:
+    """Trade a one-time grant for the desktop's session token.
+
+    Public by design: the grant IS the credential, which is why it is minted
+    only for an already-signed-in browser session, expires in minutes, and is
+    consumed atomically here (store.pop) so a captured value cannot be replayed.
+    """
+    settings: Settings = request.app.state.settings
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    grant = (body.get("grant") or "").strip() if isinstance(body, dict) else ""
+    if not grant:
+        return den_error(400, "invalid_request", "A grant is required.")
+
+    # pop is the single-use guarantee: a second exchange finds nothing.
+    claimed = await _store(request).pop(GRANT_KIND, grant)
+    if not claimed:
+        return den_error(
+            404, "grant_not_found", "This desktop sign-in link is missing, expired, or already used."
+        )
+
+    token = secrets.token_urlsafe(32)
+    await _store(request).put(
+        TOKEN_KIND,
+        token,
+        {"email": claimed["email"], "name": claimed.get("name") or claimed["email"]},
+        ttl=settings.openwork_token_ttl_seconds,
+    )
+    return JSONResponse(
+        {
+            "token": token,
+            "user": {
+                "id": user_id_for(claimed["email"]),
+                "email": claimed["email"],
+                "name": claimed.get("name") or claimed["email"],
+            },
+            "organization": _organization(settings),
+            # Connect (cloud MCP) is not served; the plan's Phase 6 was skipped.
+            "connectEnabled": False,
         }
     )
