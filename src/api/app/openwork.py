@@ -272,3 +272,50 @@ async def den_resources(request: Request) -> JSONResponse:
             "resources": {"llmProviders": {}, "marketplaces": []},
         }
     )
+
+
+@router.get("/api/den/v1/me/desktop-config", response_model=None)
+async def den_desktop_config(request: Request) -> JSONResponse:
+    """Branding and enforced policy for this member's desktop.
+
+    OpenWork's local server persists this and then denies engine and HTTP
+    actions with 403 organization_policy_denied, so these are real limits, not
+    UI preferences. Schema: packages/types/src/den/desktop-policies.ts:330.
+    """
+    session = await require_den_token(request)
+    if isinstance(session, JSONResponse):
+        return session
+    settings: Settings = request.app.state.settings
+
+    payload: dict[str, Any] = {
+        "brandAppName": settings.openwork_brand_app_name,
+        "brandAccentColor": settings.openwork_accent_color,
+        # Deliberately permissive: allowCustomProviders=False would hide the
+        # ackstorm provider OpenCode loads from its own config, and
+        # allowManageExtensions=False would block installing the auth plugin.
+        "allowCustomProviders": True,
+        "allowManageExtensions": True,
+        "allowControlSettings": True,
+        "allowBuiltInExtensions": True,
+        "allowMultipleWorkspaces": True,
+        "allowZenModel": True,
+        "allowAlphaUpdates": False,
+        "showWelcomePage": False,
+        "execution": {
+            "commands": "allow",
+            # NOTE: a non-empty list disables interactive terminals and saved
+            # commands outright (managed-policy-rules.ts:77-78).
+            "blockedCommands": list(settings.openwork_blocked_commands),
+            "blockBrowserUploads": settings.openwork_block_browser_uploads,
+        },
+        "automationsEnabled": False,
+        "dashboardEnabled": False,
+        "connectEnabled": False,
+    }
+    # A non-URL value is dropped by the client normalizer, so omit rather than
+    # send an empty string.
+    if settings.openwork_brand_logo_url:
+        payload["brandLogoUrl"] = settings.openwork_brand_logo_url
+    if settings.openwork_brand_icon_url:
+        payload["brandIconUrl"] = settings.openwork_brand_icon_url
+    return JSONResponse(payload)

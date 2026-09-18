@@ -264,3 +264,55 @@ def test_resource_snapshot_timestamps_are_byte_stable(den_token_client):
     assert first["orgMemberId"].startswith("orgmember_")
     assert first["teamIds"] == []
     assert first["resources"] == {"llmProviders": {}, "marketplaces": []}
+
+
+DESKTOP_CONFIG = "/openwork/api/den/v1/me/desktop-config"
+
+
+def test_desktop_config_carries_branding_and_policy(den_token_client):
+    client, token = den_token_client
+    response = client.get(DESKTOP_CONFIG, headers={"authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["brandAppName"] == "ACKstorm Work"
+    assert body["brandAccentColor"] == "mint"
+    # Must stay permissive: false here would hide the ackstorm provider that
+    # comes from OpenCode's own config, and block adding the auth plugin.
+    assert body["allowCustomProviders"] is True
+    assert body["allowManageExtensions"] is True
+    assert body["execution"]["commands"] == "allow"
+    assert body["execution"]["blockedCommands"] == []
+    assert body["execution"]["blockBrowserUploads"] is False
+    assert body["showWelcomePage"] is False
+    assert body["connectEnabled"] is False
+
+
+def test_desktop_config_passes_through_blocked_commands():
+    client = _client(
+        openwork_blocked_commands=["* | sh", "mkfs*"], openwork_block_browser_uploads=True
+    )
+    token = _put_token(client)
+    body = client.get(DESKTOP_CONFIG, headers={"authorization": f"Bearer {token}"}).json()
+    assert body["execution"]["blockedCommands"] == ["* | sh", "mkfs*"]
+    assert body["execution"]["blockBrowserUploads"] is True
+
+
+def test_desktop_config_omits_empty_brand_urls():
+    # The client validates brandLogoUrl as a URL and drops the whole field if
+    # it is not one; sending "" would be silently discarded, so omit it.
+    client = _client(openwork_brand_logo_url="", openwork_brand_icon_url="")
+    token = _put_token(client)
+    body = client.get(DESKTOP_CONFIG, headers={"authorization": f"Bearer {token}"}).json()
+    assert "brandLogoUrl" not in body
+    assert "brandIconUrl" not in body
+
+
+def test_desktop_config_sends_brand_urls_when_set():
+    client = _client(
+        openwork_brand_logo_url="https://x.test/logo.svg",
+        openwork_brand_icon_url="https://x.test/icon.svg",
+    )
+    token = _put_token(client)
+    body = client.get(DESKTOP_CONFIG, headers={"authorization": f"Bearer {token}"}).json()
+    assert body["brandLogoUrl"] == "https://x.test/logo.svg"
+    assert body["brandIconUrl"] == "https://x.test/icon.svg"
