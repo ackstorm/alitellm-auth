@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.9.1] - 2026-09-19
+
 ### Fixed
 
 - OpenWork's Settings input keeps only the origin of the organization server URL,
