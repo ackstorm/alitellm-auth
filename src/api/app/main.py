@@ -70,20 +70,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # /ui StaticFiles mount below so /api/config is never shadowed by the static mount.
     app.include_router(public_router)
 
-    # OAuth front door (docs/plans/2026-09-17-oauth-front-door.md). Off unless AS_ENABLED.
-    if settings.as_enabled:
-        from app.internal import router as internal_router
-        from app.oauth_as.routes import configure_as, router as as_router
-
-        configure_as(settings)
-        app.include_router(as_router)
-        app.include_router(internal_router)
-
     # OpenWork organization server (docs/plans/2026-09-18-openwork-den.md).
     # Off unless OPENWORK_ENABLED. Registered BEFORE the /ui and /public static
     # mounts for the same reason the other API routers are (T-09-06).
     if settings.openwork_enabled:
-        from app.oauth_as.store import create_store
+        from app.store import create_store
         from app.openwork import DenCorsMiddleware, den_router, router as openwork_router
 
         app.state.openwork_store = create_store(settings)

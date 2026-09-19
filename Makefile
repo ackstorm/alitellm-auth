@@ -138,15 +138,6 @@ verify: lint test secrets ## Full local gate (mirror of pre-push)
 build-image: ## Build the runtime container image
 	docker build -t $(IMG):dev -f Dockerfile .
 
-##@ Authz (Go)
-.PHONY: authz-test
-authz-test: ## go vet + go test for the ext_authz service (host Go)
-	cd authz && go vet ./... && go test ./...
-
-.PHONY: authz-image
-authz-image: ## Build the ext_authz image locally
-	docker build -f authz/Dockerfile -t alitellm-authz:dev .
-
 .PHONY: release-bump
 release-bump: ## Bump version everywhere (VERSION=X.Y.Z)
 	@test -n "$(VERSION)" || { echo "VERSION required"; exit 1; }

@@ -32,7 +32,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from app.config import Settings
-from app.oauth_as.store import Store
+from app.store import Store
 
 # Handoff page + brand marks: /openwork only.
 router = APIRouter(prefix="/openwork", tags=["openwork"])

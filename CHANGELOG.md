@@ -2,6 +2,20 @@
 
 ## [unreleased]
 
+### Removed
+
+- The server side of the OAuth front door (v0.8.0–v0.8.4): the authorization
+  server (`app/oauth_as/` — RFC 8414/9728 metadata, DCR, PKCE authorize/token,
+  JWKS, MCP scope grants and broker chaining), the `/api/internal/front-key`
+  endpoint, the Go Envoy `ext_authz` service (`authz/`, its image and CI job) and
+  the chart's `authServer`, `authz` and `istio` blocks with their templates. A
+  separate service owns token issuance and the gateway check now. Settings
+  `AS_ENABLED`, `AS_ISSUER_URL`, `AS_AUDIENCE`, `AS_SIGNING_KEY_PEM`,
+  `AS_ACCESS_TTL_SECONDS`, `AS_REFRESH_TTL_SECONDS`, `AS_KEY_ENCRYPTION_KEY`,
+  `AS_SERVICES`, `AS_MCP_REDIS_URL` and `INTERNAL_TOKEN` are gone; `AS_REDIS_URL`
+  stays as the OpenWork Den's store (`app/store.py`). The OpenCode auth plugin,
+  `ackstorm-token` and the OpenWork Den are unchanged.
+
 ## [0.11.2] - 2026-09-19
 
 ### Changed

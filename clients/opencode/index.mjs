@@ -9,7 +9,7 @@
 // Nothing is configured here. The provider's API URL comes from opencode (the
 // served api.json); the authorization server comes from that URL's RFC 9728
 // document; endpoints and scope from there. Every request then carries a fresh
-// front-door JWT in Authorization, which the api.* ext_authz maps to the user's
+// access token in Authorization, which the platform gateway maps to the user's
 // LiteLLM key.
 //
 // opencode stores the tokens (~/.local/share/opencode/auth.json) but never

@@ -56,16 +56,6 @@ jobs:
             ghcr.io/${{ steps.owner.outputs.lc }}/alitellm-auth:v${{ steps.ver.outputs.v }}
             ghcr.io/${{ steps.owner.outputs.lc }}/alitellm-auth:latest
 
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: authz/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ steps.owner.outputs.lc }}/alitellm-authz:v${{ steps.ver.outputs.v }}
-            ghcr.io/${{ steps.owner.outputs.lc }}/alitellm-authz:latest
-
       # Package and push the Helm chart as an OCI artifact, lockstep with the image.
       # Chart version is bare SemVer (X.Y.Z); appVersion is the v-prefixed image tag.
       - uses: azure/setup-helm@v4

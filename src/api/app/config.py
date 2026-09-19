@@ -3,10 +3,8 @@
 
 from __future__ import annotations
 
-import json
 from typing import Literal
 
-from cryptography.fernet import Fernet
 from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
@@ -37,35 +35,13 @@ class Settings(BaseSettings):
     # Set false for OSS forks / deployments not using per-user catalog scoping.
     # Env var: LITELLM_USER_SCOPING_CHECK
     litellm_user_scoping_check: bool = True
-    # OAuth 2.1 authorization server — the front door (docs/plans/2026-09-17-oauth-front-door.md).
-    # Off by default; nothing below is read unless AS_ENABLED=true.
-    as_enabled: bool = False
-    as_issuer_url: str = ""  # empty → app_base_url. Must be the public URL clients dial.
-    as_audience: str = "alitellm"  # `aud` of every access token; the authz checks it
-    as_signing_key_pem: str = ""  # RSA private key, PEM. Same on every replica → same JWKS
-    as_access_ttl_seconds: int = 3600
-    # A refresh re-validates the user in LiteLLM (Task 7), bounding browser-free access.
-    as_refresh_ttl_seconds: int = 7 * 86400
-    # Required except for memory://, which is for tests and one-replica development only.
+    # Redis for the OpenWork Den's grants and tokens. Required whenever
+    # OPENWORK_ENABLED=true; memory:// is for tests and one-replica development only.
     as_redis_url: str = ""
-    # Fernet key for the per-user LiteLLM key at rest. LiteLLM hands out the plaintext
-    # once, at /key/generate, so we hold the only copy — encrypted.
-    as_key_encryption_key: str = ""
-    # Shared secret between the Go authz and /api/internal/* (Task 9). Both containers
-    # read it from the same Secret via envFrom.
-    internal_token: str = ""
-    # MCP services a user token may carry as scopes. JSON: scope name (the path
-    # segment under /mcp/) → {"store": the pods' service name in Redis,
-    # "broker": that service's authorization server}. Empty → no MCP scopes.
-    #   {"mcp-aws-eks-ro": {"store": "aws-eks-ro", "broker": "https://api.ackstorm.ai/aws-eks-ro-callback"}}
-    as_services: str = ""
-    # Where the MCP pods keep their cleartext grant projection
-    # (oauth:{store}:state:{email}). Empty → same Redis as AS_REDIS_URL.
-    as_mcp_redis_url: str = ""
 
     # --- OpenWork organization server (docs/plans/2026-09-18-openwork-den.md) ---
     # Off by default; nothing below is read unless OPENWORK_ENABLED=true.
-    # Reuses AS_REDIS_URL for grant/token storage (set it to memory:// for local dev).
+    # Grants and tokens live in the store behind AS_REDIS_URL (memory:// for local dev).
     openwork_enabled: bool = False
     # Session token lifetime. The desktop holds this until sign-out.
     openwork_token_ttl_seconds: int = 30 * 24 * 3600
@@ -113,42 +89,12 @@ class Settings(BaseSettings):
     openwork_org_name: str = "AliteLLM Auth"
     openwork_org_slug: str = "alitellm-auth"
 
-    @property
-    def services(self) -> dict[str, dict]:
-        return json.loads(self.as_services) if self.as_services else {}
-
-    @property
-    def as_issuer(self) -> str:
-        return (self.as_issuer_url or self.app_base_url).rstrip("/")
-
     @model_validator(mode="after")
     def _openwork_requires_a_store(self) -> "Settings":
-        # Grants and tokens live in the AS store; without a URL create_store()
+        # Grants and tokens live in the Redis store; without a URL create_store()
         # would dial redis.from_url("") and die at boot with an opaque error.
         if self.openwork_enabled and not self.as_redis_url:
             raise ValueError("OPENWORK_ENABLED=true requires AS_REDIS_URL (memory:// for dev)")
-        return self
-
-    @model_validator(mode="after")
-    def _as_requires_its_secrets(self) -> "Settings":
-        if not self.as_enabled:
-            return self
-        missing = [
-            env
-            for env, value in (
-                ("AS_SIGNING_KEY_PEM", self.as_signing_key_pem),
-                ("AS_KEY_ENCRYPTION_KEY", self.as_key_encryption_key),
-                ("AS_REDIS_URL", self.as_redis_url),
-                ("INTERNAL_TOKEN", self.internal_token),
-            )
-            if not value
-        ]
-        if missing:
-            raise ValueError(f"{', '.join(missing)} required when AS_ENABLED=true")
-        try:
-            Fernet(self.as_key_encryption_key.encode())
-        except (ValueError, TypeError) as exc:
-            raise ValueError("AS_KEY_ENCRYPTION_KEY is not a valid Fernet key") from exc
         return self
 
     # Neutral default (D-01): keep OSS forks brand-neutral. Deployments set the

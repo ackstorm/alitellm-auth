@@ -61,12 +61,3 @@ jobs:
         with:
           fetch-depth: 0
       - run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:latest detect --source=/repo --redact --no-banner --config=/repo/.gitleaks.toml
-
-  authz:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: authz/go.mod
-      - run: cd authz && go vet ./... && go test ./...

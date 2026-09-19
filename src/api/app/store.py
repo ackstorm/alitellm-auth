@@ -1,15 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Key/value store for the authorization server's transient state.
-
-Four kinds live here: `client` (DCR registrations, no TTL), `pending` (an
-/authorize request waiting for Dex, 10 min), `code` (an authorization code,
-2 min, single use), `refresh` (a refresh token, rotated on use) and `frontkey`
-(the user's encrypted LiteLLM key, Task 9). Ported from mcp-oauth/auth/broker.py:
-same three verbs, same JSON-in-Redis shape.
+"""Key/value store for the OpenWork Den's transient state: single-use sign-in
+grants and desktop session tokens. Ported from mcp-oauth/auth/broker.py: three
+verbs, JSON-in-Redis shape.
 
 MemoryStore is for tests and a one-replica dev box. Two replicas on it means a
-code minted on one is unknown on the other, and a restart orphans every front
-key. Settings refuse to enable the AS without AS_REDIS_URL for that reason.
+grant minted on one is unknown on the other, and a restart drops every desktop
+session. Settings refuse to enable OpenWork without AS_REDIS_URL for that reason.
 """
 
 from __future__ import annotations
@@ -102,7 +98,7 @@ class RedisStore:
 def create_store(settings: Any) -> Store:
     if settings.as_redis_url == "memory://":
         logger.critical(
-            "AS_REDIS_URL=memory://: front keys will NOT survive a restart — dev/test only"
+            "AS_REDIS_URL=memory://: desktop sessions will NOT survive a restart — dev/test only"
         )
         return MemoryStore()
     import redis.asyncio as redis  # lazy import; production path needs Redis
