@@ -1,7 +1,7 @@
 {
-  "name": "@ackstorm/opencode-auth",
+  "name": "alitellm-opencode-auth",
   "version": "0.1.1",
-  "description": "OpenCode plugin: OAuth login for the ackstorm model provider via the platform's authorization server",
+  "description": "OpenCode plugin: SSO login for the platform model provider via its authorization server",
   "license": "Apache-2.0",
   "type": "module",
   "main": "index.mjs",

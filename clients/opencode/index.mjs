@@ -1,7 +1,10 @@
-// opencode plugin: OAuth login for the `ackstorm` model provider.
+// opencode plugin: SSO (OAuth) login for the platform's model provider.
 //
-//   opencode plugin https://platform.ackstorm.ai/public/opencode-auth -g
+//   opencode plugin https://<platform>/public/opencode-auth -g
 //   opencode auth login -p ackstorm
+//
+// PROVIDER is the provider id in the served api.json, not branding; the user
+// sees only "SSO (browser)".
 //
 // Nothing is configured here. The provider's API URL comes from opencode (the
 // served api.json); the authorization server comes from that URL's RFC 9728
@@ -108,7 +111,7 @@ function listen(state) {
   return { port, code }
 }
 
-export async function AckstormAuth({ client }) {
+export async function SsoAuth({ client }) {
   let refreshing // ponytail: one in-flight refresh; a lost race spends a rotated refresh token
   return {
     auth: {
@@ -127,7 +130,7 @@ export async function AckstormAuth({ client }) {
                 if (cur?.type === "oauth" && cur.expires >= Date.now() + 60_000) return cur
                 const d = await discover(client)
                 const client_id = await savedClientId(d.issuer)
-                if (!client_id) throw new Error("ackstorm: client identity lost, run `opencode auth login -p ackstorm`")
+                if (!client_id) throw new Error(`SSO client identity lost, run \`opencode auth login -p ${PROVIDER}\``)
                 const t = await token(d, { grant_type: "refresh_token", refresh_token: cur.refresh, client_id })
                 t.refresh ||= cur.refresh
                 await client.auth.set({ path: { id: PROVIDER }, body: { type: "oauth", ...t } })
@@ -144,7 +147,7 @@ export async function AckstormAuth({ client }) {
       methods: [
         {
           type: "oauth",
-          label: "ACKstorm SSO (browser)",
+          label: "SSO (browser)",
           async authorize() {
             const d = await discover(client)
             const verifier = b64(randomBytes(32))
@@ -165,7 +168,7 @@ export async function AckstormAuth({ client }) {
             return {
               url: url.toString(),
               method: "auto",
-              instructions: "Open the URL in your browser and sign in with your ackstorm.com account.",
+              instructions: "Open the URL in your browser and sign in with your organization account.",
               async callback() {
                 try {
                   const t = await token(d, { grant_type: "authorization_code", code: await code, redirect_uri, client_id, code_verifier: verifier })

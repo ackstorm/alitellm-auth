@@ -8,7 +8,7 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 
 process.env.XDG_DATA_HOME = mkdtempSync(`${tmpdir()}/opencode-auth-`)
-const { AckstormAuth } = await import("../clients/opencode/index.mjs")
+const { SsoAuth } = await import("../clients/opencode/index.mjs")
 
 const ISSUER = "https://as.test"
 const calls = []
@@ -50,7 +50,7 @@ function fakeClient() {
 
 test("a login registers once and a refresh reuses that identity", async () => {
   const f = fakeClient()
-  const plugin = await AckstormAuth({ client: f.client })
+  const plugin = await SsoAuth({ client: f.client })
   const { url, callback } = await plugin.auth.methods[0].authorize()
   assert.match(url, /client_id=c1/)
   // Deliver the callback ourselves on the listener the plugin opened.
@@ -85,7 +85,7 @@ test("a login registers once and a refresh reuses that identity", async () => {
 
 test("a failed discovery is retried on the next call", async () => {
   // Discovery is cached per module instance; take a fresh one.
-  const { AckstormAuth: Fresh } = await import("../clients/opencode/index.mjs?fresh")
+  const { SsoAuth: Fresh } = await import("../clients/opencode/index.mjs?fresh")
   const f = fakeClient()
   const plugin = await Fresh({ client: f.client })
   const loader = await plugin.auth.loader(f.getAuth)

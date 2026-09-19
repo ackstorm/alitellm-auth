@@ -2,6 +2,12 @@
 
 ## [unreleased]
 
+### Changed
+
+- OpenCode auth plugin shows "SSO (browser)" and generic sign-in text; no
+  organization name in the plugin (the provider id `ackstorm` stays: it is the
+  catalog key, not branding). Package renamed `alitellm-opencode-auth`.
+
 ## [0.11.1] - 2026-09-19
 
 ### Fixed
