@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.11.2] - 2026-09-19
+
 ### Changed
 
 - OpenCode auth plugin shows "SSO (browser)" and generic sign-in text; no
