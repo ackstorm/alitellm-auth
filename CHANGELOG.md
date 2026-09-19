@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.10.1] - 2026-09-19
+
 ### Fixed
 
 - OpenWork brand logo is theme-neutral (green shield, slate wordmark): OpenWork
