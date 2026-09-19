@@ -2,6 +2,17 @@
 
 ## [unreleased]
 
+### Fixed
+
+- OpenCode auth plugin (0.1.1), from an external review: a request that read
+  stale credentials right after a refresh no longer spends the already-rotated
+  refresh token (re-read inside the shared refresh); a refresh never registers a
+  new DCR client (it asks for a login instead); the loopback listener validates
+  `state` before answering and survives a stray hit; a failed discovery is
+  retried instead of poisoning the process; registration happens before the
+  listener opens; HTTP calls time out after 15 s; the AS `issuer` is checked
+  (RFC 8414 §3.3). `make test-plugin` pins the three reproduced bugs.
+
 ## [0.11.0] - 2026-09-19
 
 ### Added

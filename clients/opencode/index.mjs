@@ -13,7 +13,7 @@
 // refreshes them: the `fetch` returned by `loader` does, per request, the way
 // opencode's own Anthropic plugin does.
 import { createServer } from "node:http"
-import { readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { randomBytes, createHash } from "node:crypto"
 
 const PROVIDER = "ackstorm"
@@ -22,7 +22,7 @@ const CLIENT_FILE = `${DATA}/ackstorm-client.json` // DCR result; opencode has n
 const b64 = (b) => Buffer.from(b).toString("base64url")
 
 async function json(url, init) {
-  const r = await fetch(url, init)
+  const r = await fetch(url, { signal: AbortSignal.timeout(15_000), ...init })
   if (!r.ok) throw new Error(`${r.status} ${url}`)
   return r.json()
 }
@@ -40,15 +40,24 @@ function discover(client) {
     const prm = await json(`${u.origin}/.well-known/oauth-protected-resource${u.pathname.replace(/\/$/, "")}`)
     const issuer = prm.authorization_servers[0]
     const as = await json(`${issuer}/.well-known/oauth-authorization-server`)
+    if (as.issuer !== issuer) throw new Error(`issuer mismatch: ${as.issuer} != ${issuer}`) // RFC 8414 §3.3
     return { issuer, as, scope: (prm.scopes_supported ?? []).join(" ") }
-  })())
+  })().catch((e) => { discovered = undefined; throw e })) // a blip must not poison the process
 }
 
-async function clientId({ issuer, as }) {
+// The saved DCR identity, or null. A refresh token belongs to the client that
+// obtained it, so a refresh must never register a new one (login does).
+async function savedClientId(issuer) {
   try {
     const saved = JSON.parse(await readFile(CLIENT_FILE, "utf8"))
     if (saved.issuer === issuer) return saved.client_id
   } catch {}
+  return null
+}
+
+async function clientId({ issuer, as }) {
+  const saved = await savedClientId(issuer)
+  if (saved) return saved
   const { client_id } = await json(as.registration_endpoint, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -62,6 +71,7 @@ async function clientId({ issuer, as }) {
       token_endpoint_auth_method: "none",
     }),
   })
+  await mkdir(DATA, { recursive: true })
   await writeFile(CLIENT_FILE, JSON.stringify({ issuer, client_id }), { mode: 0o600 })
   return client_id
 }
@@ -82,14 +92,19 @@ function listen(state) {
   const server = createServer((req, res) => {
     const u = new URL(req.url, "http://127.0.0.1")
     if (u.pathname !== "/callback") return res.writeHead(404).end()
-    res.end("Logged in. You can close this tab.")
+    // A stray hit must not consume the listener: the real callback is still coming.
+    if (u.searchParams.get("state") !== state) return res.writeHead(400).end("state mismatch")
+    res.end("Authorisation received. You can close this tab.")
     server.close()
-    if (u.searchParams.get("state") !== state) return done.rej(new Error("state mismatch"))
     const c = u.searchParams.get("code")
     c ? done.res(c) : done.rej(new Error(u.searchParams.get("error") ?? "no code"))
   })
   setTimeout(() => { server.close(); done.rej(new Error("login timed out")) }, 5 * 60_000).unref()
-  const port = new Promise((res) => server.listen(0, "127.0.0.1", () => res(server.address().port)))
+  code.catch(() => {}) // marks the rejection handled if the user abandons the login
+  const port = new Promise((res, rej) => {
+    server.once("error", rej)
+    server.listen(0, "127.0.0.1", () => res(server.address().port))
+  })
   return { port, code }
 }
 
@@ -105,14 +120,19 @@ export async function AckstormAuth({ client }) {
             let auth = await getAuth()
             if (auth?.type !== "oauth") return fetch(input, init)
             if (auth.expires < Date.now() + 60_000) {
-              refreshing ??= discover(client)
-                .then(async (d) => token(d, { grant_type: "refresh_token", refresh_token: auth.refresh, client_id: await clientId(d) }))
-                .then(async (t) => {
-                  t.refresh ||= auth.refresh
-                  await client.auth.set({ path: { id: PROVIDER }, body: { type: "oauth", ...t } })
-                  return t
-                })
-                .finally(() => { refreshing = undefined })
+              refreshing ??= (async () => {
+                // Re-read: a caller that read stale auth just after the previous
+                // refresh cleared would otherwise spend an already-rotated token.
+                const cur = await getAuth()
+                if (cur?.type === "oauth" && cur.expires >= Date.now() + 60_000) return cur
+                const d = await discover(client)
+                const client_id = await savedClientId(d.issuer)
+                if (!client_id) throw new Error("ackstorm: client identity lost, run `opencode auth login -p ackstorm`")
+                const t = await token(d, { grant_type: "refresh_token", refresh_token: cur.refresh, client_id })
+                t.refresh ||= cur.refresh
+                await client.auth.set({ path: { id: PROVIDER }, body: { type: "oauth", ...t } })
+                return t
+              })().finally(() => { refreshing = undefined })
               auth = await refreshing
             }
             const req = new Request(input, init) // normalises url/Request + any headers shape
@@ -129,9 +149,9 @@ export async function AckstormAuth({ client }) {
             const d = await discover(client)
             const verifier = b64(randomBytes(32))
             const state = b64(randomBytes(16))
+            const client_id = await clientId(d) // before the listener: a failure here must not leave a port waiting
             const { port, code } = listen(state)
             const redirect_uri = `http://127.0.0.1:${await port}/callback`
-            const client_id = await clientId(d)
             const url = new URL(d.as.authorization_endpoint)
             url.search = new URLSearchParams({
               response_type: "code",
