@@ -2,6 +2,15 @@
 
 ## [unreleased]
 
+### Added
+
+- OpenWork Connect: `POST /v1/mcp/token` mints a 7-day MCP token and
+  `/api/den/mcp/agent` speaks just enough Streamable-HTTP MCP (initialize,
+  tools/list with `search_capabilities` + `execute_capability`, resources with an
+  empty skill/automation index) for the desktop's Connect badge to turn green.
+  The catalog is empty; `connectEnabled` is now advertised `true`. Contract and
+  verified traps: `docs/references/openwork-connect.md`.
+
 ## [0.10.1] - 2026-09-19
 
 ### Fixed

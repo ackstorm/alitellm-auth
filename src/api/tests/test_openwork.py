@@ -138,7 +138,7 @@ def test_grant_exchange_returns_a_session_and_is_single_use():
     assert body["token"]
     assert body["user"]["email"] == "dev@ackstorm.com"
     assert body["organization"]["slug"] == "alitellm-auth"
-    assert body["connectEnabled"] is False
+    assert body["connectEnabled"] is True
 
     # The token works.
     me = client.get("/openwork/api/den/v1/me", headers={"authorization": f"Bearer {body['token']}"})
@@ -283,7 +283,6 @@ def test_desktop_config_carries_branding_and_policy(den_token_client):
     assert body["execution"]["blockedCommands"] == []
     assert body["execution"]["blockBrowserUploads"] is False
     assert body["showWelcomePage"] is False
-    assert body["connectEnabled"] is False
 
 
 def test_desktop_config_passes_through_blocked_commands():
@@ -452,14 +451,197 @@ def test_handoff_page_shows_the_configured_brand_and_logo():
 
 
 def test_unserved_post_uses_the_den_404_envelope_not_405(den_token_client):
-    # The desktop POSTs /v1/mcp/token for the cloud MCP we do not serve; a
-    # FastAPI 405 {"detail"} would surface as an unreadable generic failure.
+    # A FastAPI 405 {"detail"} would surface as an unreadable generic failure.
     client, token = den_token_client
     response = client.post(
-        "/api/den/v1/mcp/token",
-        json={"scopes": ["mcp:read"]},
-        headers={"authorization": f"Bearer {token}"},
+        "/api/den/v1/workers/w1/tokens", json={}, headers={"authorization": f"Bearer {token}"}
     )
     assert response.status_code == 404
     assert response.json()["error"] == "not_implemented"
     assert "detail" not in response.json()
+
+
+# --- Cloud MCP (OpenWork Connect) ---------------------------------------------
+
+
+def _mint_mcp(client, token):
+    response = client.post(
+        "/api/den/v1/mcp/token",
+        json={"scopes": ["mcp:read", "mcp:write"]},
+        headers={"authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _rpc(client, mcp_token, body):
+    return client.post(
+        "/api/den/mcp/agent", json=body, headers={"authorization": f"Bearer {mcp_token}"}
+    )
+
+
+def test_mcp_token_mint_shape(den_token_client):
+    client, token = den_token_client
+    body = _mint_mcp(client, token)
+    assert body["token"]
+    assert body["expiresAt"].endswith("Z")
+    assert body["scopes"] == ["mcp:read", "mcp:write"]
+    # The desktop appends /agent and requires the /mcp suffix.
+    assert body["resource"] == "http://localhost:8080/openwork/api/den/mcp"
+    orgs = client.get("/api/den/v1/me/orgs", headers={"authorization": f"Bearer {token}"}).json()
+    assert body["organizationId"] == orgs["activeOrgId"]
+
+
+def test_mcp_token_mint_requires_a_session(den_token_client):
+    client, _ = den_token_client
+    assert client.post("/api/den/v1/mcp/token", json={}).status_code == 401
+
+
+def test_mcp_agent_rejects_a_session_token_and_unknown_tokens(den_token_client):
+    client, token = den_token_client
+    for bad in (token, "nope"):
+        response = _rpc(client, bad, {"jsonrpc": "2.0", "id": 1, "method": "ping"})
+        assert response.status_code == 401
+        assert response.json()["error"] == "invalid_mcp_token"
+
+
+def test_mcp_handshake_and_tool_list(den_token_client):
+    client, token = den_token_client
+    mcp = _mint_mcp(client, token)["token"]
+
+    init = _rpc(
+        client,
+        mcp,
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"protocolVersion": "2025-03-26", "capabilities": {}},
+        },
+    )
+    assert init.status_code == 200
+    result = init.json()["result"]
+    assert result["protocolVersion"] == "2025-03-26"
+    assert result["instructions"]
+
+    unknown = _rpc(
+        client,
+        mcp,
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "initialize",
+            "params": {"protocolVersion": "1999-01-01"},
+        },
+    ).json()
+    assert unknown["result"]["protocolVersion"] == "2025-06-18"
+
+    # A notification is acknowledged with 202 and an EMPTY body.
+    note = _rpc(client, mcp, {"jsonrpc": "2.0", "method": "notifications/initialized"})
+    assert note.status_code == 202
+    assert note.content == b""
+
+    tools = _rpc(client, mcp, {"jsonrpc": "2.0", "id": 3, "method": "tools/list"}).json()
+    assert [t["name"] for t in tools["result"]["tools"]] == [
+        "search_capabilities",
+        "execute_capability",
+    ]
+
+
+def test_mcp_tools_return_an_empty_catalog(den_token_client):
+    client, token = den_token_client
+    mcp = _mint_mcp(client, token)["token"]
+    search = _rpc(
+        client,
+        mcp,
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "search_capabilities", "arguments": {"query": "gmail"}},
+        },
+    ).json()["result"]
+    assert search["isError"] is False
+    assert search["structuredContent"]["matches"] == []
+    run = _rpc(
+        client,
+        mcp,
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "execute_capability", "arguments": {"name": "skill:x"}},
+        },
+    ).json()["result"]
+    assert run["isError"] is True
+    bad = _rpc(
+        client,
+        mcp,
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "other"}},
+    ).json()
+    assert bad["error"]["code"] == -32602
+
+
+def test_mcp_resources_echo_the_uri_verbatim(den_token_client):
+    client, token = den_token_client
+    mcp = _mint_mcp(client, token)["token"]
+    listed = _rpc(client, mcp, {"jsonrpc": "2.0", "id": 1, "method": "resources/list"}).json()
+    uris = [r["uri"] for r in listed["result"]["resources"]]
+    assert "skill://index.json" in uris and "automation://index.json" in uris
+    read = _rpc(
+        client,
+        mcp,
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "resources/read",
+            "params": {"uri": "skill://index.json"},
+        },
+    ).json()["result"]
+    assert read["contents"][0]["uri"] == "skill://index.json"
+    import json as _json
+
+    assert _json.loads(read["contents"][0]["text"])["skills"] == []
+    missing = _rpc(
+        client,
+        mcp,
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "resources/read",
+            "params": {"uri": "skill://nope/SKILL.md"},
+        },
+    ).json()
+    assert missing["error"]["code"] == -32002
+
+
+def test_mcp_batch_and_other_methods(den_token_client):
+    client, token = den_token_client
+    mcp = _mint_mcp(client, token)["token"]
+    batch = _rpc(
+        client,
+        mcp,
+        [
+            {"jsonrpc": "2.0", "id": 1, "method": "ping"},
+            {"jsonrpc": "2.0", "method": "notifications/initialized"},
+            {"jsonrpc": "2.0", "id": 2, "method": "nope"},
+        ],
+    )
+    assert batch.status_code == 200
+    replies = batch.json()
+    assert [r["id"] for r in replies] == [1, 2]
+    assert replies[1]["error"]["code"] == -32601
+    headers = {"authorization": f"Bearer {mcp}"}
+    get = client.get("/api/den/mcp/agent", headers=headers)
+    assert get.status_code == 405 and "POST" in get.headers["allow"]
+    assert client.delete("/api/den/mcp/agent", headers=headers).status_code == 204
+    assert (
+        client.post("/api/den/mcp/agent", content=b"{", headers=headers).json()["error"]["code"]
+        == -32700
+    )
+
+
+def test_connect_is_advertised_as_enabled(den_token_client):
+    client, token = den_token_client
+    body = client.get(DESKTOP_CONFIG, headers={"authorization": f"Bearer {token}"}).json()
+    assert body["connectEnabled"] is True

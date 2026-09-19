@@ -18,7 +18,9 @@ gateway 301s to /ui/) by redirecting it there. Only registered when OPENWORK_ENA
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -193,8 +195,7 @@ async def desktop_handoff_exchange(request: Request) -> JSONResponse:
                 "name": claimed.get("name") or claimed["email"],
             },
             "organization": _organization(settings),
-            # Connect (cloud MCP) is not served; the plan's Phase 6 was skipped.
-            "connectEnabled": False,
+            "connectEnabled": True,
         }
     )
 
@@ -332,7 +333,9 @@ async def den_desktop_config(request: Request) -> JSONResponse:
         },
         "automationsEnabled": False,
         "dashboardEnabled": False,
-        "connectEnabled": False,
+        # Served below (Cloud MCP); false only relabels Settings → Connect and
+        # tells the agent not to suggest signing in — it never stops the mint.
+        "connectEnabled": True,
     }
     # A non-URL value is dropped by the client normalizer, so omit rather than
     # send an empty string.
@@ -375,6 +378,207 @@ async def den_telemetry(request: Request) -> JSONResponse:
     return JSONResponse({})
 
 
+# --- Cloud MCP (OpenWork Connect) ---------------------------------------------
+# The desktop mints a token here whenever it is signed in (connectEnabled does
+# NOT gate that), registers <resource>/agent as the `openwork-cloud` remote MCP
+# in every workspace and probes it. Health turns green only when tools/list
+# carries search_capabilities + execute_capability. We ship an EMPTY catalog:
+# enough for a green badge and the substrate for pushing skills later.
+# Contract + verified traps: docs/references/openwork-connect.md §2.
+MCP_TOKEN_KIND = "openwork_mcp_token"
+MCP_TOKEN_TTL_SECONDS = 7 * 86400  # the hosted Den's lifetime; the desktop re-mints 24h early
+_MCP_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26")
+_MCP_TOOLS = [
+    {
+        "name": "search_capabilities",
+        "description": "Search this organization's Connect catalog. It is currently empty.",
+        "annotations": {"readOnlyHint": True},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 20},
+                "type": {"type": "string"},
+                "intent": {"type": "string"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "execute_capability",
+        "description": "Run a capability by the exact name search_capabilities returned.",
+        "annotations": {"destructiveHint": True},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "body": {"type": "object", "additionalProperties": True},
+                "path": {"type": "object", "additionalProperties": True},
+                "query": {"type": "object", "additionalProperties": True},
+            },
+            "required": ["name"],
+        },
+    },
+]
+# Read by the local server on every prompt; strict v1 shape (connect-skill-catalog.ts).
+_MCP_RESOURCES: dict[str, str] = {
+    "skill://index.json": json.dumps(
+        {"$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json", "skills": []}
+    ),
+    "automation://index.json": json.dumps(
+        {"fetchedAt": 0, "total": 0, "omitted": 0, "automations": []}
+    ),
+}
+
+
+def mcp_resource(settings: Settings) -> str:
+    """Token `resource`; the desktop appends /agent and requires the /mcp suffix."""
+    return f"{den_api_base(settings)}/mcp"
+
+
+@den_router.post("/api/den/v1/mcp/token", response_model=None)
+async def den_mcp_token(request: Request) -> JSONResponse:
+    session = await require_den_token(request)
+    if isinstance(session, JSONResponse):
+        return session
+    settings: Settings = request.app.state.settings
+    token = secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(seconds=MCP_TOKEN_TTL_SECONDS)
+    await _store(request).put(
+        MCP_TOKEN_KIND, token, {"email": session["email"]}, ttl=MCP_TOKEN_TTL_SECONDS
+    )
+    return JSONResponse(
+        {
+            "token": token,
+            "expiresAt": expires.isoformat().replace("+00:00", "Z"),
+            # Must equal the active org id or health fails cloud_token_org_mismatch.
+            "organizationId": _organization(settings)["id"],
+            "scopes": ["mcp:read", "mcp:write"],
+            "resource": mcp_resource(settings),
+        }
+    )
+
+
+def _mcp_reply(message: Any) -> dict[str, Any] | None:
+    """One JSON-RPC message in, one reply out; None for a notification."""
+    if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": -32600, "message": "Invalid request"},
+        }
+    method, params, mid = message.get("method"), message.get("params") or {}, message.get("id")
+    if "id" not in message:
+        return None  # notification (e.g. notifications/initialized)
+
+    def ok(result: Any) -> dict[str, Any]:
+        return {"jsonrpc": "2.0", "id": mid, "result": result}
+
+    def err(code: int, text: str) -> dict[str, Any]:
+        return {"jsonrpc": "2.0", "id": mid, "error": {"code": code, "message": text}}
+
+    if method == "initialize":
+        requested = params.get("protocolVersion")
+        return ok(
+            {
+                "protocolVersion": requested
+                if requested in _MCP_PROTOCOL_VERSIONS
+                else _MCP_PROTOCOL_VERSIONS[0],
+                "capabilities": {
+                    "tools": {"listChanged": False},
+                    "resources": {"listChanged": False},
+                },
+                "serverInfo": {"name": "alitellm-auth-den", "version": "1"},
+                "instructions": (
+                    "This organization's Connect catalog is empty: search_capabilities "
+                    "returns no matches and there are no connected services, remote "
+                    "skills, workflows or automations. Do not suggest connecting services."
+                ),
+            }
+        )
+    if method == "ping":
+        return ok({})
+    if method == "tools/list":
+        return ok({"tools": _MCP_TOOLS})
+    if method == "tools/call":
+        name = params.get("name")
+        if name == "search_capabilities":
+            payload = {"matches": [], "hint": "The Connect catalog is empty."}
+            return ok(
+                {
+                    "content": [{"type": "text", "text": json.dumps(payload)}],
+                    "structuredContent": payload,
+                    "isError": False,
+                }
+            )
+        if name == "execute_capability":
+            return ok(
+                {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(
+                                {
+                                    "error": "unknown_capability",
+                                    "name": (params.get("arguments") or {}).get("name"),
+                                }
+                            ),
+                        }
+                    ],
+                    "isError": True,
+                }
+            )
+        return err(-32602, f"Unknown tool: {name}")
+    if method == "resources/list":
+        return ok(
+            {
+                "resources": [
+                    {"uri": uri, "name": uri, "mimeType": "application/json"}
+                    for uri in _MCP_RESOURCES
+                ]
+            }
+        )
+    if method == "resources/read":
+        uri = params.get("uri") or ""
+        text = _MCP_RESOURCES.get(uri)
+        if text is None:
+            return err(-32002, f"Resource not found: {uri}")
+        # The reader matches on uri, so it must come back verbatim.
+        return ok({"contents": [{"uri": uri, "mimeType": "application/json", "text": text}]})
+    if method == "prompts/list":
+        return ok({"prompts": []})
+    return err(-32601, f"Method not found: {method}")
+
+
+@den_router.api_route("/api/den/mcp/agent", methods=["GET", "POST", "DELETE"], response_model=None)
+async def den_mcp_agent(request: Request) -> Response:
+    """Streamable-HTTP MCP endpoint the engine registers as `openwork-cloud`.
+
+    Traps (connect-mcp-transport.ts): a notification batch gets 202 with an
+    EMPTY body; GET is answered 405 like the hosted Den (a 204 confuses the
+    SDK); a 401 makes the desktop re-mint silently.
+    """
+    header = request.headers.get("authorization") or ""
+    token = header[7:].strip() if header[:7].lower() == "bearer " else ""
+    if not token or not await _store(request).get(MCP_TOKEN_KIND, token):
+        return den_error(401, "invalid_mcp_token", "Missing or unknown MCP token.")
+    if request.method == "GET":
+        return Response(status_code=405, headers={"Allow": "POST, DELETE"})
+    if request.method == "DELETE":
+        return Response(status_code=204)  # nothing is kept per session
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}
+        )
+    messages = body if isinstance(body, list) else [body]
+    replies = [r for r in (_mcp_reply(m) for m in messages) if r is not None]
+    if not replies:
+        return Response(status_code=202)
+    return JSONResponse(replies if isinstance(body, list) else replies[0])
+
+
 # Empty-but-valid payloads for an organization that ships no resources. The key
 # names are what each client parser looks for (den.ts getDenOrgLlmProviders,
 # getOrgMarketplaces, getMeLibraryPlugins, getDenExternalMcpConnections, ...);
@@ -414,8 +618,7 @@ _EMPTY_GET: dict[str, dict[str, Any]] = {
 async def den_empty_catalog(resource: str, request: Request) -> JSONResponse:
     """Catch-all for catalogs this deployment does not populate.
 
-    An unknown path (any method — e.g. the desktop's POST /v1/mcp/token for the
-    cloud MCP we do not serve) returns the Den 404 envelope rather than
+    An unknown path (any method) returns the Den 404 envelope rather than
     FastAPI's 404/405 {"detail"}, which keeps the desktop's error banner
     readable while we find out what it wanted.
     """
