@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.12.0] - 2026-09-19
+
 ### Removed
 
 - The server side of the OAuth front door (v0.8.0–v0.8.4): the authorization
