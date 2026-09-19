@@ -408,17 +408,21 @@ _EMPTY_GET: dict[str, dict[str, Any]] = {
 
 # Declared LAST: FastAPI matches in registration order, so every explicit
 # /api/den/v1/... route above wins over this catch-all.
-@den_router.get("/api/den/v1/{resource:path}", response_model=None)
+@den_router.api_route(
+    "/api/den/v1/{resource:path}", methods=["GET", "POST", "PUT", "DELETE"], response_model=None
+)
 async def den_empty_catalog(resource: str, request: Request) -> JSONResponse:
     """Catch-all for catalogs this deployment does not populate.
 
-    An unknown path returns the Den 404 envelope rather than FastAPI's, which
-    keeps the desktop's error banner readable while we find out what it wanted.
+    An unknown path (any method — e.g. the desktop's POST /v1/mcp/token for the
+    cloud MCP we do not serve) returns the Den 404 envelope rather than
+    FastAPI's 404/405 {"detail"}, which keeps the desktop's error banner
+    readable while we find out what it wanted.
     """
     session = await require_den_token(request)
     if isinstance(session, JSONResponse):
         return session
-    payload = _EMPTY_GET.get(resource.rstrip("/"))
+    payload = _EMPTY_GET.get(resource.rstrip("/")) if request.method == "GET" else None
     if payload is None:
-        return den_error(404, "not_implemented", f"No handler for /v1/{resource}")
+        return den_error(404, "not_implemented", f"No handler for {request.method} /v1/{resource}")
     return JSONResponse(payload)

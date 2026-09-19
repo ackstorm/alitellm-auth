@@ -449,3 +449,17 @@ def test_handoff_page_shows_the_configured_brand_and_logo():
     assert "Acme Desk" in response.text
     assert 'src="https://x.test/logo.svg"' in response.text
     assert "expires in <b>5 min</b>" in response.text
+
+
+def test_unserved_post_uses_the_den_404_envelope_not_405(den_token_client):
+    # The desktop POSTs /v1/mcp/token for the cloud MCP we do not serve; a
+    # FastAPI 405 {"detail"} would surface as an unreadable generic failure.
+    client, token = den_token_client
+    response = client.post(
+        "/api/den/v1/mcp/token",
+        json={"scopes": ["mcp:read"]},
+        headers={"authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["error"] == "not_implemented"
+    assert "detail" not in response.json()

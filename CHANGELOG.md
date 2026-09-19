@@ -2,6 +2,15 @@
 
 ## [unreleased]
 
+### Fixed
+
+- OpenWork brand logo is theme-neutral (green shield, slate wordmark): OpenWork
+  renders one `brandLogoUrl` on both light and dark sidebars, and the previous
+  near-white wordmark vanished on light.
+- The Den catch-all answers every method with the Den `404 not_implemented`
+  envelope; a `POST /v1/mcp/token` (cloud MCP, not served) got FastAPI's 405
+  `{"detail"}`, unreadable in the desktop.
+
 ## [0.10.0] - 2026-09-19
 
 ### Changed
