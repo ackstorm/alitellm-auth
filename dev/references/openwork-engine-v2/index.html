@@ -1,0 +1,803 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="OIDC identity + LiteLLM User/VirtualKey provisioning">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Openwork engine v2 - alitellm-auth</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#opencode-v2-preview-engine-research-report" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="alitellm-auth" class="md-header__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            alitellm-auth
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Openwork engine v2
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="alitellm-auth" class="md-nav__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    alitellm-auth
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dex-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dex / OIDC integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-how-v2-is-configured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. How v2 is configured
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. How v2 is configured">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spawn-smanaged-opencode-v2ts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spawn (S/managed-opencode-v2.ts)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generated-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generated config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#does-v2-read-the-users-configopencodeopencodejson-opencode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does v2 read the user's ~/.config/opencode/opencode.json / .opencode/?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#live-provider-updates-no-engine-reloads-mechanics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        "Live provider updates, no engine reloads" — mechanics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-providers-models-in-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Providers / models in v2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-mcp-in-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. MCP in v2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-skills-in-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Skills in v2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-plugins-in-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Plugins in v2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-env-in-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Env in v2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-maturity-gaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Maturity / gaps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-deliverable-v1-v2-what-changes-for-a-self-hosted-den" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Deliverable: v1 → v2 → what changes for a self-hosted Den
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!-- Research report, 2026-09-19, from the OpenWork source @8c18c952a. The OpenCode v2 (preview)
+     sidecar engine and what it changes for a self-hosted Den. Companion to openwork-provisioning.md. -->
+
+<h1 id="opencode-v2-preview-engine-research-report">OpenCode v2 (preview) engine — research report</h1>
+<p>Repo <code>/home/jcm/Projects/openwork</code> @ <code>8c18c952a</code>. <code>S</code> = <code>apps/server/src</code>, <code>A</code> = <code>apps/app/src</code>, <code>D</code> = <code>docs/opencode-v2-parallel-lane.md</code>. Pinned v2 = <code>@opencode-ai/cli 0.0.0-beta-19086</code> (<code>constants.json:3</code>), binary <code>opencode2</code>. No v2 engine source is vendored; engine-internal claims come from <code>D</code> (written against beta-18707) and are marked <em>(design doc)</em>.</p>
+<hr />
+<h2 id="1-how-v2-is-configured">1. How v2 is configured</h2>
+<h3 id="spawn-smanaged-opencode-v2ts">Spawn (<code>S/managed-opencode-v2.ts</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+<th>Cite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Binary</td>
+<td><code>OPENWORK_OPENCODE2_BIN</code> env → <code>opencode2</code> on PATH → verified sha512 download from npm registry into <code>&lt;runtime&gt;/opencode-v2-verified/&lt;ver&gt;/&lt;platform&gt;/opencode2</code> (not bundled by the desktop)</td>
+<td><code>S/engine-v2-preview.ts:147-167</code>, <code>S/opencode-v2-binary.ts:11-52</code>, <code>S/opencode-v2-artifacts.json</code></td>
+</tr>
+<tr>
+<td>Args</td>
+<td><code>opencode2 serve --hostname 127.0.0.1 --port 0</code></td>
+<td><code>:174</code></td>
+</tr>
+<tr>
+<td>Env</td>
+<td><strong>allowlist only</strong> (PATH/HOME/USER/SHELL/TMP/LANG/TZ/XDG_<em>/SSL certs) + <code>OPENCODE_PASSWORD</code> (random, Basic auth user <code>opencode</code>), <code>OPENCODE_DB=&lt;root&gt;/opencode.db</code>, <code>OPENCODE_CONFIG_DIR=&lt;root&gt;/config</code>, <code>OPENCODE_MODELS_URL</code> (if resolved). <code>OPENCODE_CONFIG</code> only if the caller passes it explicitly — the preview never does. <code>process.env</code> is </em><em>not</em>* spread (v1 does: <code>S/managed-opencode.ts:164-170</code>)</td>
+<td><code>:146-183</code></td>
+</tr>
+<tr>
+<td>Root</td>
+<td><code>&lt;runtime&gt;/opencode-v2/state/</code> (<code>config/opencode.json</code>, <code>opencode.db</code>, <code>workspace/</code>, <code>cloud-skills/</code>)</td>
+<td><code>S/engine-v2-preview.ts:313-314, 338</code>; <code>S/runtime-db.ts:44</code></td>
+</tr>
+<tr>
+<td>cwd</td>
+<td>not set; every API call is scoped by <code>?location[directory]=&lt;workspace.path&gt;</code> (one daemon, many dirs)</td>
+<td><code>:218-221</code>; <code>S/server.ts:1203-1209</code></td>
+</tr>
+<tr>
+<td>Readiness</td>
+<td>stdout <code>server listening on &lt;url&gt;</code> then <code>GET /api/health {healthy,version,pid}</code>; pid must match child</td>
+<td><code>:189-192, 241-252, 323-358</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="generated-config">Generated config</h3>
+<p><code>renderOpencodeV2Config</code> writes the <strong>entire</strong> <code>&lt;root&gt;/config/opencode.json</code> atomically (tmp+rename) on every change, with exactly four keys: <code>$schema</code>, <code>providers</code> (v2 dialect), <code>permissions</code>, <code>skills</code> (<code>S/managed-opencode-v2.ts:80-131, 254-271</code>). No <code>mcp</code>, no <code>plugin</code>, no <code>instructions</code>, no <code>enabled_providers</code>/<code>disabled_providers</code>.</p>
+<h3 id="does-v2-read-the-users-configopencodeopencodejson-opencode">Does v2 read the user's <code>~/.config/opencode/opencode.json</code> / <code>.opencode/</code>?</h3>
+<ul>
+<li><code>OPENCODE_CONFIG_DIR</code> is overridden to the private dir, and it is the "always-watched global configuration directory" <em>(design doc <code>D:116, 229</code>)</em> → the user's global <code>~/.config/opencode/opencode.json</code> is <strong>not</strong> the global config for the sidecar. <code>OPENCODE_CONFIG</code> is deliberately not inherited (<code>:160-162</code>). The provider-hot-inject spec confirms the sandboxing: "inherited OPENCODE_*, credentials and DB paths cannot enter this child" (<code>evals/specs/opencode-v2-provider-hot-inject.test.ts:73-75</code>).</li>
+<li>Project <code>.opencode/skills</code>, <code>.opencode/skill</code>, <code>.claude/skills</code> <strong>are</strong> scanned natively by the engine (<code>S/opencode-v2-instructions.ts:14-16</code>, <code>:65-110</code>).</li>
+<li>Whether v2 also loads a project-level <code>opencode.json</code>/<code>.opencode/opencode.json</code> (mcp/plugin/provider) from the location dir is <strong>not verified in-repo</strong>; the chat-routing eval writes a v1-dialect <code>provider</code> block into the workspace <code>opencode.json</code> and only expects it to serve the v1 lane (<code>evals/specs/opencode-v2-chat-routing.e2e.test.ts:509-517, 557-559</code>); the v2 provider is delivered via <code>PATCH /workspace/:id/config</code> → runtime store → mirror (<code>:581-604</code>). Assume <strong>no</strong> for planning.</li>
+</ul>
+<h3 id="live-provider-updates-no-engine-reloads-mechanics">"Live provider updates, no engine reloads" — mechanics</h3>
+<p>There is no push API for providers. OpenWork rewrites the watched config file; v2's file watcher rebuilds its catalog in ~100-600 ms <em>(design doc <code>D:194-199</code>)</em>. Trigger chain:
+1. any write to the ENGINE_GLOBAL runtime row → <code>onRuntimeOpencodeConfigWrite</code> → <code>scheduleMirror()</code> (<code>S/engine-v2-preview.ts:546-548</code>); env.json change → same (<code>:563</code>, <code>S/env-file.ts:164</code>).
+2. <code>mirrorProviders()</code> reads the global row + env.json, maps, <code>setProviders()</code> → file write (<code>:451-481</code>), then polls <code>GET /api/model?location[directory]=&lt;root&gt;/workspace</code> up to 60 s until all mirrored model ids appear (<code>:43, 464-480</code>).
+3. Per workspace, <code>ensureWorkspaceReady</code> polls <code>GET /api/provider</code> until every mirrored provider is present <em>with the same apiKey</em> (<code>:635-661</code>).</p>
+<p>Runtime APIs actually used on the sidecar: <code>GET /api/health</code>, <code>GET /api/model</code>, <code>GET /api/model/default</code>, <code>GET /api/provider</code>, <code>PUT|DELETE /api/mcp/:name</code>, <code>GET /api/mcp</code>, <code>GET /api/skill</code>, <code>PUT /api/session/:id/instructions/entries/openwork.context</code>, <code>POST /api/session</code> (+ v2 session/permission routes from the app adapter). No <code>/api/config</code>, <code>/api/auth</code>, <code>/api/integration/*</code> calls. The proxy 403s renderer access to <code>/api/config*</code>, writes to <code>/api/mcp*</code>, and writes to the managed instruction entry (<code>S/server.ts:1191-1197, 1250-1253</code>).</p>
+<p>Preview state: <code>OPENWORK_ENGINE_V2_PREVIEW=1|chat</code> (enabled+routing), <code>=sidecar</code> (mirror only), else persisted <code>&lt;runtime&gt;/engine-v2-preview.json {enabled, chatRouting}</code> (<code>S/engine-v2-preview.ts:87-95, 114-136</code>). Routes <code>GET /experimental/engine-v2-preview/status</code>, <code>PUT /experimental/engine-v2-preview</code> (policy action <code>settings</code>) (<code>S/server.ts:3095-3115</code>; <code>S/managed-policy-rules.ts:134</code>).</p>
+<hr />
+<h2 id="2-providers-models-in-v2">2. Providers / models in v2</h2>
+<p><strong>Source</strong>: same ENGINE_GLOBAL runtime row (<code>readGlobalRuntimeOpencodeConfig</code> → <code>runtimeProviderMap</code>, <code>:454</code>). <code>cloud-provider-sync.ts</code> has no v2 branch — Den llmProviders reach v2 because they land in that row. Workspace-row providers are not mirrored (migrated to global anyway, <code>S/runtime-opencode-config-store.ts:295-330</code>).</p>
+<p><strong>Mapping <code>mapRuntimeProvidersToV2Specs</code> (<code>S/engine-v2-preview.ts:169-253</code>)</strong> — a provider is <strong>skipped</strong> when:
+| Condition | Line |
+|---|---|
+| <code>npm</code> not in {<code>@ai-sdk/openai</code>, <code>@ai-sdk/anthropic</code>, <code>@openrouter/ai-sdk-provider</code>, <code>@ai-sdk/openai-compatible</code>} (e.g. google, bedrock, azure, vertex) | <code>:181-188, 210-215</code> |
+| no <code>options.baseURL</code> and <code>api</code> origin isn't the native adapter's trusted origin (so <code>api</code> alone never works for openai-compatible) | <code>:190-209</code> |
+| <code>@ai-sdk/openai-compatible</code> (or no npm) without <code>options.baseURL</code> | <code>:211-215</code> |
+| <code>env:[...]</code> declared but no key resolvable | <code>:225-228</code> |</p>
+<p><strong>API key delivery</strong> (<code>:216-224</code>): <code>options.apiKey</code> literal wins <strong>unless it contains <code>{env:</code></strong>; else <code>env.json</code> value for <code>selectPrimaryCredentialEnvName(env[], env.json keys)</code> (<code>S/managed-provider-auth.ts:224-237</code>); else provider skipped (or sentinel <code>openwork-engine-v2-preview-unset</code> when <code>env:[]</code>, <code>:39, 245</code>). Key is written literally into <code>settings.apiKey</code> in the generated file (0600) (<code>S/managed-opencode-v2.ts:115-120</code>). <strong>No <code>PUT /auth/:provider</code></strong> for v2; <code>managed-provider-auth.ts</code> is v1-only; the app adapter has no <code>auth.set</code> (grep → none).</p>
+<p><strong>Why <code>{env:</code> is filtered</strong> (<code>:221-223</code> comment): the sidecar doesn't inherit the server env, so <code>{env:X}</code> could never be substituted inside it; and the mirror refuses to resolve arbitrary env names — only the provider's own declared <code>env[]</code> names, from env.json, "never inherit the server environment or copy unrelated secrets into the sidecar" (test <code>S/engine-v2-preview.test.ts:211-222</code>). Net: <code>options.apiKey:"{env:ACKSTORM_API_KEY}"</code> → treated as no explicit key → falls back to env.json lookup by <code>env[]</code> name → works only if <code>env:["ACKSTORM_API_KEY"]</code> is declared and env.json has it.</p>
+<p><strong>Hot rotation</strong>: env.json change or Den <code>/connect</code> re-sync re-mirrors without restart (<code>:563</code>) — v1 needs <code>/auth</code> re-delivery + reload.</p>
+<p><strong><code>OPENCODE_MODELS_URL</code></strong>: yes — <code>resolveOpencodeModelsUrl()</code> (env override → <code>models.openworklabs.com</code>) is passed at spawn (<code>S/engine-v2-preview.ts:529-533</code>; <code>S/managed-opencode-v2.ts:146, 180</code>; <code>S/opencode-models-url.ts:11-17</code>). Boot-fixed <em>(design doc <code>D:238-241</code>)</em>. Still only settable via launcher env.</p>
+<p><strong>Per-model metadata</strong> (<code>S/managed-opencode-v2.ts:88-111</code>) vs v1 passthrough (<code>cloud-provider-sync.ts:223-239</code>):
+| v1 key | v2 |
+|---|---|
+| <code>name</code> | <code>name</code> |
+| <code>id</code> | <code>modelID</code> |
+| <code>tool_call</code> | <code>capabilities.tools</code> (default true) |
+| <code>modalities.input/output</code>, <code>reasoning</code> | <code>capabilities.input/output</code> (+<code>"reasoning"</code> appended) |
+| <code>limit</code> | <code>limit</code> (default <code>{context:128000, output:8192}</code>) |
+| <code>family</code>, <code>options</code>→<code>settings</code>, <code>headers</code>, <code>variants</code>→<code>nativeModelVariants</code> (<code>packages/types/src/cloud-model-fast.ts:45-69</code>), <code>status:"deprecated"</code>→<code>disabled</code> | kept |
+| <code>cost</code>, <code>attachment</code>, <code>temperature</code>, <code>interleaved</code>, <code>release_date</code>, <code>provider</code>; provider <code>whitelist</code>/<code>blacklist</code>, <code>disabled_providers</code>, <code>enabled_providers</code> | <strong>dropped</strong> |</p>
+<p>Provider <code>options</code> minus <code>apiKey/baseURL/headers</code> → <code>settings</code>; <code>headers</code> → provider <code>headers</code> (<code>:216, 243-244</code>).</p>
+<hr />
+<h2 id="3-mcp-in-v2">3. MCP in v2</h2>
+<ul>
+<li>Delivered via <strong>runtime API</strong>, not config: <code>syncWorkspaceMcp(workspaceId, dir)</code> reads the effective (global ⊕ workspace) runtime <code>mcp</code> map, maps with <code>mapRuntimeMcpToV2</code>, <code>DELETE</code> stale then <code>PUT /api/mcp/:name?location[directory]=…</code> <code>{config}</code>, waits for <code>GET /api/mcp</code> status ≠ <code>pending</code> (30 s) + 250 ms ToolsChanged settle (<code>S/engine-v2-preview.ts:361-433</code>). Runs before every non-read proxied request (<code>S/server.ts:922-927</code>) and on any runtime-row write for open locations (<code>:554-561</code>).</li>
+<li><code>mapRuntimeMcpToV2</code> (<code>:286-309</code>): local <code>{type:"local", command[], environment (string map), cwd?}</code>; remote <code>{type:"remote", url http(s), headers, oauth:false|{client_id,client_secret,scope}}</code>; <code>enabled:false</code> → removed; <code>timeout</code> → <code>{startup,catalog,execution}</code>; <code>codemode</code>. Local stdio <code>environment</code> values pass verbatim; no <code>{env:}</code> substitution possible from OpenWork's env (sidecar env is allowlisted).</li>
+<li><code>openwork-cloud</code>: global runtime row entry <code>{type:"remote", url, headers:{Authorization:Bearer}, oauth:false}</code> (unchanged from <code>cloud-mcp-reconciler.ts:194-203</code>) → same PUT path. Also read directly for skills (<code>:341</code>). Connect-readiness for the prompt = <code>GET /api/mcp</code> shows <code>openwork-cloud</code> <code>status.status==="connected"</code> (<code>S/server.ts:1259-1263</code>).</li>
+<li>Cloud-plugin MCP components (workspace row, <code>S/cloud-plugins.ts:559-575</code>) reach v2 through the effective merge (<code>S/runtime-opencode-config-store.ts:281-293</code>). Unlike v1's file render, v2 does <strong>not</strong> filter <code>openwork-connect-*</code> entries (<code>S/openwork-runtime-config.ts:112</code> vs none in <code>syncWorkspaceMcp</code>).</li>
+<li>User <code>opencode.json</code> <code>mcp</code> block: not delivered by OpenWork; engine-side project config loading unverified (§1).</li>
+<li><code>dynamicMcp:yes</code> in Diagnostics is a hardcoded <code>true</code> in the <strong>v1</strong> Cloud-MCP health snapshot (<code>S/cloud-mcp-health.ts:2168</code>) — v1 already pushes MCP dynamically with <code>POST /mcp</code> (<code>S/server.ts:5037-5054</code>). Not a v2 probe. In v2 the app's <code>mcp.status</code> stub returns <code>{}</code> (<code>A/app/lib/opencode-v2-adapter.ts:2151-2153</code>), so the MCP settings view is blind on v2.</li>
+</ul>
+<hr />
+<h2 id="4-skills-in-v2">4. Skills in v2</h2>
+<p>Confirmed: on every <code>POST /api/session/:id/(prompt|command|generate)</code> the proxy (1) <code>syncCloudSkills()</code> = fresh <code>skill://index.json</code> + all <code>SKILL.md</code> via the <code>openwork-cloud</code> MCP (lenient index schema, ≤200 skills, ≤256 KiB each), materialized to <code>&lt;root&gt;/cloud-skills/&lt;scope-hash&gt;/openwork-cloud-&lt;sha16&gt;/SKILL.md</code> with atomic renames, registered via <code>setSkills([dir])</code> → config <code>skills:[dir]</code> (<code>S/cloud-native-skills.ts:82-146, 174-215</code>; <code>S/engine-v2-preview.ts:338-359</code>; <code>S/server.ts:1264-1280</code>); failures fail closed (skills cleared, prompt admitted) (<code>S/cloud-native-skills.ts:274-284</code>). (2) <code>waitForOpenWorkV2Skills</code> polls <code>GET /api/skill</code> until workspace <code>.opencode/skills|skill</code>, <code>.claude/skills</code> bodies and cloud bodies match (5 s) (<code>S/opencode-v2-instructions.ts:65-110</code>; <code>S/server.ts:1281-1286</code>). (3) <code>PUT .../instructions/entries/openwork.context</code> with <code>{operatingInstructions, connect, skillInstructions}</code> (≤7 KiB) replacing the v1 "remote skills via Connect" text with "native skill catalog, ids <code>openwork-cloud-*</code>, do not fetch skills through Connect" (<code>S/opencode-v2-instructions.ts:113-124</code>; <code>S/server.ts:1287-1293</code>).</p>
+<p>Cloud-plugin skills (<code>.opencode/skills/&lt;ns&gt;/&lt;name&gt;/SKILL.md</code>) work: scan is <code>{*.md,**/SKILL.md}</code> under the managed roots (<code>:18-40</code>). Non-owner tokens see only <code>id/name/description/slash</code> for cloud skills (<code>S/server.ts:1310-1325</code>). Lost vs v1: <code>&lt;available_automations&gt;</code> and routing-steering text (no plugin in v2).</p>
+<hr />
+<h2 id="5-plugins-in-v2">5. Plugins in v2</h2>
+<ul>
+<li><code>renderOpencodeV2Config</code> emits <strong>no <code>plugin</code> key</strong>; <code>grep plugin</code> in the three v2 server files → only a comment. OpenWork injects <strong>none</strong> of its v1 plugins (chrome-devtools, capabilities-knowledge, extensions-preview, office/spreadsheet/pdf, anthropic adaptive-thinking/tool-schema, title-recovery; <code>S/openwork-runtime-config.ts:94-107</code>) into v2. Their roles are partly replaced by the native instruction entry (§4) and native skills; app-control tools (<code>openwork_docs_search</code>, <code>openwork_query</code>, extensions tools) do not exist on v2.</li>
+<li>Runtime-row <code>plugin:[...]</code> (local <code>POST /workspace/:id/plugins</code>) is ignored by the mirror (only <code>runtimeProviderMap</code>/<code>runtimeMcpMap</code> are read).</li>
+<li>v2 has a plugin system (<code>PluginSupervisor</code>, <em>design doc <code>D:197-199, 400</code></em>: "Plugin and tool ecosystems differ"), but nothing in OpenWork registers plugins and the private <code>OPENCODE_CONFIG_DIR</code> excludes the user's global config. <strong>A URL plugin like <code>https://platform.ackstorm.ai/public/opencode-auth</code> will not run under v2</strong> through any OpenWork-managed path (project-level config is the only unverified hope, §1). Even if loaded, it would be a v2-API plugin (different hook contract from v1's <code>auth</code>/fetch hooks).</li>
+<li><code>OPENCODE_PURE</code> is explicitly not inherited (<code>S/managed-opencode-v2.ts:160-161</code>).</li>
+</ul>
+<hr />
+<h2 id="6-env-in-v2">6. Env in v2</h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+<th>Cite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Inherits <code>process.env</code>?</td>
+<td>No — allowlist of OS/locale/XDG/cert vars only</td>
+<td><code>S/managed-opencode-v2.ts:147-159</code></td>
+</tr>
+<tr>
+<td>env.json injected?</td>
+<td>Not as env. env.json is read by the mirror solely to resolve provider <code>env[]</code> names into <code>settings.apiKey</code>; env.json changes trigger re-mirror</td>
+<td><code>S/engine-v2-preview.ts:455, 563</code></td>
+</tr>
+<tr>
+<td><code>OPENCODE_ENABLE_EXA</code></td>
+<td>never set (also not in v1)</td>
+<td>grep → none</td>
+</tr>
+<tr>
+<td><code>OPENCODE_MODELS_URL</code></td>
+<td>passed from <code>resolveOpencodeModelsUrl</code></td>
+<td><code>:529-533</code></td>
+</tr>
+<tr>
+<td><code>OPENCODE_CONFIG</code>/<code>OPENCODE_CONFIG_CONTENT</code></td>
+<td>never passed by the preview; <code>OPENCODE_CONFIG_DIR</code> private</td>
+<td><code>:160-162, 179</code></td>
+</tr>
+<tr>
+<td><code>{env:X}</code></td>
+<td>in provider <code>apiKey</code> → ignored (§2); in MCP <code>environment</code> → passed verbatim, cannot resolve from OpenWork env</td>
+<td><code>:223, 298</code></td>
+</tr>
+<tr>
+<td>Sidecar HOME/XDG</td>
+<td>real user HOME (so <code>~/.cache</code>, <code>~/.local/share/opencode</code> etc. are shared with v1), but DB and config dir are private</td>
+<td><code>:150-153, 178-179</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-maturity-gaps">7. Maturity / gaps</h2>
+<p>Gated behind the flag: sidecar start (<code>enabled</code>), and <code>chatRouting</code> which flips the workspace's <code>opencodeBaseUrl</code> to <code>/workspace/:id/opencode2</code> (<code>A/react-app/shell/route-workspaces.ts:56-68</code>, <code>use-workspace-route-state.ts:274, 1308</code>); local workspaces only (<code>:437</code>). Sessions live in the v2 SQLite DB; the app lists whichever engine is routed — hence "sessions stay in that engine's list" (<code>evals/specs/opencode-v2-chat-routing.e2e.test.ts:617-641</code>). No migration wired (v1 importer only mentioned, <em><code>D:364-367</code></em>).</p>
+<p>Enforced on v2: managed desktop policy <code>assertRequest(..., engine=true)</code> strips <code>/opencode2</code> and checks sync/shell/terminal/saved_command/engine_config/extensions/provider/model actions (<code>S/managed-desktop-policy.ts:175-213</code>; mounted at <code>S/server.ts:916</code>); execution rules (<code>commands:deny</code>, <code>blockedCommands</code>, <code>browserOrigins</code> → webfetch/websearch deny) rendered as v2 <code>permissions</code> and refreshed on every config write (<code>S/managed-policy-rules.ts:27-38</code>; <code>S/engine-v2-preview.ts:534</code>; <code>S/managed-opencode-v2.ts:128, 262-269</code>). Permissions and questions (<code>form.*</code>) are bridged (<code>A/app/lib/opencode-v2-adapter.ts:1316-1338, 1639-1660</code>). App-host sessions tag <code>engine:"v2"</code> (<code>S/server.ts:3679-3720</code>).</p>
+<p>Not working / stubbed on v2:
+| Gap | Cite |
+|---|---|
+| session archive, fork, revert, unrevert, summarize, shell, command → 501 <code>UnsupportedInV2Preview</code> | <code>A/app/lib/opencode-v2-adapter.ts:85, 1580-1585, 2015-2016, 2041-2046</code> |
+| <code>config.get</code> <code>{}</code>, <code>app.agents</code> <code>[]</code>, <code>command.list</code> <code>[]</code>, <code>find.files</code> <code>[]</code>, <code>mcp.status</code> <code>{}</code>, <code>todo</code> <code>[]</code> (agents/commands/MCP UI blind) | <code>:1901, 2059-2061, 2117-2124, 2148-2153</code> |
+| Workspace run modes (approve / run-everything) unsupported | <code>S/server.ts:2785-2786, 2844</code> |
+| Skill attachment ambiguous → nothing sent | <code>:1945-1962</code> |
+| No OpenWork plugins → no app-control tools, no Automations catalog, no Connect steering text beyond one line | §5 |
+| Provider adapters limited to 4 npm packages; <code>cost</code>/<code>whitelist</code>/<code>blacklist</code>/<code>disabled_providers</code> dropped | §2 |
+| Beta pin, <code>/api/experimental/*</code> may move, models.dev network need, Basic-auth lifecycle | <em><code>D:388-404</code></em> |
+| Binary downloaded at runtime from npmjs (needs egress) | <code>S/opencode-v2-binary.ts:31</code> |</p>
+<hr />
+<h2 id="8-deliverable-v1-v2-what-changes-for-a-self-hosted-den">8. Deliverable: v1 → v2 → what changes for a self-hosted Den</h2>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>v1</th>
+<th>v2 (preview)</th>
+<th>Self-hosted Den impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Engine process</td>
+<td><code>opencode serve</code>, <code>process.env</code> + env.json, <code>OPENCODE_CONFIG=&lt;runtime&gt;/runtime-opencode-config.json</code>; reload on change</td>
+<td><code>opencode2 serve</code>, allowlisted env, private <code>OPENCODE_CONFIG_DIR</code> + <code>OPENCODE_DB</code>; watched-file hot update</td>
+<td>Nothing to push from Den; same runtime DB row is the source</td>
+</tr>
+<tr>
+<td>User <code>~/.config/opencode/opencode.json</code></td>
+<td>loaded by OpenCode alongside the runtime file</td>
+<td><strong>not loaded</strong> (config dir overridden)</td>
+<td>Users' hand-written <code>provider</code>/<code>plugin</code>/<code>mcp</code> blocks stop applying on v2</td>
+</tr>
+<tr>
+<td>Den llmProviders</td>
+<td>global row → file → <code>PUT /auth/lpr_…</code> → reload</td>
+<td>global row → <code>mapRuntimeProvidersToV2Specs</code> → file; key from <code>options.apiKey</code> or env.json via <code>env[]</code>; no reload</td>
+<td>Works if <code>providerConfig.npm</code> ∈ 4 adapters <strong>and</strong> <code>options.baseURL</code> is set; <code>api</code> alone is skipped. Key still static (env.json/file)</td>
+</tr>
+<tr>
+<td>API key rotation</td>
+<td><code>/connect</code> re-sync → <code>/auth</code> + deferred reload</td>
+<td><code>/connect</code> re-sync → env.json → re-mirror (≈1 s)</td>
+<td>Shorter-lived per-member keys become practical (no reload) — still not per-request</td>
+</tr>
+<tr>
+<td>Catalog URL</td>
+<td><code>OPENCODE_MODELS_URL</code> env only</td>
+<td>same; boot-fixed</td>
+<td>unchanged: launcher env only</td>
+</tr>
+<tr>
+<td>Per-model metadata</td>
+<td>full passthrough</td>
+<td>subset (loses <code>cost</code>, <code>attachment</code>, <code>temperature</code>)</td>
+<td>Cost display/limits behavior differs</td>
+</tr>
+<tr>
+<td>Per-request auth (<code>opencode-auth</code> URL plugin)</td>
+<td>works via user <code>plugin:[...]</code> in global opencode.json</td>
+<td><strong>does not run</strong> (no plugin injection, global config not read)</td>
+<td><strong>Broken on v2</strong>; only static apiKey path exists</td>
+</tr>
+<tr>
+<td>OpenCode plugins via Den</td>
+<td>impossible</td>
+<td>impossible (no <code>plugin</code> key rendered, runtime-row plugins ignored)</td>
+<td>unchanged: no</td>
+</tr>
+<tr>
+<td>Env vars via Den</td>
+<td>only provider <code>env[]</code> names → env.json</td>
+<td>same, and env.json is not even in the sidecar env (only provider key resolution)</td>
+<td><code>ACH_MEMORY_API_KEY</code>-style hacks reach neither the engine env nor MCP <code>environment</code> on v2</td>
+</tr>
+<tr>
+<td>MCP</td>
+<td>file + <code>POST /mcp</code> dynamic; user opencode.json <code>mcp</code> honored</td>
+<td><code>PUT/DELETE /api/mcp/:name</code> per location, from runtime rows only</td>
+<td>Cloud-plugin stdio MCP (<code>command</code>+<code>environment</code>, secrets shared) still works; per-member secrets: only literal <code>environment</code></td>
+</tr>
+<tr>
+<td><code>openwork-cloud</code> MCP</td>
+<td>reconcile → global row → engine</td>
+<td>same row → <code>PUT /api/mcp/openwork-cloud</code></td>
+<td>No Den change; <code>initialize.instructions</code> still injected by engine</td>
+</tr>
+<tr>
+<td>Skills</td>
+<td><code>skill://</code> prompt catalog + Connect hop; cloud-plugin <code>.opencode/skills</code> files</td>
+<td>native: materialized <code>SKILL.md</code> per prompt + <code>.opencode/skills</code> scan</td>
+<td>Den <code>skill://index.json</code> lenient (<code>name,type:"skill-md",url</code>); bodies fetched every prompt (load on Den)</td>
+</tr>
+<tr>
+<td>Policies</td>
+<td>proxy <code>assertRequest</code> + config <code>permission</code></td>
+<td>proxy <code>assertRequest(engine)</code> + config <code>permissions</code></td>
+<td>equivalent; <code>allowCustomProviders</code> still gates model selection at proxy</td>
+</tr>
+<tr>
+<td>Features</td>
+<td>full</td>
+<td>no archive/fork/revert/run-modes/app-control tools/agents+commands UI</td>
+<td>user-facing regressions</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Bottom line for us</strong>: v2 does not unlock any of the previously-impossible items (plugins, env vars, catalog URL, per-request auth). It removes the reload cost for provider/key changes and makes skills native, but it breaks the two things we rely on today (<code>~/.config/opencode/opencode.json</code> providers/plugins and the <code>opencode-auth</code> URL plugin) and narrows provider support to <code>@ai-sdk/openai-compatible</code>-with-<code>options.baseURL</code> + static key.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
