@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.11.0] - 2026-09-19
+
 ### Added
 
 - OpenWork Connect: `POST /v1/mcp/token` mints a 7-day MCP token and
