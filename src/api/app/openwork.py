@@ -3,7 +3,7 @@
 
 The OpenWork desktop app, pointed at this deployment, signs in with the Dex
 session the user already holds and then receives enforced desktop policy and
-ACKstorm branding. See docs/plans/2026-09-18-openwork-den.md for the full
+the deployment's branding. See docs/plans/2026-09-18-openwork-den.md for the full
 contract and the verified protocol traps.
 
 The Den API is served at BOTH /api/den and /openwork/api/den. OpenWork's
@@ -239,6 +239,7 @@ async def handoff_page(request: Request):
         "openwork_handoff.html",
         {
             "brand": settings.openwork_brand_app_name,
+            "logo_url": settings.openwork_brand_logo_url,
             "email": email,
             "deep_link": deep_link,
             "ttl_minutes": settings.openwork_grant_ttl_seconds // 60,
@@ -312,7 +313,7 @@ async def den_desktop_config(request: Request) -> JSONResponse:
         "brandAppName": settings.openwork_brand_app_name,
         "brandAccentColor": settings.openwork_accent_color,
         # Deliberately permissive: allowCustomProviders=False would hide the
-        # ackstorm provider OpenCode loads from its own config, and
+        # provider OpenCode loads from its own config, and
         # allowManageExtensions=False would block installing the auth plugin.
         "allowCustomProviders": True,
         "allowManageExtensions": True,

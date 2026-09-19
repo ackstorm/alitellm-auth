@@ -159,11 +159,11 @@ authServer:
 
 # ── OpenWork organization server (docs/plans/2026-09-18-openwork-den.md) ────
 # Serves the OpenWork desktop's Den contract at <appBaseUrl>/openwork: SSO
-# sign-in, enforced desktop policy, ACKstorm branding. Grants/tokens live in
+# sign-in, enforced desktop policy, the deployment's branding. Grants/tokens live in
 # the AS store, so AS_REDIS_URL must be in the existingSecret (as for authServer).
 openwork:
   enabled: false
-  brandAppName: "ACKstorm Work"
+  brandAppName: "AliteLLM Auth"
   # Empty → <appBaseUrl>/openwork/brand/{logo,icon}.svg (served by the image).
   brandLogoUrl: ""
   brandIconUrl: ""
@@ -172,8 +172,8 @@ openwork:
   # TERMINALS AND SAVED COMMANDS in the desktop (managed-policy-rules.ts:77-78).
   blockedCommands: []
   blockBrowserUploads: false
-  orgName: "ACKstorm"
-  orgSlug: "ackstorm"
+  orgName: "AliteLLM Auth"
+  orgSlug: "alitellm-auth"
   tokenTtlSeconds: 2592000   # 30 d desktop session
   grantTtlSeconds: 300       # one-time sign-in link
 

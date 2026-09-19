@@ -208,7 +208,7 @@ def test_openwork_disabled_by_default():
 
     settings = Settings(**_openwork_base())
     assert settings.openwork_enabled is False
-    assert settings.openwork_brand_app_name == "ACKstorm Work"
+    assert settings.openwork_brand_app_name == "AliteLLM Auth"
     assert settings.openwork_accent_color == "mint"
 
 

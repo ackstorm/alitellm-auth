@@ -137,7 +137,7 @@ def test_grant_exchange_returns_a_session_and_is_single_use():
     body = first.json()
     assert body["token"]
     assert body["user"]["email"] == "dev@ackstorm.com"
-    assert body["organization"]["slug"] == "ackstorm"
+    assert body["organization"]["slug"] == "alitellm-auth"
     assert body["connectEnabled"] is False
 
     # The token works.
@@ -234,11 +234,11 @@ def test_orgs_lists_the_single_organization(den_token_client):
     assert response.status_code == 200
     body = response.json()
     assert len(body["orgs"]) == 1
-    assert body["orgs"][0]["slug"] == "ackstorm"
-    assert body["orgs"][0]["name"] == "ACKstorm"
+    assert body["orgs"][0]["slug"] == "alitellm-auth"
+    assert body["orgs"][0]["name"] == "AliteLLM Auth"
     assert body["orgs"][0]["role"] == "member"
     assert body["activeOrgId"] == body["orgs"][0]["id"]
-    assert body["activeOrgSlug"] == "ackstorm"
+    assert body["activeOrgSlug"] == "alitellm-auth"
 
 
 def test_active_organization_is_acknowledged(den_token_client):
@@ -249,7 +249,7 @@ def test_active_organization_is_acknowledged(den_token_client):
         headers={"authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
-    assert response.json()["activeOrgSlug"] == "ackstorm"
+    assert response.json()["activeOrgSlug"] == "alitellm-auth"
 
 
 def test_resource_snapshot_timestamps_are_byte_stable(den_token_client):
@@ -273,9 +273,9 @@ def test_desktop_config_carries_branding_and_policy(den_token_client):
     response = client.get(DESKTOP_CONFIG, headers={"authorization": f"Bearer {token}"})
     assert response.status_code == 200
     body = response.json()
-    assert body["brandAppName"] == "ACKstorm Work"
+    assert body["brandAppName"] == "AliteLLM Auth"
     assert body["brandAccentColor"] == "mint"
-    # Must stay permissive: false here would hide the ackstorm provider that
+    # Must stay permissive: false here would hide the provider that
     # comes from OpenCode's own config, and block adding the auth plugin.
     assert body["allowCustomProviders"] is True
     assert body["allowManageExtensions"] is True
@@ -432,3 +432,20 @@ def test_root_without_desktop_auth_is_not_intercepted():
 def test_root_routes_untouched_when_openwork_is_disabled():
     response = _client(openwork_enabled=False).get("/?desktopAuth=1", follow_redirects=False)
     assert response.status_code == 404
+
+
+def test_handoff_page_shows_the_configured_brand_and_logo():
+    client = _client(
+        openwork_brand_app_name="Acme Desk", openwork_brand_logo_url="https://x.test/logo.svg"
+    )
+    client.cookies.set(
+        "session",
+        _make_session_cookie(
+            client.app.state.settings.session_secret_key, {"email": "dev@ackstorm.com"}
+        ),
+    )
+    response = client.get(HANDOFF_URL, follow_redirects=False)
+    assert response.status_code == 200
+    assert "Acme Desk" in response.text
+    assert 'src="https://x.test/logo.svg"' in response.text
+    assert "expires in <b>5 min</b>" in response.text

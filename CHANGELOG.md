@@ -2,6 +2,18 @@
 
 ## [unreleased]
 
+### Changed
+
+- OpenWork handoff page redesigned as the console's dark terminal card (green
+  accent, shield-check lockup, primary "Open in OpenWork" button, mono link box
+  with Copy, single-use/expiry footer). It shows `OPENWORK_BRAND_APP_NAME` and,
+  when set, `OPENWORK_BRAND_LOGO_URL`.
+- OpenWork brand defaults are now "AliteLLM Auth" / slug `alitellm-auth`, and the
+  served marks (`/openwork/brand/{logo,icon}.svg`) are the console's shield-check.
+  Customize with `openwork.brandAppName` / `brandLogoUrl` / `brandIconUrl` /
+  `orgName` / `orgSlug` in the chart.
+- The reference Den rig moved to `test/openwork-den/` (`den.mjs`, `smoke.sh`).
+
 ## [0.9.1] - 2026-09-19
 
 ### Fixed

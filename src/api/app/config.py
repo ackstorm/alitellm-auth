@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     # Branding pushed to the desktop. accent must be one of the 22 Radix
     # families OpenWork accepts (packages/types/src/den/desktop-policies.ts:302);
     # anything else is silently dropped by the client.
-    openwork_brand_app_name: str = "ACKstorm Work"
+    openwork_brand_app_name: str = "AliteLLM Auth"
     openwork_brand_logo_url: str = ""
     openwork_brand_icon_url: str = ""
     openwork_accent_color: Literal[
@@ -110,8 +110,8 @@ class Settings(BaseSettings):
     openwork_blocked_commands: list[str] = []
     openwork_block_browser_uploads: bool = False
     # Organization identity shown in the desktop.
-    openwork_org_name: str = "ACKstorm"
-    openwork_org_slug: str = "ackstorm"
+    openwork_org_name: str = "AliteLLM Auth"
+    openwork_org_slug: str = "alitellm-auth"
 
     @property
     def services(self) -> dict[str, dict]:
