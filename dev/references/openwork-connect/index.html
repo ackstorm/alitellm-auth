@@ -1,0 +1,1009 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="OIDC identity + LiteLLM User/VirtualKey provisioning">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Openwork connect - alitellm-auth</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#openwork-connect-cloud-mcp-den-contract-research" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="alitellm-auth" class="md-header__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            alitellm-auth
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Openwork connect
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="alitellm-auth" class="md-nav__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    alitellm-auth
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dex-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dex / OIDC integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-connect-switch-connectenabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. CONNECT SWITCH (connectEnabled)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. CONNECT SWITCH (connectEnabled)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-it-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where it comes from
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-app-does-with-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the app does with it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-local-server-does-with-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the local server does with it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-cloud-mcp-contract-den-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. CLOUD MCP CONTRACT (Den side)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. CLOUD MCP CONTRACT (Den side)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-token-mint-post-v1mcptoken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Token mint — POST /v1/mcp/token
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-endpoint-url-derivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Endpoint URL derivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-transport-requirements-what-the-endpoint-must-speak" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Transport requirements (what the endpoint must speak)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-app-wiring-into-every-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 App wiring into every workspace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-health-usable-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Health / "usable" criteria
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-capabilities-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. CAPABILITIES MODEL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. CAPABILITIES MODEL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-tools-hosted-reference-eeappsden-apisrcmcpagentts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Tools (hosted reference, ee/apps/den-api/src/mcp/agent.ts)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-capabilitymatch-schema-mcpsearchts23-49-agentts144-165" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 CapabilityMatch schema (mcp/search.ts:23-49, agent.ts:144-165)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-resources-the-desktop-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Resources the desktop reads
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-how-the-prompt-uses-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 How the prompt uses them
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-related-den-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. RELATED DEN ENDPOINTS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-native-skills-push-cloud-native-skillsts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. NATIVE SKILLS PUSH (cloud-native-skills.ts)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-cheapest-useful-subset-per-goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. CHEAPEST USEFUL SUBSET PER GOAL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reconciliation-of-denmjs-with-the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconciliation of den.mjs with the code
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!-- Research report, 2026-09-19, from the OpenWork source (apps/server, apps/app, ee/apps/den-api)
+     and test/openwork-den/den.mjs. Read before implementing Connect / Cloud MCP in app/openwork.py. -->
+
+<h1 id="openwork-connect-cloud-mcp-den-contract-research">OpenWork Connect / Cloud MCP — Den contract research</h1>
+<p>Sources: <code>/home/jcm/Projects/openwork</code> (server + app + <code>ee/apps/den-api</code>), reference Den <code>/home/jcm/Projects/alitellm-auth/test/openwork-den/den.mjs</code>, current Den <code>/home/jcm/Projects/alitellm-auth/src/api/app/openwork.py</code>.</p>
+<hr />
+<h2 id="1-connect-switch-connectenabled">1. CONNECT SWITCH (<code>connectEnabled</code>)</h2>
+<h3 id="where-it-comes-from">Where it comes from</h3>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>File:line</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Den <code>GET /v1/me/desktop-config</code></td>
+<td><code>packages/types/src/den/desktop-policies.ts:342</code>, normalized <code>:733-748</code></td>
+<td>optional boolean; absent = "no org policy"</td>
+</tr>
+<tr>
+<td>Den <code>POST /v1/auth/desktop-handoff/exchange</code> <code>connectEnabled</code></td>
+<td><code>apps/app/src/app/lib/den.ts:1856-1861</code>, <code>den-handoff.ts:332-335</code>, <code>den.ts:1516-1530</code></td>
+<td>seeds the cached desktop-config before the first config fetch</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-the-app-does-with-it">What the app does with it</h3>
+<ul>
+<li><code>desktop-config-provider.tsx:95-97</code> <code>resolveConnectStateToPush</code> → <code>null</code> if not boolean → <code>reconciler.setDesired(null)</code> (<code>:484-490</code>), i.e. <strong>nothing is pushed</strong>.</li>
+<li>Otherwise <code>connect-policy-reconciler.ts</code> issues <code>PUT /experimental/connect/state {connectEnabled}</code> on the local OpenWork server (<code>desktop-config-provider.tsx:106-123</code>, <code>openwork-server.ts:1666</code>), re-applied per runtime generation.</li>
+<li>UI: <code>agent-access-card.tsx:141-142</code> → <code>openwork-connect-status.ts:14-52</code> shows "Disabled" summary in Settings → Connect when <code>false</code>. Diagnostics report shows it (<code>agent-context-diagnostics-report.tsx:598</code>). <code>useConnectEnabled()</code> (<code>desktop-config-provider.tsx:558</code>) has <strong>no other consumer</strong>.</li>
+<li><strong>It does not gate the Cloud MCP loop.</strong> <code>useSessionMcpMaintenance</code> (<code>use-session-mcp-maintenance.ts:413-580</code>) and <code>syncCloudControlMcpInBackground</code> (<code>:217-311</code>) run whenever signed in + org + workspace; the only skips are signed_out / missing_org / an existing <code>openwork-cloud</code> entry with <code>enabled:false</code> / a recorded user "disabled" intent (<code>:265-277</code>, <code>cloud-mcp-reconciler.ts:259-274</code>). So the desktop calls <code>POST /v1/mcp/token</code> regardless of <code>connectEnabled:false</code>.</li>
+</ul>
+<h3 id="what-the-local-server-does-with-it">What the local server does with it</h3>
+<ul>
+<li><code>routes/core.ts:298-306</code> → <code>writeConnectState</code> → <code>&lt;runtime&gt;/connect-state.json</code> (<code>connect-state.ts:22, 87-89, 170-177</code>). File also holds <code>cloudMcp</code> (host-level copy of the <code>openwork-cloud</code> MCP config, <code>:31-37</code>).</li>
+<li><code>getConnectSnapshot</code> (<code>connect-state.ts:286-299</code>): <code>connectEnabled</code>, <strong><code>connectCatalogEnabled: state.connectEnabled</code></strong> (<code>:294</code>, same at <code>:322</code>) — "connect catalog enabled" is literally the same switch; <code>cloudMcpPresent = cloudHealth.usable === true</code>.</li>
+<li>Consumers of the snapshot:</li>
+<li><code>GET /experimental/connect/state</code> (<code>core.ts:268-274</code>) → steering plugin <code>openwork-extensions-preview-steering.ts:275-302</code>; <code>composeOpenWorkExtensionDiscoveryInstruction</code> (<code>:332-344</code>): <code>connectCatalogEnabled</code> is consulted <strong>only when there is no cloudHealth</strong>: <code>false</code> → plain <code>OPENWORK_EXTENSION_DISCOVERY_INSTRUCTION</code>, <code>true</code> → <code>OPENWORK_CONNECT_SIGN_IN_INSTRUCTION</code> ("direct the user to sign in… Settings → Connect"). If the engine reports an <code>openwork-cloud</code> MCP status, that wins outright (<code>:372-383</code>, <code>:346-351</code>).</li>
+<li>Diagnostics <code>expectedConnectBranch</code> (<code>agent-context-diagnostics.ts:261-268</code>): <code>"extensions-only"</code> when catalog disabled and no health.</li>
+<li><code>POST /experimental/extensions/call</code> (<code>core.ts:322</code> → <code>extensions/index.ts:52-53</code>) uses <code>cloudHealth</code> only.</li>
+<li><strong>Not consulted at all</strong> by <code>connect-automation-catalog.ts</code>, <code>connect-skill-catalog.ts</code>, <code>cloud-native-skills.ts</code>, <code>engine-v2-preview.ts</code> (reads global runtime <code>openwork-cloud</code>, <code>:341</code>), or <code>mcp.ts</code> (only deny-diagnostics tool ids <code>:26-28, :76</code>). They read whichever <code>openwork-cloud</code> config exists (global runtime row → connect-state <code>cloudMcp</code> → per-workspace rows; <code>connect-skill-catalog.ts:75-83</code>, <code>connect-automation-catalog.ts:82-90</code>).</li>
+<li>Separate <code>connectCatalogEnabled</code> inside Cloud MCP health (<code>cloud-mcp-health.ts:662, 2301</code>) comes from the <strong>reconcile body</strong>, defaulting <code>true</code> (<code>cloud-mcp-reconciler.ts:210</code>); nothing wires desktop-config into it. Shown as "Safe capabilities: schema v1; connect catalog enabled" (<code>advanced-view-sections.tsx:461</code>) — "schema v1" is just <code>CloudMcpHealth.schemaVersion: 1</code> (<code>cloud-mcp-health.ts:2297</code>); there is no separate "safe capabilities schema" document.</li>
+</ul>
+<p><strong>Net:</strong> <code>connectEnabled</code> is a prompt-steering + Settings-label switch. Setting it <code>false</code> makes the agent stop telling users to sign in to Connect, nothing more.</p>
+<hr />
+<h2 id="2-cloud-mcp-contract-den-side">2. CLOUD MCP CONTRACT (Den side)</h2>
+<h3 id="21-token-mint-post-v1mcptoken">2.1 Token mint — <code>POST /v1/mcp/token</code></h3>
+<p>Client: <code>den.ts:3164-3176</code>, <code>mintCloudControlMcpToken:3661-3673</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Headers</td>
+<td><code>Authorization: Bearer &lt;session token&gt;</code>, <code>x-openwork-org-id</code>, <code>x-openwork-legacy-org-id</code> (<code>den.ts:84-85</code>, <code>:2884-2900</code>), <code>credentials: include</code></td>
+</tr>
+<tr>
+<td>Body</td>
+<td><code>{"scopes":["mcp:read","mcp:write"]}</code></td>
+</tr>
+<tr>
+<td>Response (required, <code>parseDenMcpToken</code> <code>den.ts:2039-2061</code>)</td>
+<td><code>token</code> string, <code>expiresAt</code> ISO string, <code>organizationId</code> string, <code>resource</code> string; optional <code>scopes[]</code>, <code>appHostToken</code>+<code>appHostExpiresAt</code> (both strings, else ignored)</td>
+</tr>
+<tr>
+<td>Failure</td>
+<td>missing field → <code>DenApiError 500 invalid_mcp_token_payload</code>; HTTP 404 → maintenance <code>failed</code>, non-retryable (<code>use-session-mcp-maintenance.ts:110-123</code>) → badge "Needs attention"</td>
+</tr>
+<tr>
+<td>Hosted reference</td>
+<td><code>ee/apps/den-api/src/routes/mcp/index.ts:38-50, 88-133</code>; TTL 7 days (<code>mcp/token-lifetime.ts:24</code>); <code>resource</code> = <code>&lt;origin&gt;/mcp</code> or <code>&lt;origin&gt;/api/den/mcp</code> behind the web proxy (<code>mcp/resource.ts:34-45, 102-112</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Token metadata (<code>organizationId</code>, <code>expiresAt</code>, <code>resource</code>, <code>scopes</code>) is echoed into the local reconcile payload (<code>cloud-mcp-reconciler.ts:155-162</code>); <code>organizationId</code> must equal the active org id or health fails <code>cloud_token_org_mismatch</code> (<code>cloud-mcp-health.ts:828-839</code>). Refresh margin 24 h before <code>expiresAt</code> (<code>use-session-mcp-maintenance.ts:35</code>); maintenance ticks every 5 min / on focus / online (<code>:33, 552-558</code>).</p>
+<h3 id="22-endpoint-url-derivation">2.2 Endpoint URL derivation</h3>
+<p><code>resolveMcpUrl</code> (<code>cloud-mcp-reconciler.ts:179-184</code>): <code>url = resolveCloudMcpResourceUrl(token.resource) + "/agent"</code> (<code>den.ts:916-931</code> only heals hosted web-app origins). Server-side <code>normalizeCloudEndpointUrl</code> requires http(s), no query/hash, path ending <code>/mcp/agent</code> (<code>cloud-mcp-health.ts:681-698</code>, error <code>cloud_endpoint_invalid</code> <code>:791-802</code>). So <code>resource</code> <strong>must</strong> end in <code>/mcp</code> (e.g. <code>https://den/api/den/mcp</code> → <code>https://den/api/den/mcp/agent</code>).</p>
+<p>The registered OpenCode entry (<code>cloud-mcp-reconciler.ts:194-203</code>): <code>{type:"remote", enabled:true, url, headers:{Authorization:"Bearer &lt;token&gt;"}, oauth:false}</code> — <code>oauth</code> must be <code>false</code> (<code>cloud-mcp-health.ts:816-826</code>). Persisted as <strong>global</strong> runtime MCP <code>openwork-cloud</code> (<code>:2362-2366</code>) and fanned out to every workspace when changed (<code>:2519-2534</code>). Global persistence by non-owner requires a trusted origin: built-in, loopback, or the <strong>activated enterprise Den origin</strong> (<code>:727-745</code>, <code>enterprise-den-origin.ts</code>).</p>
+<h3 id="23-transport-requirements-what-the-endpoint-must-speak">2.3 Transport requirements (what the endpoint must speak)</h3>
+<p>Two independent clients hit it: the OpenCode engine (MCP SDK; authoritative for "connected") and the OpenWork server's own probes.</p>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Where enforced</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code> JSON-RPC, <code>Accept: application/json, text/event-stream</code>; reply JSON <strong>or</strong> SSE (<code>data:</code> frames, first frame matching request id)</td>
+<td><code>connect-mcp-transport.ts:21-69, 77-86</code>; <code>cloud-mcp-health.ts:1221</code></td>
+</tr>
+<tr>
+<td><code>initialize</code> result <code>protocolVersion</code> ∈ {<code>2025-06-18</code>, <code>2025-03-26</code>} (discovery client hard-fails otherwise); health probe reads <code>mcp-protocol-version</code> response header or result field</td>
+<td><code>connect-mcp-transport.ts:118-120</code>; <code>cloud-mcp-health.ts:1462-1465</code></td>
+</tr>
+<tr>
+<td>optional <code>mcp-session-id</code> response header is echoed back</td>
+<td><code>connect-mcp-transport.ts:121-127</code>; <code>cloud-mcp-health.ts:1466-1470</code></td>
+</tr>
+<tr>
+<td><code>notifications/initialized</code> → <strong>HTTP 202 with empty body</strong> (status !== 202 or any body → reader returns null)</td>
+<td><code>connect-mcp-transport.ts:128-129</code></td>
+</tr>
+<tr>
+<td><code>tools/list</code> must contain <code>search_capabilities</code> and <code>execute_capability</code> (engine projects them as <code>openwork-cloud_search_capabilities</code> / <code>openwork-cloud_execute_capability</code>)</td>
+<td><code>cloud-mcp-health.ts:24-31, 1042-1052, 1482-1510</code></td>
+</tr>
+<tr>
+<td>401 → <code>invalid_mcp_token</code> (triggers silent re-mint); 403 → <code>wrong_mcp_resource</code></td>
+<td><code>cloud-mcp-health.ts:1264-1288</code>; remint logic <code>cloud-mcp-reconciler.ts:219-257, 386-392</code></td>
+</tr>
+<tr>
+<td><code>resources/read</code> result <code>contents[]</code> entry with <code>uri</code> <strong>identical</strong> to the request and string <code>text</code></td>
+<td><code>connect-mcp-transport.ts:139-144</code></td>
+</tr>
+<tr>
+<td><code>GET</code> (standalone SSE): hosted Den returns <strong>405 <code>Allow: POST</code></strong> (<code>ee/.../mcp/standalone-sse.ts</code>; 204 is explicitly unsafe with the SDK). An open keep-alive SSE stream (den.mjs) also works.</td>
+<td><code>ee/apps/den-api/src/mcp/agent.ts:407-409</code></td>
+</tr>
+<tr>
+<td>Probe timeout 5 s per request</td>
+<td><code>connect-mcp-transport.ts:82</code>; <code>cloud-mcp-health.ts:38-40</code></td>
+</tr>
+<tr>
+<td><code>initialize</code> result <code>instructions</code> — OpenCode injects it into the system prompt; the steering text relies on it for the "Connect contract"</td>
+<td><code>openwork-extensions-preview-steering.ts:145-154</code>; hosted text <code>agent.ts:174-192, 302-314</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="24-app-wiring-into-every-workspace">2.4 App wiring into every workspace</h3>
+<ul>
+<li><code>useSessionMcpMaintenance</code> (<code>use-session-mcp-maintenance.ts:413-580</code>) per active workspace → <code>syncCloudControlMcpInBackground</code> → <code>runOpenworkCloudMcpReconciler(mode:"repair", probe:true)</code> (<code>cloud-mcp-reconciler.ts:339-426</code>): health first; if not usable/expired → mint → <code>POST /workspace/:id/mcp/openwork-cloud/reconcile</code> (<code>routes/cloud-mcp.ts:151</code>) with payload from <code>buildOpenworkCloudMcpReconcilePayload</code> (<code>:186-217</code>).</li>
+<li>Server <code>reconcileOpenworkCloudMcp</code> (<code>cloud-mcp-health.ts:2480-2611</code>): validate → persist global desired → fan-out → private App-host catalog (<code>reconcileConnectMcpCatalog</code>) → register MCP in engine → poll <code>connected</code> → health.</li>
+<li>Retries <code>[1s,3s,10s,30s,60s]</code> only if <code>issue.retryable</code> (<code>:38, 346-386</code>).</li>
+</ul>
+<h3 id="25-health-usable-criteria">2.5 Health / "usable" criteria</h3>
+<p><code>usable = firstFailure === null</code> (<code>cloud-mcp-health.ts:2299</code>). Failures accumulate from: desired config present + strictly valid (<code>:2216-2228, 767-855</code>), workspace directory + engine base URL (<code>:2229-2246</code>), no tool denies (<code>:2247-2248</code>, <code>mcp.ts:76</code>), engine MCP status <code>connected</code> (<code>:1929-1943</code>), engine tool ids include both prefixed tools (<code>:1962</code>), direct probe ok (only when <code>probe:true</code>; a transport-level failure is diagnostic only, <code>:1977-1982, 1511-1524</code>), provider projection (<code>:1987-1996</code>), <strong>plugin canaries</strong>.</p>
+<p><strong>Plugin canaries</strong> <code>openwork_docs_search</code>, <code>openwork_query</code> (<code>:32-35, 1963, 1998-2007</code>) are tools provided by the <strong>local</strong> OpenWork OpenCode plugins (<code>opencode-plugins/openwork-capabilities-knowledge.ts:218</code>, <code>openwork-extensions-preview.ts:1354</code>), not by the Den. Missing → <code>extensions_plugin_missing</code> (retryable: reload engine). Nothing for a Den to serve.</p>
+<p><code>usableByCurrentModel</code> (<code>:2127-2132</code>) = provider projection of the two tool ids for the selected model.</p>
+<hr />
+<h2 id="3-capabilities-model">3. CAPABILITIES MODEL</h2>
+<h3 id="31-tools-hosted-reference-eeappsden-apisrcmcpagentts">3.1 Tools (hosted reference, <code>ee/apps/den-api/src/mcp/agent.ts</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Input (<code>:552-557</code>, <code>:583-589</code>)</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>search_capabilities</code> (readOnly annotations <code>:118-123</code>)</td>
+<td><code>query</code> (req), <code>limit</code> 1–20 (def 5), <code>type</code> ∈ all/api/admin/mcp/marketplace/skills/connectors, <code>intent</code> ∈ discover/connect</td>
+<td><code>{ matches: CapabilityMatch[], hint?, connectionAction?, connectorCatalog? }</code> as text JSON + <code>structuredContent</code> (<code>:240-256</code>, schema <code>:144-172</code>)</td>
+</tr>
+<tr>
+<td><code>execute_capability</code> (destructive annotations <code>:124-129</code>)</td>
+<td><code>name</code> (exact match name), <code>schemaDigest?</code> (<code>sha256:&lt;64hex&gt;</code>), <code>path?</code>, <code>query?</code>, <code>body?</code></td>
+<td>tool result; skill capabilities return the SKILL.md text (<code>:578</code>); errors <code>unknown_capability</code>, <code>invalid_capability_arguments</code>, <code>needs_connection</code>/<code>connection_not_connected</code>, <code>capability_timeout</code> (180 s <code>:116, 258-267</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="32-capabilitymatch-schema-mcpsearchts23-49-agentts144-165">3.2 CapabilityMatch schema (<code>mcp/search.ts:23-49</code>, <code>agent.ts:144-165</code>)</h3>
+<p><code>name, method, path, score, summary, pathParams[], queryParams[], hasBody, bodySchema?, querySchema?, outputSchema?, argumentsSchema?, schemaDigest?, invocation?:{argumentsField:"body"}, kind?, mcpApp?:{resourceUri}, status?, hint?, connectionStatus?, scriptPath?</code>.</p>
+<p><code>kind</code> values in the hosted registry: <code>native</code>, <code>admin</code>, <code>catalog</code>, <code>marketplace</code> (Workflows appear as marketplace with kind <code>workflow</code> per description <code>:545</code>), <code>skill</code>, <code>mcp_app</code>, <code>connection_status</code>, <code>remote_session</code> (grep across <code>capability-registry.ts</code>, <code>marketplace-capabilities.ts</code>, <code>external-capabilities.ts</code>, <code>native-capabilities.ts</code>, <code>builtin-skills.ts</code>, <code>remote-session-capabilities.ts</code>). Name namespaces: native <code>&lt;connector&gt;:…</code>, external MCP <code>mcp:&lt;connectionId&gt;:&lt;tool&gt;</code> (<code>:190</code>), skills <code>skill:&lt;name&gt;</code> (<code>builtin-skills.ts:10</code>), marketplace <code>plugin:&lt;pluginId&gt;:&lt;configObjectId&gt;</code> (<code>marketplace-capabilities.ts:272-275</code>; regex in <code>connect-skill-catalog.ts:29</code>).</p>
+<h3 id="33-resources-the-desktop-reads">3.3 Resources the desktop reads</h3>
+<table>
+<thead>
+<tr>
+<th>URI</th>
+<th>Reader</th>
+<th>Schema</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>skill://index.json</code></td>
+<td>v1 prompt catalog <code>connect-skill-catalog.ts:15-31, 42-51</code> (<strong>strict</strong>: <code>$schema</code> = <code>https://schemas.agentskills.io/discovery/0.2.0/schema.json</code>, <code>skills[].name</code> kebab-case ≤64, <code>type:"skill-md"</code>, <code>description</code> ≤1024 req, <code>url</code> <code>skill://…</code>, <code>capability</code> <code>skill:x</code> or <code>plugin:a:b</code>, optional <code>title/marketplaceName/pluginName</code>); v2 native sync <code>cloud-native-skills.ts:82-88</code> (<strong>lenient</strong>: <code>name</code>, <code>type</code>, <code>url</code> only)</td>
+<td>hosted builder <code>agent.ts:210-227</code></td>
+</tr>
+<tr>
+<td><code>skill://&lt;name&gt;/SKILL.md</code></td>
+<td><code>cloud-native-skills.ts:130-143</code> (≤256 KiB, ≤200 skills)</td>
+<td>markdown with <code>name:</code>/<code>description:</code> frontmatter (<code>agent.ts:229-232</code>)</td>
+</tr>
+<tr>
+<td><code>automation://index.json</code></td>
+<td><code>connect-automation-catalog.ts:11, 28-44</code> (<code>fetchedAt, total, omitted, automations[{id,name,state,schedule{kind:once/daily/weekly,…},nextDueAt,latestRun}]</code>)</td>
+<td>hosted <code>mcp/automation-index.ts</code></td>
+</tr>
+<tr>
+<td><code>openwork://connect/mcp-servers/index.json</code></td>
+<td><code>connect-mcp-server-catalog.ts:16-50</code> (<code>schemaVersion:"openwork.connect/mcp-servers/1"</code>, <code>servers[{connectionId,name,description,url,exposeDirectly}]</code>), requires <code>appHostToken</code> + header <code>x-openwork-mcp-client-capabilities: mcp-app-host-v1</code> (<code>:26-27, 331-338</code>) and a <strong>trusted origin</strong> (built-in, loopback in dev mode, or activated enterprise Den <code>:171-184</code>)</td>
+<td>hosted <code>mcp/connect-mcp-server-index.ts</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="34-how-the-prompt-uses-them">3.4 How the prompt uses them</h3>
+<ul>
+<li>Base prompt "## Connected work" (<code>apps/server/src/openwork-agent-prompt.ts:45-47</code>): discover with <code>openwork-cloud_search_capabilities</code>, run with <code>openwork-cloud_execute_capability</code> using exact returned name.</li>
+<li>Per-request <code>experimental.chat.system.transform</code> (<code>openwork-extensions-preview.ts:1301-1334</code>) appends: routing steering (ready / sign-in / disabled / extensions-only, <code>steering.ts:136-160</code>), skill-authoring mode (cloud vs local, <code>:353-361</code>), <code>&lt;available_remote_skills&gt;</code> (<code>connect-skill-catalog.ts:149-191</code>: "call openwork-cloud_execute_capability with { name: <capability> }… read the returned SKILL.md"), <code>&lt;available_automations&gt;</code> (<code>connect-automation-catalog.ts:124-158</code>).</li>
+<li>Engine v2 preview (off by default, <code>engine-v2-preview.ts:87-95, 114-128</code>) replaces "remote skills" text with native skills (<code>opencode-v2-instructions.ts:113-127</code>) and materializes <code>skill://</code> bodies into <code>&lt;runtime&gt;/cloud-skills/&lt;scope&gt;/openwork-cloud-&lt;hash&gt;/SKILL.md</code> on every prompt admission (<code>server.ts:1265-1286</code>, <code>cloud-native-skills.ts:174-215</code>).</li>
+</ul>
+<hr />
+<h2 id="4-related-den-endpoints">4. RELATED DEN ENDPOINTS</h2>
+<p>All parsed in <code>apps/app/src/app/lib/den.ts</code>; all sent with Bearer + <code>x-openwork-org-id</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Desktop use</th>
+<th>Minimal payload (parser)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /v1/mcp-connections?scope=usable</code></td>
+<td>Connection cards/OAuth reconnect in chat &amp; dashboard (<code>session-surface.tsx:3089</code>, <code>dashboard-connection-card.tsx:32</code>, <code>cloud-inventory-cache.ts:118</code>, <code>use-org-mcp-connections.ts:286</code>)</td>
+<td><code>{connections:[{id,name,url,authType:oauth\|apikey\|none,credentialMode:shared\|per_member,exposeDirectly?,connected?,connectedAt?,connectedForMe?,…}]}</code> (<code>:2131-2175</code>)</td>
+</tr>
+<tr>
+<td><code>GET /v1/mcp-connections/presets</code></td>
+<td>Settings → MCP quick-add list (<code>mcp-view.tsx:507</code>)</td>
+<td><code>{presets:[{presetId,displayName,description,url,authType}]}</code> (<code>:2177-2207</code>)</td>
+</tr>
+<tr>
+<td><code>POST /v1/mcp-connections/:id/connect/start</code>, <code>…/disconnect-my-account</code>, <code>POST /v1/oauth-providers/:id/disconnect</code></td>
+<td>per-member OAuth (<code>:3484-3510</code>)</td>
+<td><code>{status:"connected"\|"needs_auth", authorizeUrl}</code> (<code>:2209-2221</code>)</td>
+</tr>
+<tr>
+<td><code>GET /v1/me/library</code></td>
+<td>Connect capability inventory in composer (<code>connect-capability-inventory.ts:236</code>), extensions store (<code>extensions-store.ts:2304</code>)</td>
+<td><code>{items:[{type:"plugin",id,name,description?}]}</code> (<code>:2703-2715</code>)</td>
+</tr>
+<tr>
+<td><code>GET /v1/marketplaces?status=active&amp;limit=100</code></td>
+<td>same inventory + Library "add item" + onboarding (<code>connect-capability-inventory.ts:254</code>, <code>add-library-item-modal.tsx:315</code>, <code>org-onboarding-page.tsx:619</code>)</td>
+<td><code>{items:[{id,name,description?,status?,pluginCount?,updatedAt?}]}</code> (<code>:2625-2656</code>)</td>
+</tr>
+<tr>
+<td><code>GET /v1/resources/marketplace-capabilities</code></td>
+<td>which marketplace skills/plugins are assigned to me (<code>connect-capability-inventory.ts:235</code>)</td>
+<td><code>{items:[{configObjectId,marketplaceId\|null,objectType,pluginId}]}</code> (<code>:2681-2701</code>)</td>
+</tr>
+<tr>
+<td><code>GET /v1/marketplaces/:id/resolved</code>, <code>GET /v1/plugins/:id/resolved</code></td>
+<td>plugin/file listing for cloud plugin import</td>
+<td><code>{item:{marketplace,plugins:[…]}}</code>, <code>{items:[memberships]}</code> (<code>:2658-2679</code>)</td>
+</tr>
+<tr>
+<td><code>GET /v1/resources</code></td>
+<td><code>desktop-cloud-sync.ts:112-117</code> → <code>POST /workspace/:id/desktop-cloud-sync</code> diff of installed cloud plugins vs timestamps (<code>apps/server/src/desktop-cloud-sync.ts</code>)</td>
+<td><code>{organizationId,orgMemberId,teamIds[],resources:{llmProviders:{[id]:isoTs},marketplaces:{[id]:{lastUpdatedAt,plugins:[{pluginId,lastUpdatedAt,configItems:[{configItemId,lastUpdatedAt}]}]}}}}</code> (<code>:658-675</code>; <code>organizationId</code>, <code>orgMemberId</code>, <code>resources</code> required)</td>
+</tr>
+<tr>
+<td><code>GET /v1/automations?limit=100</code> (+CRUD, <code>/run</code>, <code>/runs</code>, <code>/v1/automation-runs/:id</code>)</td>
+<td>Automations page + session route (<code>automations-page.tsx:177</code>, <code>session-route.tsx:438</code>)</td>
+<td><code>AutomationList</code> (<code>packages/types/src/automations.ts:474</code>): <code>{items:[{automation,revision,latestRun}],nextCursor}</code> — empty <code>{items:[],nextCursor:null}</code> works</td>
+</tr>
+<tr>
+<td><code>POST /v1/cloud-automations</code></td>
+<td>web "run in cloud" creation only (<code>den.ts:3340-3350</code>)</td>
+<td><code>AutomationDetail</code></td>
+</tr>
+<tr>
+<td><code>GET /v1/workers</code>, <code>POST /v1/workers/:id/tokens</code>, <code>/v1/cloud/instance*</code></td>
+<td>hosted OpenWork Web / cloud workspace overlay (<code>cloud-workspace-overlay.tsx:195</code>) — not Connect</td>
+<td>skip</td>
+</tr>
+<tr>
+<td>skills sync</td>
+<td><strong>no REST endpoint</strong>; skills travel through the MCP resources (§3.3/§5)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-native-skills-push-cloud-native-skillsts">5. NATIVE SKILLS PUSH (<code>cloud-native-skills.ts</code>)</h2>
+<p>Path: MCP resources, not a Den REST route.
+1. <code>fetchCloudNativeSkills</code> (<code>:95-146</code>) opens one Streamable-HTTP session (<code>openMcpResourceReader</code>, <code>connect-mcp-transport.ts:99-146</code>) against the <strong>global</strong> <code>openwork-cloud</code> config (<code>engine-v2-preview.ts:341</code>), reads <code>skill://index.json</code> (≤1 MiB), keeps entries with <code>type:"skill-md"</code>, dedupes URLs, then reads each <code>url</code> via <code>resources/read</code> (4 concurrent, ≤256 KiB each). Any failure throws a <code>CloudNativeSkillSyncError</code> code (<code>:23-31</code>) and the registry is <strong>cleared</strong> (fail closed, <code>:274-284</code>).
+2. <code>materializeCloudNativeSkills</code> (<code>:174-215</code>): <code>&lt;runtime&gt;/cloud-skills/&lt;sha256(url+Authorization)[:16]&gt;/openwork-cloud-&lt;sha256(uri)[:16]&gt;/SKILL.md</code>, 0600/0700, atomic renames; scope dir registered in the engine's <code>skills</code> config list (<code>engine-v2-preview.ts:338-347</code>).
+3. Triggered on every prompt admission (<code>server.ts:1265-1286</code>); config change invalidates scope (<code>engine-v2-preview.ts:549-553</code>).
+4. Requires <code>OPENWORK_ENGINE_V2_PREVIEW=1|chat|sidecar</code> or persisted preview state (<code>engine-v2-preview.ts:87-95</code>). Default desktop = v1 → skills reach the agent only via the <code>&lt;available_remote_skills&gt;</code> prompt block + <code>execute_capability</code> (strict index schema, §3.3).</p>
+<p>Payload shape (lenient): <code>{"skills":[{"name":"&lt;≤64&gt;","type":"skill-md","url":"skill://&lt;name&gt;/SKILL.md"}]}</code>; body = markdown text returned under the exact <code>uri</code>.</p>
+<hr />
+<h2 id="6-cheapest-useful-subset-per-goal">6. CHEAPEST USEFUL SUBSET PER GOAL</h2>
+<p>Prerequisite for every goal: <code>POST /v1/mcp/token</code> returning <code>{token, expiresAt, organizationId(=active org), scopes, resource:"&lt;origin&gt;/api/den/mcp"}</code> and an MCP endpoint at <code>&lt;resource&gt;/agent</code> that passes §2.3 (initialize with <code>protocolVersion:"2025-06-18"</code> + <code>instructions</code>, 202 on <code>notifications/initialized</code>, <code>tools/list</code> with <code>search_capabilities</code> + <code>execute_capability</code>, 401 on bad bearer). Den origin must be the activated enterprise origin or loopback for global persistence (<code>cloud-mcp-health.ts:727-745</code>).</p>
+<p><strong>(c) Green badge</strong> — exactly the prerequisite. Badge = <code>resolveOpenWorkConnectStatus</code> on maintenance state <code>ready</code> (<code>openwork-connect-status.ts:81-87</code>), which needs <code>health.usable</code> (<code>use-session-mcp-maintenance.ts:312-318</code>). Stub tools returning empty <code>matches</code> are enough. Also set <code>connectEnabled:true</code> (or omit) so Settings → Connect doesn't label it "Disabled" and the steering picks the "ready" branch.</p>
+<p><strong>(a) Push corporate skills</strong>
+- Serve <code>resources/read</code> for <code>skill://index.json</code> + one <code>skill://&lt;name&gt;/SKILL.md</code> per skill.
+- For default (v1) desktops the index must satisfy <code>connect-skill-catalog.ts:19-31</code> (<code>$schema</code>, <code>description</code>, <code>capability:"skill:&lt;name&gt;"</code>), <strong>and</strong> <code>execute_capability {name:"skill:&lt;name&gt;"}</code> must return the SKILL.md text (<code>agent.ts:578</code>, <code>capability-registry.ts:662-669</code>). Optionally <code>search_capabilities</code> with <code>type:"skills"</code> returning <code>{name:"skill:&lt;name&gt;", kind:"skill", summary, method:"", path:"", pathParams:[], queryParams:[], hasBody:false}</code>.
+- v2-preview desktops need only the lenient index (§5).</p>
+<p><strong>(b) Expose own MCP servers (ach-memory, LiteLLM /mcp)</strong> — two options:
+1. <em>Direct exposure</em> (native OpenCode MCP entries, tools called directly by the model): <code>openwork://connect/mcp-servers/index.json</code> with <code>servers[{connectionId,name,description,url,exposeDirectly:true}]</code>; requires <code>appHostToken</code> in the mint response, the App-host header, trusted origin, and <code>url</code> on the <strong>same origin</strong> as the cloud MCP URL (<code>connect-mcp-server-catalog.ts:133-162</code> fails closed cross-origin unless it is the built-in hosted pair) → i.e. reverse-proxy <code>…/mcp/agent/connections/&lt;id&gt;</code> on the Den and re-use the member bearer (<code>directConnectMcpRuntimeEntries</code> <code>:219-234</code>). Also <code>/v1/mcp-connections</code> entries with <code>exposeDirectly:true</code> for the Settings UI.
+2. <em>Via capabilities</em> (cheaper): proxy inside <code>search_capabilities</code> / <code>execute_capability</code>: list downstream tools as matches <code>{name:"mcp:&lt;connId&gt;:&lt;tool&gt;", kind:"mcp", argumentsSchema, schemaDigest, invocation:{argumentsField:"body"}}</code> and forward <code>body</code> on execute. No extra endpoints, no App-host token, no origin constraints.</p>
+<hr />
+<h2 id="reconciliation-of-denmjs-with-the-code">Reconciliation of <code>den.mjs</code> with the code</h2>
+<table>
+<thead>
+<tr>
+<th>den.mjs</th>
+<th>Verified against</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resource: ${ORIGIN}/api/den/mcp</code> and endpoint <code>/api/den/mcp/agent</code> (<code>:215, :443</code>)</td>
+<td><code>cloud-mcp-reconciler.ts:179-184</code>, <code>cloud-mcp-health.ts:681-698</code></td>
+<td>correct; loopback trusted for global persist</td>
+</tr>
+<tr>
+<td>Token response fields incl. <code>scopes</code>, no <code>appHostToken</code> (<code>:435-441</code>)</td>
+<td><code>den.ts:2039-2061</code></td>
+<td>correct; App-host catalog just stays <code>missing_app_host_auth</code> (retried hourly, <code>cloud-mcp-reconciler.ts:120-123</code>)</td>
+</tr>
+<tr>
+<td>Comment: green only when the two tools show up (<code>:212-214</code>)</td>
+<td><code>cloud-mcp-health.ts:24-31, 1482-1510</code></td>
+<td>correct</td>
+</tr>
+<tr>
+<td><code>initialize</code> echoes requested <code>protocolVersion</code> else <code>2025-06-18</code> (<code>:269</code>); no <code>instructions</code></td>
+<td><code>connect-mcp-transport.ts:120</code></td>
+<td>works; adding <code>instructions</code> is what the "ready" steering assumes exists (<code>steering.ts:145-154</code>)</td>
+</tr>
+<tr>
+<td>202 empty for notifications (<code>:454-457</code>)</td>
+<td><code>connect-mcp-transport.ts:129</code></td>
+<td>correct (trap: any body breaks discovery)</td>
+</tr>
+<tr>
+<td><code>resources/read</code> returns <code>uri</code> verbatim (<code>:304</code>)</td>
+<td><code>connect-mcp-transport.ts:142</code></td>
+<td>correct, real trap</td>
+</tr>
+<tr>
+<td>GET → open SSE stream (<code>:466-479</code>)</td>
+<td>hosted returns 405 (<code>standalone-sse.ts</code>)</td>
+<td>both acceptable; 405 is simpler</td>
+</tr>
+<tr>
+<td>MCP tokens persisted separately from session tokens (<code>:239-241</code>)</td>
+<td>401 → <code>invalid_mcp_token</code> → remint (<code>cloud-mcp-reconciler.ts:240-241</code>)</td>
+<td>sound; a restart that forgets tokens would only trigger a remint</td>
+</tr>
+<tr>
+<td>Skill index <code>{name,type,url}</code> only (<code>:188, :202</code>)</td>
+<td>lenient v2 schema <code>cloud-native-skills.ts:82-88</code> ✔; <strong>strict v1 schema</strong> <code>connect-skill-catalog.ts:19-31</code> ✘ (missing <code>$schema</code>, <code>description</code>, <code>capability</code>) and <code>execute_capability</code> stub never returns SKILL.md</td>
+<td>skills only reach v2-preview desktops; default v1 desktops get no <code>&lt;available_remote_skills&gt;</code> block</td>
+</tr>
+<tr>
+<td><code>automation://index.json</code> <code>{fetchedAt,total:0,omitted:0,automations:[]}</code> (<code>:205</code>)</td>
+<td><code>connect-automation-catalog.ts:28-44</code></td>
+<td>correct → "This member owns no Automations" guidance</td>
+</tr>
+<tr>
+<td>CORS <code>Access-Control-Allow-Headers</code> lists <code>x-organization-id,x-openwork-organization-id</code> (<code>:138</code>)</td>
+<td>app sends <code>x-openwork-org-id</code>, <code>x-openwork-legacy-org-id</code> (<code>den.ts:84-85</code>)</td>
+<td>mismatch; harmless only if the webview skips CORS preflight — worth adding the real names</td>
+</tr>
+<tr>
+<td><code>connectEnabled:false</code> in desktop-config and exchange (<code>:67, :391</code>)</td>
+<td>§1</td>
+<td>only affects steering/labels; the desktop still mints and registers the MCP</td>
+</tr>
+<tr>
+<td><code>/api/den/v1/resources</code> <code>{organizationId, orgMemberId, teamIds, resources:{llmProviders:{}, marketplaces:[]}}</code> (<code>:97-102</code>)</td>
+<td><code>den.ts:658-675</code> — <code>marketplaces</code> should be an object; an array is tolerated (<code>:642</code> → <code>{}</code>)</td>
+<td>fine</td>
+</tr>
+<tr>
+<td>Brand accent / blockedCommands traps (<code>:31-32, :50-51</code>)</td>
+<td><code>desktop-policies.ts:302</code>, <code>managed-policy-rules.ts:77-78</code></td>
+<td>as commented (not re-verified here)</td>
+</tr>
+</tbody>
+</table>
+<p>Current <code>openwork.py</code> (<code>:197, :335, :411-427</code>) returns 404 <code>not_implemented</code> for <code>POST /v1/mcp/token</code>, which is why the badge shows "Needs attention" (non-retryable 404 → <code>failed</code>, <code>use-session-mcp-maintenance.ts:110-123</code>).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
