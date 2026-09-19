@@ -1,11 +1,11 @@
 ---
-name: ackstorm-support-escalation
-description: How to escalate a customer incident at ACKstorm. Use when a customer reports an outage, when deciding incident severity, or when asked who to contact.
+name: support-escalation
+description: How to escalate a customer incident at the organization. Use when a customer reports an outage, when deciding incident severity, or when asked who to contact.
 ---
 
 # Support escalation
 
-Delivered by the ACKstorm organization server.
+Delivered by the organization server.
 
 ## Severity
 

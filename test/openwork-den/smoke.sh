@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end check for fake-den.mjs: page mints a grant, grant exchanges once,
+# End-to-end check for den.mjs: page mints a grant, grant exchanges once,
 # token authenticates, replay is rejected.
 set -euo pipefail
 
@@ -7,7 +7,7 @@ PORT="${PORT:-8799}"
 BASE="http://localhost:${PORT}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
-PORT="$PORT" node "$DIR/fake-den.mjs" >/tmp/fake-den-smoke.log 2>&1 &
+PORT="$PORT" node "$DIR/den.mjs" >/tmp/den-smoke.log 2>&1 &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
@@ -15,7 +15,7 @@ for _ in $(seq 1 50); do
   curl -sf "$BASE/api/runtime-config" >/dev/null 2>&1 && break
   sleep 0.1
 done
-curl -sf "$BASE/api/runtime-config" >/dev/null || { echo "FAIL: server never came up"; cat /tmp/fake-den-smoke.log; exit 1; }
+curl -sf "$BASE/api/runtime-config" >/dev/null || { echo "FAIL: server never came up"; cat /tmp/den-smoke.log; exit 1; }
 
 GRANT="$(curl -s "$BASE/?mode=sign-in&desktopAuth=1&desktopScheme=openwork" | grep -o 'grant=[A-Za-z0-9_-]\{32,\}' | head -1 | cut -d= -f2)"
 [ -n "$GRANT" ] || { echo "FAIL: no grant on sign-in page"; exit 1; }
@@ -85,7 +85,7 @@ for asset in logo.svg icon.svg; do
   TYPE="$(curl -s -o /dev/null -w '%{content_type}' "$BASE/brand/$asset")"
   [ "$TYPE" = "image/svg+xml" ] || { echo "FAIL: $asset served as '$TYPE', not image/svg+xml"; exit 1; }
 done
-curl -s -o /dev/null -w '%{http_code}' "$BASE/brand/../fake-den.mjs" | grep -q '404\|400' \
+curl -s -o /dev/null -w '%{http_code}' "$BASE/brand/../den.mjs" | grep -q '404\|400' \
   || { echo "FAIL: brand route served a path outside the asset list"; exit 1; }
 
 echo "PASS: mint -> exchange -> authenticated -> replay rejected -> MCP tools served -> skills published -> branded and policed"

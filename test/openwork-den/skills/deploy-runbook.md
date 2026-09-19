@@ -1,9 +1,9 @@
 ---
-name: ackstorm-deploy-runbook
-description: ACKstorm production deploy checklist. Use when deploying any service to production, cutting a release, or when someone asks about the deploy process.
+name: deploy-runbook
+description: Production deploy checklist. Use when deploying any service to production, cutting a release, or when someone asks about the deploy process.
 ---
 
-# ACKstorm deploy runbook
+# Deploy runbook
 
 This skill was delivered by the organization server, not installed locally.
 If you can read this, org-managed skill distribution works.

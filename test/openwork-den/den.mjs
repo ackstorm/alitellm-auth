@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Fake Den control plane for testing OpenWork desktop sign-in handoff.
+// Reference Den control plane: the OpenWork contract, verified against the real desktop.
 // Implements the minimum contract from ee/apps/den-api/src/routes/auth/desktop-handoff.ts
-//   node fake-den.mjs           # listens on http://localhost:8787
-//   PORT=9000 node fake-den.mjs
+//   node den.mjs           # listens on http://localhost:8787
+//   PORT=9000 node den.mjs
 // Point OpenWork at it: Settings > Advanced > Organization server URL.
 
 import { createServer } from "node:http";
@@ -10,13 +10,13 @@ import { randomBytes } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const PORT = Number(process.env.PORT ?? 8787);
-const ORIGIN = process.env.FAKE_DEN_ORIGIN ?? `http://localhost:${PORT}`;
+const ORIGIN = process.env.DEN_ORIGIN ?? `http://localhost:${PORT}`;
 const API_BASE = `${ORIGIN}/api/den`;
-const EMAIL = process.env.FAKE_DEN_EMAIL ?? "dev@localhost";
+const EMAIL = process.env.DEN_EMAIL ?? "dev@localhost";
 const GRANT_TTL_MS = 5 * 60 * 1000;
 
-const USER = { id: "user_fakedev0000000000000000", email: EMAIL, name: "Fake Dev" };
-const ORG = { id: "organization_fake000000000000", slug: "fake-org", name: "Fake Org" };
+const USER = { id: "user_refdev00000000000000000", email: EMAIL, name: "Reference Dev" };
+const ORG = { id: "organization_alitellm0000000", slug: "alitellm-auth", name: "AliteLLM Auth" };
 
 // --- Org branding + policy --------------------------------------------------
 // Served from GET /v1/me/desktop-config. The local OpenWork server fetches and
@@ -27,13 +27,13 @@ const BRAND_DIR = new URL("./brand/", import.meta.url);
 const DESKTOP_CONFIG = {
   // Branding. brandAccentColor must be one of the 22 Radix families listed at
   // desktop-policies.ts:302 — "mint" is the softest pastel of them.
-  brandAppName: "ACKstorm Work",
+  brandAppName: "AliteLLM Auth",
   brandLogoUrl: `${ORIGIN}/brand/logo.svg`,
   brandIconUrl: `${ORIGIN}/brand/icon.svg`,
   brandAccentColor: "mint",
 
   // Capability policy. Left permissive on purpose: allowCustomProviders false
-  // would hide the ackstorm provider that comes from opencode's own config,
+  // would hide the provider that comes from OpenCode's own config,
   // and allowManageExtensions false would block adding the auth plugin.
   allowCustomProviders: true,
   allowManageExtensions: true,
@@ -96,7 +96,7 @@ const EMPTY_GET = {
   "/api/den/v1/plugins": { items: [] },
   "/api/den/v1/resources": {
     organizationId: ORG.id,
-    orgMemberId: "orgmember_fake00000000000000",
+    orgMemberId: "orgmember_refdev000000000000",
     teamIds: [],
     resources: { llmProviders: {}, marketplaces: [] },
   },
@@ -105,7 +105,7 @@ const EMPTY_GET = {
 /** grant -> { expiresAt, consumed } */
 const grants = new Map();
 /** issued session tokens, persisted so restarts keep the desktop signed in */
-const TOKEN_FILE = new URL("./fake-den-tokens.json", import.meta.url);
+const TOKEN_FILE = new URL("./den-tokens.json", import.meta.url);
 const tokens = new Set(
   existsSync(TOKEN_FILE) ? JSON.parse(readFileSync(TOKEN_FILE, "utf8")) : [],
 );
@@ -216,7 +216,7 @@ const MCP_RESOURCE = `${ORIGIN}/api/den/mcp`;
 const MCP_TOOLS = [
   {
     name: "search_capabilities",
-    description: "Fake capability search. Always returns an empty result set.",
+    description: "Stub capability search. Always returns an empty result set.",
     inputSchema: {
       type: "object",
       properties: { query: { type: "string", description: "What to search for." } },
@@ -225,7 +225,7 @@ const MCP_TOOLS = [
   },
   {
     name: "execute_capability",
-    description: "Fake capability execution. Never actually runs anything.",
+    description: "Stub capability execution. Never actually runs anything.",
     inputSchema: {
       type: "object",
       properties: {
@@ -238,7 +238,7 @@ const MCP_TOOLS = [
 ];
 /** MCP access tokens, kept apart from Den session tokens and persisted too:
  *  a restart that invalidated them would 401 the engine until it re-minted. */
-const MCP_TOKEN_FILE = new URL("./fake-den-mcp-tokens.json", import.meta.url);
+const MCP_TOKEN_FILE = new URL("./den-mcp-tokens.json", import.meta.url);
 const mcpTokens = new Set(
   existsSync(MCP_TOKEN_FILE) ? JSON.parse(readFileSync(MCP_TOKEN_FILE, "utf8")) : [],
 );
@@ -268,7 +268,7 @@ function handleMcpMessage(message) {
       return mcpResult(id, {
         protocolVersion: typeof params?.protocolVersion === "string" ? params.protocolVersion : "2025-06-18",
         capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
-        serverInfo: { name: "fake-den-cloud", version: "0.1.0" },
+        serverInfo: { name: "openwork-den-reference", version: "0.1.0" },
       });
     case "ping":
       return mcpResult(id, {});
@@ -280,7 +280,7 @@ function handleMcpMessage(message) {
         return mcpError(id, -32602, `Unknown tool: ${name}`);
       }
       return mcpResult(id, {
-        content: [{ type: "text", text: `fake-den: ${name} is a stub, nothing was executed.` }],
+        content: [{ type: "text", text: `den: ${name} is a stub, nothing was executed.` }],
         isError: false,
       });
     }
@@ -321,7 +321,7 @@ function signInPage(mode, grant) {
   const link = deepLink(grant);
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Fake Den - ${mode}</title>
+<title>Reference Den - ${mode}</title>
 <style>
  body{font:15px/1.5 system-ui,sans-serif;max-width:46rem;margin:3rem auto;padding:0 1rem;color:#222}
  code,input{font-family:ui-monospace,monospace;font-size:13px}
@@ -330,7 +330,7 @@ function signInPage(mode, grant) {
  .box{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
  .ok{color:#137333}
 </style></head><body>
-<h1>Fake Den</h1>
+<h1>Reference Den</h1>
 <p>Mode: <code>${mode}</code> - grant minted, valid 5 minutes, single use.</p>
 <div class="box">
   <p><strong>1.</strong> Try the deep link (works only if <code>openwork://</code> is registered with your desktop):</p>
@@ -490,13 +490,13 @@ const server = createServer(async (req, res) => {
     status = 204;
   } else {
     // Everything else: log loudly so we learn the endpoint surface the app wants.
-    status = json(res, 404, { error: "not_implemented", message: `No fake handler for ${req.method} ${path}` });
+    status = json(res, 404, { error: "not_implemented", message: `No handler for ${req.method} ${path}` });
   }
 
   console.log(`  ${status} ${req.method} ${path}`);
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`fake-den listening on ${ORIGIN}`);
+  console.log(`den listening on ${ORIGIN}`);
   console.log(`  set OpenWork's Organization server URL to: ${ORIGIN}`);
 });
