@@ -388,3 +388,47 @@ def test_sign_out_revokes_the_token(den_token_client):
     assert client.get("/openwork/api/den/v1/me", headers=headers).status_code == 401
     # Idempotent: signing out twice is not an error the desktop should see.
     assert client.post("/openwork/api/den/api/auth/sign-out", headers=headers).status_code == 200
+
+
+# --- origin-only configuration -------------------------------------------------
+# OpenWork's Settings input keeps only the origin of the organization server URL
+# (organization-server-input.ts), so the desktop calls <origin>/api/den and opens
+# <origin>/?desktopAuth=1 — which the gateway 301s to /ui/ with the query intact.
+
+
+def test_den_api_is_also_served_at_the_root(den_token_client):
+    client, token = den_token_client
+    headers = {"authorization": f"Bearer {token}"}
+    assert client.get("/api/den/v1/me", headers=headers).json()["user"]["email"] == (
+        "dev@ackstorm.com"
+    )
+    assert client.get("/api/den/v1/llm-providers", headers=headers).json() == {"llmProviders": []}
+    assert client.get("/api/den/v1/me").json()["error"] == "unauthorized"
+
+
+def test_den_cors_reflects_the_origin_at_the_root_too():
+    response = _client().options(
+        "/api/den/v1/me",
+        headers={"origin": "app://openwork", "access-control-request-method": "GET"},
+    )
+    assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == "app://openwork"
+
+
+@pytest.mark.parametrize("path", ["/", "/ui", "/ui/"])
+def test_origin_only_sign_in_url_is_redirected_to_the_handoff_page(path):
+    query = "mode=sign-up&desktopAuth=1&desktopScheme=openwork"
+    response = _client().get(f"{path}?{query}", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == f"/openwork?{query}"
+
+
+def test_root_without_desktop_auth_is_not_intercepted():
+    # (/ui/ is a StaticFiles mount that needs a built dist; / behaves the same.)
+    response = _client().get("/?mode=sign-up", follow_redirects=False)
+    assert response.status_code == 404
+
+
+def test_root_routes_untouched_when_openwork_is_disabled():
+    response = _client(openwork_enabled=False).get("/?desktopAuth=1", follow_redirects=False)
+    assert response.status_code == 404

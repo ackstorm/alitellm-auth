@@ -2,6 +2,15 @@
 
 ## [unreleased]
 
+### Fixed
+
+- OpenWork's Settings input keeps only the origin of the organization server URL,
+  so a desktop configured by hand called `<origin>/api/den` and opened
+  `<origin>/?desktopAuth=1` (which the gateway sends to `/ui/`), never reaching
+  `/openwork`. The Den API is now served at both `/api/den` and `/openwork/api/den`,
+  and an origin-only sign-in URL landing on `/`, `/ui` or `/ui/` is redirected to the
+  handoff page with its query intact.
+
 ## [0.9.0] - 2026-09-18
 
 ### Added

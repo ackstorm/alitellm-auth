@@ -84,11 +84,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # mounts for the same reason the other API routers are (T-09-06).
     if settings.openwork_enabled:
         from app.oauth_as.store import create_store
-        from app.openwork import DenCorsMiddleware, router as openwork_router
+        from app.openwork import DenCorsMiddleware, den_router, router as openwork_router
 
         app.state.openwork_store = create_store(settings)
         app.add_middleware(DenCorsMiddleware)
         app.include_router(openwork_router)
+        # The Den API at both bases: the desktop's Settings input strips the
+        # path to the origin, while a bootstrap file / deep link may keep it.
+        app.include_router(den_router)
+        app.include_router(den_router, prefix="/openwork")
 
     @app.get("/health")
     async def health() -> dict:

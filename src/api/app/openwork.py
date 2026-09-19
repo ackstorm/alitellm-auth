@@ -6,8 +6,13 @@ session the user already holds and then receives enforced desktop policy and
 ACKstorm branding. See docs/plans/2026-09-18-openwork-den.md for the full
 contract and the verified protocol traps.
 
-Mounted at /openwork; the desktop derives its API base by appending /api/den.
-Only registered when OPENWORK_ENABLED.
+The Den API is served at BOTH /api/den and /openwork/api/den. OpenWork's
+Settings input keeps only the origin of the organization server URL
+(organization-server-input.ts: `return url.origin`), so a desktop configured
+by hand calls <origin>/api/den; a bootstrap file or deep link may still carry
+the /openwork path. The handoff page and brand marks live under /openwork only;
+the middleware rescues the origin-only sign-in URL (/?desktopAuth=1, which the
+gateway 301s to /ui/) by redirecting it there. Only registered when OPENWORK_ENABLED.
 """
 
 from __future__ import annotations
@@ -27,7 +32,10 @@ from starlette.responses import Response
 from app.config import Settings
 from app.oauth_as.store import Store
 
+# Handoff page + brand marks: /openwork only.
 router = APIRouter(prefix="/openwork", tags=["openwork"])
+# The Den API: included at "" and again at "/openwork" (main.py).
+den_router = APIRouter(tags=["openwork"])
 
 # Store partitions. Grants are single-use and short-lived; tokens are the
 # desktop's long-lived session credential.
@@ -40,7 +48,10 @@ _templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 _BRAND_DIR = Path(__file__).parent.parent / "brand"
 _BRAND_ASSETS = {"logo.svg": "openwork-logo.svg", "icon.svg": "openwork-icon.svg"}
 
-_DEN_PREFIX = "/openwork/api/den"
+_DEN_PREFIXES = ("/api/den", "/openwork/api/den")
+# Where an origin-only sign-in URL lands: the desktop opens /?desktopAuth=1 and
+# the gateway 301s / to /ui/, query intact.
+_HANDOFF_RESCUE_PATHS = ("/", "/ui", "/ui/")
 _ALLOWED_HEADERS = (
     "authorization,content-type,accept,"
     "x-organization-id,x-openwork-org-id,x-openwork-legacy-org-id"
@@ -48,7 +59,7 @@ _ALLOWED_HEADERS = (
 
 
 class DenCorsMiddleware(BaseHTTPMiddleware):
-    """Reflect the caller's origin for Den routes only.
+    """Reflect the caller's origin for Den routes only; rescue the sign-in URL.
 
     The desktop is not a browser page on our origin, and it sends
     credentials: "include", so "*" is not usable. Scoped to the Den prefix so
@@ -56,7 +67,10 @@ class DenCorsMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        if not request.url.path.startswith(_DEN_PREFIX):
+        path = request.url.path
+        if path in _HANDOFF_RESCUE_PATHS and request.query_params.get("desktopAuth") == "1":
+            return RedirectResponse(f"/openwork?{request.url.query}", status_code=302)
+        if not path.startswith(_DEN_PREFIXES):
             return await call_next(request)
 
         origin = request.headers.get("origin")
@@ -111,7 +125,7 @@ async def require_den_token(request: Request) -> dict[str, Any] | JSONResponse:
     return row
 
 
-@router.get("/api/den/v1/me", response_model=None)
+@den_router.get("/api/den/v1/me", response_model=None)
 async def den_me(request: Request) -> JSONResponse:
     """The signed-in user, as the desktop's session check expects."""
     session = await require_den_token(request)
@@ -137,7 +151,7 @@ def _organization(settings: Settings) -> dict[str, str]:
     }
 
 
-@router.post("/api/den/v1/auth/desktop-handoff/exchange", response_model=None)
+@den_router.post("/api/den/v1/auth/desktop-handoff/exchange", response_model=None)
 async def desktop_handoff_exchange(request: Request) -> JSONResponse:
     """Trade a one-time grant for the desktop's session token.
 
@@ -232,7 +246,7 @@ async def handoff_page(request: Request):
     )
 
 
-@router.get("/api/den/v1/me/orgs", response_model=None)
+@den_router.get("/api/den/v1/me/orgs", response_model=None)
 async def den_orgs(request: Request) -> JSONResponse:
     session = await require_den_token(request)
     if isinstance(session, JSONResponse):
@@ -248,7 +262,7 @@ async def den_orgs(request: Request) -> JSONResponse:
     )
 
 
-@router.post("/api/den/v1/me/active-organization", response_model=None)
+@den_router.post("/api/den/v1/me/active-organization", response_model=None)
 async def den_set_active_org(request: Request) -> JSONResponse:
     """Single-org deployment: acknowledge the choice, there is nothing to switch."""
     session = await require_den_token(request)
@@ -258,7 +272,7 @@ async def den_set_active_org(request: Request) -> JSONResponse:
     return JSONResponse({"activeOrgId": org["id"], "activeOrgSlug": org["slug"]})
 
 
-@router.get("/api/den/v1/resources", response_model=None)
+@den_router.get("/api/den/v1/resources", response_model=None)
 async def den_resources(request: Request) -> JSONResponse:
     """Change-detection snapshot.
 
@@ -281,7 +295,7 @@ async def den_resources(request: Request) -> JSONResponse:
     )
 
 
-@router.get("/api/den/v1/me/desktop-config", response_model=None)
+@den_router.get("/api/den/v1/me/desktop-config", response_model=None)
 async def den_desktop_config(request: Request) -> JSONResponse:
     """Branding and enforced policy for this member's desktop.
 
@@ -341,7 +355,7 @@ async def brand_asset(name: str):
     return FileResponse(_BRAND_DIR / filename, media_type="image/svg+xml")
 
 
-@router.post("/api/den/api/auth/sign-out", response_model=None)
+@den_router.post("/api/den/api/auth/sign-out", response_model=None)
 async def den_sign_out(request: Request) -> JSONResponse:
     """Revoke the desktop's session token. Idempotent: an unknown token is fine."""
     header = request.headers.get("authorization") or ""
@@ -351,7 +365,7 @@ async def den_sign_out(request: Request) -> JSONResponse:
     return JSONResponse({})
 
 
-@router.post("/api/den/v1/telemetry/ingest", response_model=None)
+@den_router.post("/api/den/v1/telemetry/ingest", response_model=None)
 async def den_telemetry(request: Request) -> JSONResponse:
     """Accept and discard. We do not forward desktop telemetry anywhere."""
     session = await require_den_token(request)
@@ -393,7 +407,7 @@ _EMPTY_GET: dict[str, dict[str, Any]] = {
 
 # Declared LAST: FastAPI matches in registration order, so every explicit
 # /api/den/v1/... route above wins over this catch-all.
-@router.get("/api/den/v1/{resource:path}", response_model=None)
+@den_router.get("/api/den/v1/{resource:path}", response_model=None)
 async def den_empty_catalog(resource: str, request: Request) -> JSONResponse:
     """Catch-all for catalogs this deployment does not populate.
 
