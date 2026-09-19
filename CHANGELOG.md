@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.11.1] - 2026-09-19
+
 ### Fixed
 
 - OpenCode auth plugin (0.1.1), from an external review: a request that read
