@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.10.0] - 2026-09-19
+
 ### Changed
 
 - OpenWork handoff page redesigned as the console's dark terminal card (green
