@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlparse
 
 import httpx
+import pytest
 import respx
 from authlib.jose import jwt as _jwt
 from cryptography.fernet import Fernet
@@ -243,6 +244,9 @@ def test_authorize_stores_request_and_redirects_to_dex_with_https_callback():
     args, kwargs = mock_oauth.oidc.authorize_redirect.call_args
     assert args[1] == "https://platform.test/oauth/as-callback"
     assert kwargs["state"]
+    # offline_access: Dex hands back a refresh token the AS replays at every
+    # refresh of ours, so a user disabled at the IdP is out within one access TTL.
+    assert kwargs["scope"] == "openid email profile offline_access"
 
 
 async def test_authorize_refreshes_the_client_registration_ttl(monkeypatch):
@@ -352,7 +356,10 @@ def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
         c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
         pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
         mock_oauth.oidc.authorize_access_token = AsyncMock(
-            return_value={"userinfo": {"email": " U@X.COM ", "name": "U"}}
+            return_value={
+                "userinfo": {"email": " U@X.COM ", "name": "U"},
+                "refresh_token": "dex-rt-1",
+            }
         )
         with patch(
             "app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")
@@ -369,6 +376,26 @@ def test_as_callback_mints_code_returns_to_client_and_eagerly_creates_user():
     assert ensure.await_args.args[0] == "u@x.com"
     code = location.partition("code=")[2].partition("&")[0]
     assert asyncio.run(routes._store.get("code", code))["sub"] == "u@x.com"
+    assert asyncio.run(routes._store.get("dexrt", "u@x.com")) == {"rt": "dex-rt-1"}
+
+
+def test_as_callback_fails_loud_when_dex_issues_no_refresh_token():
+    c = make_client()
+    client_id = _register(c)
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
+        mock_oauth.oidc.authorize_access_token = AsyncMock(
+            return_value={"userinfo": {"email": "u@x.com"}}  # no refresh_token
+        )
+        with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock()) as ensure:
+            r = c.get(f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False)
+    assert r.status_code == 400 and "refresh token" in r.text
+    ensure.assert_not_awaited()
+    assert asyncio.run(routes._store.get("dexrt", "u@x.com")) is None
 
 
 BROKER = "https://api.test/aws-eks-ro-callback"
@@ -394,7 +421,7 @@ def _login_with(c: TestClient, client_id: str, scope: str):
         assert r.status_code == 302, r.text
         pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
         mock_oauth.oidc.authorize_access_token = AsyncMock(
-            return_value={"userinfo": {"email": "u@x.com"}}
+            return_value={"userinfo": {"email": "u@x.com"}, "refresh_token": "dex-rt-1"}
         )
         with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")):
             r = c.get(f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False)
@@ -434,7 +461,10 @@ def test_refresh_drops_a_scope_whose_grant_was_revoked():
     first = c.post("/oauth/token", data=_token_form(client_id, code=code)).json()
     assert first["scope"] == "alitellm mcp-aws-eks-ro"
     projection.clear()  # the pod condemned the grant
-    with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)):
+    with (
+        patch("app.oauth_as.routes._dex_refresh", AsyncMock(return_value="dex-rt-2")),
+        patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)),
+    ):
         r = c.post(
             "/oauth/token",
             data={
@@ -561,7 +591,7 @@ def test_concurrent_authorization_requests_keep_independent_states():
         assert first_state != second_state
 
         mock_oauth.oidc.authorize_access_token = AsyncMock(
-            return_value={"userinfo": {"email": "u@x.com"}}
+            return_value={"userinfo": {"email": "u@x.com"}, "refresh_token": "dex-rt-1"}
         )
         with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")):
             first = c.get(
@@ -597,7 +627,7 @@ def test_authlib_preserves_first_saved_state_after_a_second_real_authorize_redir
         patch.object(
             real_oauth.oidc,
             "fetch_access_token",
-            AsyncMock(return_value={"userinfo": {"email": "u@x.com"}}),
+            AsyncMock(return_value={"userinfo": {"email": "u@x.com"}, "refresh_token": "dex-rt-1"}),
         ),
         patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")),
     ):
@@ -623,6 +653,7 @@ def test_authlib_preserves_first_saved_state_after_a_second_real_authorize_redir
 
 
 def _seed_code(client_id: str, code="thecode") -> None:
+    asyncio.run(routes._store.put("dexrt", "u@x.com", {"rt": "dex-rt-1"}))
     asyncio.run(
         routes._store.put(
             "code",
@@ -702,7 +733,10 @@ def test_refresh_rotates_and_the_old_token_dies():
     client_id = _register(c)
     _seed_code(client_id)
     first = c.post("/oauth/token", data=_token_form(client_id)).json()
-    with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)):
+    with (
+        patch("app.oauth_as.routes._dex_refresh", AsyncMock(return_value="dex-rt-2")),
+        patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)),
+    ):
         r = c.post(
             "/oauth/token",
             data={
@@ -714,6 +748,7 @@ def test_refresh_rotates_and_the_old_token_dies():
         assert r.status_code == 200
         second = r.json()
         assert second["refresh_token"] != first["refresh_token"]
+        assert asyncio.run(routes._store.get("dexrt", "u@x.com")) == {"rt": "dex-rt-2"}
         r = c.post(
             "/oauth/token",
             data={
@@ -730,7 +765,10 @@ def test_refresh_for_an_offboarded_user_consumes_token_without_replacement():
     client_id = _register(c)
     _seed_code(client_id)
     first = c.post("/oauth/token", data=_token_form(client_id)).json()
-    with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=False)):
+    with (
+        patch("app.oauth_as.routes._dex_refresh", AsyncMock(return_value="dex-rt-2")),
+        patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=False)),
+    ):
         r = c.post(
             "/oauth/token",
             data={
@@ -748,8 +786,11 @@ def test_refresh_litellm_outage_preserves_refresh_token():
     client_id = _register(c)
     _seed_code(client_id)
     first = c.post("/oauth/token", data=_token_form(client_id)).json()
-    with patch(
-        "app.oauth_as.routes._user_exists", AsyncMock(side_effect=httpx.ConnectError("down"))
+    with (
+        patch("app.oauth_as.routes._dex_refresh", AsyncMock(return_value="dex-rt-2")),
+        patch(
+            "app.oauth_as.routes._user_exists", AsyncMock(side_effect=httpx.ConnectError("down"))
+        ),
     ):
         r = c.post(
             "/oauth/token",
@@ -768,7 +809,10 @@ def test_wrong_client_refresh_does_not_consume_token():
     client_id, other_id = _register(c), _register(c)
     _seed_code(client_id)
     first = c.post("/oauth/token", data=_token_form(client_id)).json()
-    with patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)) as exists:
+    with (
+        patch("app.oauth_as.routes._dex_refresh", AsyncMock(return_value="dex-rt-2")) as dex,
+        patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)) as exists,
+    ):
         r = c.post(
             "/oauth/token",
             data={
@@ -779,7 +823,130 @@ def test_wrong_client_refresh_does_not_consume_token():
         )
     assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
     exists.assert_not_awaited()
+    dex.assert_not_awaited()
     assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is not None
+
+
+def _refresh(c: TestClient, client_id: str, refresh_token: str):
+    return c.post(
+        "/oauth/token",
+        data={
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": client_id,
+        },
+    )
+
+
+def test_refresh_refused_by_the_idp_ends_every_session_of_the_user():
+    c = make_client()
+    client_id = _register(c)
+    _seed_code(client_id)
+    first = c.post("/oauth/token", data=_token_form(client_id)).json()
+    _seed_code(client_id, code="second")
+    sibling = c.post("/oauth/token", data=_token_form(client_id, code="second")).json()
+    with (
+        patch(
+            "app.oauth_as.routes._dex_refresh",
+            AsyncMock(side_effect=routes.DexRefused("invalid_grant")),
+        ) as dex,
+        patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)) as exists,
+    ):
+        r = _refresh(c, client_id, first["refresh_token"])
+        assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+        assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is None
+        assert asyncio.run(routes._store.get("dexrt", "u@x.com")) is None
+        exists.assert_not_awaited()
+        # The sibling session fails its next refresh without asking Dex again.
+        dex.reset_mock()
+        r = _refresh(c, client_id, sibling["refresh_token"])
+    assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+    dex.assert_not_awaited()
+    assert asyncio.run(routes._store.get("refresh", sibling["refresh_token"])) is None
+
+
+def test_refresh_with_the_idp_unreachable_is_503_and_keeps_everything():
+    c = make_client()
+    client_id = _register(c)
+    _seed_code(client_id)
+    first = c.post("/oauth/token", data=_token_form(client_id)).json()
+    with patch(
+        "app.oauth_as.routes._dex_refresh", AsyncMock(side_effect=httpx.ConnectError("down"))
+    ):
+        r = _refresh(c, client_id, first["refresh_token"])
+    assert r.status_code == 503 and r.json()["error"] == "temporarily_unavailable"
+    assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is not None
+    assert asyncio.run(routes._store.get("dexrt", "u@x.com")) == {"rt": "dex-rt-1"}
+
+
+def test_refresh_retries_once_when_a_sibling_rotated_the_shared_dex_token():
+    # Two tools refresh in the same second: the second replays a Dex token the
+    # first just rotated. Dex refuses it; the token stored NOW is tried once
+    # before the user's sessions are ended.
+    c = make_client()
+    client_id = _register(c)
+    _seed_code(client_id)
+    first = c.post("/oauth/token", data=_token_form(client_id)).json()
+
+    async def refuse_then_accept(rt: str) -> str:
+        if rt == "dex-rt-1":
+            await routes._store.put("dexrt", "u@x.com", {"rt": "dex-rt-2"})  # the sibling won
+            raise routes.DexRefused("invalid_grant")
+        assert rt == "dex-rt-2"
+        return "dex-rt-3"
+
+    with (
+        patch("app.oauth_as.routes._dex_refresh", AsyncMock(side_effect=refuse_then_accept)) as dex,
+        patch("app.oauth_as.routes._user_exists", AsyncMock(return_value=True)),
+    ):
+        r = _refresh(c, client_id, first["refresh_token"])
+    assert r.status_code == 200, r.text
+    assert dex.await_count == 2
+    assert asyncio.run(routes._store.get("dexrt", "u@x.com")) == {"rt": "dex-rt-3"}
+
+
+def test_refresh_without_a_dex_token_on_file_is_invalid_grant_without_asking_dex():
+    c = make_client()
+    client_id = _register(c)
+    _seed_code(client_id)
+    first = c.post("/oauth/token", data=_token_form(client_id)).json()
+    asyncio.run(routes._store.pop("dexrt", "u@x.com"))  # e.g. Redis flushed, or ended by a sibling
+    with patch("app.oauth_as.routes._dex_refresh", AsyncMock()) as dex:
+        r = _refresh(c, client_id, first["refresh_token"])
+    assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+    dex.assert_not_awaited()
+    assert asyncio.run(routes._store.get("refresh", first["refresh_token"])) is None
+
+
+@respx.mock
+def test_dex_refresh_posts_the_token_endpoint_and_classifies_the_answer():
+    make_client()  # configures routes._settings
+    endpoint = respx.post("http://dex.test/dex/token")
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.load_server_metadata = AsyncMock(
+            return_value={"token_endpoint": "http://dex.test/dex/token"}
+        )
+        endpoint.mock(
+            return_value=httpx.Response(
+                200, json={"access_token": "a", "refresh_token": "dex-rt-2"}
+            )
+        )
+        assert asyncio.run(routes._dex_refresh("dex-rt-1")) == "dex-rt-2"
+        sent = endpoint.calls.last.request
+        assert (
+            b"grant_type=refresh_token" in sent.content
+            and b"refresh_token=dex-rt-1" in sent.content
+        )
+        assert sent.headers["authorization"].startswith("Basic ")
+        # Dex may answer without rotating: the presented token stays valid.
+        endpoint.mock(return_value=httpx.Response(200, json={"access_token": "a"}))
+        assert asyncio.run(routes._dex_refresh("dex-rt-1")) == "dex-rt-1"
+        endpoint.mock(return_value=httpx.Response(400, json={"error": "invalid_grant"}))
+        with pytest.raises(routes.DexRefused):
+            asyncio.run(routes._dex_refresh("dex-rt-1"))
+        endpoint.mock(return_value=httpx.Response(502))
+        with pytest.raises(httpx.HTTPError):
+            asyncio.run(routes._dex_refresh("dex-rt-1"))
 
 
 def test_unsupported_grant_type():

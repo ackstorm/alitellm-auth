@@ -35,6 +35,13 @@ PENDING_TTL = 600
 CODE_TTL = 120
 CHAIN_TTL = 600
 HINT_TTL = 600  # the login_hint handed to a broker; one chain step, not a session
+# offline_access: Dex hands back a refresh token that every refresh of OURS
+# replays at Dex first, so a user disabled at the identity provider is out at
+# the next refresh, not after AS_REFRESH_TTL_SECONDS. Requested only here, not
+# by the console login: Dex keeps ONE refresh token per (user, client) and
+# replaces it whenever a login asks for offline_access.
+DEX_SCOPE = "openid email profile offline_access"
+DEXRT = "dexrt"  # store kind: the user's Dex refresh token, keyed by email
 
 
 def configure_as(
@@ -275,7 +282,7 @@ async def authorize(request: Request):
     # The ingress terminates TLS, so request.url_for may incorrectly report http.
     callback = _settings.app_base_url.rstrip("/") + "/oauth/as-callback"
     # Each in-flight request has its own state; Authlib tracks OAuth state per ID.
-    return await oauth.oidc.authorize_redirect(request, callback, state=pending_id)
+    return await oauth.oidc.authorize_redirect(request, callback, state=pending_id, scope=DEX_SCOPE)
 
 
 @router.get("/oauth/as-callback", name="as_callback")
@@ -296,7 +303,16 @@ async def as_callback(request: Request):
     email = (userinfo.get("email") or "").strip().lower()
     if not email:
         return _html_error(400, "the identity provider returned no email")
+    dex_refresh = token.get("refresh_token")
+    if not dex_refresh:
+        # Loud, at login: the alternative is a session that dies at its first refresh.
+        logger.error("Dex issued no refresh token: offline_access not granted for this connector")
+        return _html_error(400, "the identity provider issued no refresh token (offline_access)")
     await ensure_team_and_user(email, _settings, name=userinfo.get("name"))
+    # One Dex refresh token per user, newest login wins — Dex itself keeps one
+    # per (user, client) and replaces it on a new login, so a second tool
+    # signing in must not strand the first tool's session.
+    await _store.put(DEXRT, email, {"rt": dex_refresh}, ttl=_settings.as_refresh_ttl_seconds)
     pending["sub"] = email
     todo = [
         s
@@ -460,6 +476,55 @@ async def _user_exists(sub: str) -> bool:
     return True
 
 
+class DexRefused(Exception):
+    """Dex answered the refresh with an OAuth error (invalid_grant): the identity
+    provider no longer honours the user, the token expired or was rotated away."""
+
+
+async def _dex_refresh(refresh_token: str) -> str:
+    """Replay a Dex refresh token; return the rotated one (the same one when Dex
+    did not rotate). DexRefused on a 4xx; httpx.HTTPError when Dex is unreachable
+    or answers 5xx."""
+    assert _settings is not None
+    metadata = await oauth.oidc.load_server_metadata()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            metadata["token_endpoint"],
+            data={"grant_type": "refresh_token", "refresh_token": refresh_token},
+            auth=(_settings.oauth_client_id, _settings.oauth_client_secret),
+        )
+    if 400 <= resp.status_code < 500:
+        raise DexRefused(resp.text[:200])
+    resp.raise_for_status()
+    return resp.json().get("refresh_token") or refresh_token
+
+
+async def _revalidate_at_dex(sub: str) -> str | None:
+    """Ask the identity provider whether the user still stands: replay the user's
+    shared Dex refresh token and store the rotated one. None (record deleted)
+    when the IdP refuses. A sibling session may rotate the shared token while
+    we are at Dex, so a refusal is retried once with the token stored now."""
+    assert _store is not None and _settings is not None
+    rec = await _store.get(DEXRT, sub)
+    for _ in range(2):
+        if rec is None:
+            return None
+        try:
+            rotated = await _dex_refresh(rec["rt"])
+        except DexRefused as exc:
+            current = await _store.get(DEXRT, sub)
+            if current is not None and current["rt"] != rec["rt"]:
+                rec = current
+                continue
+            logger.info("Identity provider refused the refresh for a user; sessions ended: %s", exc)
+            await _store.pop(DEXRT, sub)
+            return None
+        await _store.put(DEXRT, sub, {"rt": rotated}, ttl=_settings.as_refresh_ttl_seconds)
+        return rotated
+    await _store.pop(DEXRT, sub)
+    return None
+
+
 @router.post("/oauth/token")
 async def token(request: Request) -> JSONResponse:
     assert _store is not None and _settings is not None and _grants is not None
@@ -481,6 +546,27 @@ async def token(request: Request) -> JSONResponse:
         rec = await _store.get("refresh", presented)
         if rec is None or rec["client_id"] != client_id:
             return _error(400, "invalid_grant")
+        # The identity provider first: only a user Dex still honours gets a new
+        # pair. A refusal ends every session of the user (the Dex token is gone,
+        # so siblings fail their next refresh without asking Dex) and the client
+        # goes back to login, where the IdP says no. Dex unreachable is a 503
+        # and the presented token stays valid.
+        try:
+            honoured = await _revalidate_at_dex(rec["sub"])
+        except httpx.HTTPError as exc:
+            logger.warning("Refresh deferred, identity provider unreachable: %s", exc)
+            return _error(503, "temporarily_unavailable", "identity provider unreachable")
+        # Why the front key is NOT revoked on refusal (ach revokes its oauth pk_):
+        # here the authz resolves sub → front key through /api/internal/front-key,
+        # which self-heals — a revoked key would simply be re-minted on the next
+        # request carrying a still-valid JWT. Exposure after an IdP refusal is
+        # bounded by AS_ACCESS_TTL_SECONDS (default 3600) either way, which is
+        # the same bound ach ends up with.
+        if honoured is None:
+            await _store.pop("refresh", presented)
+            return _error(
+                400, "invalid_grant", "the identity provider no longer honours this session"
+            )
         try:
             alive = await _user_exists(rec["sub"])
         except httpx.HTTPError as exc:

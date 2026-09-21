@@ -24,6 +24,15 @@ To complete the authorization-code flow and read the user's identity,
 - An **`email` claim** returned from the userinfo endpoint. The login flow extracts
   `email` (and `name`) from the OIDC token's userinfo; a missing `email` claim
   fails the login with a "No email claim" error.
+- With the OAuth front door on (`AS_ENABLED=true`) the authorization server's own
+  login additionally requests **`offline_access`**: the Dex refresh token it gets
+  back is replayed at Dex on every refresh of an AS token, so a user disabled at
+  the identity provider is out within one access-token TTL. The connector must
+  issue refresh tokens (Google, Microsoft, GitHub and the generic OIDC connector
+  do; a Dex `staticPasswords` user does too). A login that comes back without one
+  fails at `/oauth/as-callback` with "the identity provider issued no refresh
+  token". Dex keeps one refresh token per (user, client) and replaces it on a new
+  login, which is why the AS stores it once per user, not per session.
 
 ---
 

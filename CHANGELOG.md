@@ -31,6 +31,13 @@
   answers only `/callback` with the expected `state`, so a stray hit no longer
   ends the login; refreshes 10 minutes before expiry (callers cache the printed
   token); no network when the token is still fresh. The unused `scope` is gone.
+- AS: every `refresh_token` grant is re-validated at the identity provider. Login
+  requests `offline_access`; the Dex refresh token is kept ONCE per user (newest
+  login wins — Dex keeps one per user and client) and replayed at Dex before the
+  AS rotates its own token. A Dex refusal ends every session of that user
+  (`invalid_grant`, the client goes back to login); Dex unreachable is a 503 and
+  the presented token stays valid; a login Dex answers without a refresh token
+  fails loud. Ported from ach `3194271`, `46a2101`.
 
 ## [0.12.0] - 2026-09-19
 

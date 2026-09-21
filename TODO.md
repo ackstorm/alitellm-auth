@@ -19,7 +19,6 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
 - [ ] hindsight.* / guardrails.* lost their gateway SSO when the oauth2-proxy CUSTOM
   policies were retired (Istio: one ext_authz provider per workload). Confirm they
   are meant to be open, or put them behind the front door.
-- [ ] Dex → LiteLLM offboarding sync (the refresh-time LiteLLM re-check is a stopgap).
 
 ## Clients
 
@@ -66,6 +65,9 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
 
 ## Code
 
+- [ ] Two tools on two machines refreshing in the same second replay the same Dex
+  token; the loser retries once with the rotated one (`_revalidate_at_dex`). If
+  that ever shows as spurious `invalid_grant`, set Dex `expiry.refreshTokens.reuseInterval`.
 - [ ] `pending["scope"]` records written by v0.7.x error with KeyError for the
   600 s after an upgrade (`routes.py` `as_callback`). Harmless once past; guard or ignore.
 - [ ] `brokerclient` DCR cache (90 d): if a broker loses its client registry the
