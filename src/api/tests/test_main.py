@@ -34,3 +34,20 @@ def test_app_has_session_middleware():
     middleware_types = [m.cls if hasattr(m, "cls") else type(m) for m in app.user_middleware]
     # SessionMiddleware must be present
     assert any("SessionMiddleware" in str(t) for t in middleware_types)
+
+
+def test_as_routes_absent_when_disabled():
+    from app.main import create_app
+    from tests.test_auth import make_test_settings
+
+    client = TestClient(create_app(settings=make_test_settings()), raise_server_exceptions=False)
+    assert client.get("/.well-known/oauth-authorization-server").status_code == 404
+
+
+def test_as_routes_present_when_enabled():
+    from app.main import create_app
+    from tests.test_oauth_as_routes import make_settings
+
+    client = TestClient(create_app(settings=make_settings()), raise_server_exceptions=False)
+    assert client.get("/.well-known/oauth-authorization-server").status_code == 200
+    assert client.get("/oauth/jwks.json").status_code == 200

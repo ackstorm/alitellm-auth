@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 
-from app.store import MemoryStore
+from app.oauth_as.store import MemoryStore
 
 
 async def test_put_get_pop_roundtrip():
@@ -19,7 +19,7 @@ async def test_kinds_are_separate_namespaces():
 
 
 async def test_ttl_expires(monkeypatch):
-    import app.store as store_module
+    import app.oauth_as.store as store_module
 
     now = [1000.0]
     monkeypatch.setattr(store_module.time, "time", lambda: now[0])
@@ -32,7 +32,7 @@ async def test_ttl_expires(monkeypatch):
 
 
 async def test_acquire_is_exclusive_until_released_or_expired(monkeypatch):
-    import app.store as store_module
+    import app.oauth_as.store as store_module
 
     now = [1000.0]
     monkeypatch.setattr(store_module.time, "time", lambda: now[0])
@@ -46,7 +46,7 @@ async def test_acquire_is_exclusive_until_released_or_expired(monkeypatch):
 
 
 def test_create_store_memory_sentinel_is_loud(caplog):
-    from app.store import create_store
+    from app.oauth_as.store import create_store
 
     class Settings:
         as_redis_url = "memory://"
@@ -57,7 +57,7 @@ def test_create_store_memory_sentinel_is_loud(caplog):
 
 
 def test_create_store_uses_redis_otherwise():
-    from app.store import RedisStore, create_store
+    from app.oauth_as.store import RedisStore, create_store
 
     class Settings:
         as_redis_url = "redis://localhost:6379/0"

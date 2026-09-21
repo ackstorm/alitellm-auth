@@ -55,10 +55,9 @@ See [docs/dex-integration.md](docs/dex-integration.md) for Dex and Keycloak conf
 
 ## Clients
 
-The platform gateway in front of `api.<domain>` (a separate service, not this repo)
-accepts an OAuth access token in `Authorization` and maps it to the caller's LiteLLM
-key. It advertises its authorization server through `/.well-known/oauth-protected-resource`
-(RFC 9728). Coding agents get that token three ways.
+With the OAuth front door on (`authServer.enabled` + `authz.enabled` + `istio.enabled` in
+the chart), `api.<domain>` accepts a front-door JWT in `Authorization` and maps it to the
+caller's LiteLLM key. Coding agents get that JWT three ways.
 
 ### OpenCode
 

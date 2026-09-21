@@ -2,6 +2,14 @@
 
 ## [unreleased]
 
+### Restored
+
+- The server side of the OAuth front door, reverting the v0.12.0 removal: the
+  authorization server (`app/oauth_as/`), `/api/internal/front-key`, the Go Envoy
+  `ext_authz` service (`authz/`, image and CI job), the chart's `authServer`,
+  `authz` and `istio` blocks and every `AS_*` / `INTERNAL_TOKEN` setting.
+  Token issuance and the gateway check live here again.
+
 ### Removed
 
 - The OpenCode auth plugin and its `GET /public/opencode-auth` route: the
