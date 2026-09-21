@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.13.0] - 2026-09-21
+
 ### Upgrade notes
 
 - Every OAuth session issued before this release has no Dex refresh token on
