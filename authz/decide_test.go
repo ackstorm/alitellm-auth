@@ -26,7 +26,7 @@ func (f *fakeResolver) KeyFor(_ context.Context, _ string) (string, error) {
 }
 
 var cfg = Config{
-	InboundHeader:       "x-genai-api-key",
+	InboundHeaders:      []string{"x-genai-api-key", "x-api-key"},
 	OutboundHeader:      "x-litellm-api-key",
 	ResourceMetadataURL: "https://api.test/.well-known/oauth-protected-resource",
 }
@@ -228,6 +228,33 @@ func TestResolverFailureIs503NotA401(t *testing.T) {
 	d := decide(map[string]string{"authorization": "Bearer a.b.c"}, fakeVerifier{sub: "u"}, &fakeResolver{err: errors.New("down")})
 	if d.Allow || d.Status != 503 {
 		t.Fatalf("resolver down: %+v", d)
+	}
+}
+
+func TestOnlyDeclaredInboundHeadersAreSlots(t *testing.T) {
+	// A deployment that declares one slot: x-api-key is then just another
+	// header, so a key there is "nothing presented" — 401 on /v1, forwarded
+	// untouched on the catch-all.
+	one := cfg
+	one.InboundHeaders = []string{"x-genai-api-key"}
+	h := map[string]string{"x-api-key": "sk-abc"}
+	if d := Decide(context.Background(), one, v1, h, fakeVerifier{}, &fakeResolver{}); d.Allow || d.Status != 401 {
+		t.Fatalf("undeclared slot on /v1: %+v", d)
+	}
+	if d := Decide(context.Background(), one, "/health/license", h, fakeVerifier{}, &fakeResolver{}); !d.Allow || len(d.Set) != 0 || contains(d.Remove, "x-api-key") {
+		t.Fatalf("undeclared slot on the catch-all: %+v", d)
+	}
+	if d := Decide(context.Background(), one, v1, map[string]string{}, fakeVerifier{}, &fakeResolver{}); d.Body != `{"error":"unauthorized","error_description":"present a LiteLLM key or a token from the authorization server in x-genai-api-key or Authorization: Bearer"}` {
+		t.Fatalf("body names only the declared slots: %s", d.Body)
+	}
+}
+
+func TestInboundHeaderPrecedenceFollowsTheList(t *testing.T) {
+	rev := cfg
+	rev.InboundHeaders = []string{"x-api-key", "x-genai-api-key"}
+	d := Decide(context.Background(), rev, v1, map[string]string{"x-genai-api-key": "sk-custom", "x-api-key": "sk-anthropic"}, fakeVerifier{}, &fakeResolver{})
+	if d.Set["x-litellm-api-key"] != "Bearer sk-anthropic" || !contains(d.Remove, "x-api-key") || contains(d.Remove, "x-genai-api-key") {
+		t.Fatalf("precedence: %+v", d)
 	}
 }
 

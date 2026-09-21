@@ -49,7 +49,7 @@ func protected(path string) bool {
 // the OpenAI-SDK shape. It is consumed in exactly one case — when it carries
 // OUR JWS — so LiteLLM receives exactly one thing from us, the outbound header.
 //
-//  1. custom header (or x-api-key) present → a LiteLLM key (sk-…) is renamed;
+//  1. a declared inbound header present → a LiteLLM key (sk-…) is renamed;
 //     our JWT is verified and mapped. That header is removed. Authorization untouched.
 //  2. Authorization: Bearer <JWS> → ours: verified, mapped, removed
 //  3. Authorization carrying anything else → not ours: forwarded untouched,
@@ -67,10 +67,11 @@ func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v
 	strip := []string{"x-user-id"}
 	untouched := Decision{Allow: true, Set: map[string]string{}, Remove: strip}
 
-	// x-api-key is where the Anthropic SDK puts an API key: Claude Code with
-	// ANTHROPIC_API_KEY or an apiKeyHelper sends it there, never in
-	// Authorization. Same two shapes as the custom header.
-	for _, name := range []string{cfg.InboundHeader, "x-api-key"} {
+	// The declared slots, in precedence order. x-api-key is where the Anthropic
+	// SDK puts an API key (Claude Code with ANTHROPIC_API_KEY or an apiKeyHelper
+	// sends it there, never in Authorization), so it is in the default list.
+	// Same two shapes in every slot.
+	for _, name := range cfg.InboundHeaders {
 		raw := h[name]
 		if raw == "" {
 			continue
@@ -92,7 +93,7 @@ func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v
 		return untouched
 	}
 	return deny(401, challenge(cfg, path, ""),
-		`{"error":"unauthorized","error_description":"present a LiteLLM key or a token from the authorization server in `+cfg.InboundHeader+`, x-api-key or Authorization: Bearer"}`)
+		`{"error":"unauthorized","error_description":"present a LiteLLM key or a token from the authorization server in `+strings.Join(cfg.InboundHeaders, ", ")+` or Authorization: Bearer"}`)
 }
 
 func userPath(ctx context.Context, cfg Config, path, tok string, remove []string, v Verifier, r KeyResolver) Decision {

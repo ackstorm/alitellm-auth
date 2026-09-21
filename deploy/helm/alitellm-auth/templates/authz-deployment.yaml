@@ -38,8 +38,8 @@ spec:
             - name: grpc
               containerPort: 9001
           env:
-            - name: AUTHZ_INBOUND_HEADER
-              value: {{ .Values.authz.inboundHeader | quote }}
+            - name: AUTHZ_INBOUND_HEADERS
+              value: {{ join "," .Values.authz.inboundHeaders | quote }}
             - name: AUTHZ_OUTBOUND_HEADER
               value: {{ .Values.authz.outboundHeader | quote }}
             - name: AUTHZ_ISSUER

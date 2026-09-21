@@ -39,6 +39,14 @@
   the presented token stays valid; a login Dex answers without a refresh token
   fails loud. Ported from ach `3194271`, `46a2101`.
 
+### Changed
+
+- authz: the inbound credential headers are a list — `authz.inboundHeaders`
+  (default `["x-genai-api-key", "x-api-key"]`, precedence order) rendered to
+  `AUTHZ_INBOUND_HEADERS`; `authz.inboundHeader` / `AUTHZ_INBOUND_HEADER` are
+  gone. Only declared names are credential slots; the value shape still decides
+  what happens with it.
+
 ## [0.12.0] - 2026-09-19
 
 ### Removed

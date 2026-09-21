@@ -187,7 +187,12 @@ authz:
     tag: ""              # empty → .Chart.AppVersion
     pullPolicy: IfNotPresent
   replicaCount: 2
-  inboundHeader: "x-genai-api-key"    # what agents send
+  # Headers an agent may present its credential in, in precedence order. The
+  # value shape decides what happens (sk- renamed into outboundHeader, this AS's
+  # token verified and mapped); no per-header mode. Every name here must ALSO be
+  # in the gitops extensionProvider's includeRequestHeadersInCheck (see
+  # templates/istio-authorizationpolicy.yaml) or Envoy never hands it to authz.
+  inboundHeaders: ["x-genai-api-key", "x-api-key"]
   outboundHeader: "x-litellm-api-key" # what LiteLLM wants
   # Only /v1, /gemini, /mcp and /a2a require a credential. Every other path on
   # the host (LiteLLM's UI, /health/*, /key/*) is forwarded as it came when
