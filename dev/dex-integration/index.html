@@ -557,6 +557,15 @@ the issuer URL, client id, and client secret change between providers.</p>
 <li>An <strong><code>email</code> claim</strong> returned from the userinfo endpoint. The login flow extracts
   <code>email</code> (and <code>name</code>) from the OIDC token's userinfo; a missing <code>email</code> claim
   fails the login with a "No email claim" error.</li>
+<li>With the OAuth front door on (<code>AS_ENABLED=true</code>) the authorization server's own
+  login additionally requests <strong><code>offline_access</code></strong>: the Dex refresh token it gets
+  back is replayed at Dex on every refresh of an AS token, so a user disabled at
+  the identity provider is out within one access-token TTL. The connector must
+  issue refresh tokens (Google, Microsoft, GitHub and the generic OIDC connector
+  do; a Dex <code>staticPasswords</code> user does too). A login that comes back without one
+  fails at <code>/oauth/as-callback</code> with "the identity provider issued no refresh
+  token". Dex keeps one refresh token per (user, client) and replaces it on a new
+  login, which is why the AS stores it once per user, not per session.</li>
 </ul>
 <hr />
 <h2 id="2-dex-configuration-staticclients">2. Dex configuration (<code>staticClients</code>)</h2>
