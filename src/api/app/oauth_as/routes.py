@@ -308,15 +308,17 @@ async def as_callback(request: Request):
         # Loud, at login: the alternative is a session that dies at its first refresh.
         logger.error("Dex issued no refresh token: offline_access not granted for this connector")
         return _html_error(400, "the identity provider issued no refresh token (offline_access)")
+    # One Dex refresh token per user, newest login wins — Dex itself keeps one
+    # per (user, client) and replaces it on a new login, so a second tool
+    # signing in must not strand the first tool's session. Stored before
+    # provisioning: Dex has already replaced the previous token, so a LiteLLM
+    # outage here must not leave the old one on file.
+    await _store.put(DEXRT, email, {"rt": dex_refresh}, ttl=_settings.as_refresh_ttl_seconds)
     try:
         await ensure_team_and_user(email, _settings, name=userinfo.get("name"))
     except httpx.HTTPError as exc:
         logger.warning("User provisioning failed at as-callback: %s", exc)
         return _html_error(503, "user provisioning failed: LiteLLM is unreachable, try again")
-    # One Dex refresh token per user, newest login wins — Dex itself keeps one
-    # per (user, client) and replaces it on a new login, so a second tool
-    # signing in must not strand the first tool's session.
-    await _store.put(DEXRT, email, {"rt": dex_refresh}, ttl=_settings.as_refresh_ttl_seconds)
     pending["sub"] = email
     todo = [
         s

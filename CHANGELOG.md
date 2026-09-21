@@ -2,6 +2,21 @@
 
 ## [unreleased]
 
+### Upgrade notes
+
+- Every OAuth session issued before this release has no Dex refresh token on
+  file: its next `refresh_token` grant answers `invalid_grant` and the tool
+  (opencode, Claude Code / Codex via `ackstorm-token`) goes back to login once.
+  Expect that within one access-token TTL (`AS_ACCESS_TTL_SECONDS`, default 1 h)
+  of the rollout.
+- The Dex connector behind the AS must issue refresh tokens (`offline_access`):
+  Google, Microsoft, GitHub, generic OIDC and `staticPasswords` do; SAML does
+  not. A login that comes back without one fails at `/oauth/as-callback`. See
+  `docs/dex-integration.md`.
+- Chart: `authz.legacyPassthrough` is gone; `authz.inboundHeader` (string) is
+  now `authz.inboundHeaders` (list). A values file still carrying the old keys
+  is silently ignored — agents' custom header stops being a credential slot.
+
 ### Restored
 
 - The server side of the OAuth front door, reverting the v0.12.0 removal: the

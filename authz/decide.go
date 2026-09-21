@@ -50,7 +50,7 @@ func protected(path string) bool {
 // OUR JWS — so LiteLLM receives exactly one thing from us, the outbound header.
 //
 //  1. a declared inbound header present → a LiteLLM key (sk-…) is renamed;
-//     our JWT is verified and mapped. That header is removed. Authorization untouched.
+//     our JWS is verified and mapped. That header is removed. Authorization untouched.
 //  2. Authorization: Bearer <JWS> → ours: verified, mapped, removed
 //  3. Authorization carrying anything else → not ours: forwarded untouched,
 //     LiteLLM authenticates it

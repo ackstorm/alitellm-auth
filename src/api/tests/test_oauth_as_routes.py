@@ -416,9 +416,9 @@ def test_as_callback_renders_a_503_when_litellm_provisioning_fails():
         ):
             r = c.get(f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False)
     assert r.status_code == 503 and "provisioning" in r.text
-    assert (
-        asyncio.run(routes._store.get("dexrt", "u@x.com")) is None
-    )  # nothing stored for a login that did not happen
+    # Dex already rotated the user's token at the code exchange: it is stored even
+    # though LiteLLM provisioning failed, or the user's other tools would die.
+    assert asyncio.run(routes._store.get("dexrt", "u@x.com")) == {"rt": "dex-rt-1"}
     assert asyncio.run(routes._store.get("pending", pending_id)) is None  # burned either way
 
 
