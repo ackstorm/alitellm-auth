@@ -73,6 +73,11 @@ authorization server through `/.well-known/oauth-protected-resource` (RFC 9728) 
 endpoints through RFC 8414. The tarball is fetched once; a new release is picked up by
 re-running the install command with `-f`. Source: [clients/opencode](clients/opencode).
 
+On a remote or headless host pick the second method, **SSO (device code)**: opencode
+prints a `XXXX-XXXX` code and a URL; open the URL in any browser, confirm the code and
+sign in — the session completes on its own. A new plugin release is picked up with
+`opencode plugin <url> -g -f`.
+
 An exported `LITELLM_API_KEY` still works (the served `api.json` lists it), but an OAuth
 credential wins when both are present.
 

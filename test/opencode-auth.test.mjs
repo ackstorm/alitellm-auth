@@ -14,6 +14,7 @@ const ISSUER = "https://as.test"
 const calls = []
 let discoveryFails = false
 let tokenCalls = 0
+let devicePolls = 0
 globalThis.fetch = async (input, init) => {
   const url = typeof input === "string" ? input : input.url
   calls.push(url)
@@ -23,11 +24,19 @@ globalThis.fetch = async (input, init) => {
     return ok({ authorization_servers: [ISSUER], scopes_supported: ["alitellm"] })
   }
   if (url === `${ISSUER}/.well-known/oauth-authorization-server`) {
-    return ok({ issuer: ISSUER, token_endpoint: `${ISSUER}/token`, registration_endpoint: `${ISSUER}/register`, authorization_endpoint: `${ISSUER}/authorize` })
+    return ok({ issuer: ISSUER, token_endpoint: `${ISSUER}/token`, registration_endpoint: `${ISSUER}/register`, authorization_endpoint: `${ISSUER}/authorize`, device_authorization_endpoint: `${ISSUER}/device_authorization` })
+  }
+  if (url === `${ISSUER}/device_authorization`) {
+    return ok({ device_code: "dc-1", user_code: "BCDF-GHJK", verification_uri: `${ISSUER}/device`, verification_uri_complete: `${ISSUER}/device?user_code=BCDF-GHJK`, expires_in: 600, interval: 0.01 })
   }
   if (url === `${ISSUER}/register`) return ok({ client_id: "c1" })
   if (url === `${ISSUER}/token`) {
     const form = new URLSearchParams(init.body)
+    if (form.get("grant_type") === "urn:ietf:params:oauth:grant-type:device_code") {
+      devicePolls += 1
+      if (devicePolls < 2) return new Response(JSON.stringify({ error: "authorization_pending" }), { status: 400 })
+      return ok({ access_token: "a-device", refresh_token: "r-current", expires_in: 3600 })
+    }
     if (form.get("refresh_token") !== "r-current") return new Response("{}", { status: 400 })
     tokenCalls += 1
     return ok({ access_token: `a${tokenCalls}`, refresh_token: "r-current", expires_in: 3600 })
@@ -104,3 +113,19 @@ async function fetchRaw(redirect, query) {
     }).on("error", reject).end()
   })
 }
+
+test("the device method opens the verification URL and polls until the user has signed in", async () => {
+  const f = fakeClient()
+  const plugin = await SsoAuth({ client: f.client })
+  const method = plugin.auth.methods[1]
+  assert.match(method.label, /device code/)
+  const { url, instructions, callback } = await method.authorize()
+  assert.equal(url, `${ISSUER}/device?user_code=BCDF-GHJK`)
+  assert.match(instructions, /BCDF-GHJK/)
+  const result = await callback()
+  assert.equal(result.type, "success")
+  assert.equal(result.access, "a-device")
+  assert.equal(devicePolls, 2, "one authorization_pending, then the token")
+  // Loopback stays the default method (OpenWork and the CLI take methods[0]).
+  assert.equal(plugin.auth.methods[0].label, "SSO (browser)")
+})
