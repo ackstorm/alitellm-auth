@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.14.0] - 2026-09-21
+
 ### Added
 
 - AS: RFC 8628 device grant for hosts with no usable browser. `POST
