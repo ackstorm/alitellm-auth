@@ -52,7 +52,9 @@
   AS rotates its own token. A Dex refusal ends every session of that user
   (`invalid_grant`, the client goes back to login); Dex unreachable is a 503 and
   the presented token stays valid; a login Dex answers without a refresh token
-  fails loud. Ported from ach `3194271`, `46a2101`.
+  fails loud. Only a Dex `400` counts as a refusal of the user; a `401`
+  (rotated client secret), `403`/`429` or `5xx` is retryable, never a mass
+  logout. Ported from ach `3194271`, `46a2101`.
 
 ### Changed
 

@@ -968,9 +968,12 @@ def test_dex_refresh_posts_the_token_endpoint_and_classifies_the_answer():
         endpoint.mock(return_value=httpx.Response(400, json={"error": "invalid_grant"}))
         with pytest.raises(routes.DexRefused):
             asyncio.run(routes._dex_refresh("dex-rt-1"))
-        endpoint.mock(return_value=httpx.Response(502))
-        with pytest.raises(httpx.HTTPError):
-            asyncio.run(routes._dex_refresh("dex-rt-1"))
+        # Not a refusal of the user: a misconfigured client secret or a 5xx is
+        # retryable, never the end of every session.
+        for status in (401, 403, 502):
+            endpoint.mock(return_value=httpx.Response(status))
+            with pytest.raises(httpx.HTTPError):
+                asyncio.run(routes._dex_refresh("dex-rt-1"))
 
 
 def test_unsupported_grant_type():

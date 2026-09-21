@@ -499,7 +499,10 @@ async def _dex_refresh(refresh_token: str) -> str:
             data={"grant_type": "refresh_token", "refresh_token": refresh_token},
             auth=(_settings.oauth_client_id, _settings.oauth_client_secret),
         )
-    if 400 <= resp.status_code < 500:
+    # Only Dex's own refusal of the grant is a refusal of the user (invalid_grant
+    # is a 400). A 401 (rotated OAUTH_CLIENT_SECRET), 403/429 (WAF, rate limit)
+    # or 404 (wrong token endpoint) is our problem, not theirs: retryable.
+    if resp.status_code == 400:
         raise DexRefused(resp.text[:200])
     resp.raise_for_status()
     return resp.json().get("refresh_token") or refresh_token
