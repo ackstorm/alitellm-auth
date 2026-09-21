@@ -13,7 +13,6 @@ type Config struct {
 	ListenAddr          string
 	InboundHeader       string // the header an agent presents its key in
 	OutboundHeader      string // the header LiteLLM wants the key in
-	LegacyPassthrough   bool   // accept a LiteLLM key in the outbound header or as a bearer, untouched
 	Issuer              string // the authorization server whose tokens we accept
 	Audience            string // `aud` every token must carry
 	ResourceMetadataURL string // base of our RFC 9728 documents; MCP ones live at <base>/mcp/<svc>
@@ -35,7 +34,6 @@ func LoadConfig() Config {
 		ListenAddr:          envOr("AUTHZ_LISTEN", ":9001"),
 		InboundHeader:       strings.ToLower(envOr("AUTHZ_INBOUND_HEADER", "x-genai-api-key")),
 		OutboundHeader:      strings.ToLower(envOr("AUTHZ_OUTBOUND_HEADER", "x-litellm-api-key")),
-		LegacyPassthrough:   envOr("AUTHZ_LEGACY_PASSTHROUGH", "true") == "true",
 		Issuer:              strings.TrimRight(os.Getenv("AUTHZ_ISSUER"), "/"),
 		Audience:            envOr("AUTHZ_AUDIENCE", "alitellm"),
 		ResourceMetadataURL: strings.TrimRight(os.Getenv("AUTHZ_RESOURCE_METADATA_URL"), "/"),

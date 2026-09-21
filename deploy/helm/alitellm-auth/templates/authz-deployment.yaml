@@ -42,8 +42,6 @@ spec:
               value: {{ .Values.authz.inboundHeader | quote }}
             - name: AUTHZ_OUTBOUND_HEADER
               value: {{ .Values.authz.outboundHeader | quote }}
-            - name: AUTHZ_LEGACY_PASSTHROUGH
-              value: {{ .Values.authz.legacyPassthrough | quote }}
             - name: AUTHZ_ISSUER
               value: {{ .Values.authz.issuer | default .Values.authServer.issuerUrl | default .Values.config.appBaseUrl | quote }}
             - name: AUTHZ_AUDIENCE

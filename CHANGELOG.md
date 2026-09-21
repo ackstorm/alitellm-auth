@@ -18,6 +18,13 @@
 
 ### Fixed
 
+- authz: LiteLLM's own UI and admin surfaces on the API host work again. Only
+  `/v1`, `/gemini`, `/mcp` and `/a2a` require a credential; every other path is
+  forwarded untouched when nothing is presented. An `Authorization` header that
+  is not this AS's own token (LiteLLM's UI bearer, an `sk-` in the OpenAI-SDK
+  shape) is forwarded untouched everywhere and LiteLLM authenticates it. The
+  `authz.legacyPassthrough` value and `AUTHZ_LEGACY_PASSTHROUGH` are gone (ported
+  from ach `1abb5f7`, `d091c08`, `e26ec26`).
 - `ackstorm-token`: finds the authorization server from the API host
   (`ACKSTORM_API`, default `https://api.ackstorm.ai`; RFC 9728 → RFC 8414)
   instead of a fixed issuer that no longer serves one; the loopback listener

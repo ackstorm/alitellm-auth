@@ -28,7 +28,6 @@ func (f *fakeResolver) KeyFor(_ context.Context, _ string) (string, error) {
 var cfg = Config{
 	InboundHeader:       "x-genai-api-key",
 	OutboundHeader:      "x-litellm-api-key",
-	LegacyPassthrough:   true,
 	ResourceMetadataURL: "https://api.test/.well-known/oauth-protected-resource",
 }
 
@@ -87,31 +86,54 @@ func TestUserJWTInAuthorizationIsConsumed(t *testing.T) {
 	}
 }
 
-func TestLegacyOutboundHeaderPassesThroughOnlyWhenEnabled(t *testing.T) {
+func TestOutboundHeaderPassesThroughUntouched(t *testing.T) {
+	// A LiteLLM key already in LiteLLM's own header: LiteLLM authenticates it.
 	h := map[string]string{"x-litellm-api-key": "Bearer sk-old", "x-user-id": "spoof"}
 	d := decide(h, fakeVerifier{}, &fakeResolver{})
-	if !d.Allow || len(d.Set) != 0 || !contains(d.Remove, "x-user-id") {
-		t.Fatalf("legacy: %+v", d)
-	}
-	off := cfg
-	off.LegacyPassthrough = false
-	if d := Decide(context.Background(), off, v1, h, fakeVerifier{}, &fakeResolver{}); d.Allow {
-		t.Fatalf("legacy off: expected deny, got %+v", d)
+	if !d.Allow || len(d.Set) != 0 || !contains(d.Remove, "x-user-id") || contains(d.Remove, "x-litellm-api-key") {
+		t.Fatalf("outbound header: %+v", d)
 	}
 }
 
-func TestALiteLLMKeyInAuthorizationPassesUntouchedWhileLegacyIsOn(t *testing.T) {
-	// OpenAI SDK shape. LiteLLM accepts it natively; nothing to rename.
-	for _, tok := range []string{"sk-abc", "sk-ant-oat01-xyz"} {
-		d := decide(map[string]string{"authorization": "Bearer " + tok}, fakeVerifier{}, &fakeResolver{})
-		if !d.Allow || len(d.Set) != 0 || contains(d.Remove, "authorization") {
-			t.Fatalf("%s: %+v", tok, d)
+func TestAForeignAuthorizationIsForwardedUntouchedOnEveryPath(t *testing.T) {
+	// Not ours: a LiteLLM key in the OpenAI-SDK shape, Anthropic's OAuth, LiteLLM
+	// UI's own bearer on /v1/agents or /key/info, a Basic credential. LiteLLM decides.
+	for _, path := range []string{v1, "/v1/agents", "/key/info", "/health/license", "/mcp/mcp-aws-eks-ro"} {
+		for _, auth := range []string{"Bearer sk-abc", "Bearer sk-ant-oat01-xyz", "Bearer opaque-session-token", "Basic dXNlcjpwdw=="} {
+			r := &fakeResolver{}
+			d := Decide(context.Background(), cfg, path, map[string]string{"authorization": auth, "x-user-id": "spoof"}, fakeVerifier{err: errors.New("never called")}, r)
+			if !d.Allow || len(d.Set) != 0 || contains(d.Remove, "authorization") || !contains(d.Remove, "x-user-id") {
+				t.Fatalf("%s %q: %+v", path, auth, d)
+			}
+			if r.calls != 0 {
+				t.Fatalf("%s %q: resolver called for a foreign credential", path, auth)
+			}
 		}
 	}
-	off := cfg
-	off.LegacyPassthrough = false
-	if d := Decide(context.Background(), off, "/v1/chat/completions", map[string]string{"authorization": "Bearer sk-abc"}, fakeVerifier{}, &fakeResolver{}); d.Allow || d.Status != 401 {
-		t.Fatalf("legacy off: expected 401, got %+v", d)
+}
+
+func TestAnonymousOnTheCatchAllIsForwardedUntouched(t *testing.T) {
+	// LiteLLM's UI, its health and admin surfaces: nothing presented is not our
+	// business outside the protected families.
+	for _, path := range []string{"/", "/ui", "/ui/", "/health/license", "/key/info", "/sso/callback", "/v2/models", "/v1beta"} {
+		d := Decide(context.Background(), cfg, path, map[string]string{"x-user-id": "spoof"}, fakeVerifier{}, &fakeResolver{})
+		if !d.Allow || len(d.Set) != 0 || !contains(d.Remove, "x-user-id") {
+			t.Fatalf("%s: %+v", path, d)
+		}
+	}
+}
+
+func TestProtectedFamiliesRequireACredential(t *testing.T) {
+	for _, path := range []string{"/v1", "/v1/", "/v1/chat/completions", "/gemini/v1beta/models", "/mcp/mcp-aws-eks-ro", "/a2a/agent"} {
+		d := Decide(context.Background(), cfg, path, map[string]string{}, fakeVerifier{}, &fakeResolver{})
+		if d.Allow || d.Status != 401 || d.WWWAuthenticate == "" {
+			t.Fatalf("%s: %+v", path, d)
+		}
+	}
+	for _, path := range []string{"/v10/x", "/gemini-ui", "/mcpx", "/a2ab"} {
+		if protected(path) {
+			t.Fatalf("%s must not be protected", path)
+		}
 	}
 }
 
@@ -160,6 +182,9 @@ func TestAnonymousIs401WithAChallenge(t *testing.T) {
 	}
 	if d.WWWAuthenticate != `Bearer resource_metadata="https://api.test/.well-known/oauth-protected-resource"` {
 		t.Fatalf("challenge: %q", d.WWWAuthenticate)
+	}
+	if d.Body != `{"error":"unauthorized","error_description":"present a LiteLLM key or a token from the authorization server in x-genai-api-key, x-api-key or Authorization: Bearer"}` {
+		t.Fatalf("body: %s", d.Body)
 	}
 }
 

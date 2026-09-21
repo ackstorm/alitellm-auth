@@ -26,21 +26,37 @@ type Decision struct {
 	Body            string
 }
 
+// protectedPrefixes are the model API and the MCP/A2A servers: a request
+// there must carry a credential. Everything else on the host (LiteLLM's UI,
+// /health/*, /key/*, /v2/*, …) is the catch-all — a presented credential is
+// resolved, nothing presented is forwarded untouched and LiteLLM decides.
+var protectedPrefixes = []string{"/v1/", "/gemini/", "/mcp/", "/a2a/"}
+
+func protected(path string) bool {
+	for _, p := range protectedPrefixes {
+		if path == strings.TrimSuffix(p, "/") || strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // Decide is the whole policy. Order matters and is the contract.
 //
 // Authorization is not ours: it may carry the upstream provider's credential
 // (Claude Code with an Anthropic subscription sends Anthropic's OAuth there and
-// our key in the custom header). It is left alone in every case but one: when it
-// carries OUR JWT, we consume it — verify, map, remove — so LiteLLM receives
-// exactly one thing from us, the outbound header.
+// our key in the custom header), LiteLLM's own UI bearer, or a LiteLLM key in
+// the OpenAI-SDK shape. It is consumed in exactly one case — when it carries
+// OUR JWS — so LiteLLM receives exactly one thing from us, the outbound header.
 //
 //  1. custom header (or x-api-key) present → a LiteLLM key (sk-…) is renamed;
 //     our JWT is verified and mapped. That header is removed. Authorization untouched.
-//  2. (transition) the outbound header already present → untouched
-//  3. Authorization: Bearer <not a JWS> → a LiteLLM key in the OpenAI-SDK shape:
-//     untouched while the transition lasts, refused with a challenge after
-//  4. Authorization: Bearer <JWS> → ours: verified, mapped, removed
-//  5. anything else → 401 with the pointer that starts the ceremony
+//  2. Authorization: Bearer <JWS> → ours: verified, mapped, removed
+//  3. Authorization carrying anything else → not ours: forwarded untouched,
+//     LiteLLM authenticates it
+//  4. the outbound header already present → forwarded untouched (LiteLLM's key)
+//  5. nothing presented → 401 with the pointer that starts the ceremony on a
+//     protected family; forwarded untouched on the catch-all
 //
 // A user token on /mcp/<svc> must carry scope <svc> (a grant for that service),
 // or the answer is the 403 that makes an MCP client step up. Agent keys are
@@ -49,6 +65,7 @@ func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v
 	// x-user-id is LiteLLM's impersonation contract with the console; nothing
 	// from the internet may carry it. Also stripped at the route.
 	strip := []string{"x-user-id"}
+	untouched := Decision{Allow: true, Set: map[string]string{}, Remove: strip}
 
 	// x-api-key is where the Anthropic SDK puts an API key: Claude Code with
 	// ANTHROPIC_API_KEY or an apiKeyHelper sends it there, never in
@@ -65,21 +82,17 @@ func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v
 		}
 		return userPath(ctx, cfg, path, tok, remove, v, r)
 	}
-	if cfg.LegacyPassthrough && h[cfg.OutboundHeader] != "" {
-		return Decision{Allow: true, Set: map[string]string{}, Remove: strip}
-	}
-	if auth := h["authorization"]; strings.HasPrefix(auth, "Bearer ") {
-		tok := bareKey(auth)
-		if !looksLikeJWS(tok) {
-			if !cfg.LegacyPassthrough {
-				return deny(401, challenge(cfg, path, ""), `{"error":"unauthorized","error_description":"present a bearer token from the authorization server"}`)
-			}
-			return Decision{Allow: true, Set: map[string]string{}, Remove: strip} // LiteLLM takes it as is
+	if auth := h["authorization"]; auth != "" {
+		if tok := bareKey(auth); strings.HasPrefix(auth, "Bearer ") && looksLikeJWS(tok) {
+			return userPath(ctx, cfg, path, tok, append(strip, "authorization"), v, r)
 		}
-		return userPath(ctx, cfg, path, tok, append(strip, "authorization"), v, r)
+		return untouched // not ours; LiteLLM authenticates it
+	}
+	if h[cfg.OutboundHeader] != "" || !protected(path) {
+		return untouched
 	}
 	return deny(401, challenge(cfg, path, ""),
-		`{"error":"unauthorized","error_description":"present an API key or a bearer token"}`)
+		`{"error":"unauthorized","error_description":"present a LiteLLM key or a token from the authorization server in `+cfg.InboundHeader+`, x-api-key or Authorization: Bearer"}`)
 }
 
 func userPath(ctx context.Context, cfg Config, path, tok string, remove []string, v Verifier, r KeyResolver) Decision {

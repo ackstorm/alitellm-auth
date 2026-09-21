@@ -189,7 +189,10 @@ authz:
   replicaCount: 2
   inboundHeader: "x-genai-api-key"    # what agents send
   outboundHeader: "x-litellm-api-key" # what LiteLLM wants
-  legacyPassthrough: true             # accept LiteLLM key during transition
+  # Only /v1, /gemini, /mcp and /a2a require a credential. Every other path on
+  # the host (LiteLLM's UI, /health/*, /key/*) is forwarded as it came when
+  # nothing is presented; a presented credential is resolved everywhere.
+  # Authorization is consumed only when it carries this AS's own token.
   issuer: ""           # empty → authServer.issuerUrl or config.appBaseUrl
   audience: ""         # empty → authServer.audience
   # The base; the authz appends /mcp/<svc> for MCP paths. Served by this API

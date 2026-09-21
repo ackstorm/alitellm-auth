@@ -45,8 +45,8 @@ func main() {
 		healthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 		g.GracefulStop()
 	}()
-	log.Printf("authz listening on %s (inbound %s → outbound %s, legacy=%v, issuer=%s)",
-		cfg.ListenAddr, cfg.InboundHeader, cfg.OutboundHeader, cfg.LegacyPassthrough, cfg.Issuer)
+	log.Printf("authz listening on %s (inbound %s → outbound %s, issuer=%s)",
+		cfg.ListenAddr, cfg.InboundHeader, cfg.OutboundHeader, cfg.Issuer)
 	if err := g.Serve(lis); err != nil {
 		log.Fatal(err)
 	}

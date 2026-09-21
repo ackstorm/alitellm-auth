@@ -66,7 +66,7 @@ func TestCheckDenyMapsStatusHeadersBodyAndStripsQueryFromDecisionPath(t *testing
 		if wa != want {
 			t.Fatalf("%s: www-authenticate: %q", path, wa)
 		}
-		if contentType != "application/json" || denied.Body != `{"error":"unauthorized","error_description":"present an API key or a bearer token"}` {
+		if contentType != "application/json" || denied.Body != `{"error":"unauthorized","error_description":"present a LiteLLM key or a token from the authorization server in x-genai-api-key, x-api-key or Authorization: Bearer"}` {
 			t.Fatalf("%s: denied response headers/body: %v / %q", path, denied.Headers, denied.Body)
 		}
 	}
