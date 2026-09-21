@@ -8,9 +8,10 @@ the browser ceremony against the platform's authorization server (RFC 8414
 discovery, RFC 7591 DCR, PKCE, loopback redirect) and keeps the refresh token in
 a 0600 file; every later run prints a valid access token, refreshing when needed.
 
-    ackstorm-token            # print a token (logs in if there is nothing to refresh)
-    ackstorm-token login      # force a new browser login
-    ackstorm-token logout     # forget the tokens
+    ackstorm-token                        # print a token (logs in if there is nothing to refresh)
+    ackstorm-token login                  # force a new browser login
+    ackstorm-token login --no-browser     # sign in from ANY browser: shows a code to confirm (RFC 8628)
+    ackstorm-token logout                 # forget the tokens
 
 The authorization server is discovered from the API host (RFC 9728 → RFC 8414),
 the same way the OpenCode plugin does it; nothing else is configured.
@@ -94,7 +95,7 @@ def client_id(state: dict, meta: dict) -> str:
     reg = call(meta["registration_endpoint"], {
         "client_name": "ackstorm-token",
         "redirect_uris": ["http://127.0.0.1/callback"],
-        "grant_types": ["authorization_code", "refresh_token"],
+        "grant_types": ["authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:device_code"],
         "response_types": ["code"],
         "token_endpoint_auth_method": "none",
     })
@@ -162,8 +163,40 @@ def login(state: dict, meta: dict) -> dict:
     return state
 
 
+def device_login(state: dict, meta: dict) -> dict:
+    """RFC 8628: this host shows a code, the user signs in from any browser, we poll."""
+    if "device_authorization_endpoint" not in meta:
+        sys.exit("the authorization server does not offer the device grant")
+    cid = client_id(state, meta)
+    da = call(meta["device_authorization_endpoint"], {"client_id": cid}, form=True)
+    log(f"Open {da['verification_uri']} in any browser and enter the code:\n\n"
+        f"    {da['user_code']}\n\n"
+        f"Waiting for you to sign in… (expires in {da['expires_in'] // 60} min)")
+    deadline = time.time() + da["expires_in"]
+    wait = da.get("interval", 5)
+    form = {"grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            "device_code": da["device_code"], "client_id": cid}
+    while time.time() < deadline:
+        time.sleep(wait)
+        try:
+            tok = exchange(meta, form)
+        except urllib.error.HTTPError as exc:
+            err = json.load(exc).get("error") if exc.code == 400 else None
+            if err == "authorization_pending":
+                continue
+            if err == "slow_down":
+                wait += 5
+                continue
+            sys.exit(f"login failed: {err or exc.code}")
+        state.update(tok)
+        return state
+    sys.exit("the code expired before you signed in")
+
+
 def main() -> None:
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "print"
+    args = [a for a in sys.argv[1:] if a != "--no-browser"]
+    do_login = device_login if "--no-browser" in sys.argv else login
+    cmd = args[0] if args else "print"
     if cmd == "logout":
         try:
             os.remove(STATE_FILE)
@@ -177,7 +210,7 @@ def main() -> None:
         fcntl.flock(lock, fcntl.LOCK_EX)
         state = load()
         if cmd == "login" or not state.get("refresh_token"):
-            state = login(state, metadata())
+            state = do_login(state, metadata())
         elif state.get("expires_at", 0) < time.time() + SKEW:
             meta = metadata()
             try:
@@ -185,7 +218,7 @@ def main() -> None:
                                              "client_id": client_id(state, meta)}))
             except urllib.error.HTTPError as exc:
                 log(f"refresh rejected ({exc.code}); logging in again")
-                state = login(state, meta)
+                state = do_login(state, meta)
         save(state)
     if cmd == "login":
         log("Logged in.")

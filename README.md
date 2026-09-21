@@ -110,6 +110,10 @@ With `ANTHROPIC_BASE_URL=https://api.ackstorm.ai` for Claude Code. Codex ignores
 (Claude Code: `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`; Codex: `refresh_interval_ms`), so
 the helper refreshes 10 minutes before expiry — keep the cache interval below that.
 
+On a host with no usable browser run `ackstorm-token login --no-browser` once: it prints
+a `XXXX-XXXX` code and a URL; open the URL in any browser, confirm the code and sign in.
+Later runs refresh silently as usual.
+
 ## Development
 
 ```bash
