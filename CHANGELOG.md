@@ -2,6 +2,21 @@
 
 ## [unreleased]
 
+### Removed
+
+- The OpenCode auth plugin and its `GET /public/opencode-auth` route: the
+  authorization server (ACH) serves it now, at `/platform/opencode-auth` on
+  the API host. Source moved to `ackstorm/ach` (`internal/platformapi/opencodeauth`).
+
+### Fixed
+
+- `ackstorm-token`: finds the authorization server from the API host
+  (`ACKSTORM_API`, default `https://api.ackstorm.ai`; RFC 9728 → RFC 8414)
+  instead of a fixed issuer that no longer serves one; the loopback listener
+  answers only `/callback` with the expected `state`, so a stray hit no longer
+  ends the login; refreshes 10 minutes before expiry (callers cache the printed
+  token); no network when the token is still fresh. The unused `scope` is gone.
+
 ## [0.12.0] - 2026-09-19
 
 ### Removed

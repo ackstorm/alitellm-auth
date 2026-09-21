@@ -62,17 +62,18 @@ key. It advertises its authorization server through `/.well-known/oauth-protecte
 
 ### OpenCode
 
-The plugin is served by this API as an npm tarball, so install it from the platform:
+The plugin is served by the authorization server itself (ACH) as an npm tarball:
 
 ```bash
-opencode plugin https://platform.ackstorm.ai/public/opencode-auth -g
+opencode plugin https://api.ackstorm.ai/platform/opencode-auth -g
 opencode auth login -p ackstorm      # browser SSO; tokens land in opencode's auth store
 ```
 
 Nothing to configure: the plugin takes the provider's API URL from opencode, finds the
 authorization server through `/.well-known/oauth-protected-resource` (RFC 9728) and its
 endpoints through RFC 8414. The tarball is fetched once; a new release is picked up by
-re-running the install command with `-f`. Source: [clients/opencode](clients/opencode).
+re-running the install command with `-f`. Source: `internal/platformapi/opencodeauth` in
+[ackstorm/ach](https://github.com/ackstorm/ach).
 
 An exported `LITELLM_API_KEY` still works (the served `api.json` lists it), but an OAuth
 credential wins when both are present.
@@ -80,7 +81,9 @@ credential wins when both are present.
 ### Claude Code and Codex
 
 Both take "a command that prints a credential". [clients/ackstorm-token](clients/ackstorm-token)
-is that command (stdlib Python, DCR + PKCE, refresh token in `~/.config/ackstorm-ai/token.json`):
+is that command (stdlib Python, DCR + PKCE, refresh token in `~/.config/ackstorm-ai/token.json`).
+It finds the authorization server from the API host (`ACKSTORM_API`, default
+`https://api.ackstorm.ai`) the same way the OpenCode plugin does:
 
 ```json
 // ~/.claude/settings.json
@@ -100,7 +103,9 @@ refresh_interval_ms = 300000
 ```
 
 With `ANTHROPIC_BASE_URL=https://api.ackstorm.ai` for Claude Code. Codex ignores
-`OPENAI_BASE_URL`; the custom provider is required.
+`OPENAI_BASE_URL`; the custom provider is required. Both cache the printed token
+(Claude Code: `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`; Codex: `refresh_interval_ms`), so
+the helper refreshes 10 minutes before expiry — keep the cache interval below that.
 
 ## Development
 

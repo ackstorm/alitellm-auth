@@ -12,6 +12,8 @@ a 0600 file; every later run prints a valid access token, refreshing when needed
     ackstorm-token login      # force a new browser login
     ackstorm-token logout     # forget the tokens
 
+The authorization server is discovered from the API host (RFC 9728 → RFC 8414),
+the same way the OpenCode plugin does it; nothing else is configured.
 Only the token goes to stdout; everything else to stderr. Stdlib only.
 """
 
@@ -30,11 +32,13 @@ import urllib.parse
 import urllib.request
 import webbrowser
 
-ISSUER = os.environ.get("ACKSTORM_ISSUER", "https://platform.ackstorm.ai")
-SCOPE = os.environ.get("ACKSTORM_SCOPE", "alitellm")
+API = os.environ.get("ACKSTORM_API", "https://api.ackstorm.ai")
 STATE_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "ackstorm-ai")
 STATE_FILE = os.path.join(STATE_DIR, "token.json")
-SKEW = 60  # refresh this many seconds before expiry
+# Refresh this long before expiry: the callers cache what we print (Claude Code
+# CLAUDE_CODE_API_KEY_HELPER_TTL_MS, Codex refresh_interval_ms), so a token
+# printed with a minute left would be used past its end.
+SKEW = 600
 
 
 def log(msg: str) -> None:
@@ -73,7 +77,14 @@ def save(state: dict) -> None:
 
 
 def metadata() -> dict:
-    return call(f"{ISSUER}/.well-known/oauth-authorization-server")
+    """API host -> protected-resource document (RFC 9728) -> AS metadata (RFC 8414)."""
+    u = urllib.parse.urlparse(API)
+    prm = call(f"{u.scheme}://{u.netloc}/.well-known/oauth-protected-resource{u.path.rstrip('/')}")
+    issuer = prm["authorization_servers"][0]
+    meta = call(f"{issuer}/.well-known/oauth-authorization-server")
+    if meta["issuer"] != issuer:
+        sys.exit(f"issuer mismatch: {meta['issuer']} != {issuer}")  # RFC 8414 §3.3
+    return meta
 
 
 def client_id(state: dict, meta: dict) -> str:
@@ -110,8 +121,17 @@ def login(state: dict, meta: dict) -> dict:
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
-            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-            got.update({k: v[0] for k, v in q.items()})
+            u = urllib.parse.urlparse(self.path)
+            q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
+            # A stray hit (favicon, wrong state) must not consume the listener:
+            # the real callback is still coming.
+            if u.path != "/callback":
+                self.send_error(404)
+                return
+            if q.get("state") != expected_state:
+                self.send_error(400, "state mismatch")
+                return
+            got.update(q)
             self.send_response(200)
             self.send_header("content-type", "text/plain")
             self.end_headers()
@@ -125,7 +145,7 @@ def login(state: dict, meta: dict) -> dict:
     redirect_uri = f"http://127.0.0.1:{srv.server_port}/callback"
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     url = meta["authorization_endpoint"] + "?" + urllib.parse.urlencode({
-        "response_type": "code", "client_id": cid, "redirect_uri": redirect_uri, "scope": SCOPE,
+        "response_type": "code", "client_id": cid, "redirect_uri": redirect_uri,
         "state": expected_state, "code_challenge": challenge, "code_challenge_method": "S256",
     })
     log(f"Open this URL to sign in:\n{url}")
@@ -134,7 +154,7 @@ def login(state: dict, meta: dict) -> dict:
         srv.shutdown()
         sys.exit("login timed out")
     srv.shutdown()
-    if got.get("state") != expected_state or "code" not in got:
+    if "code" not in got:
         sys.exit(f"login failed: {got.get('error', 'no code')}")
     tok = exchange(meta, {"grant_type": "authorization_code", "code": got["code"], "redirect_uri": redirect_uri,
                           "client_id": cid, "code_verifier": verifier})
@@ -156,10 +176,10 @@ def main() -> None:
     with open(os.path.join(STATE_DIR, "token.lock"), "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         state = load()
-        meta = metadata()
         if cmd == "login" or not state.get("refresh_token"):
-            state = login(state, meta)
+            state = login(state, metadata())
         elif state.get("expires_at", 0) < time.time() + SKEW:
+            meta = metadata()
             try:
                 state.update(exchange(meta, {"grant_type": "refresh_token", "refresh_token": state["refresh_token"],
                                              "client_id": client_id(state, meta)}))
