@@ -137,23 +137,14 @@ func TestProtectedFamiliesRequireACredential(t *testing.T) {
 	}
 }
 
-func TestMCPPathRequiresTheServiceScope(t *testing.T) {
+func TestUserTokensAreNotScopeGatedOnMCPPaths(t *testing.T) {
+	// LiteLLM decides which MCP servers the user's key may reach; a token with
+	// the audience scope alone is enough here.
 	r := &fakeResolver{key: "sk-front"}
-	v := fakeVerifier{sub: "u@x.com", scopes: []string{"alitellm", "mcp-google-drive"}}
-	if d := Decide(context.Background(), cfg, "/mcp/mcp-google-drive", map[string]string{"authorization": "Bearer eyJ.x.y"}, v, r); !d.Allow {
-		t.Fatalf("granted service: %+v", d)
-	}
-	r = &fakeResolver{key: "sk-front"}
+	v := fakeVerifier{sub: "u@x.com", scopes: []string{"alitellm"}}
 	d := Decide(context.Background(), cfg, "/mcp/mcp-aws-eks-ro", map[string]string{"authorization": "Bearer eyJ.x.y"}, v, r)
-	if d.Allow || d.Status != 403 {
-		t.Fatalf("missing scope: %+v", d)
-	}
-	want := `Bearer error="insufficient_scope", scope="mcp-aws-eks-ro", resource_metadata="https://api.test/.well-known/oauth-protected-resource/mcp/mcp-aws-eks-ro"`
-	if d.WWWAuthenticate != want {
-		t.Fatalf("challenge: %q", d.WWWAuthenticate)
-	}
-	if r.calls != 0 {
-		t.Fatalf("no key lookup before the scope gate")
+	if !d.Allow || r.calls != 1 || d.Set["x-litellm-api-key"] != "Bearer sk-front" {
+		t.Fatalf("user token on an MCP path: %+v calls=%d", d, r.calls)
 	}
 }
 
@@ -209,9 +200,9 @@ func TestChallengeDocNamesTheServiceRootNotTheDialledPath(t *testing.T) {
 }
 
 func TestAMalformedServiceSegmentIsNotAnMCPPath(t *testing.T) {
-	// The segment lands in WWW-Authenticate and the JSON body unescaped, so
-	// only a well-formed name is a service; anything else is not scope-gated
-	// and LiteLLM 404s it.
+	// The segment lands in WWW-Authenticate unescaped, so only a well-formed
+	// name is a service; anything else gets the root challenge document and
+	// LiteLLM 404s it.
 	for _, p := range []string{"/mcp/", "/mcp//x", `/mcp/x"y`, "/mcp/x y"} {
 		if svc := mcpService(p); svc != "" {
 			t.Fatalf("%q: service %q", p, svc)

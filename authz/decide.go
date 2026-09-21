@@ -58,9 +58,8 @@ func protected(path string) bool {
 //  5. nothing presented → 401 with the pointer that starts the ceremony on a
 //     protected family; forwarded untouched on the catch-all
 //
-// A user token on /mcp/<svc> must carry scope <svc> (a grant for that service),
-// or the answer is the 403 that makes an MCP client step up. Agent keys are
-// not scope-gated: their grant comes through the `authenticate` tool.
+// Scopes are not gated here: a user token proves who, and LiteLLM decides what
+// that user's key may reach (models, MCP servers and their upstream auth).
 func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v Verifier, r KeyResolver) Decision {
 	// x-user-id is LiteLLM's impersonation contract with the console; nothing
 	// from the internet may carry it. Also stripped at the route.
@@ -97,14 +96,10 @@ func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v
 }
 
 func userPath(ctx context.Context, cfg Config, path, tok string, remove []string, v Verifier, r KeyResolver) Decision {
-	sub, scopes, err := v.Verify(tok)
+	sub, _, err := v.Verify(tok)
 	if err != nil {
 		return deny(401, challenge(cfg, path, "invalid_token"),
 			`{"error":"invalid_token","error_description":"the bearer token could not be verified"}`)
-	}
-	if svc := mcpService(path); svc != "" && !hasScope(scopes, svc) {
-		return deny(403, `Bearer error="insufficient_scope", scope="`+svc+`", resource_metadata="`+challengeDoc(cfg, path)+`"`,
-			`{"error":"insufficient_scope","scope":"`+svc+`"}`)
 	}
 	key, err := r.KeyFor(ctx, sub)
 	if err != nil {
@@ -148,15 +143,6 @@ func mcpService(path string) string {
 		return ""
 	}
 	return svc
-}
-
-func hasScope(scopes []string, want string) bool {
-	for _, s := range scopes {
-		if s == want {
-			return true
-		}
-	}
-	return false
 }
 
 // challengeDoc names the document a client must fetch to start a ceremony. We

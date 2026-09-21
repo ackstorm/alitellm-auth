@@ -2,6 +2,13 @@
 
 ## [unreleased]
 
+### Changed
+
+- authz: a user token is no longer scope-gated on `/mcp/<server>`. With
+  `authServer.services` empty no token could carry a service scope, so every OAuth
+  client got `403 insufficient_scope` on the MCP gateway. authz proves who and hands
+  LiteLLM the user's key; LiteLLM decides which MCP servers that key may reach.
+
 ## [0.14.0] - 2026-09-21
 
 ### Added
