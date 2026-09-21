@@ -510,6 +510,15 @@ async def device_page(request: Request) -> HTMLResponse:
 @router.post("/oauth/device")
 async def device_confirm(request: Request):
     assert _store is not None and _settings is not None
+    # RFC 8628 §5.4 remote phishing: a cross-site auto-submitting form could
+    # POST an attacker's code here, and a live IdP session would then approve it
+    # without the person ever seeing the page. Only our own page may confirm.
+    raw = request.headers.get("origin") or request.headers.get("referer") or ""
+    got, ours = urlparse(raw), urlparse(_settings.app_base_url)
+    if (got.scheme, got.hostname, got.port) != (ours.scheme, ours.hostname, ours.port):
+        return _html_error(
+            403, "cross-origin request rejected — open the verification page directly"
+        )
     form = await request.form()
     typed = str(form.get("user_code", ""))
     user_code = _normalize_user_code(typed)

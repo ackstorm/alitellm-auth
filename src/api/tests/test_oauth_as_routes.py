@@ -1028,6 +1028,7 @@ def test_a_callback_from_a_browser_that_did_not_start_the_request_is_refused():
 # ── RFC 8628 device grant ────────────────────────────────────────────────────
 
 DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+SAME_ORIGIN = {"origin": "https://platform.test"}
 
 
 def _device_start(c: TestClient, client_id: str) -> dict:
@@ -1050,7 +1051,12 @@ def _device_confirm_through_dex(c: TestClient, user_code: str, *, dex_fails: boo
         mock_oauth.oidc.authorize_redirect = AsyncMock(
             return_value=RedirectResponse("http://dex.test/auth", status_code=302)
         )
-        r = c.post("/oauth/device", data={"user_code": user_code}, follow_redirects=False)
+        r = c.post(
+            "/oauth/device",
+            data={"user_code": user_code},
+            headers={"origin": "https://platform.test"},
+            follow_redirects=False,
+        )
         assert r.status_code == 302, r.text
         kwargs = mock_oauth.oidc.authorize_redirect.call_args.kwargs
         assert kwargs["scope"] == "openid email profile offline_access"
@@ -1101,7 +1107,7 @@ def test_device_page_prefills_the_code_and_rejects_an_unknown_one():
     r = c.get("/oauth/device?user_code=BCDF-GHJK")
     assert r.status_code == 200 and 'value="BCDF-GHJK"' in r.text and "Confirm" in r.text
     with patch("app.oauth_as.routes.oauth") as mock_oauth:
-        r = c.post("/oauth/device", data={"user_code": "BCDF-GHJK"})
+        r = c.post("/oauth/device", data={"user_code": "BCDF-GHJK"}, headers=SAME_ORIGIN)
         mock_oauth.oidc.authorize_redirect.assert_not_called()
     assert r.status_code == 400 and "not found or expired" in r.text
 
@@ -1174,6 +1180,19 @@ def test_a_settled_device_code_cannot_be_approved_twice():
     assert _device_confirm_through_dex(c, da["user_code"]).status_code == 200
     # The index is gone, so the page refuses the code before Dex is involved.
     with patch("app.oauth_as.routes.oauth") as mock_oauth:
-        r = c.post("/oauth/device", data={"user_code": da["user_code"]})
+        r = c.post("/oauth/device", data={"user_code": da["user_code"]}, headers=SAME_ORIGIN)
         mock_oauth.oidc.authorize_redirect.assert_not_called()
     assert r.status_code == 400 and "not found or expired" in r.text
+
+
+def test_device_page_refuses_a_cross_site_confirmation():
+    """RFC 8628 §5.4: an auto-submitting form on another site must not walk a
+    victim with a live IdP session into approving an attacker's code."""
+    c = make_client()
+    da = _device_start(c, _register(c))
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        for headers in ({}, {"origin": "https://evil.test"}, {"referer": "https://evil.test/x"}):
+            r = c.post("/oauth/device", data={"user_code": da["user_code"]}, headers=headers)
+            assert r.status_code == 403, headers
+        mock_oauth.oidc.authorize_redirect.assert_not_called()
+    assert asyncio.run(routes._store.get("device_user", da["user_code"])) is not None
