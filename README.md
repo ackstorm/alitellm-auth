@@ -61,18 +61,17 @@ caller's LiteLLM key. Coding agents get that JWT three ways.
 
 ### OpenCode
 
-The plugin is served by the authorization server itself (ACH) as an npm tarball:
+The plugin is served by this API as an npm tarball, so install it from the platform:
 
 ```bash
-opencode plugin https://api.ackstorm.ai/platform/opencode-auth -g
+opencode plugin https://platform.ackstorm.ai/public/opencode-auth -g
 opencode auth login -p ackstorm      # browser SSO; tokens land in opencode's auth store
 ```
 
 Nothing to configure: the plugin takes the provider's API URL from opencode, finds the
 authorization server through `/.well-known/oauth-protected-resource` (RFC 9728) and its
 endpoints through RFC 8414. The tarball is fetched once; a new release is picked up by
-re-running the install command with `-f`. Source: `internal/platformapi/opencodeauth` in
-[ackstorm/ach](https://github.com/ackstorm/ach).
+re-running the install command with `-f`. Source: [clients/opencode](clients/opencode).
 
 An exported `LITELLM_API_KEY` still works (the served `api.json` lists it), but an OAuth
 credential wins when both are present.

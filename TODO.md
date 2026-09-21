@@ -22,10 +22,11 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
 
 ## Clients
 
-- [x] **OpenCode model-path OAuth** — moved to `ackstorm/ach` (`internal/platformapi/opencodeauth`)
-  and served by the authorization server: `opencode plugin
-  https://api.ackstorm.ai/platform/opencode-auth -g`, then `opencode auth login -p ackstorm`.
-  Zero config: provider API URL from opencode → RFC 9728 → RFC 8414. Verified incl. refresh (2026-09-17).
+- [x] **OpenCode model-path OAuth** — `clients/opencode` (DCR + PKCE + loopback, refresh
+  in a custom `fetch`), zero config: provider API URL from opencode → RFC 9728 → RFC 8414.
+  Served by the API as an npm tarball, `GET /public/opencode-auth`:
+  `opencode plugin https://platform.ackstorm.ai/public/opencode-auth -g`, then
+  `opencode auth login -p ackstorm`. Verified incl. refresh (2026-09-17).
   Measured: opencode fetches the tarball at install and once on the first launch, then
   never — a new release needs `opencode plugin <url> -g -f`. The served `api.json` still
   lists `env: ["LITELLM_API_KEY"]`; an exported key masks a logout (OAuth wins when both

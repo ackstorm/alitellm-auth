@@ -19,6 +19,10 @@
 
 ### Restored
 
+- The OpenCode auth plugin (`clients/opencode`) and its `GET /public/opencode-auth`
+  tarball route, reverting the v0.12.x move to ACH: this API is the authorization
+  server again, so it serves its own client. `ackstorm-token` keeps the RFC 9728
+  discovery it gained meanwhile (it finds this AS the same way).
 - The server side of the OAuth front door, reverting the v0.12.0 removal: the
   authorization server (`app/oauth_as/`), `/api/internal/front-key`, the Go Envoy
   `ext_authz` service (`authz/`, image and CI job), the chart's `authServer`,

@@ -90,6 +90,10 @@ _build-ui:
 	cd $(UI_DIR) && npm_config_cache=$(NPM_CACHE) npm ci && npm run build
 
 .PHONY: test-ui _test-ui
+.PHONY: test-plugin
+test-plugin: ## OpenCode auth plugin self-check (host node, no deps)
+	node --test test/opencode-auth.test.mjs
+
 test-ui: ## Run the UI vitest suite (containerized)
 	$(call container_target,_test-ui)
 _test-ui:

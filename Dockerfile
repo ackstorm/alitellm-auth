@@ -30,6 +30,12 @@ COPY src/api/app ./app
 
 RUN uv pip install --system --no-cache-dir --target=/app/deps .
 
+# The OpenCode auth plugin as an npm tarball (`package/` prefix is what npm
+# expects), served by the API at /public/opencode-auth. No build, no deps: it
+# is two files, so GNU tar is the whole packaging step.
+COPY clients/opencode ./clients/opencode
+RUN tar -czf /app/opencode-auth.tgz -C clients --transform 's,^opencode,package,' opencode
+
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM python:3.14-slim
 WORKDIR /app
@@ -47,6 +53,8 @@ COPY src/api/app ./app
 COPY --from=ui-builder /src/ui/dist /app/ui/dist
 # Not under /app/public: that directory is a projected volume at runtime, which
 # would hide anything the image put there. Served by an explicit route instead.
+COPY --from=builder /app/opencode-auth.tgz /app/clients/opencode-auth.tgz
+# OpenWork brand marks, served at /openwork/brand/{logo,icon}.svg (same reason).
 COPY src/api/brand ./brand
 
 EXPOSE 8080
