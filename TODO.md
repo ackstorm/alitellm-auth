@@ -61,8 +61,9 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
 - [ ] Runbook rows not yet exercised: 4d/4e (Claude Code model path via
   `ANTHROPIC_CUSTOM_HEADERS=x-genai-api-key: …` with a LiteLLM key and with a front
   JWT), 7d (revoke the grant → next refresh drops the scope → 403 again).
-- [ ] Claude Code loopback: when the browser is on another machine the redirect to
-  `localhost:<port>` fails; the "paste the URL" fallback works. Document.
+- [x] Remote / headless host login: RFC 8628 device grant on the AS
+  (`/oauth/device_authorization`, `/oauth/device`), `opencode` method 2 and
+  `ackstorm-token login --no-browser` (2026-09-21).
 
 ## Code
 

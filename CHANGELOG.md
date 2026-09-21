@@ -2,6 +2,19 @@
 
 ## [unreleased]
 
+### Added
+
+- AS: RFC 8628 device grant for hosts with no usable browser. `POST
+  /oauth/device_authorization` hands out a `XXXX-XXXX` code (10 min), the user
+  confirms it on `/oauth/device` from any browser and signs in through the same
+  Dex leg, and the host polls `/oauth/token` with
+  `urn:ietf:params:oauth:grant-type:device_code`. A device login carries the
+  audience scope only (no MCP scope chain). Advertised in the RFC 8414 document.
+- OpenCode plugin 0.2.0: second login method "SSO (device code — sign in from
+  another browser)" for a remote or headless host (ported from ach `6fa97f8`).
+- `ackstorm-token login --no-browser`: the device grant from the CLI (Claude Code /
+  Codex on a remote host).
+
 ## [0.13.0] - 2026-09-21
 
 ### Upgrade notes

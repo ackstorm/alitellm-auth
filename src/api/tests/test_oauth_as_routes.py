@@ -3,6 +3,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import re
 from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlparse
 
@@ -78,7 +79,15 @@ def test_as_metadata_names_every_endpoint_under_the_issuer():
     assert metadata["jwks_uri"] == "https://platform.test/oauth/jwks.json"
     assert metadata["code_challenge_methods_supported"] == ["S256"]
     assert metadata["authorization_response_iss_parameter_supported"] is True
-    assert metadata["grant_types_supported"] == ["authorization_code", "refresh_token"]
+    assert metadata["grant_types_supported"] == [
+        "authorization_code",
+        "refresh_token",
+        "urn:ietf:params:oauth:grant-type:device_code",
+    ]
+    assert (
+        metadata["device_authorization_endpoint"]
+        == "https://platform.test/oauth/device_authorization"
+    )
     assert metadata["token_endpoint_auth_methods_supported"] == ["none"]
 
 
@@ -125,7 +134,11 @@ def test_register_accepts_a_public_client_with_loopback_and_https_redirects():
     assert body["client_id"]
     assert body["token_endpoint_auth_method"] == "none"
     assert body["redirect_uris"] == ["http://127.0.0.1:19876/callback", "https://app.example/cb"]
-    assert body["grant_types"] == ["authorization_code", "refresh_token"]
+    assert body["grant_types"] == [
+        "authorization_code",
+        "refresh_token",
+        "urn:ietf:params:oauth:grant-type:device_code",
+    ]
 
 
 def test_register_rejects_plain_http_off_loopback():
@@ -1010,3 +1023,157 @@ def test_a_callback_from_a_browser_that_did_not_start_the_request_is_refused():
     assert "did not complete the login" in r.text
     assert asyncio.run(routes._store.get("pending", pending_id)) is None  # burned
     assert not fake.data or not any(k.startswith("code") for k in fake.data)
+
+
+# ── RFC 8628 device grant ────────────────────────────────────────────────────
+
+DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+
+
+def _device_start(c: TestClient, client_id: str) -> dict:
+    r = c.post("/oauth/device_authorization", data={"client_id": client_id})
+    assert r.status_code == 200, r.text
+    assert r.headers["cache-control"] == "no-store"
+    return r.json()
+
+
+def _device_token(c: TestClient, client_id: str, device_code: str):
+    return c.post(
+        "/oauth/token",
+        data={"grant_type": DEVICE_GRANT, "device_code": device_code, "client_id": client_id},
+    )
+
+
+def _device_confirm_through_dex(c: TestClient, user_code: str, *, dex_fails: bool = False):
+    """POST the code on the page → Dex → as-callback; return the callback response."""
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        r = c.post("/oauth/device", data={"user_code": user_code}, follow_redirects=False)
+        assert r.status_code == 302, r.text
+        kwargs = mock_oauth.oidc.authorize_redirect.call_args.kwargs
+        assert kwargs["scope"] == "openid email profile offline_access"
+        pending_id = kwargs["state"]
+        assert asyncio.run(routes._store.get("pending", pending_id))["scopes"] == ["alitellm"]
+        if dex_fails:
+            mock_oauth.oidc.authorize_access_token = AsyncMock(
+                side_effect=RuntimeError("access_denied")
+            )
+        else:
+            mock_oauth.oidc.authorize_access_token = AsyncMock(
+                return_value={"userinfo": {"email": "u@x.com"}, "refresh_token": "dex-rt-1"}
+            )
+        with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock(return_value="default")):
+            return c.get(
+                f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False
+            )
+
+
+def test_device_authorization_issues_a_user_code_and_parks_the_device():
+    c = make_client()
+    client_id = _register(c)
+    da = _device_start(c, client_id)
+    assert re.fullmatch(r"[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}", da["user_code"])
+    assert da["verification_uri"] == "https://platform.test/oauth/device"
+    assert (
+        da["verification_uri_complete"]
+        == f"https://platform.test/oauth/device?user_code={da['user_code']}"
+    )
+    assert da["expires_in"] == 600 and da["interval"] == 5
+    assert asyncio.run(routes._store.get("device", da["device_code"])) == {
+        "client_id": client_id,
+        "user_code": da["user_code"],
+        "status": "pending",
+    }
+    assert asyncio.run(routes._store.get("device_user", da["user_code"])) == {
+        "device_code": da["device_code"]
+    }
+
+
+def test_device_authorization_rejects_an_unknown_client():
+    r = make_client().post("/oauth/device_authorization", data={"client_id": "nope"})
+    assert r.status_code == 400 and r.json()["error"] == "invalid_client"
+
+
+def test_device_page_prefills_the_code_and_rejects_an_unknown_one():
+    c = make_client()
+    r = c.get("/oauth/device?user_code=BCDF-GHJK")
+    assert r.status_code == 200 and 'value="BCDF-GHJK"' in r.text and "Confirm" in r.text
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        r = c.post("/oauth/device", data={"user_code": "BCDF-GHJK"})
+        mock_oauth.oidc.authorize_redirect.assert_not_called()
+    assert r.status_code == 400 and "not found or expired" in r.text
+
+
+def test_user_code_normalisation():
+    assert routes._normalize_user_code(" bcdf ghjk ") == "BCDF-GHJK"
+    assert routes._normalize_user_code("BCDF-GHJK") == "BCDF-GHJK"
+    assert routes._normalize_user_code("bcdfghjk") == "BCDF-GHJK"
+    assert routes._normalize_user_code("BCDF-GHJ") == ""
+
+
+def test_device_login_end_to_end_then_single_redemption():
+    c = make_client()
+    client_id = _register(c)
+    da = _device_start(c, client_id)
+    # Before approval the client keeps polling.
+    r = _device_token(c, client_id, da["device_code"])
+    assert r.status_code == 400 and r.json()["error"] == "authorization_pending"
+    # The user types the code in any browser (lower-case, spaced) and signs in at Dex.
+    r = _device_confirm_through_dex(c, da["user_code"].lower().replace("-", " "))
+    assert r.status_code == 200 and "terminal" in r.text
+    assert asyncio.run(routes._store.get("device", da["device_code"])) == {
+        "client_id": client_id,
+        "user_code": da["user_code"],
+        "status": "approved",
+        "sub": "u@x.com",
+    }
+    assert asyncio.run(routes._store.get("device_user", da["user_code"])) is None
+    assert asyncio.run(routes._store.get("dexrt", "u@x.com")) == {"rt": "dex-rt-1"}
+    # The poll now returns the same pair every grant issues; scope is the audience only.
+    r = _device_token(c, client_id, da["device_code"])
+    assert r.status_code == 200, r.text
+    tok = r.json()
+    assert tok["scope"] == "alitellm" and tok["refresh_token"]
+    claims = _jwt.decode(tok["access_token"], routes._signer.jwks())
+    assert claims["sub"] == "u@x.com" and claims["scope"] == "alitellm"
+    # Single redemption.
+    r = _device_token(c, client_id, da["device_code"])
+    assert r.status_code == 400 and r.json()["error"] == "expired_token"
+
+
+def test_device_token_rejects_another_client_and_an_unknown_code():
+    c = make_client()
+    client_id, other = _register(c), _register(c)
+    da = _device_start(c, client_id)
+    r = _device_token(c, other, da["device_code"])
+    assert r.status_code == 400 and r.json()["error"] == "invalid_grant"
+    r = _device_token(c, client_id, "nope")
+    assert r.status_code == 400 and r.json()["error"] == "expired_token"
+
+
+def test_device_login_refused_at_dex_is_access_denied_once():
+    c = make_client()
+    client_id = _register(c)
+    da = _device_start(c, client_id)
+    r = _device_confirm_through_dex(c, da["user_code"], dex_fails=True)
+    assert r.status_code == 400
+    assert asyncio.run(routes._store.get("device", da["device_code"]))["status"] == "denied"
+    assert asyncio.run(routes._store.get("device_user", da["user_code"])) is None
+    r = _device_token(c, client_id, da["device_code"])
+    assert r.status_code == 400 and r.json()["error"] == "access_denied"
+    r = _device_token(c, client_id, da["device_code"])
+    assert r.status_code == 400 and r.json()["error"] == "expired_token"
+
+
+def test_a_settled_device_code_cannot_be_approved_twice():
+    c = make_client()
+    client_id = _register(c)
+    da = _device_start(c, client_id)
+    assert _device_confirm_through_dex(c, da["user_code"]).status_code == 200
+    # The index is gone, so the page refuses the code before Dex is involved.
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        r = c.post("/oauth/device", data={"user_code": da["user_code"]})
+        mock_oauth.oidc.authorize_redirect.assert_not_called()
+    assert r.status_code == 400 and "not found or expired" in r.text

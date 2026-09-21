@@ -10,10 +10,12 @@ import logging
 import re
 import secrets
 import time
+from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
 import httpx
 from fastapi import APIRouter, Request
+from fastapi.templating import Jinja2Templates
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.config import Settings
@@ -42,6 +44,13 @@ HINT_TTL = 600  # the login_hint handed to a broker; one chain step, not a sessi
 # replaces it whenever a login asks for offline_access.
 DEX_SCOPE = "openid email profile offline_access"
 DEXRT = "dexrt"  # store kind: the user's Dex refresh token, keyed by email
+# RFC 8628 device grant: the headless login. The host that needs the token shows
+# a code, the user signs in from any browser, the host polls /oauth/token.
+DEVICE_TTL = 600
+DEVICE_INTERVAL = 5
+DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+USER_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXZ"  # 20 symbols, no look-alikes (no vowels, 0/O, 1/I)
+_TEMPLATES = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
 
 def configure_as(
@@ -64,10 +73,11 @@ def authorization_server_metadata(issuer: str, audience: str, services: list[str
         "authorization_endpoint": f"{issuer}/oauth/authorize",
         "token_endpoint": f"{issuer}/oauth/token",
         "registration_endpoint": f"{issuer}/oauth/register",
+        "device_authorization_endpoint": f"{issuer}/oauth/device_authorization",
         "jwks_uri": f"{issuer}/oauth/jwks.json",
         "scopes_supported": [audience, *services],
         "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "grant_types_supported": ["authorization_code", "refresh_token", DEVICE_GRANT],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
         # RFC 9207: every authorization response carries iss (Claude Code checks).
@@ -209,7 +219,7 @@ async def register(request: Request) -> JSONResponse:
         "client_name": str(body.get("client_name", ""))[:200],
         "redirect_uris": uris,
         "token_endpoint_auth_method": "none",
-        "grant_types": ["authorization_code", "refresh_token"],
+        "grant_types": ["authorization_code", "refresh_token", DEVICE_GRANT],
         "response_types": ["code"],
     }
     await _store.put("client", client_id, record, ttl=CLIENT_TTL)
@@ -298,6 +308,8 @@ async def as_callback(request: Request):
         token = await oauth.oidc.authorize_access_token(request)
     except Exception as exc:  # Authlib raises several OAuthError subclasses.
         logger.warning("Dex callback failed: %s", exc)
+        if pending.get("device_code"):
+            await _device_settle(pending["device_code"], "denied")
         return _html_error(400, "the identity provider did not complete the login")
     userinfo = token.get("userinfo") or {}
     email = (userinfo.get("email") or "").strip().lower()
@@ -320,6 +332,8 @@ async def as_callback(request: Request):
         logger.warning("User provisioning failed at as-callback: %s", exc)
         return _html_error(503, "user provisioning failed: LiteLLM is unreachable, try again")
     pending["sub"] = email
+    if pending.get("device_code"):
+        return await _device_finish(request, pending)
     todo = [
         s
         for s in pending["scopes"]
@@ -432,6 +446,115 @@ async def _finish(pending: dict) -> RedirectResponse:
         "Authorization code issued to client %s (scopes %s)", pending["client_id"], " ".join(scopes)
     )
     return _client_redirect(pending["redirect_uri"], params)
+
+
+def _new_user_code() -> str:
+    raw = "".join(secrets.choice(USER_CODE_ALPHABET) for _ in range(8))
+    return f"{raw[:4]}-{raw[4:]}"
+
+
+def _normalize_user_code(raw: str) -> str:
+    """What the user typed → the stored form: "bcdf ghjk" and "BCDF-GHJK" both match."""
+    s = raw.strip().upper().replace("-", "").replace(" ", "")
+    return f"{s[:4]}-{s[4:]}" if len(s) == 8 else ""
+
+
+def _device_page(request: Request, code: str, problem: str = "", status: int = 200) -> HTMLResponse:
+    return _TEMPLATES.TemplateResponse(
+        request,
+        "device.html",
+        {"code": code, "problem": problem, "done": False},
+        status_code=status,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.post("/oauth/device_authorization")
+async def device_authorization(request: Request) -> JSONResponse:
+    assert _store is not None and _settings is not None
+    form = await request.form()
+    client = await _store.get("client", str(form.get("client_id", "")))
+    if client is None:
+        return _error(400, "invalid_client", "unknown client_id")
+    device_code = secrets.token_urlsafe(32)
+    user_code = _new_user_code()
+    await _store.put(
+        "device",
+        device_code,
+        {"client_id": client["client_id"], "user_code": user_code, "status": "pending"},
+        ttl=DEVICE_TTL,
+    )
+    await _store.put("device_user", user_code, {"device_code": device_code}, ttl=DEVICE_TTL)
+    uri = f"{_settings.as_issuer}/oauth/device"
+    return JSONResponse(
+        {
+            "device_code": device_code,
+            "user_code": user_code,
+            "verification_uri": uri,
+            "verification_uri_complete": f"{uri}?user_code={user_code}",
+            "expires_in": DEVICE_TTL,
+            "interval": DEVICE_INTERVAL,
+        },
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/oauth/device")
+async def device_page(request: Request) -> HTMLResponse:
+    """The verification page: the code is prefilled from verification_uri_complete,
+    the user confirms it matches the terminal — a forwarded link never approves on
+    its own (RFC 8628 §5.4)."""
+    return _device_page(request, request.query_params.get("user_code", ""))
+
+
+@router.post("/oauth/device")
+async def device_confirm(request: Request):
+    assert _store is not None and _settings is not None
+    form = await request.form()
+    typed = str(form.get("user_code", ""))
+    user_code = _normalize_user_code(typed)
+    index = await _store.get("device_user", user_code) if user_code else None
+    if index is None:
+        return _device_page(request, typed, "code not found or expired — check your terminal", 400)
+    # Same Dex leg as /oauth/authorize: a pending under the Dex state, bound to
+    # this browser by Authlib's session. A device login carries the audience scope
+    # only — the MCP consent chain needs the client's own browser.
+    pending_id = secrets.token_urlsafe(24)
+    await _store.put(
+        "pending",
+        pending_id,
+        {"device_code": index["device_code"], "scopes": [_settings.as_audience]},
+        ttl=PENDING_TTL,
+    )
+    callback = _settings.app_base_url.rstrip("/") + "/oauth/as-callback"
+    return await oauth.oidc.authorize_redirect(request, callback, state=pending_id, scope=DEX_SCOPE)
+
+
+async def _device_settle(device_code: str, status: str, sub: str = "") -> dict | None:
+    """Flip a pending device record to approved/denied and drop the user-code
+    index. None when the record is gone or already settled."""
+    assert _store is not None
+    rec = await _store.get("device", device_code)
+    if rec is None or rec["status"] != "pending":
+        return None
+    rec = {**rec, "status": status, "sub": sub} if sub else {**rec, "status": status}
+    # Re-put with the full TTL: the client stops polling at expires_in anyway.
+    await _store.put("device", device_code, rec, ttl=DEVICE_TTL)
+    await _store.pop("device_user", rec["user_code"])
+    return rec
+
+
+async def _device_finish(request: Request, pending: dict) -> HTMLResponse:
+    rec = await _device_settle(pending["device_code"], "approved", pending["sub"])
+    if rec is None:
+        return _html_error(400, "this device code has expired — start again from your terminal")
+    logger.info("Device authorization approved for client %s", rec["client_id"])
+    return _TEMPLATES.TemplateResponse(
+        request,
+        "device.html",
+        {"code": "", "problem": "", "done": True},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 def _pkce_ok(challenge: str, verifier: str) -> bool:
@@ -592,4 +715,20 @@ async def token(request: Request) -> JSONResponse:
             consumed["sub"], consumed["scope"].split(), _settings.as_audience
         )
         return await _issue(consumed["sub"], client_id, " ".join(scopes))
+    if grant == DEVICE_GRANT:
+        device_code = str(form.get("device_code", ""))
+        rec = await _store.get("device", device_code)
+        if rec is None:
+            return _error(400, "expired_token")
+        if rec["client_id"] != client_id:
+            return _error(400, "invalid_grant")
+        if rec["status"] == "pending":
+            return _error(400, "authorization_pending")
+        if rec["status"] == "denied":
+            await _store.pop("device", device_code)
+            return _error(400, "access_denied")
+        taken = await _store.pop("device", device_code)  # approved: single redemption
+        if taken is None:
+            return _error(400, "expired_token")
+        return await _issue(taken["sub"], client_id, _settings.as_audience)
     return _error(400, "unsupported_grant_type")
