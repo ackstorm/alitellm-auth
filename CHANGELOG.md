@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.14.1] - 2026-09-21
+
 ### Changed
 
 - authz: a user token is no longer scope-gated on `/mcp/<server>`. With
