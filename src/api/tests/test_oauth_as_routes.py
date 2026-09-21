@@ -398,6 +398,30 @@ def test_as_callback_fails_loud_when_dex_issues_no_refresh_token():
     assert asyncio.run(routes._store.get("dexrt", "u@x.com")) is None
 
 
+def test_as_callback_renders_a_503_when_litellm_provisioning_fails():
+    c = make_client()
+    client_id = _register(c)
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
+        mock_oauth.oidc.authorize_access_token = AsyncMock(
+            return_value={"userinfo": {"email": "u@x.com"}, "refresh_token": "dex-rt-1"}
+        )
+        with patch(
+            "app.oauth_as.routes.ensure_team_and_user",
+            AsyncMock(side_effect=httpx.ConnectError("litellm down")),
+        ):
+            r = c.get(f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False)
+    assert r.status_code == 503 and "provisioning" in r.text
+    assert (
+        asyncio.run(routes._store.get("dexrt", "u@x.com")) is None
+    )  # nothing stored for a login that did not happen
+    assert asyncio.run(routes._store.get("pending", pending_id)) is None  # burned either way
+
+
 BROKER = "https://api.test/aws-eks-ro-callback"
 SERVICES = {"mcp-aws-eks-ro": {"store": "aws-eks-ro", "broker": BROKER}}
 GRANTED = {"oauth:aws-eks-ro:state:u@x.com": json.dumps({"granted": True})}
