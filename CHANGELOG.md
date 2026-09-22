@@ -2,6 +2,51 @@
 
 ## [unreleased]
 
+## [0.16.0] - 2026-09-22
+
+### Added
+
+- Per-user LiteLLM teams. Each SSO user gets a personal team `user-<email>`
+  whose own permission block is permanently deny-all (`models:
+  ["__deny_all__"]`, `object_permission.agents: [<null UUID>]`,
+  `mcp_servers: []`). Capability arrives ONLY from LiteLLM *unified access
+  groups* attached to the team's `access_group_ids` — one object bundling
+  models, MCP servers and A2A agents, which LiteLLM unions server-side. The
+  service never computes the union; it resolves group names to ids
+  (`GET /v1/access_group`) and writes the list.
+  Because the team has exactly one member, its `max_budget` IS the per-user
+  cap — and team budgets enforce where user-level budgets do not.
+  **Off by default** (`PERSONAL_TEAMS_ENABLED`, Helm
+  `config.personalTeamsEnabled`): switching which team a key lives in changes
+  what every client can reach. `config.defaultAccessGroups` is likewise empty
+  by default, so enabling the flag without naming a group yields a budgeted but
+  totally closed team — a visible failure rather than a silent over-grant.
+  Entitlement comes from `config.defaultAccessGroups` plus a per-email
+  `config.userAccessGroups` map; both are JSON-encoded env vars.
+- `scripts/migrate-personal-teams.py` moves existing `token-factory` keys into
+  their owner's personal team. Dry-run by default; refuses anything owned by
+  the sibling `ach` system. A migrated key reaches nothing until its owner logs
+  in again, which is the fail-closed direction but is user-visible.
+
+### Changed
+
+- The console reflects the one-team model when the flag is on: `/api/session/teams`
+  returns only the personal team, key creation ignores a client-supplied
+  `team_id`, `/api/session/me` and `/api/session/stats` report the team's own
+  enforcing budget (`source: "team"`, via the new `get_team_budget`), and
+  moving a key to another team is refused. The create-key picker collapses at a
+  single team.
+- Chart: dropped the dead `factoryConfig.config.team` block. It encoded a
+  SHARED spend pool that no longer applies; `factoryConfig.config.user` is now
+  the per-user envelope written onto the personal team.
+
+### Fixed
+
+- `USER_ACCESS_GROUPS` keys are case-folded at load and duplicates rejected at
+  boot. Previously the lookup folded the address but the config keys did not,
+  so a mixed-case entry was silently unreachable and the user quietly fell back
+  to the baseline.
+
 ## [0.15.0] - 2026-09-22
 
 ### Added

@@ -10,7 +10,7 @@ image:
   repo: ghcr.io/ackstorm/alitellm-auth
   # Tag to deploy. Bumped by `make release-bump VERSION=X.Y.Z`. Leave empty to
   # fall back to .Chart.AppVersion.
-  tag: "v0.15.0"
+  tag: "v0.16.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
