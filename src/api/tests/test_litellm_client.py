@@ -2148,9 +2148,7 @@ async def test_ensure_personal_team_existing_team_keeps_its_budget():
         return_value=httpx.Response(200, json={})
     )
 
-    await ensure_personal_team(
-        "alice@example.com", settings, factory={"user": {"max_budget": 100}}
-    )
+    await ensure_personal_team("alice@example.com", settings, factory={"user": {"max_budget": 100}})
 
     body = _json_body(update)
     assert body["access_group_ids"] == ["id-default"]
@@ -2266,9 +2264,7 @@ async def test_personal_team_path_skips_member_budget_cap():
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
     )
-    respx.post("http://litellm.test/team/update").mock(
-        return_value=httpx.Response(200, json={})
-    )
+    respx.post("http://litellm.test/team/update").mock(return_value=httpx.Response(200, json={}))
     respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
     )
@@ -2278,9 +2274,7 @@ async def test_personal_team_path_skips_member_budget_cap():
 
     # A brand-new user plus a factory user budget is exactly the shape that
     # makes Step A3 fire on the shared path -- so a skip here is the branch.
-    await ensure_team_and_user(
-        "alice@example.com", settings, factory={"user": {"max_budget": 100}}
-    )
+    await ensure_team_and_user("alice@example.com", settings, factory={"user": {"max_budget": 100}})
 
     assert not member_add.called
 
@@ -2313,16 +2307,12 @@ async def test_personal_team_path_still_creates_the_litellm_user():
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
     )
-    respx.post("http://litellm.test/team/update").mock(
-        return_value=httpx.Response(200, json={})
-    )
+    respx.post("http://litellm.test/team/update").mock(return_value=httpx.Response(200, json={}))
     user_new = respx.post("http://litellm.test/user/new").mock(
         return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
     )
 
-    await ensure_team_and_user(
-        "alice@example.com", settings, factory={"user": {"max_budget": 100}}
-    )
+    await ensure_team_and_user("alice@example.com", settings, factory={"user": {"max_budget": 100}})
 
     assert user_new.called
     assert _json_body(user_new)["max_budget"] == 100

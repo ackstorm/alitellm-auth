@@ -1210,9 +1210,7 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
     # `metadata` is dropped: this team carries its own, set below.
     # H3: never forward a None, it can null out a deployer's configured default.
     envelope = {
-        k: v
-        for k, v in (factory.get("user") or {}).items()
-        if k != "metadata" and v is not None
+        k: v for k, v in (factory.get("user") or {}).items() if k != "metadata" and v is not None
     }
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:

@@ -166,9 +166,7 @@ class Settings(BaseSettings):
         for key, value in self.user_access_groups.items():
             email = key.strip().lower()
             if email in folded:
-                raise ValueError(
-                    "USER_ACCESS_GROUPS has two keys for %r; merge them" % email
-                )
+                raise ValueError("USER_ACCESS_GROUPS has two keys for %r; merge them" % email)
             folded[email] = value
         self.user_access_groups = folded
         return self
