@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Access Model Changes</title>
+<style>
+  :root{
+    --bg:#0a0e12; --panel:#111820; --panel2:#0d141b; --line:#1e2a36;
+    --fg:#dbe5ee; --muted:#7c8fa3; --dim:#4f6274;
+    --ok:#3ddc97; --fail:#ff5c6c; --warn:#ffb454; --info:#5aa9e6; --accent:#3ddc97;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.6}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 16px 96px}
+  header{border-bottom:1px solid var(--line);padding:40px 0 28px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+  h1{margin:0 0 12px;font-size:clamp(26px,5vw,40px);line-height:1.15;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:0;max-width:70ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:20px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .meta b{color:var(--muted);font-weight:500}
+  h2{font-size:22px;margin:52px 0 6px;letter-spacing:-.01em;scroll-margin-top:20px}
+  h2 .num{font-family:var(--mono);font-size:13px;color:var(--accent);margin-right:10px}
+  h3{font-size:16px;margin:28px 0 8px}
+  h4{font-size:13px;margin:22px 0 6px;color:var(--muted);font-family:var(--mono);font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+  p{margin:10px 0}
+  code{font-family:var(--mono);font-size:.88em;background:#16202a;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:#b7ccdd;word-break:break-word}
+  pre{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--dim);border-radius:6px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#a9c0d4}
+  pre code{background:none;border:0;padding:0;color:inherit}
+  pre .add{color:var(--ok)} pre .del{color:var(--fail)}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:500;white-space:nowrap}
+  td code{font-size:12px}
+  tbody tr:hover{background:#0e161e}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tag{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid;white-space:nowrap}
+  .new{color:var(--ok);border-color:#1d5c44;background:#0e2b21}
+  .gone{color:var(--fail);border-color:#6b2730;background:#2a1116}
+  .same{color:var(--dim);border-color:var(--line);background:var(--panel2)}
+  .t-med{color:var(--warn);border-color:#6a4a1d;background:#2a1f0e}
+  .t-info{color:var(--info);border-color:#1f4a6b;background:#0e1d2a}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin:16px 0}
+  .card.good{border-left:3px solid var(--ok)}
+  .card.warn{border-left:3px solid var(--warn)}
+  .card.info{border-left:3px solid var(--info)}
+  .card h3{margin-top:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:22px 0}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+  .kpi .v{font-family:var(--mono);font-size:24px;line-height:1.1;letter-spacing:-.02em}
+  .kpi .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:6px}
+  .kpi.ok .v{color:var(--ok)} .kpi.warn .v{color:var(--warn)}
+  .arrow{color:var(--accent);font-family:var(--mono)}
+  ul,ol{margin:10px 0;padding-left:22px} li{margin:5px 0}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;font-family:var(--mono);font-size:12.5px;margin:10px 0}
+  .kv dt{color:var(--dim)} .kv dd{margin:0}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+  .chip{font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--muted)}
+  .chip.on{color:var(--ok);border-color:#1d5c44;background:#0e2b21}
+  hr{border:0;border-top:1px solid var(--line);margin:40px 0}
+  .toc{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:24px 0}
+  .toc ol{margin:0;padding-left:20px;columns:2;column-gap:32px}
+  .toc a{color:var(--muted);text-decoration:none;font-size:13.5px}
+  .toc a:hover{color:var(--accent)}
+  .note{color:var(--dim);font-size:13px;font-style:italic}
+  @media (max-width:640px){ .toc ol{columns:1} }
+  @media print{ body{background:#fff;color:#000} .card,.kpi,pre{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Change Report · 2026-09-22</p>
+  <h1>Access Model Changes</h1>
+  <p class="sub">What was changed across <code>alitellm-auth</code> and the GitOps blueprint to fix SSO model access, and to make Google Workspace groups available as the future basis for granting capabilities.</p>
+  <div class="meta">
+    <span><b>Cluster</b> pro-ack-ai-platform</span>
+    <span><b>App</b> v0.14.0 <span class="arrow">→</span> v0.15.0</span>
+    <span><b>Repos</b> alitellm-auth · gitops-genai-blueprint</span>
+    <span><b>Status</b> deployed &amp; verified</span>
+  </div>
+</header>
+
+<div class="kpis">
+  <div class="kpi ok"><div class="v">72 → 390</div><div class="l">models via SSO</div></div>
+  <div class="kpi ok"><div class="v">0 → 14</div><div class="l">claude via SSO</div></div>
+  <div class="kpi ok"><div class="v">0 → 18</div><div class="l">bedrock via SSO</div></div>
+  <div class="kpi ok"><div class="v">21</div><div class="l">groups now visible</div></div>
+  <div class="kpi ok"><div class="v">3</div><div class="l">commits</div></div>
+</div>
+
+<div class="toc">
+  <ol>
+    <li><a href="#summary">What changed, in short</a></li>
+    <li><a href="#teams">Team permissions</a></li>
+    <li><a href="#models">Models per team</a></li>
+    <li><a href="#mcp">MCP servers per team</a></li>
+    <li><a href="#groups">SSO groups wiring</a></li>
+    <li><a href="#commits">Commits &amp; files</a></li>
+    <li><a href="#verified">Verification</a></li>
+    <li><a href="#open">Still open</a></li>
+  </ol>
+</div>
+
+<h2 id="summary"><span class="num">01</span>What changed, in short</h2>
+
+<ol>
+  <li><strong>Team <code>default</code> now grants the same model groups as <code>dream</code>.</strong> It is the team every OAuth/SSO key lands in, so it was silently capping every CLI and agent client at 72 models with no Claude and no Bedrock.</li>
+  <li><strong>The <code>test-do-not-use</code> team was deleted.</strong> Its own comment documented that its <code>mcpServers</code> grant defeated the <code>mcpToolsets</code> restriction it existed to demonstrate.</li>
+  <li><strong>alitellm-auth v0.15.0 can request and surface the user's identity-provider groups.</strong> Enabled in this deployment; 21 real Workspace groups now arrive on every login. Nothing consumes them for authorization yet — this is the groundwork for granting access from groups instead of from a single team.</li>
+</ol>
+
+<p>MCP access was <strong>not</strong> changed. It was already close to uniform and matches the intent that most people should reach roughly the same servers.</p>
+
+<h2 id="teams"><span class="num">02</span>Team permissions</h2>
+
+<h4>Before</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>Team</th><th>modelGroups</th><th>mcpGroups</th></tr></thead>
+  <tbody>
+    <tr><td><code>default</code></td><td>default, openai, gemini, kubeai</td><td>default</td></tr>
+    <tr><td><code>run</code></td><td>default, openai, gemini, bedrock, openrouter, kubeai</td><td>default, google, slack, gitlab, aws</td></tr>
+    <tr><td><code>plan</code></td><td>default, openai, gemini, bedrock, openrouter, kubeai</td><td>default, google, slack</td></tr>
+    <tr><td><code>dream</code></td><td>default, openai, gemini, bedrock, openrouter, anthropic, elevenlabs, kubeai, squall</td><td>default, google, slack, gitlab, aws</td></tr>
+    <tr><td><code>test-do-not-use</code></td><td>openai</td><td>google-ro <span class="note">(+ mcpServers hindsight, mcpToolsets hindsight-readonly)</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>After</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>Team</th><th>modelGroups</th><th>mcpGroups</th><th></th></tr></thead>
+  <tbody>
+    <tr><td><code>default</code></td><td>default, openai, gemini, kubeai, <b>bedrock</b>, <b>openrouter</b>, <b>anthropic</b>, <b>elevenlabs</b>, <b>squall</b></td><td>default</td><td><span class="tag new">changed</span></td></tr>
+    <tr><td><code>run</code></td><td>default, openai, gemini, bedrock, openrouter, kubeai</td><td>default, google, slack, gitlab, aws</td><td><span class="tag same">unchanged</span></td></tr>
+    <tr><td><code>plan</code></td><td>default, openai, gemini, bedrock, openrouter, kubeai</td><td>default, google, slack</td><td><span class="tag same">unchanged</span></td></tr>
+    <tr><td><code>dream</code></td><td>default, openai, gemini, bedrock, openrouter, anthropic, elevenlabs, kubeai, squall</td><td>default, google, slack, gitlab, aws</td><td><span class="tag same">unchanged</span></td></tr>
+    <tr><td><code>test-do-not-use</code></td><td colspan="2">removed from Git; CR pruned by Flux</td><td><span class="tag gone">deleted</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><code>default</code> and <code>dream</code> now carry an identical set of nine model groups. No budget or rate limit was added to any team — that stays open by your call.</p>
+
+<div class="card info">
+  <h3>Why <code>default</code> is special <span class="tag t-info">context</span></h3>
+  <p style="margin-bottom:0">alitellm-auth mints a dedicated per-user key (<code>metadata.key_alias = "front"</code>) the first time an OAuth token is resolved, and it always places it in <code>LITELLM_DEFAULT_TEAM</code> — which is <code>default</code>. Nothing asks the user, and the key is never shown to the browser. So the grants on <code>default</code> <em>are</em> the SSO capability set for everyone: opencode, Claude Code and Codex via <code>ackstorm-token</code>, and the device grant. This is now written into the file so the next person does not re-learn it the hard way.</p>
+</div>
+
+<h2 id="models"><span class="num">03</span>Models per team</h2>
+
+<p>Counts observed live against <code>api.ackstorm.ai</code>, not derived from config:</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Team</th><th>Models before</th><th>Models after</th><th>claude.*</th><th>bedrock.*</th><th>gemini</th></tr></thead>
+  <tbody>
+    <tr><td><code>default</code> <span class="note">(SSO)</span></td><td>72</td><td><b>390</b></td><td>0 <span class="arrow">→</span> <b>14</b></td><td>0 <span class="arrow">→</span> <b>18</b></td><td>38 → 40</td></tr>
+    <tr><td><code>dream</code></td><td>392</td><td>392</td><td>14</td><td>18</td><td>40</td></tr>
+    <tr><td><code>run</code></td><td>368</td><td>368</td><td>0</td><td>18</td><td>40</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>What team <code>default</code> could reach before</h4>
+<p>Gemini, KubeAI, plus OpenAI transcription/TTS/embeddings only — the entire Anthropic and Bedrock catalogs were absent:</p>
+<pre><code>ackstorm.*  11   gemini.*  38   kubeai.*  11   openai.*   7
+claude.*     0   bedrock.*  0</code></pre>
+
+<h4>Access groups and what backs them</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>Access group</th><th>Declared in</th><th>In <code>default</code> before</th><th>Now</th></tr></thead>
+  <tbody>
+    <tr><td><code>default</code></td><td>aliases + routers (<code>modelalias.yaml</code>)</td><td>yes</td><td>yes</td></tr>
+    <tr><td><code>gemini</code></td><td><code>md-gemini.yaml</code></td><td>yes</td><td>yes</td></tr>
+    <tr><td><code>openai</code></td><td><code>md-openai.yaml</code></td><td>yes</td><td>yes</td></tr>
+    <tr><td><code>kubeai</code></td><td><code>md-kubeai.yaml</code></td><td>yes</td><td>yes</td></tr>
+    <tr><td><code>anthropic</code></td><td><code>md-anthropic.yaml</code></td><td>—</td><td><span class="tag new">added</span></td></tr>
+    <tr><td><code>bedrock</code></td><td><code>md-bedrock.yaml</code></td><td>—</td><td><span class="tag new">added</span></td></tr>
+    <tr><td><code>openrouter</code></td><td><code>md-openrouter.yaml</code></td><td>—</td><td><span class="tag new">added</span></td></tr>
+    <tr><td><code>elevenlabs</code></td><td><code>md-elevenlabs.yaml</code></td><td>—</td><td><span class="tag new">added</span></td></tr>
+    <tr><td><code>squall</code></td><td><code>md-squall.yaml</code></td><td>—</td><td><span class="tag new">added</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Your aliases were never the problem</h4>
+<p><code>ackstorm.smart</code>, <code>.fast</code> and <code>.lite</code> all resolve to Gemini deployments, which team <code>default</code> already carried — so the alias abstraction worked over SSO before this change and still works. What was missing was the ability to name a Claude or Bedrock model directly, which is exactly what Claude Code and Codex do.</p>
+
+<h2 id="mcp"><span class="num">04</span>MCP servers per team</h2>
+
+<p><strong>No MCP change was made.</strong> Recording the current state, since you asked what each team reaches.</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Team</th><th>mcpGroups</th><th>Servers</th><th>Delta vs <code>default</code></th></tr></thead>
+  <tbody>
+    <tr><td><code>default</code> <span class="note">(SSO)</span></td><td>default</td><td>42</td><td>—</td></tr>
+    <tr><td><code>dream</code> / <code>run</code></td><td>+ google, slack, gitlab, aws</td><td>51</td><td>+9 write-capable</td></tr>
+    <tr><td><code>plan</code></td><td>+ google, slack</td><td>—</td><td>subset of the above</td></tr>
+    <tr><td>master (admin)</td><td>—</td><td>53</td><td>everything</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>The 42 servers every SSO user already reaches</h4>
+<div class="chips">
+  <span class="chip on">ach-memory</span><span class="chip on">hindsight</span><span class="chip on">mcp-aws-cli-ro</span><span class="chip on">mcp-aws-documentation</span><span class="chip on">mcp-aws-eks-ro</span><span class="chip on">mcp-aws-finops</span><span class="chip on">mcp-context7</span><span class="chip on">mcp-firecrawl</span><span class="chip on">mcp-gitlab-ro</span><span class="chip on">mcp-gofetch</span><span class="chip on">mcp-google-calendar-ro</span><span class="chip on">mcp-google-drive-ro</span><span class="chip on">mcp-google-gmail-ro</span><span class="chip on">mcp-google-slides-ro</span><span class="chip on">mcp-nanobanana</span><span class="chip on">mcp-next-devtools</span><span class="chip on">mcp-playwright</span><span class="chip on">mcp-seqthinking</span><span class="chip on">mcp-slack-ro</span><span class="chip on">mcp-supadata</span><span class="chip on">mcp-zoho-crm-ro</span><span class="chip on">mcp-zoho-desk-ro</span><span class="chip on">mcp-zoho-projects-ro</span><span class="chip on">vmcp-aws</span><span class="chip on">vmcp-aws-ro</span><span class="chip on">vmcp-browser</span><span class="chip on">vmcp-code</span><span class="chip on">vmcp-dev</span><span class="chip on">vmcp-dev-backend</span><span class="chip on">vmcp-dev-frontend</span><span class="chip on">vmcp-gitlab-grp</span><span class="chip on">vmcp-gitlab-ro-grp</span><span class="chip on">vmcp-google</span><span class="chip on">vmcp-google-ro</span><span class="chip on">vmcp-image</span><span class="chip on">vmcp-memory</span><span class="chip on">vmcp-search</span><span class="chip on">vmcp-slack-grp</span><span class="chip on">vmcp-slack-ro-grp</span><span class="chip on">vmcp-think</span><span class="chip on">vmcp-zoho</span><span class="chip on">vmcp-zoho-ro</span>
+</div>
+
+<h4>Only these 9 require a broader team</h4>
+<div class="chips">
+  <span class="chip">mcp-aws-cli</span><span class="chip">mcp-aws-eks</span><span class="chip">mcp-gitlab</span><span class="chip">mcp-google-calendar</span><span class="chip">mcp-google-drive</span><span class="chip">mcp-google-gmail</span><span class="chip">mcp-google-slides</span><span class="chip">mcp-slack</span><span class="chip">mcp-zoho-crm</span><span class="chip">mcp-zoho-desk</span>
+</div>
+<p class="note">Every one is the write-capable twin of a read-only server already in <code>default</code>. Leaving them opt-in is deliberate and was not touched.</p>
+
+<h2 id="groups"><span class="num">05</span>SSO groups wiring</h2>
+
+<p>Dex was already configured to resolve Google Workspace groups — service account mounted at <code>/etc/dex/sa</code>, <code>domainToAdminEmail</code> set for <code>ackstorm.com</code> — but no client had ever asked for the <code>groups</code> scope, and nothing in alitellm-auth read the claim.</p>
+
+<h4>New setting</h4>
+<div class="kv">
+  <dt>env</dt><dd>OAUTH_SCOPES</dd>
+  <dt>helm</dt><dd>config.oauthScopes</dd>
+  <dt>app default</dt><dd>"openid email profile" <span class="note">— groups OFF</span></dd>
+  <dt>this deployment</dt><dd>"openid email profile groups"</dd>
+</div>
+
+<p>It governs <em>both</em> sign-in legs, which previously hard-coded separate strings: the console login (<code>configure_auth</code>) and the authorization-server leg (<code>_dex_scope()</code>, which appends <code>offline_access</code>).</p>
+
+<div class="card warn">
+  <h3>Why it ships disabled by default <span class="tag t-med">failure mode</span></h3>
+  <p>The Directory API lookup requires domain-wide delegation for <code>admin.directory.group.readonly</code>. Without it Dex <em>fails the login</em> rather than omitting the claim — and this is the only sign-in path there is, for the console and for every OAuth client. A default-on setting would mean a fresh deployment without that delegation loses all authentication.</p>
+  <p style="margin-bottom:0">So it is opt-in per deployment, and rolling back is clearing one Helm value and restarting. No image rebuild, no release.</p>
+</div>
+
+<h4>What arrives now</h4>
+<p><code>GET /api/session/me</code> gained a <code>groups</code> array. For the signed-in account it returns 21 groups:</p>
+<div class="chips">
+  <span class="chip on">everyone@</span><span class="chip on">architect-team@</span><span class="chip on">managers@</span><span class="chip on">team_leaders@</span><span class="chip on">direccion@</span><span class="chip on">projects@</span><span class="chip on">blueprints@</span><span class="chip on">aws@</span><span class="chip on">administracion@</span><span class="chip on">billing_gcp@</span><span class="chip on">legal@</span><span class="chip on">abuso@</span><span class="chip on">ackstorm_governance@</span><span class="chip on">official_communications_google@</span><span class="chip on">oferta_ganada@</span><span class="chip on">project-closed@</span><span class="chip on">sendgrid@</span><span class="chip on">tech_support_editor_gcp@</span><span class="chip on">zoho_admin@</span><span class="chip on">zoho_projects_admin@</span><span class="chip on">cttexpress-ficodes@</span>
+</div>
+<p class="note">All <code>@ackstorm.com</code>. Claim normalisation (<code>normalize_groups</code>) accepts a list, a bare string, or nothing, and degrades to <code>[]</code> rather than raising — a provider that stops sending groups must never break a login.</p>
+
+<div class="card good">
+  <h3>Nothing consumes them yet <span class="tag new">by design</span></h3>
+  <p style="margin-bottom:0">Groups are stamped on the session and logged at both callbacks. No authorization decision reads them. This is deliberately one reversible step: prove the claim arrives and that logins stay healthy, before anything depends on it.</p>
+</div>
+
+<h2 id="commits"><span class="num">06</span>Commits &amp; files</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Repo</th><th>Commit</th><th>Subject</th></tr></thead>
+  <tbody>
+    <tr><td>gitops-genai-blueprint</td><td><code>3f46fcd</code></td><td>feat(litellm): make team <code>default</code> the real SSO baseline</td></tr>
+    <tr><td>alitellm-auth</td><td><code>ed0cc33</code> → <code>v0.15.0</code></td><td>feat(auth): request and surface OIDC groups, off by default</td></tr>
+    <tr><td>gitops-genai-blueprint</td><td><code>fa391dd</code></td><td>feat(alitellm-auth): 0.15.x and request Dex groups</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Files touched</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>File</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td><code>workloads/config/teams.yaml</code></td><td><code>default</code> gains 5 model groups; <code>test-do-not-use</code> removed; rationale documented inline</td></tr>
+    <tr><td><code>apps/alitellm-auth/base/helm.yaml</code></td><td>chart <code>0.14.x</code> → <code>0.15.x</code>; <code>config.oauthScopes</code> set with <code>groups</code></td></tr>
+    <tr><td><code>src/api/app/config.py</code></td><td>new <code>oauth_scopes</code> setting, groups off by default</td></tr>
+    <tr><td><code>src/api/app/auth.py</code></td><td><code>normalize_groups()</code>; scope from settings; groups stamped on session + logged</td></tr>
+    <tr><td><code>src/api/app/oauth_as/routes.py</code></td><td><code>DEX_SCOPE</code> constant → <code>_dex_scope()</code> from settings; groups logged at <code>as-callback</code></td></tr>
+    <tr><td><code>src/api/app/session.py</code></td><td><code>require_session_user</code> returns groups; <code>/me</code> returns <code>groups</code></td></tr>
+    <tr><td><code>deploy/helm/.../deployment.yaml</code>, <code>values.yaml</code></td><td><code>OAUTH_SCOPES</code> env, omitted entirely when the value is empty</td></tr>
+    <tr><td><code>src/api/tests/</code></td><td>3 new tests (claim shapes, <code>/me</code> with and without groups)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="verified"><span class="num">07</span>Verification</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Test suite</td><td>404 passed</td></tr>
+    <tr><td>Lint / format (devtools container)</td><td>clean</td></tr>
+    <tr><td>Release pipeline</td><td>image, chart 0.15.0, tag and GitHub Release all published</td></tr>
+    <tr><td><code>image.tag</code> in published chart</td><td><code>v0.15.0</code> — the empty-tag failure mode did not occur</td></tr>
+    <tr><td>Rollout</td><td><code>alitellm-auth:v0.15.0</code>, HelmRelease v95, ready</td></tr>
+    <tr><td>Operator applied team grants</td><td><code>team/info?team_id=default</code> → 9 groups</td></tr>
+    <tr><td><code>test-do-not-use</code></td><td>CR pruned; 4 teams remain</td></tr>
+    <tr><td>OAuth catalog</td><td>72 → <b>390</b> models</td></tr>
+    <tr><td>Claude over SSO</td><td><code>claude-haiku-4-5</code> → 200, returned <code>'online'</code></td></tr>
+    <tr><td>Console login with groups</td><td>200, 21 groups on <code>/me</code></td></tr>
+    <tr><td>AS leg with groups + offline_access</td><td>device grant issued token <em>and</em> refresh token</td></tr>
+    <tr><td>Claude via that token</td><td><code>claude-sonnet-5</code> → 200, returned <code>'verified'</code></td></tr>
+    <tr><td>Login errors in app / Dex logs</td><td>none</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="open"><span class="num">08</span>Still open</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>#</th><th>Item</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><strong>Group → access-group mapping</strong></td><td>The design you actually want. Groups now arrive; deciding what each grants is yours, and it is the only new concept the model needs.</td></tr>
+    <tr><td>2</td><td><strong>No budget on <code>default</code></strong></td><td>Deferred at your request. Team-scoped keys have no enforcing cap today, so a broader <code>default</code> widens that. User-level <code>max_budget</code> only enforces on teamless keys.</td></tr>
+    <tr><td>3</td><td>Key revocation lag</td><td>Blocking or deleting a key takes up to ~60s to bite (LiteLLM auth cache).</td></tr>
+    <tr><td>4</td><td>Duplicate key names</td><td>The <code>422</code> collision guard is unreachable; two keys can share a display name.</td></tr>
+    <tr><td>5</td><td><code>/v1/models</code> over-reports</td><td>It lists the key's <code>models</code> ignoring the team ceiling, so a mis-scoped key advertises models that all <code>403</code>.</td></tr>
+    <tr><td>6</td><td><code>prompt=consent</code> on Dex</td><td>Forces a full Google re-consent on every single login.</td></tr>
+    <tr><td>7</td><td>The <code>front</code> key is user-visible</td><td>Listed and <code>managed</code> in the console, so a user can move or delete their own SSO key.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<hr>
+<p class="note">Companion to the production auth audit, <code>docs/reports/2026-09-21-auth-e2e.html</code>, which established findings F1–F10. This report closes F1 and F6 and lays the groundwork the rest depends on.</p>
+
+</div>
+</body>
+</html>
