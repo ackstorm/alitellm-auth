@@ -434,6 +434,7 @@ Never rely on env vars in tests. All test files have a local `make_test_settings
 | `APP_BASE_URL` | deployment env | Public URL, e.g. `https://platform.ackstorm.ai` |
 | `OAUTH_ISSUER_URL` | deployment env | OIDC issuer, e.g. `https://dex.ackstorm.ai/dex` |
 | `OAUTH_CLIENT_ID` | deployment env | OIDC client ID, e.g. `platform` |
+| `OAUTH_SCOPES` | deployment env (opt) | Default `openid email profile`. Scopes for BOTH the console login and the AS leg; must include `openid`. Add `groups` to surface Workspace groups (Dex Google connector needs domain-wide delegation, else login FAILS). Helm value: `config.oauthScopes` |
 | `LITELLM_URL` | deployment env | LiteLLM base URL |
 | `LITELLM_DEFAULT_TEAM` | deployment env (opt) | Default `default`. Shared team id + display alias (one team per deployment). Decoupled from `OAUTH_CLIENT_ID`. Helm value: `config.litellmDefaultTeam` |
 | `SESSION_SECRET_KEY` | k8s secret | Cookie signing key — shared across all replicas |

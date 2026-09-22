@@ -406,3 +406,24 @@ def test_normalize_groups_coerces_provider_shapes() -> None:
     assert normalize_groups(None) == []
     assert normalize_groups({"not": "a list"}) == []
     assert normalize_groups([1, None, "", "  ", "ok@x.com"]) == ["ok@x.com"]
+
+
+def test_normalize_groups_caps_the_list() -> None:
+    """A huge groups claim must not overflow the signed session cookie."""
+    from app.auth import MAX_GROUPS, normalize_groups
+
+    groups = normalize_groups([f"g{i}@ackstorm.com" for i in range(MAX_GROUPS + 40)])
+    assert len(groups) == MAX_GROUPS
+    assert groups[0] == "g0@ackstorm.com"
+
+
+def test_oauth_scopes_must_include_openid() -> None:
+    """Dropping openid kills every login; fail at boot, not at sign-in."""
+    import pytest
+
+    from app.config import Settings
+
+    base = make_test_settings().model_dump()
+    for bad in ("email profile groups", "", "   "):
+        with pytest.raises(ValueError, match="openid"):
+            Settings(**{**base, "oauth_scopes": bad})

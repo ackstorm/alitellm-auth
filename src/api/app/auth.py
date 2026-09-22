@@ -65,18 +65,38 @@ oauth.framework_integration_cls = ConcurrentStateStarletteIntegration
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
+# The group list is stored in the signed session cookie, which Starlette
+# re-sets on every response. A group email costs ~60 bytes there; past ~64
+# groups the cookie crosses the 4096-byte browser limit and the browser drops
+# it SILENTLY — /api/session/me then 401s, the SPA redirects to /login, and the
+# user loops forever with nothing logged. Cap well below that. Groups are
+# informational today (surfaced by /api/session/me); if they ever gate access,
+# move them out of the cookie instead of raising this number.
+MAX_GROUPS = 50
+
+
 def normalize_groups(raw: object) -> list[str]:
     """Coerce the provider's ``groups`` claim to a clean list of strings.
 
     Dex returns a list of strings; other providers send a single string, or
     omit the claim entirely when the scope was not granted. Never raises —
-    an unusable claim degrades to [], it does not break the login.
+    an unusable claim degrades to [], it does not break the login. Truncated
+    to MAX_GROUPS so the session cookie cannot overflow.
     """
     if isinstance(raw, str):
         raw = [raw]
     if not isinstance(raw, (list, tuple)):
         return []
-    return [g.strip() for g in raw if isinstance(g, str) and g.strip()]
+    groups = [g.strip() for g in raw if isinstance(g, str) and g.strip()]
+    if len(groups) > MAX_GROUPS:
+        logger.warning(
+            "groups claim truncated: %d groups returned, keeping the first %d "
+            "(session cookie size limit)",
+            len(groups),
+            MAX_GROUPS,
+        )
+        groups = groups[:MAX_GROUPS]
+    return groups
 
 
 def configure_auth(settings: Settings) -> None:

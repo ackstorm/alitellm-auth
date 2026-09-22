@@ -136,6 +136,17 @@ class Settings(BaseSettings):
         return (self.as_issuer_url or self.app_base_url).rstrip("/")
 
     @model_validator(mode="after")
+    def _scopes_keep_openid(self) -> "Settings":
+        # OAUTH_SCOPES is free-form and feeds both the console login and the AS
+        # leg. Drop "openid" (or blank the value) and the provider returns no
+        # id_token, so every callback dies on "No email claim returned by
+        # identity provider" — a total sign-in outage found only by a user
+        # trying to log in. Fail at boot instead.
+        if "openid" not in self.oauth_scopes.split():
+            raise ValueError('OAUTH_SCOPES must include "openid" (got: %r)' % self.oauth_scopes)
+        return self
+
+    @model_validator(mode="after")
     def _openwork_requires_a_store(self) -> "Settings":
         # Grants and tokens live in the AS store; without a URL create_store()
         # would dial redis.from_url("") and die at boot with an opaque error.
