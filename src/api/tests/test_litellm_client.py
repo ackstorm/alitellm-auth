@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import json as _json
+import logging
 import os
 import tempfile
 from types import SimpleNamespace
@@ -1988,3 +1989,51 @@ def test_access_groups_for_user_dedupes_and_preserves_order():
         user_access_groups={"alice@example.com": ["team-default", "team-dream"]},
     )
     assert access_groups_for_user("alice@example.com", settings) == ["team-default", "team-dream"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_maps_names():
+    from app.litellm_client import resolve_access_group_ids
+
+    settings = make_settings()
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"access_group_id": "id-default", "access_group_name": "team-default"},
+                {"access_group_id": "id-dream", "access_group_name": "team-dream"},
+                {"access_group_id": "id-other", "access_group_name": "team-other"},
+            ],
+        )
+    )
+    got = await resolve_access_group_ids(["team-dream", "team-default"], settings)
+    assert got == ["id-dream", "id-default"]  # request order preserved
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_skips_unknown_names(caplog):
+    """A bad name under-grants (fail-closed). It must never break the login."""
+    from app.litellm_client import resolve_access_group_ids
+
+    settings = make_settings()
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
+        )
+    )
+    with caplog.at_level(logging.ERROR):
+        got = await resolve_access_group_ids(["team-default", "team-typo"], settings)
+    assert got == ["id-default"]
+    assert "team-typo" in caplog.text
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_empty_input_makes_no_call():
+    from app.litellm_client import resolve_access_group_ids
+
+    route = respx.get("http://litellm.test/v1/access_group")
+    assert await resolve_access_group_ids([], make_settings()) == []
+    assert not route.called

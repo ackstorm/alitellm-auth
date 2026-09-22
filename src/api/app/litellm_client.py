@@ -1050,6 +1050,43 @@ def access_groups_for_user(email: str, settings: Settings) -> list[str]:
     return list(seen)
 
 
+async def resolve_access_group_ids(names: list[str], settings: Settings) -> list[str]:
+    """Map unified access-group NAMES to the ids LiteLLM enforces on.
+
+    LiteLLM mints access_group_id and ignores a caller-supplied one, so a name
+    lookup is the only way to attach. GET /v1/access_group returns a BARE array
+    -- this is the unified namespace, disjoint from /access_group/list, which is
+    the per-model TAG namespace and will NOT contain these.
+
+    A name with no match is SKIPPED and logged at ERROR. Failing the call would
+    turn one typo in deployment config into a total sign-in outage, and skipping
+    under-grants, which is the safe direction.
+    """
+    if not names:
+        return []
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
+        resp = await client.get("/v1/access_group", headers=_admin_headers(settings))
+    if not resp.is_success:
+        _raise_litellm(resp, "/v1/access_group")
+    by_name = {
+        g["access_group_name"]: g["access_group_id"]
+        for g in resp.json()
+        if g.get("access_group_name") and g.get("access_group_id")
+    }
+    ids, missing = [], []
+    for name in names:
+        found = by_name.get(name)
+        if found:
+            ids.append(found)
+        else:
+            missing.append(name)
+    # One line for the whole batch, not one per name -- a misconfigured
+    # default_access_groups would otherwise spam every single login.
+    if missing:
+        logger.error("access groups not found in LiteLLM, capability NOT granted: %s", missing)
+    return ids
+
+
 # ── LiteLLM User lifecycle ──────────────────────────────────────────────────
 
 # LiteLLM v1.83 returns this placeholder for unknown/ambiguous user lookups
