@@ -1057,6 +1057,29 @@ def test_change_key_team_non_member_403(client):
     mock_update.assert_not_awaited()
 
 
+def test_change_key_team_rejects_non_personal_target_when_enabled(client_personal):
+    """Membership alone must not let a key leave its capability envelope.
+
+    A user who still holds a pre-migration `default` membership would otherwise
+    move a key out of its personal team through the API, defeating the
+    one-team invariant that /teams and key creation both enforce.
+    """
+    with (
+        patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
+        patch("app.session.update_litellm_key_team", new_callable=AsyncMock) as mock_update,
+    ):
+        response = client_personal.post(
+            "/api/session/keys/id-1/team",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"team_id": "default"},
+        )
+    assert response.status_code == 403
+    # Rejected before the membership round-trip, not after it.
+    mock_assert.assert_not_awaited()
+    mock_update.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # STATS-01 — GET /api/session/stats (Plan 12-03)
 # ---------------------------------------------------------------------------

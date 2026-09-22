@@ -747,6 +747,20 @@ async def session_change_key_team(
     if not team_id:
         raise HTTPException(status_code=422, detail="team_id required")
 
+    # With personal teams on, the personal team is the ONLY legal destination.
+    # Membership alone is not enough: a user who still holds a pre-migration
+    # `default` membership would otherwise be able to move a key out of its
+    # capability envelope by hand, defeating the one-team invariant that
+    # /api/session/teams and key creation both enforce. The UI cannot reach
+    # this (the picker only ever offers the personal team), so this closes the
+    # API-only path.
+    if settings.personal_teams_enabled:
+        personal = settings.personal_team_id(email)
+        if team_id != personal:
+            raise HTTPException(
+                status_code=403,
+                detail="keys can only live in your personal team",
+            )
     # Security gate: the user must belong to the target team.
     await _require_team_membership(email, team_id, settings)
 
