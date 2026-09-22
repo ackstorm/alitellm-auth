@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.17.0] - 2026-09-22
+
 ### Added
 
 - The authz can trust a second issuer: the identity provider behind the front
