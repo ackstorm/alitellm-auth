@@ -246,6 +246,19 @@ authz:
   # Authorization is consumed only when it carries this AS's own token.
   issuer: ""           # empty → authServer.issuerUrl or config.appBaseUrl
   audience: ""         # empty → authServer.audience
+  # A second trusted issuer: the identity provider behind the front door. Set it
+  # when a browser app that has already signed the user in forwards its OIDC
+  # access token instead of holding a key (LibreChat's custom endpoint does).
+  # Empty leaves only the front door trusted, which is the default.
+  #
+  # idpAudience is mandatory once idpIssuer is set — it is the client the token
+  # was minted for, and without it any token from that IdP, for any client,
+  # would be accepted. idpSubjectClaim names the claim carrying the user's
+  # email: Dex's `sub` is an opaque (userID, connectorID) pair the key resolver
+  # cannot use, and Dex offers no way to change that.
+  idpIssuer: ""            # e.g. https://auth.example.com (Dex)
+  idpAudience: ""          # e.g. chat — the OIDC client id
+  idpSubjectClaim: "email"
   # The base; the authz appends /mcp/<svc> for MCP paths. Served by this API
   # on api.* through a gitops route prefix.
   resourceMetadataUrl: ""  # empty → <config.apiPublicUrl>/.well-known/oauth-protected-resource

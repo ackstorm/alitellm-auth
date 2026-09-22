@@ -2,6 +2,27 @@
 
 ## [unreleased]
 
+### Added
+
+- The authz can trust a second issuer: the identity provider behind the front
+  door. An app that has already signed the user in can now forward its OIDC
+  access token instead of carrying a LiteLLM key — LibreChat sends
+  `Bearer {{LIBRECHAT_OPENID_TOKEN}}` and never sees a key. Off unless
+  `authz.idpIssuer` is set; `authz.idpAudience` is then mandatory, because an
+  issuer trusted for any audience would accept tokens minted for other clients.
+- `authz.idpSubjectClaim` (default `email`) names the claim carrying the
+  LiteLLM user id. The front door mints `sub` as the email, but Dex encodes
+  `sub` as a base64 protobuf of (userID, connectorID) and offers no way to
+  override it, so reading `sub` there would mint a separate LiteLLM user per
+  Dex subject, invisible in the console.
+- JWKS discovery falls back to OpenID Connect Discovery when an issuer does not
+  publish the RFC 8414 document. Dex publishes only the former.
+
+Tokens are routed to their issuer's verifier by their (unverified) `iss`, which
+that verifier then pins against the signature. Trying each verifier in turn
+would instead hand every token to the wrong issuer's keyfunc first, whose
+unknown `kid` triggers a JWKS refetch on the request path.
+
 ## [0.16.1] - 2026-09-22
 
 ### Fixed

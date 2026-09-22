@@ -17,10 +17,16 @@ import (
 
 // serveIssuer stands up an issuer: RFC 8414 document + JWKS.
 func serveIssuer(t *testing.T, pub *rsa.PublicKey, kid string) *httptest.Server {
+	return serveIssuerAt(t, pub, kid, "/.well-known/oauth-authorization-server")
+}
+
+// serveIssuerAt stands up an issuer publishing its metadata at one path only,
+// so a provider that serves OIDC discovery and not RFC 8414 (Dex) is covered.
+func serveIssuerAt(t *testing.T, pub *rsa.PublicKey, kid, metadataPath string) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 	var srv *httptest.Server
-	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(metadataPath, func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{"issuer": srv.URL, "jwks_uri": srv.URL + "/jwks.json"})
 	})
 	mux.HandleFunc("/jwks.json", func(w http.ResponseWriter, _ *http.Request) {
@@ -50,7 +56,7 @@ func newVerifier(t *testing.T) (Verifier, *rsa.PrivateKey, string) {
 	t.Helper()
 	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
 	iss := serveIssuer(t, &priv.PublicKey, "k1")
-	v, err := NewVerifier(context.Background(), iss.URL, "alitellm")
+	v, err := NewVerifier(context.Background(), iss.URL, "alitellm", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,5 +86,68 @@ func TestVerifyRejectsWrongAudienceUnknownIssuerAndMissingExp(t *testing.T) {
 		if _, _, err := v.Verify(sign(t, priv, "k1", c)); err == nil {
 			t.Fatalf("case %d: expected error", i)
 		}
+	}
+}
+
+// newIDPVerifier stands up a Dex-shaped issuer: OIDC discovery only, and a
+// `sub` the key resolver cannot use.
+func newIDPVerifier(t *testing.T) (Verifier, *rsa.PrivateKey, string) {
+	t.Helper()
+	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	iss := serveIssuerAt(t, &priv.PublicKey, "k1", "/.well-known/openid-configuration")
+	v, err := NewVerifier(context.Background(), iss.URL, "chat", "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v, priv, iss.URL
+}
+
+// Dex's `sub` is a base64 protobuf of (userID, connectorID); the email claim is
+// the only thing the key resolver can look a front key up by.
+func TestVerifyReadsTheConfiguredSubjectClaim(t *testing.T) {
+	v, priv, iss := newIDPVerifier(t)
+	tok := sign(t, priv, "k1", jwt.MapClaims{"iss": iss, "aud": "chat",
+		"sub": "ChUxMDI5NDc1OTk3MzY2MTIzNDU2NzgSBmdvb2dsZQ", "email": "U@X.com", "exp": exp()})
+	sub, _, err := v.Verify(tok)
+	if err != nil || sub != "u@x.com" {
+		t.Fatalf("sub=%q err=%v", sub, err)
+	}
+}
+
+func TestVerifyRejectsAMissingSubjectClaim(t *testing.T) {
+	v, priv, iss := newIDPVerifier(t)
+	tok := sign(t, priv, "k1", jwt.MapClaims{"iss": iss, "aud": "chat", "sub": "opaque", "exp": exp()})
+	if _, _, err := v.Verify(tok); err == nil {
+		t.Fatal("expected a token with no email claim to be rejected")
+	}
+}
+
+func TestMultiVerifierRoutesOnIssuerAndRejectsUnknownOnes(t *testing.T) {
+	front, frontPriv, frontIss := newVerifier(t)
+	idp, idpPriv, idpIss := newIDPVerifier(t)
+	m := NewMultiVerifier(map[string]Verifier{frontIss: front, idpIss: idp})
+
+	sub, _, err := m.Verify(sign(t, frontPriv, "k1", jwt.MapClaims{
+		"iss": frontIss, "aud": "alitellm", "sub": "u@x.com", "exp": exp()}))
+	if err != nil || sub != "u@x.com" {
+		t.Fatalf("front door: sub=%q err=%v", sub, err)
+	}
+
+	sub, _, err = m.Verify(sign(t, idpPriv, "k1", jwt.MapClaims{
+		"iss": idpIss, "aud": "chat", "sub": "opaque", "email": "u@x.com", "exp": exp()}))
+	if err != nil || sub != "u@x.com" {
+		t.Fatalf("idp: sub=%q err=%v", sub, err)
+	}
+
+	// Signed by the IdP but claiming the front door: routed to the front door's
+	// verifier, which pins the signature it expects, so it is rejected.
+	if _, _, err := m.Verify(sign(t, idpPriv, "k1", jwt.MapClaims{
+		"iss": frontIss, "aud": "alitellm", "sub": "u@x.com", "exp": exp()})); err == nil {
+		t.Fatal("expected a token signed by the wrong issuer's key to be rejected")
+	}
+
+	if _, _, err := m.Verify(sign(t, frontPriv, "k1", jwt.MapClaims{
+		"iss": "https://nobody.test", "aud": "alitellm", "sub": "u@x.com", "exp": exp()})); err == nil {
+		t.Fatal("expected an untrusted issuer to be rejected")
 	}
 }

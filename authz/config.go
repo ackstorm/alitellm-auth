@@ -19,6 +19,15 @@ type Config struct {
 	KeyResolverURL      string
 	InternalToken       string
 	KeyCacheTTL         time.Duration
+
+	// A second trusted issuer: the identity provider sitting behind the front
+	// door. A browser app that has already signed the user in holds one of its
+	// tokens and can forward it as-is (LibreChat does, as its custom-endpoint
+	// Authorization header), so there is no code to exchange and no key to
+	// paste. Empty IDPIssuer leaves the single-issuer behaviour untouched.
+	IDPIssuer       string
+	IDPAudience     string // no default: an issuer without an audience is a wildcard
+	IDPSubjectClaim string // the claim carrying the LiteLLM user id — see verifier.subject
 }
 
 func envOr(k, d string) string {
@@ -38,6 +47,9 @@ func LoadConfig() Config {
 		Audience:            envOr("AUTHZ_AUDIENCE", "alitellm"),
 		ResourceMetadataURL: strings.TrimRight(os.Getenv("AUTHZ_RESOURCE_METADATA_URL"), "/"),
 		KeyResolverURL:      os.Getenv("AUTHZ_KEY_RESOLVER_URL"),
+		IDPIssuer:           strings.TrimRight(os.Getenv("AUTHZ_IDP_ISSUER"), "/"),
+		IDPAudience:         os.Getenv("AUTHZ_IDP_AUDIENCE"),
+		IDPSubjectClaim:     envOr("AUTHZ_IDP_SUBJECT_CLAIM", "email"),
 		InternalToken:       os.Getenv("AUTHZ_INTERNAL_TOKEN"),
 		KeyCacheTTL:         time.Duration(ttl) * time.Second,
 	}

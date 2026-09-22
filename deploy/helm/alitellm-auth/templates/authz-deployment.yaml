@@ -46,6 +46,14 @@ spec:
               value: {{ .Values.authz.issuer | default .Values.authServer.issuerUrl | default .Values.config.appBaseUrl | quote }}
             - name: AUTHZ_AUDIENCE
               value: {{ .Values.authz.audience | default .Values.authServer.audience | quote }}
+            {{- if .Values.authz.idpIssuer }}
+            - name: AUTHZ_IDP_ISSUER
+              value: {{ .Values.authz.idpIssuer | quote }}
+            - name: AUTHZ_IDP_AUDIENCE
+              value: {{ required "authz.idpAudience is required when authz.idpIssuer is set" .Values.authz.idpAudience | quote }}
+            - name: AUTHZ_IDP_SUBJECT_CLAIM
+              value: {{ .Values.authz.idpSubjectClaim | quote }}
+            {{- end }}
             - name: AUTHZ_RESOURCE_METADATA_URL
               value: {{ .Values.authz.resourceMetadataUrl | default (printf "%s/.well-known/oauth-protected-resource" (.Values.config.apiPublicUrl | trimSuffix "/")) | quote }}
             - name: AUTHZ_KEY_RESOLVER_URL
