@@ -2101,6 +2101,9 @@ async def test_ensure_personal_team_creates_closed_with_budget():
     new = respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
     )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
     respx.get("http://litellm.test/v1/access_group").mock(
         return_value=httpx.Response(
             200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
@@ -2131,6 +2134,54 @@ async def test_ensure_personal_team_creates_closed_with_budget():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_ensure_personal_team_adds_the_user_as_a_member():
+    """LiteLLM refuses /key/update into a team the user is not a member of, so
+    without this the migration cannot move a single key (403, seen in prod)."""
+    from app.litellm_client import ensure_personal_team
+
+    settings = make_settings(default_access_groups=[])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    member = respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    respx.post("http://litellm.test/team/update").mock(return_value=httpx.Response(200, json={}))
+
+    await ensure_personal_team("alice@example.com", settings, factory={})
+
+    body = _json_body(member)
+    assert body["team_id"] == "user-alice@example.com"
+    assert body["member"] == {"user_id": "alice@example.com", "role": "user"}
+    # The per-member cap is NOT set here: one member means team.max_budget is
+    # already the per-user cap, and max_budget_in_team is unsupported anyway.
+    assert "max_budget_in_team" not in body
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_tolerates_an_existing_member():
+    """Every login re-asserts membership; the second one must be a no-op."""
+    from app.litellm_client import ensure_personal_team
+
+    settings = make_settings(default_access_groups=[])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(400, json={"error": "Team already exists"})
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(400, json={"error": "User already exists in team"})
+    )
+    upd = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    team_id = await ensure_personal_team("alice@example.com", settings, factory={})
+    assert team_id == "user-alice@example.com"
+    assert upd.called  # did not abort before the attach
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_ensure_personal_team_existing_team_keeps_its_budget():
     """400 'already exists' = present. Re-writing max_budget clobbers a manual raise."""
     from app.litellm_client import ensure_personal_team
@@ -2138,6 +2189,9 @@ async def test_ensure_personal_team_existing_team_keeps_its_budget():
     settings = make_settings(default_access_groups=["team-default"])
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(400, json={"error": "Team already exists"})
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
     )
     respx.get("http://litellm.test/v1/access_group").mock(
         return_value=httpx.Response(
@@ -2165,6 +2219,9 @@ async def test_ensure_personal_team_detaches_when_entitlement_is_empty():
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(400, json={"error": "Team already exists"})
     )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
     update = respx.post("http://litellm.test/team/update").mock(
         return_value=httpx.Response(200, json={})
     )
@@ -2185,6 +2242,9 @@ async def test_ensure_personal_team_creates_before_it_attaches():
     calls = []
     respx.post("http://litellm.test/team/new").mock(
         side_effect=lambda req: calls.append("new") or httpx.Response(200, json={})
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
     )
     respx.post("http://litellm.test/team/update").mock(
         side_effect=lambda req: calls.append("update") or httpx.Response(200, json={})
@@ -2233,6 +2293,9 @@ async def test_ensure_team_and_user_uses_personal_team_when_flag_on():
     new = respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
     )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
     respx.get("http://litellm.test/v1/access_group").mock(
         return_value=httpx.Response(
             200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
@@ -2258,7 +2321,12 @@ async def test_ensure_team_and_user_uses_personal_team_when_flag_on():
 @pytest.mark.asyncio
 @respx.mock
 async def test_personal_team_path_skips_member_budget_cap():
-    """max_budget_in_team is redundant with one member, and unsupported on v1.89.2."""
+    """The per-member CAP is skipped, but membership itself is not.
+
+    max_budget_in_team is redundant with one member and unsupported on this
+    version -- but the user must still JOIN the team, or LiteLLM refuses
+    /key/update into it. Step A3 did both; this path keeps only the join.
+    """
     settings = make_settings(personal_teams_enabled=True)
 
     respx.post("http://litellm.test/team/new").mock(
@@ -2274,9 +2342,15 @@ async def test_personal_team_path_skips_member_budget_cap():
 
     # A brand-new user plus a factory user budget is exactly the shape that
     # makes Step A3 fire on the shared path -- so a skip here is the branch.
+    member_update = respx.post("http://litellm.test/team/member_update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
     await ensure_team_and_user("alice@example.com", settings, factory={"user": {"max_budget": 100}})
 
-    assert not member_add.called
+    assert member_add.called, "the user must join their own team"
+    assert "max_budget_in_team" not in _json_body(member_add)
+    assert not member_update.called, "no per-member cap on the personal path"
 
 
 @pytest.mark.asyncio
@@ -2306,6 +2380,9 @@ async def test_personal_team_path_still_creates_the_litellm_user():
 
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
     )
     respx.post("http://litellm.test/team/update").mock(return_value=httpx.Response(200, json={}))
     user_new = respx.post("http://litellm.test/user/new").mock(

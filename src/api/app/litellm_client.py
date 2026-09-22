@@ -1231,6 +1231,26 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
         if resp.status_code != 200 and not _already_exists(resp):
             _raise_litellm(resp, "/team/new (personal)")
 
+        # Membership is NOT implied by creating the team, nor by the User's
+        # `teams` list. LiteLLM refuses /key/update into a team the user is not
+        # a member of (403 "is not a member of the team"), so without this the
+        # migration cannot move a single key -- observed in prod.
+        #
+        # On the shared-team path this was a side effect of Step A3
+        # (ensure_team_member_budget adds the member, THEN caps them). That step
+        # is skipped here because the cap is redundant with one member, so the
+        # add has to happen explicitly.
+        #
+        # No max_budget_in_team: team.max_budget is already the per-user cap and
+        # the field is unsupported on this version anyway.
+        mem = await client.post(
+            "/team/member_add",
+            headers=headers,
+            json={"team_id": team_id, "member": {"user_id": email, "role": "user"}},
+        )
+        if mem.status_code != 200 and not _already_exists(mem):
+            _raise_litellm(mem, "/team/member_add (personal)")
+
         # resolve_access_group_ids opens its own client while this one is still
         # open. Harmless, and resolving earlier would put a network call ahead
         # of the team's existence for no benefit.
