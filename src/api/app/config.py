@@ -152,6 +152,28 @@ class Settings(BaseSettings):
         return (self.as_issuer_url or self.app_base_url).rstrip("/")
 
     @model_validator(mode="after")
+    def _fold_user_access_group_keys(self) -> "Settings":
+        # USER_ACCESS_GROUPS keys are email addresses typed by hand into Helm
+        # values, so their casing is whatever a directory export produced. The
+        # lookup folds the address, so an unfolded key here would simply never
+        # match: the user silently drops to default_access_groups with nothing
+        # logged. Fold once, at the boundary, and let the lookup stay a dict hit.
+        #
+        # Two keys that fold to the same address are a genuine authoring
+        # mistake; picking one silently would reintroduce exactly the quiet
+        # under-grant this exists to prevent, so fail at boot instead.
+        folded: dict[str, list[str]] = {}
+        for key, value in self.user_access_groups.items():
+            email = key.strip().lower()
+            if email in folded:
+                raise ValueError(
+                    "USER_ACCESS_GROUPS has two keys for %r; merge them" % email
+                )
+            folded[email] = value
+        self.user_access_groups = folded
+        return self
+
+    @model_validator(mode="after")
     def _scopes_keep_openid(self) -> "Settings":
         # OAUTH_SCOPES is free-form and feeds both the console login and the AS
         # leg. Drop "openid" (or blank the value) and the provider returns no

@@ -1042,13 +1042,8 @@ def access_groups_for_user(email: str, settings: Settings) -> list[str]:
     Order-preserving and deduped so a no-op login produces an identical id list
     and does not churn /team/update.
     """
-    # Normalise BOTH sides: the config keys come from hand-edited Helm values
-    # and a mixed-case address there would otherwise be silently unreachable.
-    wanted = email.strip().lower()
-    explicit = next(
-        (v for k, v in settings.user_access_groups.items() if k.strip().lower() == wanted),
-        [],
-    )
+    # Settings folds the config keys at load time, so this is a plain dict hit.
+    explicit = settings.user_access_groups.get(email.strip().lower(), [])
     # Group names are stripped and blanks dropped: a stray space in a YAML list
     # would otherwise become its own dedupe key and an unresolvable name.
     # dict keys are insertion-ordered since 3.7: dedupe without losing order
