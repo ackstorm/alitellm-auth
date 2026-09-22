@@ -2090,3 +2090,118 @@ async def test_resolve_access_group_ids_raises_on_backend_failure():
     respx.get("http://litellm.test/v1/access_group").mock(return_value=httpx.Response(500))
     with pytest.raises(httpx.HTTPStatusError):
         await resolve_access_group_ids(["team-default"], make_settings())
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_creates_closed_with_budget():
+    from app.litellm_client import DENY_ALL_AGENT, DENY_ALL_MODEL, ensure_personal_team
+
+    settings = make_settings(default_access_groups=["team-default"])
+    new = respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
+        )
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    team_id = await ensure_personal_team(
+        "alice@example.com",
+        settings,
+        factory={"user": {"max_budget": 100, "budget_duration": "30d"}},
+    )
+
+    assert team_id == "user-alice@example.com"
+    body = _json_body(new)
+    assert body["models"] == [DENY_ALL_MODEL]
+    assert body["object_permission"]["agents"] == [DENY_ALL_AGENT]
+    assert body["object_permission"]["mcp_servers"] == []
+    assert body["max_budget"] == 100
+    assert body["budget_duration"] == "30d"
+    assert body["metadata"]["alt_managed"] == "user-team"
+    # The create must NOT carry attachments -- they are a second, separate write.
+    assert "access_group_ids" not in body
+    assert _json_body(update)["access_group_ids"] == ["id-default"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_existing_team_keeps_its_budget():
+    """400 'already exists' = present. Re-writing max_budget clobbers a manual raise."""
+    from app.litellm_client import ensure_personal_team
+
+    settings = make_settings(default_access_groups=["team-default"])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(400, json={"error": "Team already exists"})
+    )
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
+        )
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    await ensure_personal_team(
+        "alice@example.com", settings, factory={"user": {"max_budget": 100}}
+    )
+
+    body = _json_body(update)
+    assert body["access_group_ids"] == ["id-default"]
+    assert "max_budget" not in body
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_detaches_when_entitlement_is_empty():
+    """Entitlement is re-asserted every login, so a revoked group detaches."""
+    from app.litellm_client import ensure_personal_team
+
+    settings = make_settings(default_access_groups=[])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(400, json={"error": "Team already exists"})
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    await ensure_personal_team("alice@example.com", settings, factory={})
+
+    # Empty list is an explicit DETACH, not a skip -- omitting the field would
+    # keep a stale grant forever.
+    assert _json_body(update)["access_group_ids"] == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_creates_before_it_attaches():
+    """A key minted between the two calls must reach nothing, never everything."""
+    from app.litellm_client import ensure_personal_team
+
+    calls = []
+    respx.post("http://litellm.test/team/new").mock(
+        side_effect=lambda req: calls.append("new") or httpx.Response(200, json={})
+    )
+    respx.post("http://litellm.test/team/update").mock(
+        side_effect=lambda req: calls.append("update") or httpx.Response(200, json={})
+    )
+    await ensure_personal_team("alice@example.com", make_settings(), factory={})
+    assert calls == ["new", "update"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_raises_when_create_fails_for_real():
+    """A 500 is not 'already exists'. Proceeding would attach to a missing team,
+    and LiteLLM mints a FAIL-OPEN key against a nonexistent team_id."""
+    from app.litellm_client import ensure_personal_team
+
+    respx.post("http://litellm.test/team/new").mock(return_value=httpx.Response(500))
+    with pytest.raises(httpx.HTTPStatusError):
+        await ensure_personal_team("alice@example.com", make_settings(), factory={})

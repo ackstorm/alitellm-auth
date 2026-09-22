@@ -1099,6 +1099,81 @@ async def resolve_access_group_ids(names: list[str], settings: Settings) -> list
     return ids
 
 
+async def ensure_personal_team(email: str, settings: Settings, factory: dict) -> str:
+    """Idempotently ensure this user's personal team, and sync its attachments.
+
+    Phase 1 -- CREATE CLOSED. models/object_permission are the deny-all
+    sentinels and stay that way for the life of the team. The budget envelope
+    from the Helm factory `user` block is written HERE AND ONLY HERE: budget
+    edits do not propagate to live keys (measured on v1.89.2 -- a key still
+    cited a cap of 1e-06 three minutes after it was raised to 5.0), and
+    re-writing on every login would silently stamp over a cap someone raised
+    by hand.
+
+    Phase 2 -- ATTACH. The entitled access groups are resolved to ids and
+    written to access_group_ids. Groups only ADD, over the sentinels, so this
+    is the only thing that ever opens the team.
+
+    The order matters: a key minted in the window between the two phases
+    reaches NOTHING. The reverse order would have it reach everything. Never
+    invert it. It is also why a failed create must not fall through -- LiteLLM
+    silently accepts a nonexistent team_id and mints a FAIL-OPEN key.
+
+    access_group_ids is sent on EVERY login, including as an empty list. It is
+    authoritative -- `[]` detaches (measured) and an omitted field would keep a
+    revoked grant forever.
+    """
+    team_id = settings.personal_team_id(email)
+    headers = _admin_headers(settings)
+    # The per-user envelope (rpm/tpm/budget) lives in the Helm factory `user`
+    # block. On a personal team -- exactly one member -- team.max_budget IS the
+    # per-user cap, and team budgets enforce where user budgets do not.
+    # `metadata` is dropped: this team carries its own, set below.
+    # H3: never forward a None, it can null out a deployer's configured default.
+    envelope = {
+        k: v
+        for k, v in (factory.get("user") or {}).items()
+        if k != "metadata" and v is not None
+    }
+
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
+        resp = await client.post(
+            "/team/new",
+            headers=headers,
+            json={
+                **envelope,
+                "team_id": team_id,
+                "team_alias": team_id,
+                "models": [DENY_ALL_MODEL],
+                "object_permission": deny_all_object_permission(),
+                "metadata": {"source": "token-factory", "alt_managed": "user-team"},
+            },
+        )
+        # A create response reports object_permission: null even when it
+        # applied -- never assert on it here; /team/info is the only truth.
+        if resp.status_code != 200 and not _already_exists(resp):
+            _raise_litellm(resp, "/team/new (personal)")
+
+        # resolve_access_group_ids opens its own client while this one is still
+        # open. Harmless, and resolving earlier would put a network call ahead
+        # of the team's existence for no benefit.
+        group_ids = await resolve_access_group_ids(
+            access_groups_for_user(email, settings), settings
+        )
+        # NO budget field here, by design -- see the docstring. This body is
+        # exactly team_id + the authoritative attachment list.
+        upd = await client.post(
+            "/team/update",
+            headers=headers,
+            json={"team_id": team_id, "access_group_ids": group_ids},
+        )
+        if not upd.is_success:
+            _raise_litellm(upd, "/team/update (attach)")
+
+    logger.info("personal team %s attached to %d access group(s)", team_id, len(group_ids))
+    return team_id
+
+
 # ── LiteLLM User lifecycle ──────────────────────────────────────────────────
 
 # LiteLLM v1.83 returns this placeholder for unknown/ambiguous user lookups
