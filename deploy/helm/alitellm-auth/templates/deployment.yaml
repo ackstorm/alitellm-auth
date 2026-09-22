@@ -52,6 +52,30 @@ spec:
               value: {{ .Values.config.litellmUrl | quote }}
             - name: LITELLM_DEFAULT_TEAM
               value: {{ .Values.config.litellmDefaultTeam | quote }}
+            # Always rendered, never conditional: which team a key lands in
+            # decides what every client can reach, so an explicit "false" in
+            # `kubectl describe` beats an absent var you have to know the
+            # app default for.
+            - name: PERSONAL_TEAMS_ENABLED
+              value: {{ .Values.config.personalTeamsEnabled | quote }}
+            {{- with .Values.config.personalTeamPrefix }}
+            - name: PERSONAL_TEAM_PREFIX
+              value: {{ . | quote }}
+            {{- end }}
+            # toJson, NOT a bare string: these are a list and a dict on a
+            # pydantic-settings model, and pydantic parses complex-typed fields
+            # from the environment as JSON. DEFAULT_ACCESS_GROUPS=team-default
+            # raises SettingsError at startup; '["team-default"]' is required.
+            # `with` skips empty/unset, which matches the app defaults ([] and
+            # {}) exactly and keeps `kubectl describe` free of empty noise.
+            {{- with .Values.config.defaultAccessGroups }}
+            - name: DEFAULT_ACCESS_GROUPS
+              value: {{ . | toJson | quote }}
+            {{- end }}
+            {{- with .Values.config.userAccessGroups }}
+            - name: USER_ACCESS_GROUPS
+              value: {{ . | toJson | quote }}
+            {{- end }}
             - name: API_PUBLIC_URL
               value: {{ .Values.config.apiPublicUrl | quote }}
             - name: CHAT_PUBLIC_URL

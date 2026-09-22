@@ -229,3 +229,32 @@ def test_openwork_enabled_requires_a_store_url():
     with pytest.raises(ValidationError, match="AS_REDIS_URL"):
         Settings(**_openwork_base(openwork_enabled=True))
     assert Settings(**_openwork_base(openwork_enabled=True, as_redis_url="memory://"))
+
+
+def test_personal_team_settings_default_off():
+    """The new model ships disabled: rollout is a per-deployment decision."""
+    from app.config import Settings
+
+    s = Settings(**_base())
+    assert s.personal_teams_enabled is False
+    assert s.personal_team_prefix == "user-"
+    assert s.default_access_groups == []
+    assert s.user_access_groups == {}
+    assert s.personal_team_id("Alice@Example.com ") == "user-alice@example.com"
+
+
+def test_user_access_groups_keys_are_folded_at_load():
+    """Helm values carry whatever casing a directory export produced."""
+    from app.config import Settings
+
+    s = Settings(**_base(user_access_groups={" J.Smith@Ackstorm.com ": ["team-dream"]}))
+    assert s.user_access_groups == {"j.smith@ackstorm.com": ["team-dream"]}
+
+
+def test_user_access_groups_duplicate_keys_fail_at_boot():
+    """Picking one silently would be the quiet under-grant this prevents."""
+    import pytest
+    from app.config import Settings
+
+    with pytest.raises(ValueError, match="two keys"):
+        Settings(**_base(user_access_groups={"a@x.com": ["g1"], "A@X.com": ["g2"]}))

@@ -39,7 +39,41 @@ config:
   litellmUrl: "https://litellm.ackstorm.ai"
   # Shared LiteLLM team id + display name (one team per deployment). Decoupled
   # from oauthClientId so the team can be renamed independently.
+  # Ignored once personalTeamsEnabled is true — keys then land in the caller's
+  # own team instead of this one.
   litellmDefaultTeam: "default"
+  # ── Personal teams ────────────────────────────────────────────────────────
+  # One LiteLLM team per user (id "<personalTeamPrefix><email>") instead of the
+  # single shared team. A personal team has exactly one member, so the team
+  # budget IS the per-user cap — and team budgets enforce where user-level ones
+  # only report. The team is created permanently deny-all; the only thing that
+  # opens it up is the access groups below.
+  #
+  # OFF by default on purpose: flipping it changes WHICH team a new key lives
+  # in, and a team is what decides which models a client can reach. Enable it
+  # on a deployment you can watch.
+  personalTeamsEnabled: "false"
+  # Prefix for the personal team id. Empty → the app default ("user-"). Kept
+  # empty so there is one default, in config.py, not two that can drift.
+  personalTeamPrefix: ""
+  # Unified access-group NAMES attached to every personal team.
+  #
+  # EMPTY MEANS EVERY USER GETS A BUDGETED BUT COMPLETELY CLOSED TEAM — no
+  # model is reachable. That is deliberate: a deny-all team fails loudly on the
+  # first request, where a default-open one would silently over-grant and
+  # nobody would notice.
+  #
+  # RENDERED AS JSON (`toJson`), not as a bare string: these are complex-typed
+  # pydantic-settings fields, and pydantic parses those from the environment as
+  # JSON. `DEFAULT_ACCESS_GROUPS=team-default` does not fall back to a string —
+  # it raises SettingsError at startup and the pod crashloops.
+  defaultAccessGroups: []
+  # email -> EXTRA access-group names, on top of defaultAccessGroups. Keys are
+  # case-folded at load and duplicates are rejected. Same JSON rule as above.
+  # Kept in the environment (not the factory ConfigMap) because config.py reads
+  # it as a plain Settings field; see the note on factoryConfig below.
+  userAccessGroups: {}
+  #  alice@example.com: ["team-research"]
   apiPublicUrl: "https://api.ackstorm.ai"
   # Hosted chat UI URL (CHAT nav button + How-to card). Leave empty to derive
   # chat.<domain> from apiPublicUrl's host; set it when chat lives elsewhere.
@@ -62,21 +96,25 @@ secret:
   litellmMasterKey: ""
 
 # Factory config: a ConfigMap JSON mounted at FACTORY_CONFIG_PATH that drives the
-# default team/user LiteLLM params applied on virtual-key creation.
+# default user LiteLLM params applied on virtual-key creation. Only whole-
+# deployment defaults belong here; anything keyed per user (userAccessGroups)
+# stays in config above, because config.py reads it from the environment.
+#
+# The old `team:` block is GONE, not commented out. A personal team has one
+# member, so the `user` envelope below is what gets written onto it and a
+# separate shared-pool team budget has nothing left to cap.
+#
+# DO NOT leave a commented-out `team:` stub here or in a gitops values file. A
+# key whose children are all commented parses as null, and null OVERRIDES the
+# chart default rather than leaving it alone — that is how the 200/30d block
+# got silently erased in gitops. Delete the key, do not comment it.
 factoryConfig:
   enabled: true
   mountPath: /etc/alitellm-auth
   config:
-    # Team budget is a SHARED pool: max_budget caps the combined spend of all
-    # users in the team, not per-user. Spread into POST /team/new.
-    team:
-      rpm_limit: 100
-      tpm_limit: 1000000
-      max_budget: 200
-      budget_duration: "30d"
-      metadata:
-        rpm_limit_type: best_effort_throughput
-        tpm_limit_type: best_effort_throughput
+    # The per-user envelope. With personalTeamsEnabled this is written onto the
+    # user's own team, where max_budget actually enforces (a user-level
+    # max_budget only reports for team-scoped keys).
     user:
       rpm_limit: 100
       tpm_limit: 1000000

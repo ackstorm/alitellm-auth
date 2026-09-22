@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import json as _json
+import logging
 import os
 import tempfile
 from types import SimpleNamespace
@@ -1950,3 +1951,453 @@ async def test_assert_team_membership_rejects_non_member(monkeypatch):
 
     with pytest.raises(TeamMembershipError):
         await assert_team_membership("alice@example.com", "dream", settings)
+
+
+def test_deny_all_permissions_shape():
+    """An empty grant is ALL for models/agents, so 'nothing' needs sentinels."""
+    from app.litellm_client import DENY_ALL_AGENT, DENY_ALL_MODEL, deny_all_object_permission
+
+    assert DENY_ALL_MODEL == "__deny_all__"
+    assert DENY_ALL_AGENT == "00000000-0000-0000-0000-000000000000"
+
+    perm = deny_all_object_permission()
+    # mcp_servers fails CLOSED on empty -- empty list is correct here.
+    assert perm["mcp_servers"] == []
+    assert perm["mcp_access_groups"] == []
+    assert perm["agents"] == [DENY_ALL_AGENT]  # fails OPEN on empty
+    assert perm["agent_access_groups"] == []
+
+
+def test_access_groups_for_user_is_defaults_plus_explicit_grant():
+    from app.litellm_client import access_groups_for_user
+
+    settings = make_settings(
+        default_access_groups=["team-default"],
+        user_access_groups={"alice@example.com": ["team-dream"]},
+    )
+
+    assert access_groups_for_user("alice@example.com", settings) == ["team-default", "team-dream"]
+    assert access_groups_for_user("Alice@Example.COM ", settings) == ["team-default", "team-dream"]
+    assert access_groups_for_user("nobody@example.com", settings) == ["team-default"]
+
+
+def test_access_groups_for_user_dedupes_and_preserves_order():
+    from app.litellm_client import access_groups_for_user
+
+    settings = make_settings(
+        default_access_groups=["team-default"],
+        user_access_groups={"alice@example.com": ["team-default", "team-dream"]},
+    )
+    assert access_groups_for_user("alice@example.com", settings) == ["team-default", "team-dream"]
+
+
+def test_access_groups_for_user_matches_config_keys_case_insensitively():
+    """Helm values are hand-edited; a mixed-case key must not be unreachable."""
+    from app.litellm_client import access_groups_for_user
+
+    settings = make_settings(
+        default_access_groups=["team-default"],
+        user_access_groups={"J.Smith@Ackstorm.com": ["team-dream"]},
+    )
+    assert access_groups_for_user("j.smith@ackstorm.com", settings) == [
+        "team-default",
+        "team-dream",
+    ]
+
+
+def test_access_groups_for_user_strips_and_drops_blank_names():
+    from app.litellm_client import access_groups_for_user
+
+    settings = make_settings(default_access_groups=["team-default ", "", "  ", " team-dream"])
+    assert access_groups_for_user("nobody@example.com", settings) == [
+        "team-default",
+        "team-dream",
+    ]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_maps_names():
+    from app.litellm_client import resolve_access_group_ids
+
+    settings = make_settings()
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"access_group_id": "id-default", "access_group_name": "team-default"},
+                {"foo": "bar"},  # junk row: the g.get(...) filter must drop it
+                {"access_group_id": "id-dream", "access_group_name": "team-dream"},
+                {"access_group_id": "id-other", "access_group_name": "team-other"},
+            ],
+        )
+    )
+    got = await resolve_access_group_ids(["team-dream", "team-default"], settings)
+    assert got == ["id-dream", "id-default"]  # request order preserved
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_skips_unknown_names(caplog):
+    """A bad name under-grants (fail-closed). It must never break the login."""
+    from app.litellm_client import resolve_access_group_ids
+
+    settings = make_settings()
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
+        )
+    )
+    with caplog.at_level(logging.ERROR):
+        got = await resolve_access_group_ids(["team-default", "team-typo"], settings)
+    assert got == ["id-default"]
+    assert "team-typo" in caplog.text
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_empty_input_makes_no_call():
+    from app.litellm_client import resolve_access_group_ids
+
+    route = respx.get("http://litellm.test/v1/access_group")
+    assert await resolve_access_group_ids([], make_settings()) == []
+    assert not route.called
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_survives_a_response_shape_change(caplog):
+    """A wrapped array must fail closed with a log, not raise into the AS path."""
+    from app.litellm_client import resolve_access_group_ids
+
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json={"data": [{"access_group_id": "id-d", "access_group_name": "team-default"}]}
+        )
+    )
+    with caplog.at_level(logging.ERROR):
+        got = await resolve_access_group_ids(["team-default"], make_settings())
+    assert got == []
+    assert "team-default" in caplog.text
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_raises_on_backend_failure():
+    """A LiteLLM outage is not a config typo -- it must not be swallowed."""
+    from app.litellm_client import resolve_access_group_ids
+
+    respx.get("http://litellm.test/v1/access_group").mock(return_value=httpx.Response(500))
+    with pytest.raises(httpx.HTTPStatusError):
+        await resolve_access_group_ids(["team-default"], make_settings())
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_creates_closed_with_budget():
+    from app.litellm_client import DENY_ALL_AGENT, DENY_ALL_MODEL, ensure_personal_team
+
+    settings = make_settings(default_access_groups=["team-default"])
+    new = respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
+        )
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    team_id = await ensure_personal_team(
+        "alice@example.com",
+        settings,
+        factory={"user": {"max_budget": 100, "budget_duration": "30d"}},
+    )
+
+    assert team_id == "user-alice@example.com"
+    body = _json_body(new)
+    assert body["models"] == [DENY_ALL_MODEL]
+    assert body["object_permission"]["agents"] == [DENY_ALL_AGENT]
+    assert body["object_permission"]["mcp_servers"] == []
+    assert body["max_budget"] == 100
+    assert body["budget_duration"] == "30d"
+    assert body["metadata"]["alt_managed"] == "user-team"
+    # The create must NOT carry attachments -- they are a second, separate write.
+    assert "access_group_ids" not in body
+    assert _json_body(update)["access_group_ids"] == ["id-default"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_existing_team_keeps_its_budget():
+    """400 'already exists' = present. Re-writing max_budget clobbers a manual raise."""
+    from app.litellm_client import ensure_personal_team
+
+    settings = make_settings(default_access_groups=["team-default"])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(400, json={"error": "Team already exists"})
+    )
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
+        )
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    await ensure_personal_team("alice@example.com", settings, factory={"user": {"max_budget": 100}})
+
+    body = _json_body(update)
+    assert body["access_group_ids"] == ["id-default"]
+    assert "max_budget" not in body
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_detaches_when_entitlement_is_empty():
+    """Entitlement is re-asserted every login, so a revoked group detaches."""
+    from app.litellm_client import ensure_personal_team
+
+    settings = make_settings(default_access_groups=[])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(400, json={"error": "Team already exists"})
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    await ensure_personal_team("alice@example.com", settings, factory={})
+
+    # Empty list is an explicit DETACH, not a skip -- omitting the field would
+    # keep a stale grant forever.
+    assert _json_body(update)["access_group_ids"] == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_creates_before_it_attaches():
+    """A key minted between the two calls must reach nothing, never everything."""
+    from app.litellm_client import ensure_personal_team
+
+    calls = []
+    respx.post("http://litellm.test/team/new").mock(
+        side_effect=lambda req: calls.append("new") or httpx.Response(200, json={})
+    )
+    respx.post("http://litellm.test/team/update").mock(
+        side_effect=lambda req: calls.append("update") or httpx.Response(200, json={})
+    )
+    await ensure_personal_team("alice@example.com", make_settings(), factory={})
+    assert calls == ["new", "update"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_raises_when_create_fails_for_real():
+    """A 500 is not 'already exists'. Proceeding would attach to a missing team,
+    and LiteLLM mints a FAIL-OPEN key against a nonexistent team_id."""
+    from app.litellm_client import ensure_personal_team
+
+    respx.post("http://litellm.test/team/new").mock(return_value=httpx.Response(500))
+    with pytest.raises(httpx.HTTPStatusError):
+        await ensure_personal_team("alice@example.com", make_settings(), factory={})
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_team_and_user_uses_shared_team_when_flag_off():
+    """Regression guard: the existing shared-team path is untouched by default."""
+    settings = make_settings()
+    assert settings.personal_teams_enabled is False
+
+    new = respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": settings.team_id})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+
+    assert await ensure_team_and_user("alice@example.com", settings) == settings.team_id
+    # The shared team, with its shared alias -- not a per-user one.
+    assert _json_body(new)["team_id"] == settings.team_id
+    assert _json_body(new)["team_alias"] == settings.litellm_default_team
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_team_and_user_uses_personal_team_when_flag_on():
+    settings = make_settings(personal_teams_enabled=True, default_access_groups=["team-default"])
+
+    new = respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
+        )
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    user_new = respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+
+    assert await ensure_team_and_user("alice@example.com", settings) == "user-alice@example.com"
+    # Exactly ONE /team/new, and it is the personal team: the shared team must
+    # never be touched on this path (it may not even exist in the deployment).
+    assert new.call_count == 1
+    assert _json_body(new)["team_id"] == "user-alice@example.com"
+    assert _json_body(update)["access_group_ids"] == ["id-default"]
+    # The user is scoped to the personal team, not the shared one.
+    assert _json_body(user_new)["teams"] == ["user-alice@example.com"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_personal_team_path_skips_member_budget_cap():
+    """max_budget_in_team is redundant with one member, and unsupported on v1.89.2."""
+    settings = make_settings(personal_teams_enabled=True)
+
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.post("http://litellm.test/team/update").mock(return_value=httpx.Response(200, json={}))
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+    member_add = respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    # A brand-new user plus a factory user budget is exactly the shape that
+    # makes Step A3 fire on the shared path -- so a skip here is the branch.
+    await ensure_team_and_user("alice@example.com", settings, factory={"user": {"max_budget": 100}})
+
+    assert not member_add.called
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_explicit_team_id_still_wins_when_flag_on():
+    """The console key-create path passes a team during rollout."""
+    settings = make_settings(personal_teams_enabled=True)
+
+    new = respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "dream"})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+
+    got = await ensure_team_and_user("alice@example.com", settings, team_id="dream")
+
+    assert got == "dream"
+    assert _json_body(new)["team_id"] == "dream"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_personal_team_path_still_creates_the_litellm_user():
+    """user.max_budget is the only thing that catches a key with NO team."""
+    settings = make_settings(personal_teams_enabled=True)
+
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.post("http://litellm.test/team/update").mock(return_value=httpx.Response(200, json={}))
+    user_new = respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+
+    await ensure_team_and_user("alice@example.com", settings, factory={"user": {"max_budget": 100}})
+
+    assert user_new.called
+    assert _json_body(user_new)["max_budget"] == 100
+
+
+# ---------------------------------------------------------------------------
+# get_team_budget — the team's OWN enforcing budget (the per-user cap on a
+# personal team, where there is no max_budget_in_team to read).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_reads_the_team_cap():
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "team_id": "user-alice@example.com",
+                "max_budget": 20.0,
+                "spend": 4.0,
+                "budget_duration": "30d",
+            },
+        )
+    )
+    from app.litellm_client import get_team_budget
+
+    result = await get_team_budget("user-alice@example.com", settings)
+    assert result == {"max_budget": 20.0, "current": 4.0, "budget_duration": "30d"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_unwraps_the_team_info_envelope():
+    """Some LiteLLM versions nest the team under "team_info" (same split as
+    /user/info's "user_info"); a flat read would silently report no budget."""
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={"team_info": {"max_budget": 5.0, "spend": 1.25, "budget_duration": "7d"}},
+        )
+    )
+    from app.litellm_client import get_team_budget
+
+    assert await get_team_budget("user-alice@example.com", settings) == {
+        "max_budget": 5.0,
+        "current": 1.25,
+        "budget_duration": "7d",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_none_on_404():
+    """A team that does not exist must degrade, never 502 the console."""
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(404, json={"error": "team not found"})
+    )
+    from app.litellm_client import get_team_budget
+
+    assert await get_team_budget("user-ghost@example.com", settings) is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_none_when_backend_unreachable():
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(side_effect=httpx.ConnectError("down"))
+    from app.litellm_client import get_team_budget
+
+    assert await get_team_budget("user-alice@example.com", settings) is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_none_when_nothing_configured():
+    """No max_budget AND no spend → let the caller degrade (mirrors the
+    per-member read); a bare {} must not be reported as a 0-budget team."""
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    from app.litellm_client import get_team_budget
+
+    assert await get_team_budget("user-alice@example.com", settings) is None

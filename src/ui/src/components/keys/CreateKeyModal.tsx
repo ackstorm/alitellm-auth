@@ -245,7 +245,10 @@ export function CreateKeyModal() {
                 ) : null}
               </div>
 
-              {teams.length ? (
+              {/* One team means no choice to make. With personal teams on, the
+                  backend discards a submitted team_id anyway, so a single-option
+                  dropdown would only imply a decision the user does not have. */}
+              {teams.length > 1 ? (
                 <div className="flex flex-col gap-1.5">
                   <label
                     htmlFor="ck-team"

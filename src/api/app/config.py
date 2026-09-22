@@ -51,6 +51,22 @@ class Settings(BaseSettings):
     # Set false for OSS forks / deployments not using per-user catalog scoping.
     # Env var: LITELLM_USER_SCOPING_CHECK
     litellm_user_scoping_check: bool = True
+    # Per-user teams (docs/plans/2026-09-22-per-user-teams.md). OFF by default:
+    # switching the team a key lives in changes what every client can reach, so
+    # it is opted into per deployment and rolled back by clearing the flag.
+    personal_teams_enabled: bool = False
+    # Namespace guard. `ach` owns ach-user-*/ach-env-* in the same proxy; this
+    # prefix must never collide with those.
+    personal_team_prefix: str = "user-"
+    # Unified access-group NAMES (GET /v1/access_group) granted to everyone.
+    # Empty default is deliberate: enabling the flag without naming a group
+    # gives a user a working, budgeted, totally closed team — a visible
+    # "nothing works" beats a silent over-grant.
+    default_access_groups: list[str] = []
+    # email -> extra access-group names, on top of default_access_groups.
+    # Phase 1 entitlement source; Dex `groups` will feed this later without
+    # changing the call site.
+    user_access_groups: dict[str, list[str]] = {}
     # OAuth 2.1 authorization server — the front door (docs/plans/2026-09-17-oauth-front-door.md).
     # Off by default; nothing below is read unless AS_ENABLED=true.
     as_enabled: bool = False
@@ -134,6 +150,26 @@ class Settings(BaseSettings):
     @property
     def as_issuer(self) -> str:
         return (self.as_issuer_url or self.app_base_url).rstrip("/")
+
+    @model_validator(mode="after")
+    def _fold_user_access_group_keys(self) -> "Settings":
+        # USER_ACCESS_GROUPS keys are email addresses typed by hand into Helm
+        # values, so their casing is whatever a directory export produced. The
+        # lookup folds the address, so an unfolded key here would simply never
+        # match: the user silently drops to default_access_groups with nothing
+        # logged. Fold once, at the boundary, and let the lookup stay a dict hit.
+        #
+        # Two keys that fold to the same address are a genuine authoring
+        # mistake; picking one silently would reintroduce exactly the quiet
+        # under-grant this exists to prevent, so fail at boot instead.
+        folded: dict[str, list[str]] = {}
+        for key, value in self.user_access_groups.items():
+            email = key.strip().lower()
+            if email in folded:
+                raise ValueError("USER_ACCESS_GROUPS has two keys for %r; merge them" % email)
+            folded[email] = value
+        self.user_access_groups = folded
+        return self
 
     @model_validator(mode="after")
     def _scopes_keep_openid(self) -> "Settings":
@@ -230,6 +266,17 @@ class Settings(BaseSettings):
     def team_id(self) -> str:
         """Shared team id for the single per-deployment team (LITELLM_DEFAULT_TEAM)."""
         return self.litellm_default_team
+
+    def personal_team_id(self, email: str) -> str:
+        """Deterministic team id for a user.
+
+        Lower-cased because the two sign-in paths disagree: the OAuth AS
+        lower-cases the email before it reaches LiteLLM, the console callback
+        passes it through verbatim. Folding here is what makes both land on
+        ONE team. Do NOT infer the LiteLLM user_id by stripping the prefix --
+        that spelling may differ.
+        """
+        return f"{self.personal_team_prefix}{email.strip().lower()}"
 
 
 def get_settings() -> Settings:

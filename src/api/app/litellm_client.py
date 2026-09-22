@@ -241,6 +241,51 @@ async def get_team_member_budget(email: str, settings: Settings) -> dict | None:
     }
 
 
+async def get_team_budget(team_id: str, settings: Settings) -> dict | None:
+    """The team's own enforcing budget: {max_budget, current, budget_duration}.
+
+    On a PERSONAL team this is the per-user cap -- one member, and team budgets
+    enforce where user-level ones do not. There is deliberately no
+    max_budget_in_team to read on that path (ensure_team_and_user skips Step A3
+    for a personal team), so this is the ONLY place the enforcing figure lives;
+    degrading to the user-level max_budget would report a cap that does not
+    enforce for team-scoped keys (RQ-1) -- exactly the lie this replaces.
+
+    Returns None when the team is unreadable, so the caller degrades instead of
+    502-ing. Never raises: unlike get_team_member_budget (whose callers already
+    wrap it in a return_exceptions gather), a None is the whole error channel.
+    """
+    headers = _admin_headers(settings)
+    try:
+        async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+            resp = await client.get("/team/info", headers=headers, params={"team_id": team_id})
+        if not resp.is_success:
+            logger.warning("get_team_budget: /team/info %s for %s", resp.status_code, team_id)
+            return None
+        data = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("get_team_budget: /team/info failed for %s: %s", team_id, exc)
+        return None
+    if not isinstance(data, dict):
+        return None
+    # Some LiteLLM versions nest the team under "team_info", others return it
+    # flat -- the same split as /user/info's "user_info". Accept both; reading
+    # only the flat shape would silently report "no budget" on the other one.
+    team = data.get("team_info")
+    if not isinstance(team, dict):
+        team = data
+    max_budget = team.get("max_budget")
+    if max_budget is None and team.get("spend") is None:
+        # Nothing configured on the team → let the caller degrade (mirrors the
+        # per-member read); a bare {} must not be reported as a 0-budget team.
+        return None
+    return {
+        "max_budget": max_budget,
+        "current": float(team.get("spend") or 0),
+        "budget_duration": team.get("budget_duration"),
+    }
+
+
 async def ensure_team_and_user(
     email: str,
     settings: Settings,
@@ -248,11 +293,28 @@ async def ensure_team_and_user(
     factory: dict | None = None,
     team_id: str | None = None,
 ) -> str:
-    """Idempotently ensure the shared team and LiteLLM user exist.
+    """Idempotently ensure the user's team and LiteLLM user exist.
 
     Performs Steps A (team), A2 (user), and A3 (member budget)
     in that order. This is a shared prerequisite for both key minting
     (generate_litellm_key) and the eager /ui login path (D-13). Returns the team_id.
+
+    Step A has two shapes, picked by settings.personal_teams_enabled:
+
+    * flag OFF (default) — the historical shared team: POST /team/new for
+      settings.team_id, "already exists" treated as success.
+    * flag ON — ensure_personal_team(): a deny-all team per user, opened only
+      by the access groups the user is entitled to. Step A3 is SKIPPED there:
+      with exactly one member, team.max_budget already IS the per-user cap, and
+      team_member_budget is not supported on LiteLLM v1.99.1 anyway.
+
+    An explicit team_id argument wins over BOTH: the console key-create path
+    passes one during rollout and must keep landing where it asked for.
+
+    Steps A2 and the D-16 backfill run unchanged on both paths. The user-level
+    max_budget is not redundant with the team cap: it is the only thing that
+    catches a key that ends up with no team at all (LiteLLM silently mints a
+    fail-open key against a nonexistent team_id), which the team cap cannot see.
 
     D-16 lazy backfill: if the user already existed (409/400), fetches the
     current user and patches only null/missing factory budget fields via
@@ -268,30 +330,42 @@ async def ensure_team_and_user(
     On subsequent logins/key-mints the cap is left untouched so a manually-raised
     max_budget_in_team is not silently clobbered back to the factory default.
     """
-    team_id = team_id or settings.team_id
     headers = _admin_headers(settings)
 
+    # Resolved BEFORE the branch: ensure_personal_team reads the factory `user`
+    # block for the team budget envelope, so it cannot wait for Step A2.
     if factory is None:
         factory = _load_factory_config(settings.factory_config_path)
     team_extra = {k: v for k, v in factory.get("team", {}).items() if k != "metadata"}
     team_meta_extra = factory.get("team", {}).get("metadata", {})
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
-        # Step A: Create shared team — 409 means it already exists, treat as success.
-        # Lowercase the body before matching so "Team Already Exists" (WR-04) is handled.
-        team_resp = await client.post(
-            "/team/new",
-            headers=headers,
-            json={
-                **team_extra,  # configmap overrides (D-20: team:{} so no team budget)
-                "team_id": team_id,  # validated team choice, else default
-                "team_alias": settings.litellm_default_team,
-                "metadata": {"source": "token-factory", **team_meta_extra},
-            },
-        )
-        team_exists = _already_exists(team_resp)
-        if team_resp.status_code != 200 and not team_exists:
-            _raise_litellm(team_resp, "/team/new")
+        # Step A: the team. `team_id is None` is load-bearing — an explicit team
+        # from the caller wins over the personal team, which is what keeps the
+        # console's key-create path working while the flag is being rolled out.
+        if settings.personal_teams_enabled and team_id is None:
+            # Opens its own client (nested, harmless) because the two-phase
+            # create-closed-then-attach sequence is its own invariant.
+            team_id = await ensure_personal_team(email, settings, factory)
+            skip_member_budget = True
+        else:
+            team_id = team_id or settings.team_id
+            skip_member_budget = False
+            # Create shared team — 409 means it already exists, treat as success.
+            # Lowercase the body before matching so "Team Already Exists" (WR-04) is handled.
+            team_resp = await client.post(
+                "/team/new",
+                headers=headers,
+                json={
+                    **team_extra,  # configmap overrides (D-20: team:{} so no team budget)
+                    "team_id": team_id,  # validated team choice, else default
+                    "team_alias": settings.litellm_default_team,
+                    "metadata": {"source": "token-factory", **team_meta_extra},
+                },
+            )
+            team_exists = _already_exists(team_resp)
+            if team_resp.status_code != 200 and not team_exists:
+                _raise_litellm(team_resp, "/team/new")
 
         # Step A2: Ensure user exists with D-15 factory user budget block.
         user_result = await ensure_litellm_user(
@@ -338,9 +412,14 @@ async def ensure_team_and_user(
     # admin/gitops bump to max_budget_in_team survives re-logins (a re-applied factory value
     # would silently re-block a user who had a higher cap set by hand).
     # H3: only call when the factory provides a non-None, non-zero max_budget value.
+    # skip_member_budget: on a personal team the cap is the TEAM budget, written
+    # once at create time by ensure_personal_team. A second per-member cap would
+    # be redundant (one member) and /team/member_update does not honour
+    # max_budget_in_team on v1.99.1 regardless.
     factory_user_budget = factory.get("user", {}).get("max_budget")
     if (
-        not user_result.get("existed")
+        not skip_member_budget
+        and not user_result.get("existed")
         and factory_user_budget is not None
         and factory_user_budget > 0
     ):
@@ -1009,6 +1088,167 @@ async def get_key_info(api_key: str, settings: Settings) -> dict:
         "last_active": info.get("last_active"),
         "blocked": info.get("blocked"),
     }
+
+
+# An EMPTY grant list is not "nothing" in LiteLLM -- for `models` and for
+# `object_permission.agents` it means EVERYTHING. Measured on v1.99.1: a team
+# with agents:[] saw all 7 agents, exactly like the master key. So writing
+# "this team may reach nothing" needs values that cannot match a real object.
+#
+# The other three fields genuinely fail closed on []: mcp_servers:[] with
+# mcp_access_groups:[] yielded 0 tools where the master key saw 964, and
+# agent_access_groups:[] adds nothing back once `agents` carries the sentinel.
+#
+# A personal team keeps these sentinels FOREVER. Capability arrives only via
+# the team's access_group_ids, which ADDS over them -- nothing here is relaxed.
+DENY_ALL_MODEL = "__deny_all__"
+DENY_ALL_AGENT = "00000000-0000-0000-0000-000000000000"
+
+
+def deny_all_object_permission() -> dict:
+    """The permanent closed baseline for MCP servers and A2A agents."""
+    return {
+        "mcp_servers": [],
+        "mcp_access_groups": [],
+        "agents": [DENY_ALL_AGENT],
+        "agent_access_groups": [],
+    }
+
+
+def access_groups_for_user(email: str, settings: Settings) -> list[str]:
+    """Access-group NAMES this user is entitled to: baseline plus own grants.
+
+    Order-preserving and deduped so a no-op login produces an identical id list
+    and does not churn /team/update.
+    """
+    # Settings folds the config keys at load time, so this is a plain dict hit.
+    explicit = settings.user_access_groups.get(email.strip().lower(), [])
+    # Group names are stripped and blanks dropped: a stray space in a YAML list
+    # would otherwise become its own dedupe key and an unresolvable name.
+    # dict keys are insertion-ordered since 3.7: dedupe without losing order
+    # (a set would lose it; an `in list` loop would be quadratic).
+    seen: dict[str, None] = {}
+    for name in [*settings.default_access_groups, *explicit]:
+        cleaned = name.strip()
+        if cleaned:
+            seen.setdefault(cleaned, None)
+    return list(seen)
+
+
+async def resolve_access_group_ids(names: list[str], settings: Settings) -> list[str]:
+    """Map unified access-group NAMES to the ids LiteLLM enforces on.
+
+    LiteLLM mints access_group_id and ignores a caller-supplied one, so a name
+    lookup is the only way to attach. GET /v1/access_group returns a BARE array
+    -- this is the unified namespace, disjoint from /access_group/list, which is
+    the per-model TAG namespace and will NOT contain these.
+
+    A name with no match is SKIPPED and logged at ERROR. Failing the call would
+    turn one typo in deployment config into a total sign-in outage, and skipping
+    under-grants, which is the safe direction.
+    """
+    if not names:
+        return []
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
+        resp = await client.get("/v1/access_group", headers=_admin_headers(settings))
+    if not resp.is_success:
+        _raise_litellm(resp, "/v1/access_group")
+    # A bare array is what v1.99.1 returns, but this endpoint is young and this
+    # repo has eaten a LiteLLM shape change before (CLAUDE.md H2). Anything that
+    # is not the measured shape degrades into the missing-names path below --
+    # ERROR logged, fail closed -- instead of an AttributeError that escapes the
+    # AS callback's httpx-only except and 500s every device sign-in.
+    rows = resp.json()
+    by_name = {
+        g["access_group_name"]: g["access_group_id"]
+        for g in (rows if isinstance(rows, list) else [])
+        if isinstance(g, dict) and g.get("access_group_name") and g.get("access_group_id")
+    }
+    ids, missing = [], []
+    for name in names:
+        found = by_name.get(name)
+        if found:
+            ids.append(found)
+        else:
+            missing.append(name)
+    # One line for the whole batch, not one per name -- a misconfigured
+    # default_access_groups would otherwise spam every single login.
+    if missing:
+        logger.error("access groups not found in LiteLLM, capability NOT granted: %s", missing)
+    return ids
+
+
+async def ensure_personal_team(email: str, settings: Settings, factory: dict) -> str:
+    """Idempotently ensure this user's personal team, and sync its attachments.
+
+    Phase 1 -- CREATE CLOSED. models/object_permission are the deny-all
+    sentinels and stay that way for the life of the team. The budget envelope
+    from the Helm factory `user` block is written HERE AND ONLY HERE: budget
+    edits do not propagate to live keys (measured on v1.99.1 -- a key still
+    cited a cap of 1e-06 three minutes after it was raised to 5.0), and
+    re-writing on every login would silently stamp over a cap someone raised
+    by hand.
+
+    Phase 2 -- ATTACH. The entitled access groups are resolved to ids and
+    written to access_group_ids. Groups only ADD, over the sentinels, so this
+    is the only thing that ever opens the team.
+
+    The order matters: a key minted in the window between the two phases
+    reaches NOTHING. The reverse order would have it reach everything. Never
+    invert it. It is also why a failed create must not fall through -- LiteLLM
+    silently accepts a nonexistent team_id and mints a FAIL-OPEN key.
+
+    access_group_ids is sent on EVERY login, including as an empty list. It is
+    authoritative -- `[]` detaches (measured) and an omitted field would keep a
+    revoked grant forever.
+    """
+    team_id = settings.personal_team_id(email)
+    headers = _admin_headers(settings)
+    # The per-user envelope (rpm/tpm/budget) lives in the Helm factory `user`
+    # block. On a personal team -- exactly one member -- team.max_budget IS the
+    # per-user cap, and team budgets enforce where user budgets do not.
+    # `metadata` is dropped: this team carries its own, set below.
+    # H3: never forward a None, it can null out a deployer's configured default.
+    envelope = {
+        k: v for k, v in (factory.get("user") or {}).items() if k != "metadata" and v is not None
+    }
+
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
+        resp = await client.post(
+            "/team/new",
+            headers=headers,
+            json={
+                **envelope,
+                "team_id": team_id,
+                "team_alias": team_id,
+                "models": [DENY_ALL_MODEL],
+                "object_permission": deny_all_object_permission(),
+                "metadata": {"source": "token-factory", "alt_managed": "user-team"},
+            },
+        )
+        # A create response reports object_permission: null even when it
+        # applied -- never assert on it here; /team/info is the only truth.
+        if resp.status_code != 200 and not _already_exists(resp):
+            _raise_litellm(resp, "/team/new (personal)")
+
+        # resolve_access_group_ids opens its own client while this one is still
+        # open. Harmless, and resolving earlier would put a network call ahead
+        # of the team's existence for no benefit.
+        group_ids = await resolve_access_group_ids(
+            access_groups_for_user(email, settings), settings
+        )
+        # NO budget field here, by design -- see the docstring. This body is
+        # exactly team_id + the authoritative attachment list.
+        upd = await client.post(
+            "/team/update",
+            headers=headers,
+            json={"team_id": team_id, "access_group_ids": group_ids},
+        )
+        if not upd.is_success:
+            _raise_litellm(upd, "/team/update (attach)")
+
+    logger.info("personal team %s attached to %d access group(s)", team_id, len(group_ids))
+    return team_id
 
 
 # ── LiteLLM User lifecycle ──────────────────────────────────────────────────

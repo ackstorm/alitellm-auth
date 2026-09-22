@@ -41,6 +41,7 @@ from app.litellm_client import (
     fetch_user_spend_logs,
     generate_litellm_key,
     get_litellm_user,
+    get_team_budget,
     get_team_member_budget,
     list_litellm_a2a_agents,
     list_litellm_mcp_servers,
@@ -158,10 +159,19 @@ class BlockKeyBody(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _budget_block(user: dict[str, Any], member: dict[str, Any] | None) -> dict[str, Any]:
+def _budget_block(
+    user: dict[str, Any],
+    member: dict[str, Any] | None,
+    team: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Canonical {current, max_budget, budget_duration, source} for /me and /stats.
 
-    Prefers the ENFORCED per-member team budget (#1/RQ-1, read via
+    ``team`` is the PERSONAL-teams path only (get_team_budget): with exactly one
+    member there is no max_budget_in_team to read, and team.max_budget IS the
+    per-user cap. It wins outright — see below for why falling through to the
+    user-level figures there would report a cap that does not enforce.
+
+    Otherwise: prefers the ENFORCED per-member team budget (#1/RQ-1, read via
     get_team_member_budget); falls back to the reporting-only user-level figures
     when no membership budget is available. budget_duration on the membership is
     usually null in this deployment, so it falls back to the user-level value
@@ -173,6 +183,13 @@ def _budget_block(user: dict[str, Any], member: dict[str, Any] | None) -> dict[s
     otherwise it is "unknown", so "no budget configured" users are not mislabeled
     (WR-01).
     """
+    if team is not None:
+        return {
+            "current": float(team.get("current") or 0),
+            "max_budget": team.get("max_budget"),
+            "budget_duration": team.get("budget_duration") or user.get("budget_duration"),
+            "source": "team",
+        }
     if member is not None:
         return {
             "current": float(member.get("current") or 0),
@@ -253,18 +270,27 @@ async def session_me(
     email = user["email"]
     name = user["name"]
     groups = user["groups"]
-    team_id = settings.team_id
+    # With personal teams on the user has exactly ONE team, and it is the one
+    # their keys land in — reporting the shared team here would name a team the
+    # console can no longer mint into.
+    personal = settings.personal_teams_enabled
+    team_id = settings.personal_team_id(email) if personal else settings.team_id
 
-    # Fetch the user object and the ENFORCED per-member budget concurrently;
-    # each degrades independently and never 502s (D-09). The membership cap
-    # (max_budget_in_team) is what actually enforces for team-scoped keys — it
+    # Fetch the user object and the ENFORCED budget concurrently; each degrades
+    # independently and never 502s (D-09). Which read is the enforcing one
+    # depends on the path: the per-member cap (max_budget_in_team) on the shared
+    # team, the team's OWN budget on a personal team (one member, and Step A3 is
+    # deliberately skipped there so there is no membership cap to read). Either
     # wins over the user-level max_budget that only reports (#1/RQ-1).
     litellm_user: dict = {}
     member_budget: dict | None = None
+    team_budget: dict | None = None
     try:
-        user_res, member_res = await asyncio.gather(
+        user_res, budget_res = await asyncio.gather(
             get_litellm_user(email, settings),
-            get_team_member_budget(email, settings),
+            get_team_budget(team_id, settings)
+            if personal
+            else get_team_member_budget(email, settings),
             return_exceptions=True,
         )
         if isinstance(user_res, LiteLLMUserNotFound):
@@ -273,14 +299,16 @@ async def session_me(
             logger.error("session_me: enrichment failed for %s: %s", email, user_res)
         else:
             litellm_user = user_res
-        if isinstance(member_res, BaseException):
-            logger.warning("session_me: member-budget fetch failed for %s: %s", email, member_res)
+        if isinstance(budget_res, BaseException):
+            logger.warning("session_me: team-budget fetch failed for %s: %s", email, budget_res)
+        elif personal:
+            team_budget = budget_res
         else:
-            member_budget = member_res
+            member_budget = budget_res
     except Exception as exc:  # defensive: gather itself should not raise
         logger.error("session_me: budget gather failed for %s: %s", email, exc)
 
-    block = _budget_block(litellm_user, member_budget)
+    block = _budget_block(litellm_user, member_budget, team_budget)
     spend = {"current": block["current"], "source": block["source"]}
     limits = _build_limits(litellm_user)
     # When the enforced membership budget is present, override the user-level
@@ -350,9 +378,17 @@ async def session_teams(
 
     Read-only. Feeds the create-key team picker and the change-team action.
     Degrades to a 502 on LiteLLM failure (the UI shows an empty picker).
+
+    With personal teams on this is a ONE-entry list, answered locally: a user
+    may still carry a `default` (or other) membership from before the migration,
+    and offering it as a key destination would feed a key into a team that is no
+    longer their capability envelope — the exact confusion this redesign removes.
     """
     settings: Settings = request.app.state.settings
     email = user["email"]
+    if settings.personal_teams_enabled:
+        tid = settings.personal_team_id(email)
+        return JSONResponse({"teams": [{"id": tid, "alias": tid}]})
     try:
         teams = await list_user_teams(email, settings)
     except httpx.HTTPStatusError as exc:
@@ -425,7 +461,17 @@ async def _validate_key_team(email: str, team_id: str | None, settings: Settings
     """SECURITY: a client-supplied team_id is validated against the SESSION
     email's real memberships BEFORE any LiteLLM mint — the email comes from
     the verified session, never the body. Non-member → 403.
+
+    With personal teams on the body's team_id is DISCARDED outright rather than
+    validated: the user has exactly one team, so not honouring client input at
+    all is strictly safer than checking it (LiteLLM silently accepts a
+    nonexistent team_id and the resulting key fails OPEN). Returning None is
+    also what selects the personal branch downstream — ensure_team_and_user
+    takes it only when team_id is None, so this is the single place a
+    body-supplied team could have leaked through to /key/generate.
     """
+    if settings.personal_teams_enabled:
+        return None
     if team_id is not None:
         team_id = team_id.strip() or None
     if team_id is None:
@@ -701,6 +747,20 @@ async def session_change_key_team(
     if not team_id:
         raise HTTPException(status_code=422, detail="team_id required")
 
+    # With personal teams on, the personal team is the ONLY legal destination.
+    # Membership alone is not enough: a user who still holds a pre-migration
+    # `default` membership would otherwise be able to move a key out of its
+    # capability envelope by hand, defeating the one-team invariant that
+    # /api/session/teams and key creation both enforce. The UI cannot reach
+    # this (the picker only ever offers the personal team), so this closes the
+    # API-only path.
+    if settings.personal_teams_enabled:
+        personal = settings.personal_team_id(email)
+        if team_id != personal:
+            raise HTTPException(
+                status_code=403,
+                detail="keys can only live in your personal team",
+            )
     # Security gate: the user must belong to the target team.
     await _require_team_membership(email, team_id, settings)
 
@@ -788,12 +848,17 @@ async def session_stats(
     prev_start = prev_end - timedelta(days=span - 1)
 
     # Fetch all figures concurrently; degrade each independently (D-06).
-    cur_res, prev_res, budget_res, keys_res, member_res = await asyncio.gather(
+    # The enforcing-budget read MUST mirror session_me exactly — /me and /stats
+    # disagreeing about the same user's budget is a bug, not a degrade.
+    personal = settings.personal_teams_enabled
+    cur_res, prev_res, budget_res, keys_res, cap_res = await asyncio.gather(
         user_daily_activity(email, settings, start.isoformat(), end.isoformat()),
         user_daily_activity(email, settings, prev_start.isoformat(), prev_end.isoformat()),
         get_litellm_user(email, settings),
         list_session_keys(email, settings),
-        get_team_member_budget(email, settings),
+        get_team_budget(settings.personal_team_id(email), settings)
+        if personal
+        else get_team_member_budget(email, settings),
         return_exceptions=True,
     )
 
@@ -826,12 +891,12 @@ async def session_stats(
     # BUDGET → prefer the ENFORCED per-member cap (#1/RQ-1); degrade to user-level,
     # never 502 (mirrors session_me). Each read degrades independently.
     user_obj = {} if isinstance(budget_res, BaseException) else budget_res
-    member = None if isinstance(member_res, BaseException) else member_res
+    cap = None if isinstance(cap_res, BaseException) else cap_res
     if isinstance(budget_res, BaseException):
         logger.warning("session_stats: budget fetch failed for %s: %s", email, budget_res)
-    if isinstance(member_res, BaseException):
-        logger.warning("session_stats: member-budget fetch failed for %s: %s", email, member_res)
-    budget = _budget_block(user_obj, member)
+    if isinstance(cap_res, BaseException):
+        logger.warning("session_stats: team-budget fetch failed for %s: %s", email, cap_res)
+    budget = _budget_block(user_obj, None if personal else cap, cap if personal else None)
 
     # KEY-LIST failure → skip friendly-name resolution; per-key rows keep the opaque
     # lk- alias (prior behaviour), never 502. The key list also carries the server-
