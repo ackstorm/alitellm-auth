@@ -1950,3 +1950,18 @@ async def test_assert_team_membership_rejects_non_member(monkeypatch):
 
     with pytest.raises(TeamMembershipError):
         await assert_team_membership("alice@example.com", "dream", settings)
+
+
+def test_deny_all_permissions_shape():
+    """F2-F5: an empty grant is ALL, so 'nothing' needs explicit sentinels."""
+    from app.litellm_client import DENY_ALL_AGENT, DENY_ALL_MODEL, deny_all_object_permission
+
+    assert DENY_ALL_MODEL == "__deny_all__"
+    assert DENY_ALL_AGENT == "00000000-0000-0000-0000-000000000000"
+
+    perm = deny_all_object_permission()
+    # mcp_servers fails CLOSED on empty (F4) -- empty list is correct here.
+    assert perm["mcp_servers"] == []
+    assert perm["mcp_access_groups"] == []
+    assert perm["agents"] == [DENY_ALL_AGENT]  # fails OPEN on empty (F5)
+    assert perm["agent_access_groups"] == []

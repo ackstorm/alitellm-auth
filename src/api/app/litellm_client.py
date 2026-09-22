@@ -1011,6 +1011,27 @@ async def get_key_info(api_key: str, settings: Settings) -> dict:
     }
 
 
+# An EMPTY grant list is not "nothing" in LiteLLM -- for models and agents it
+# means EVERYTHING (F2). Writing "this team may reach nothing" therefore needs
+# values that can never match a real object. mcp_servers is the exception: it
+# fails closed, so [] is genuinely empty there (F4).
+#
+# A personal team keeps these sentinels FOREVER. Capability arrives only via
+# access_group_ids, which ADDS over them (F7) -- nothing here is ever relaxed.
+DENY_ALL_MODEL = "__deny_all__"
+DENY_ALL_AGENT = "00000000-0000-0000-0000-000000000000"
+
+
+def deny_all_object_permission() -> dict:
+    """The permanent closed baseline for MCP servers and A2A agents."""
+    return {
+        "mcp_servers": [],
+        "mcp_access_groups": [],
+        "agents": [DENY_ALL_AGENT],
+        "agent_access_groups": [],
+    }
+
+
 # ── LiteLLM User lifecycle ──────────────────────────────────────────────────
 
 # LiteLLM v1.83 returns this placeholder for unknown/ambiguous user lookups
