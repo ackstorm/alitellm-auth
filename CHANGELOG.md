@@ -2,6 +2,18 @@
 
 ## [unreleased]
 
+## [0.16.1] - 2026-09-22
+
+### Fixed
+
+- Per-user teams: the user is now joined to their own personal team. Creating
+  the team does not make its owner a member, and neither does the LiteLLM
+  User's `teams` list — so `POST /key/update` into it failed with
+  `403 "is not a member of the team"` and the migration script could not move
+  a single key. On the shared-team path membership was a side effect of the
+  per-member budget step, which the personal path skips (the cap is redundant
+  when the team has one member); the join is now explicit, still without a cap.
+
 ## [0.16.0] - 2026-09-22
 
 ### Added
