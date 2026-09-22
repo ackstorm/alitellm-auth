@@ -241,6 +241,51 @@ async def get_team_member_budget(email: str, settings: Settings) -> dict | None:
     }
 
 
+async def get_team_budget(team_id: str, settings: Settings) -> dict | None:
+    """The team's own enforcing budget: {max_budget, current, budget_duration}.
+
+    On a PERSONAL team this is the per-user cap -- one member, and team budgets
+    enforce where user-level ones do not. There is deliberately no
+    max_budget_in_team to read on that path (ensure_team_and_user skips Step A3
+    for a personal team), so this is the ONLY place the enforcing figure lives;
+    degrading to the user-level max_budget would report a cap that does not
+    enforce for team-scoped keys (RQ-1) -- exactly the lie this replaces.
+
+    Returns None when the team is unreadable, so the caller degrades instead of
+    502-ing. Never raises: unlike get_team_member_budget (whose callers already
+    wrap it in a return_exceptions gather), a None is the whole error channel.
+    """
+    headers = _admin_headers(settings)
+    try:
+        async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+            resp = await client.get("/team/info", headers=headers, params={"team_id": team_id})
+        if not resp.is_success:
+            logger.warning("get_team_budget: /team/info %s for %s", resp.status_code, team_id)
+            return None
+        data = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("get_team_budget: /team/info failed for %s: %s", team_id, exc)
+        return None
+    if not isinstance(data, dict):
+        return None
+    # Some LiteLLM versions nest the team under "team_info", others return it
+    # flat -- the same split as /user/info's "user_info". Accept both; reading
+    # only the flat shape would silently report "no budget" on the other one.
+    team = data.get("team_info")
+    if not isinstance(team, dict):
+        team = data
+    max_budget = team.get("max_budget")
+    if max_budget is None and team.get("spend") is None:
+        # Nothing configured on the team → let the caller degrade (mirrors the
+        # per-member read); a bare {} must not be reported as a 0-budget team.
+        return None
+    return {
+        "max_budget": max_budget,
+        "current": float(team.get("spend") or 0),
+        "budget_duration": team.get("budget_duration"),
+    }
+
+
 async def ensure_team_and_user(
     email: str,
     settings: Settings,

@@ -1900,3 +1900,171 @@ def test_me_groups_absent_is_empty_list(client):
         response = client.get("/api/session/me", cookies=_authed_cookie())
     assert response.status_code == 200
     assert response.json()["groups"] == []
+
+
+# ---------------------------------------------------------------------------
+# Personal teams (PERSONAL_TEAMS_ENABLED) — the personal team is the user's ONLY
+# team and the only key destination. Every test here has a flag-OFF twin above
+# or below it: the flag-off path must stay byte-identical.
+# ---------------------------------------------------------------------------
+
+_PERSONAL_TEAM = "user-alice@example.com"
+
+
+@pytest.fixture()
+def client_personal() -> TestClient:
+    """An app with personal teams ON. Settings(**model_dump()) rather than
+    model_copy so the model validators actually re-run (file convention)."""
+    settings = Settings(
+        **{
+            **make_test_settings().model_dump(),
+            "personal_teams_enabled": True,
+            "default_access_groups": ["team-default"],
+        }
+    )
+    return TestClient(create_app(settings=settings), raise_server_exceptions=False)
+
+
+def test_teams_returns_only_the_personal_team_when_enabled(client_personal):
+    """A pre-migration `default` membership must NOT show up as a destination:
+    the personal team is the whole capability envelope."""
+    with patch("app.session.list_user_teams", new_callable=AsyncMock) as mock_teams:
+        mock_teams.return_value = [{"id": "default", "alias": "Default"}]
+        response = client_personal.get("/api/session/teams", cookies=_authed_cookie())
+    assert response.status_code == 200
+    assert response.json() == {"teams": [{"id": _PERSONAL_TEAM, "alias": _PERSONAL_TEAM}]}
+    # No LiteLLM round-trip at all on this path.
+    mock_teams.assert_not_awaited()
+
+
+def test_teams_still_lists_every_membership_when_disabled(client):
+    """Flag-off regression: /teams is unchanged — whatever list_user_teams returns."""
+    with patch("app.session.list_user_teams", new_callable=AsyncMock) as mock_teams:
+        mock_teams.return_value = [{"id": "default", "alias": "Default"}, {"id": "run", "a": 1}]
+        response = client.get("/api/session/teams", cookies=_authed_cookie())
+    assert response.status_code == 200
+    assert [t["id"] for t in response.json()["teams"]] == ["default", "run"]
+    mock_teams.assert_awaited_once()
+
+
+def test_me_reports_the_personal_team_and_its_enforcing_budget(client_personal):
+    """The personal team has no max_budget_in_team to read (Step A3 is skipped
+    there), so /me must source the cap from the TEAM's own budget — falling back
+    to the user-level figures would report a cap that does not enforce."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_budget", new_callable=AsyncMock) as mock_team,
+        patch("app.session.get_team_member_budget", new_callable=AsyncMock) as mock_member,
+    ):
+        mock_user.return_value = {
+            "user_id": "alice@example.com",
+            "spend": 99.0,
+            "max_budget": 50.0,
+            "budget_duration": "24h",
+            "tpm_limit": 1000000,
+            "rpm_limit": 100,
+        }
+        mock_team.return_value = {"max_budget": 20.0, "current": 4.0, "budget_duration": "30d"}
+        response = client_personal.get("/api/session/me", cookies=_authed_cookie())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["team_id"] == _PERSONAL_TEAM
+    assert data["spend"] == {"current": 4.0, "source": "team"}
+    assert data["limits"]["max_budget"] == 20.0  # the team cap, not the user's 50.0
+    assert data["limits"]["budget_duration"] == "30d"
+    assert data["limits"]["tpm_limit"] == 1000000  # tpm/rpm still from the user
+    assert mock_team.await_args.args[0] == _PERSONAL_TEAM  # the PERSONAL team, not the shared one
+    mock_member.assert_not_awaited()  # the shared-team read never happens here
+
+
+def test_me_degrades_when_the_personal_team_is_unreadable(client_personal):
+    """get_team_budget returning None → the user-level fallback, still a 200."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_budget", new_callable=AsyncMock) as mock_team,
+    ):
+        mock_user.return_value = _USER_INFO
+        mock_team.return_value = None
+        response = client_personal.get("/api/session/me", cookies=_authed_cookie())
+    assert response.status_code == 200
+    assert response.json()["spend"]["source"] == "user"
+
+
+def test_me_still_reads_the_member_cap_when_disabled(client):
+    """Flag-off regression: /me reports the shared team and its per-member cap,
+    and never touches the team-level read."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_member_budget", new_callable=AsyncMock) as mock_member,
+        patch("app.session.get_team_budget", new_callable=AsyncMock) as mock_team,
+    ):
+        mock_user.return_value = _USER_INFO
+        mock_member.return_value = {"max_budget": 10.0, "current": 3.5, "budget_duration": "30d"}
+        response = client.get("/api/session/me", cookies=_authed_cookie())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["team_id"] == "default"
+    assert data["spend"] == {"current": 3.5, "source": "team_member"}
+    mock_team.assert_not_awaited()
+
+
+def test_create_key_ignores_a_requested_team_when_enabled(client_personal):
+    """Minting into a team the user is not in is how you get a fail-open key
+    (LiteLLM silently accepts a nonexistent team_id). With personal teams on the
+    body's team_id is not validated — it is discarded, and team_id=None is what
+    makes ensure_team_and_user take its personal-team branch."""
+    with (
+        patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
+        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
+        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
+    ):
+        mock_gen.return_value = {"key": "sk-x", "id": "id-x", "team_id": _PERSONAL_TEAM}
+        mock_list.return_value = []
+        response = client_personal.post(
+            "/api/session/keys",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"alias": "k", "team_id": "dream"},
+        )
+    assert response.status_code == 200
+    assert response.json()["team_id"] == _PERSONAL_TEAM
+    assert mock_gen.call_args.kwargs.get("team_id") is None
+    mock_assert.assert_not_awaited()
+
+
+def test_create_key_still_validates_a_requested_team_when_disabled(client):
+    """Flag-off regression: the membership gate is untouched — a team the session
+    user does not belong to is still a 403 with NO key minted."""
+    with (
+        patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
+        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
+    ):
+        mock_assert.side_effect = TeamMembershipError("nope")
+        response = client.post(
+            "/api/session/keys",
+            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
+            cookies=_authed_cookie(),
+            json={"team_id": "dream"},
+        )
+    assert response.status_code == 403
+    mock_gen.assert_not_awaited()
+
+
+def test_stats_budget_matches_me_on_the_personal_path(client_personal):
+    """/stats and /me must never disagree about the same user's budget."""
+    activity, budget = _stats_mocks(
+        budget_user={"user_id": "alice@example.com", "spend": 99.0, "max_budget": 50.0}
+    )
+    team = AsyncMock(return_value={"max_budget": 20.0, "current": 4.0, "budget_duration": "30d"})
+    member = AsyncMock(return_value={"max_budget": 10.0, "current": 3.5})
+    with (
+        patch("app.session.user_daily_activity", activity),
+        patch("app.session.get_litellm_user", budget),
+        patch("app.session.get_team_budget", team),
+        patch("app.session.get_team_member_budget", member),
+    ):
+        response = client_personal.get("/api/session/stats", cookies=_authed_cookie())
+    assert response.status_code == 200
+    b = response.json()["budget"]
+    assert b == {**b, "max_budget": 20.0, "current": 4.0, "source": "team", "has_budget": True}
+    member.assert_not_awaited()

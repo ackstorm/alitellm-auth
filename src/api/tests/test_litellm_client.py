@@ -2326,3 +2326,88 @@ async def test_personal_team_path_still_creates_the_litellm_user():
 
     assert user_new.called
     assert _json_body(user_new)["max_budget"] == 100
+
+
+# ---------------------------------------------------------------------------
+# get_team_budget — the team's OWN enforcing budget (the per-user cap on a
+# personal team, where there is no max_budget_in_team to read).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_reads_the_team_cap():
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "team_id": "user-alice@example.com",
+                "max_budget": 20.0,
+                "spend": 4.0,
+                "budget_duration": "30d",
+            },
+        )
+    )
+    from app.litellm_client import get_team_budget
+
+    result = await get_team_budget("user-alice@example.com", settings)
+    assert result == {"max_budget": 20.0, "current": 4.0, "budget_duration": "30d"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_unwraps_the_team_info_envelope():
+    """Some LiteLLM versions nest the team under "team_info" (same split as
+    /user/info's "user_info"); a flat read would silently report no budget."""
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={"team_info": {"max_budget": 5.0, "spend": 1.25, "budget_duration": "7d"}},
+        )
+    )
+    from app.litellm_client import get_team_budget
+
+    assert await get_team_budget("user-alice@example.com", settings) == {
+        "max_budget": 5.0,
+        "current": 1.25,
+        "budget_duration": "7d",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_none_on_404():
+    """A team that does not exist must degrade, never 502 the console."""
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(404, json={"error": "team not found"})
+    )
+    from app.litellm_client import get_team_budget
+
+    assert await get_team_budget("user-ghost@example.com", settings) is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_none_when_backend_unreachable():
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(side_effect=httpx.ConnectError("down"))
+    from app.litellm_client import get_team_budget
+
+    assert await get_team_budget("user-alice@example.com", settings) is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_budget_none_when_nothing_configured():
+    """No max_budget AND no spend → let the caller degrade (mirrors the
+    per-member read); a bare {} must not be reported as a 0-budget team."""
+    settings = make_settings()
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    from app.litellm_client import get_team_budget
+
+    assert await get_team_budget("user-alice@example.com", settings) is None
