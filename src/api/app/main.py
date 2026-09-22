@@ -43,7 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = get_settings()
 
-    app = FastAPI(title="alitellm-auth", version="0.17.0", lifespan=_lifespan)
+    app = FastAPI(title="alitellm-auth", version="0.18.0", lifespan=_lifespan)
 
     # SessionMiddleware is REQUIRED by authlib to persist OAuth state/nonce
     # between /auth/login and /auth/callback. Without it: MismatchingStateError.
@@ -70,14 +70,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # /ui StaticFiles mount below so /api/config is never shadowed by the static mount.
     app.include_router(public_router)
 
-    # OAuth front door (docs/plans/2026-09-17-oauth-front-door.md). Off unless AS_ENABLED.
-    if settings.as_enabled:
-        from app.internal import router as internal_router
-        from app.oauth_as.routes import configure_as, router as as_router
+    # OAuth front door (docs/plans/2026-09-17-oauth-front-door.md). Always on: the
+    # session API resolves each user's LiteLLM key out of the AS store, so the
+    # console does not work without it.
+    from app.internal import router as internal_router
+    from app.oauth_as.routes import configure_as, router as as_router
 
-        configure_as(settings)
-        app.include_router(as_router)
-        app.include_router(internal_router)
+    configure_as(settings)
+    app.include_router(as_router)
+    app.include_router(internal_router)
 
     # OpenWork organization server (docs/plans/2026-09-18-openwork-den.md).
     # Off unless OPENWORK_ENABLED. Registered BEFORE the /ui and /public static

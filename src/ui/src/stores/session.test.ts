@@ -24,6 +24,7 @@ const ME: SessionMe = {
   email: 'alice@example.com',
   name: 'Alice Example',
   team_id: 'team-platform',
+  access_groups: [],
   endpoint: 'https://litellm.example.com',
   limits: null,
   spend: { current: 0, source: 'user' },

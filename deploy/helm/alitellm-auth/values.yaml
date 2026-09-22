@@ -10,7 +10,7 @@ image:
   repo: ghcr.io/ackstorm/alitellm-auth
   # Tag to deploy. Bumped by `make release-bump VERSION=X.Y.Z`. Leave empty to
   # fall back to .Chart.AppVersion.
-  tag: "v0.17.0"
+  tag: "v0.18.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -189,10 +189,11 @@ publicArtifacts:
       path: opencode/api.json
 
 # ── OAuth front door (docs/plans/2026-09-17-oauth-front-door.md) ─────────────
-# The API's authorization server. Needs AS_SIGNING_KEY_PEM,
-# AS_KEY_ENCRYPTION_KEY, AS_REDIS_URL and INTERNAL_TOKEN in the existingSecret.
+# The API's authorization server. ALWAYS ON — the console resolves each user's
+# LiteLLM key out of its store, so the pod will not start without
+# AS_SIGNING_KEY_PEM, AS_KEY_ENCRYPTION_KEY, AS_REDIS_URL and INTERNAL_TOKEN in
+# the existingSecret.
 authServer:
-  enabled: false
   issuerUrl: ""          # empty → config.appBaseUrl
   audience: "alitellm"
   accessTtlSeconds: 3600

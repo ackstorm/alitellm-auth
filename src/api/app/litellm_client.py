@@ -241,6 +241,56 @@ async def get_team_member_budget(email: str, settings: Settings) -> dict | None:
     }
 
 
+async def _team_info(team_id: str, settings: Settings, caller: str) -> dict | None:
+    """GET /team/info, unwrapped. None on any failure -- never raises.
+
+    Some LiteLLM versions nest the team under "team_info", others return it flat
+    -- the same split as /user/info's "user_info". Accept both; reading only the
+    flat shape silently reports an empty team on the other one.
+    """
+    try:
+        async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
+            resp = await client.get(
+                "/team/info", headers=_admin_headers(settings), params={"team_id": team_id}
+            )
+        if not resp.is_success:
+            logger.warning("%s: /team/info %s for %s", caller, resp.status_code, team_id)
+            return None
+        data = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("%s: /team/info failed for %s: %s", caller, team_id, exc)
+        return None
+    if not isinstance(data, dict):
+        return None
+    team = data.get("team_info")
+    return team if isinstance(team, dict) else data
+
+
+async def get_team_access_groups(team_id: str, settings: Settings) -> list[str]:
+    """Names of the unified access groups attached to ``team_id``.
+
+    These, not the team, are what a user's capability actually comes from: the
+    personal team is permanently deny-all and every model, MCP server and agent
+    it can reach arrives through an attached group. /team/info returns the names
+    alongside the ids in ``access_group_details``, so no second lookup is needed.
+
+    Returns [] on any failure -- an empty list reads as "no groups", which is the
+    safe way to be wrong here: it under-reports capability rather than inventing it.
+    """
+    team = await _team_info(team_id, settings, "get_team_access_groups")
+    if team is None:
+        return []
+    details = team.get("access_group_details")
+    if not isinstance(details, list):
+        return []
+    names = [
+        g["access_group_name"]
+        for g in details
+        if isinstance(g, dict) and g.get("access_group_name")
+    ]
+    return sorted(dict.fromkeys(names))
+
+
 async def get_team_budget(team_id: str, settings: Settings) -> dict | None:
     """The team's own enforcing budget: {max_budget, current, budget_duration}.
 
@@ -255,25 +305,9 @@ async def get_team_budget(team_id: str, settings: Settings) -> dict | None:
     502-ing. Never raises: unlike get_team_member_budget (whose callers already
     wrap it in a return_exceptions gather), a None is the whole error channel.
     """
-    headers = _admin_headers(settings)
-    try:
-        async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
-            resp = await client.get("/team/info", headers=headers, params={"team_id": team_id})
-        if not resp.is_success:
-            logger.warning("get_team_budget: /team/info %s for %s", resp.status_code, team_id)
-            return None
-        data = resp.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("get_team_budget: /team/info failed for %s: %s", team_id, exc)
+    team = await _team_info(team_id, settings, "get_team_budget")
+    if team is None:
         return None
-    if not isinstance(data, dict):
-        return None
-    # Some LiteLLM versions nest the team under "team_info", others return it
-    # flat -- the same split as /user/info's "user_info". Accept both; reading
-    # only the flat shape would silently report "no budget" on the other one.
-    team = data.get("team_info")
-    if not isinstance(team, dict):
-        team = data
     max_budget = team.get("max_budget")
     if max_budget is None and team.get("spend") is None:
         # Nothing configured on the team → let the caller degrade (mirrors the
@@ -563,16 +597,14 @@ def _project_session_key(k: dict, md: dict) -> dict:
         # Disabled state (LiteLLM /key/block sets this). Surfaced so the table can
         # show a "Disabled" status and the kebab offer Enable instead of Disable.
         "blocked": bool(k.get("blocked")),
-        # Explicit "default key" flag (metadata-backed). Absent/false => not default.
-        "is_default": bool(md.get("is_default")),
         # True only for keys THIS service minted (metadata.source == "token-factory").
-        # Foreign keys (e.g. ekid_/pkid_) are listed but locked: no delete, no
-        # make-default, no change-team — only disable/enable. Safe to expose (drives
-        # the UI's action gating); NOT in the session_list_keys strip set.
+        # Foreign keys (e.g. ekid_/pkid_) are listed but locked: no delete — only
+        # disable/enable. Safe to expose (drives the UI's action gating); NOT in the
+        # session_list_keys strip set.
         "managed": md.get("source") == "token-factory",
-        # Raw metadata for SERVER-SIDE use only (Make-default read-modify-write).
-        # The session router MUST strip this before returning to the browser
-        # (it may hold factory user_meta_extra) — see session_list_keys strip set.
+        # Raw metadata for SERVER-SIDE use only. The session router MUST strip this
+        # before returning to the browser (it may hold factory user_meta_extra) —
+        # see session_list_keys strip set.
         "metadata": md,
     }
 
@@ -591,7 +623,6 @@ _EMPTY_SESSION_KEY = {
     "expires": None,
     "last_used": None,
     "blocked": False,
-    "is_default": False,
     "managed": False,
     "metadata": {},
 }
@@ -803,14 +834,14 @@ _SPEND_LOG_MAX_PAGES = 5
 
 
 def _lean_spend_row(row: Any) -> dict | None:
-    """Project a raw /spend/logs row to the lean latency subset (None if not a dict)."""
+    """Project one raw row to the bounded latency subset."""
     if not isinstance(row, dict):
         return None
     return {k: row.get(k) for k in _LEAN_SPEND_FIELDS}
 
 
 async def fetch_user_spend_logs(
-    email: str,
+    api_key: str,
     settings: Settings,
     start_date: str,
     end_date: str,
@@ -819,32 +850,32 @@ async def fetch_user_spend_logs(
     max_pages: int = _SPEND_LOG_MAX_PAGES,
     timeout: float = 30.0,
 ) -> tuple[list[dict], bool]:
-    """Fetch LEAN per-request spend logs for ONE user, scoped by impersonation.
+    """Fetch LEAN per-request spend logs for ONE user, scoped by their own key.
 
-    Calls GET /spend/logs/v2 with the master key PLUS an ``x-user-id: <email>`` header
-    — the SAME sso_key_swapper impersonation path as the per-user Models/MCP catalogs
-    (_list_catalog). The gateway custom auth resolves master+x-user-id to the user's
-    default key, so v2 auto-scopes to that user's rows. Returns ``(rows, truncated)``
-    where ``rows`` are lean dicts (_LEAN_SPEND_FIELDS only), NEWEST-first, and
-    ``truncated`` is True when the window has more pages than ``max_pages`` (the
-    figures are then a recent sample, not the whole window).
+    Calls GET /spend/logs/v2 AS the owner of ``api_key`` (the same path as the
+    per-user Models/MCP catalogs, see _as_user_headers), so v2 auto-scopes to that
+    user's rows under LiteLLM's native auth. Returns ``(rows, truncated)``
+    where ``rows`` are bounded projected dicts, NEWEST-first, and ``truncated`` is
+    True when the window cannot be proven exhaustive within ``max_pages`` (the
+    figures are then a recent sample, not the whole window). Rows are projected to
+    ``_LEAN_SPEND_FIELDS``.
 
-    SECURITY (CRITICAL): the caller MUST have verified the user-scoping contract is
-    ENFORCED (verify_user_scoping_contract == "enforced") before calling this. On a
-    deployment WITHOUT sso_key_swapper, master+x-user-id authenticates as full admin
-    and v2 returns EVERY user's rows (bounded by page_size, but still a cross-user
-    data leak). That is why we NEVER pass a ``user_id`` param (it would imply false
-    scoping); scoping comes only from the impersonation header, gated on the contract.
+    SECURITY: scoping is the key itself, so there is no configuration under which
+    this can widen. The impersonation path this replaced failed OPEN — where the
+    gateway custom auth was absent, master+x-user-id authenticated as full admin and
+    v2 returned EVERY user's rows. A virtual key has no such mode. We still never
+    pass a ``user_id`` param: it would imply a scoping the key already enforces.
 
     MEMORY: v2 HONORS page_size (unlike the legacy /spend/logs, whose pagination was a
     no-op → the 170 MB/7d firehose that OOM-killed the pod). We page newest-first,
     projecting each page to lean rows and freeing it before the next, so peak memory
     is one page (~674 KB) regardless of how wide the date range is.
 
-    ``email`` is ALWAYS the authenticated session email, never client input.
+    ``api_key`` is ALWAYS resolved from the authenticated session
+    (app/internal.py::resolve_front_key), never taken from client input. It is the
+    only thing that scopes the read.
     """
-    headers = _admin_headers(settings)
-    headers["x-user-id"] = email
+    headers = _as_user_headers(api_key, settings)
     rows: list[dict] = []
     truncated = False
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=timeout) as client:
@@ -852,8 +883,8 @@ async def fetch_user_spend_logs(
             resp = await client.get(
                 "/spend/logs/v2",
                 headers=headers,
-                # H6: dates via params={}. NO user_id param — scoping is the x-user-id
-                # impersonation only. Newest-first so a capped sample keeps recent data.
+                # H6: dates via params={}. NO user_id param — the key is the scope.
+                # Newest-first so a capped sample keeps recent data.
                 params={
                     "start_date": start_date,
                     "end_date": end_date,
@@ -881,7 +912,7 @@ async def fetch_user_spend_logs(
                 break  # fetched the last page — full window covered
             if page >= max_pages:
                 # Hit the page cap; more pages exist iff the window spans more of them.
-                truncated = isinstance(total_pages, int) and total_pages > max_pages
+                truncated = not isinstance(total_pages, int) or total_pages > max_pages
                 break
     return rows, truncated
 
@@ -966,33 +997,6 @@ async def delete_litellm_key(token: str, settings: Settings) -> None:
 
     if not resp.is_success:
         _raise_litellm(resp, "/key/delete")
-
-
-async def set_litellm_key_default(
-    token: str,
-    settings: Settings,
-    *,
-    is_default: bool,
-    existing_metadata: dict,
-) -> None:
-    """Set/clear the is_default flag on a virtual key via /key/update.
-
-    LiteLLM replaces the whole `metadata` field on update, so we merge into the
-    existing metadata (read-modify-write) and send the full dict. `token` is the
-    hashed token from /key/list (same value /key/delete accepts — LiteLLM only
-    re-hashes values starting with `sk-`, so a stored hash passes through).
-    """
-    headers = _admin_headers(settings)
-    merged = dict(existing_metadata or {})
-    if is_default:
-        merged["is_default"] = True
-    else:
-        merged.pop("is_default", None)
-    payload = {"key": token, "metadata": merged}
-    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
-        resp = await client.post("/key/update", headers=headers, json=payload)
-    if not resp.is_success:
-        _raise_litellm(resp, "/key/update")
 
 
 async def update_litellm_key_team(token: str, team_id: str, settings: Settings) -> None:
@@ -1101,7 +1105,12 @@ async def get_key_info(api_key: str, settings: Settings) -> dict:
 #
 # A personal team keeps these sentinels FOREVER. Capability arrives only via
 # the team's access_group_ids, which ADDS over them -- nothing here is relaxed.
-DENY_ALL_MODEL = "__deny_all__"
+# LiteLLM's OWN sentinel, not a string of our choosing. get_complete_model_list
+# (proxy/auth/model_checks.py) drops exactly this value from every catalog it
+# builds, so a deny-all team lists zero models instead of one phantom row that
+# every OpenAI-compatible client renders as a real model. Inference is refused
+# identically either way: 403 team_model_access_denied.
+DENY_ALL_MODEL = "no-default-models"
 DENY_ALL_AGENT = "00000000-0000-0000-0000-000000000000"
 
 
@@ -1577,27 +1586,41 @@ async def delete_litellm_user(email: str, settings: Settings) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _as_user_headers(api_key: str | None, settings: Settings) -> dict:
+    """Headers that make LiteLLM answer as ``api_key``'s owner, not as admin.
+
+    The key goes in ``x-litellm-api-key`` and the master key is NOT sent: this is
+    LiteLLM's own native auth for a virtual key, so the answer is scoped by the
+    key's own team and access groups with no impersonation in the middle. That
+    matters beyond tidiness -- the impersonation path it replaces failed OPEN,
+    authenticating as full admin wherever the custom auth was absent.
+
+    ``api_key`` of None falls back to the master key, i.e. the ADMIN view. Only
+    pass None where an admin answer is what the caller wants.
+    """
+    if not api_key:
+        return _admin_headers(settings)
+    return {"x-litellm-api-key": api_key, "Content-Type": "application/json"}
+
+
 async def _list_catalog(
     endpoint: str,
     projector: Callable[[dict], dict],
     unwrap: Callable[[Any], Any],
     settings: Settings,
-    user_id: str | None,
+    api_key: str | None,
 ) -> list[dict]:
     """Shared scaffold for the read-only per-user catalogs (models / MCP / A2A).
 
-    Builds master-key headers PLUS the ``x-user-id`` scoping header (the value is
-    ALWAYS the authenticated session email, NEVER client input — the user-scoping
-    contract; see the public list_* callers), GETs ``endpoint``, raises uniformly
-    on failure, then unwraps → allow-list-projects → sorts by name.
+    Calls ``endpoint`` AS THE USER, with their own LiteLLM key (see
+    _as_user_headers), raises uniformly on failure, then unwraps →
+    allow-list-projects → sorts by name.
 
     ``unwrap`` maps the parsed JSON to the row list; it stays per-endpoint because
     the wrapper shape and bare-list tolerance differ across catalogs. A non-list
     result degrades to []. ``projector`` is the per-row EXPLICIT allow-list.
     """
-    headers = _admin_headers(settings)
-    if user_id:
-        headers["x-user-id"] = user_id
+    headers = _as_user_headers(api_key, settings)
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
         resp = await client.get(endpoint, headers=headers)
     if not resp.is_success:
@@ -1635,7 +1658,7 @@ def _project_model_group(m: dict) -> dict:
     }
 
 
-async def list_litellm_models(settings: Settings, user_id: str | None = None) -> list[dict]:
+async def list_litellm_models(settings: Settings, api_key: str | None = None) -> list[dict]:
     """List the public model-group catalog (GET /model_group/info).
 
     Uses /model_group/info (NOT /model/info): the group view is the safe public
@@ -1643,9 +1666,10 @@ async def list_litellm_models(settings: Settings, user_id: str | None = None) ->
     expose litellm_params (the real upstream model, api_base, or api_key). Each row
     is run through the explicit allow-list _project_model_group. Sorted by name.
 
-    When ``user_id`` is set, sends ``x-user-id: <user_id>`` alongside the master-key
-    Authorization so the deployment's LiteLLM custom auth scopes the catalog to that
-    user. The value MUST come from the authenticated session, never client input.
+    When ``api_key`` is set the call is made AS that key's owner, so LiteLLM scopes
+    the catalog itself. The key MUST be resolved from the authenticated session
+    (app/internal.py::resolve_front_key), never taken from client input. Without it
+    the answer is the ADMIN catalog.
 
     Raises httpx.HTTPStatusError / httpx.RequestError on failure (caller degrades).
     Used by GET /api/session/models.
@@ -1656,7 +1680,7 @@ async def list_litellm_models(settings: Settings, user_id: str | None = None) ->
         _project_model_group,
         lambda d: d.get("data", []) if isinstance(d, dict) else [],
         settings,
-        user_id,
+        api_key,
     )
 
 
@@ -1687,16 +1711,17 @@ def _project_mcp_server(s: dict) -> dict:
     }
 
 
-async def list_litellm_mcp_servers(settings: Settings, user_id: str | None = None) -> list[dict]:
+async def list_litellm_mcp_servers(settings: Settings, api_key: str | None = None) -> list[dict]:
     """List configured MCP servers from the LiteLLM MCP gateway (GET /v1/mcp/server).
 
     Returns a BARE JSON array of server objects (a {"data"|"servers": [...]} wrapper
     is tolerated defensively). Each row is run through the allow-list
     _project_mcp_server — NEVER credentials/env/headers/OAuth URLs. Sorted by name.
 
-    When ``user_id`` is set, sends ``x-user-id: <user_id>`` alongside the master-key
-    Authorization so the deployment's LiteLLM custom auth scopes the catalog to that
-    user. The value MUST come from the authenticated session, never client input.
+    When ``api_key`` is set the call is made AS that key's owner, so LiteLLM scopes
+    the catalog itself. The key MUST be resolved from the authenticated session
+    (app/internal.py::resolve_front_key), never taken from client input. Without it
+    the answer is the ADMIN catalog.
 
     Raises httpx.HTTPStatusError on a non-2xx (the caller maps a 404 — an older
     LiteLLM with no MCP gateway — to an "unavailable" empty state) and
@@ -1708,7 +1733,7 @@ async def list_litellm_mcp_servers(settings: Settings, user_id: str | None = Non
         _project_mcp_server,
         lambda d: (d.get("data") or d.get("servers") or []) if isinstance(d, dict) else d,
         settings,
-        user_id,
+        api_key,
     )
 
 
@@ -1754,7 +1779,7 @@ def _project_a2a_agent(a: dict) -> dict:
     }
 
 
-async def list_litellm_a2a_agents(settings: Settings, user_id: str | None = None) -> list[dict]:
+async def list_litellm_a2a_agents(settings: Settings, api_key: str | None = None) -> list[dict]:
     """List configured A2A agents from the LiteLLM agent gateway (GET /v1/agents).
 
     Returns a BARE JSON array of agent objects (a {"data"|"agents": [...]} wrapper is
@@ -1762,12 +1787,9 @@ async def list_litellm_a2a_agents(settings: Settings, user_id: str | None = None
     — public agent-card fields only, NEVER headers/litellm_params/object_permission.
     Sorted by name.
 
-    When ``user_id`` is set, sends ``x-user-id: <user_id>`` alongside the master-key
-    Authorization. The /v1/agents endpoint itself does not read x-user-id, but the
-    deployment's gateway custom auth (sso_key_swapper) resolves master+x-user-id to
-    the user's default key BEFORE the endpoint runs, so /v1/agents then filters by
-    that key's agent access groups — the same per-user scoping path as MCP. The
-    value MUST come from the authenticated session, never client input.
+    When ``api_key`` is set the call is made AS that key's owner, so /v1/agents
+    filters by that key's agent access groups — the same per-user path as MCP. The
+    key MUST be resolved from the authenticated session, never client input.
 
     Raises httpx.HTTPStatusError on a non-2xx (the caller maps a 404 — a LiteLLM with
     no A2A gateway, A2A is beta since v1.80.8 — to an "unavailable" empty state) and
@@ -1779,7 +1801,7 @@ async def list_litellm_a2a_agents(settings: Settings, user_id: str | None = None
         _project_a2a_agent,
         lambda d: (d.get("data") or d.get("agents") or []) if isinstance(d, dict) else d,
         settings,
-        user_id,
+        api_key,
     )
 
 

@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     # API (LiteLLM backend)
     litellm_url: str  # internal URL used server-side to call admin endpoints
     litellm_master_key: str
+
     # Shared team id + display alias for the single per-deployment team. Defaults
     # to "default"; override per deployment. Decoupled from OAUTH_CLIENT_ID so the
     # team can be renamed without touching the OIDC client. Env var:
@@ -68,8 +69,9 @@ class Settings(BaseSettings):
     # changing the call site.
     user_access_groups: dict[str, list[str]] = {}
     # OAuth 2.1 authorization server — the front door (docs/plans/2026-09-17-oauth-front-door.md).
-    # Off by default; nothing below is read unless AS_ENABLED=true.
-    as_enabled: bool = False
+    # Always on: the console resolves each user's LiteLLM key through the AS store
+    # (app/internal.py::resolve_front_key), so there is no deployment that works
+    # without it. The secrets below are therefore unconditionally required.
     as_issuer_url: str = ""  # empty → app_base_url. Must be the public URL clients dial.
     as_audience: str = "alitellm"  # `aud` of every access token; the authz checks it
     as_signing_key_pem: str = ""  # RSA private key, PEM. Same on every replica → same JWKS
@@ -183,17 +185,7 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def _openwork_requires_a_store(self) -> "Settings":
-        # Grants and tokens live in the AS store; without a URL create_store()
-        # would dial redis.from_url("") and die at boot with an opaque error.
-        if self.openwork_enabled and not self.as_redis_url:
-            raise ValueError("OPENWORK_ENABLED=true requires AS_REDIS_URL (memory:// for dev)")
-        return self
-
-    @model_validator(mode="after")
     def _as_requires_its_secrets(self) -> "Settings":
-        if not self.as_enabled:
-            return self
         missing = [
             env
             for env, value in (
@@ -205,7 +197,7 @@ class Settings(BaseSettings):
             if not value
         ]
         if missing:
-            raise ValueError(f"{', '.join(missing)} required when AS_ENABLED=true")
+            raise ValueError(f"{', '.join(missing)} required")
         try:
             Fernet(self.as_key_encryption_key.encode())
         except (ValueError, TypeError) as exc:

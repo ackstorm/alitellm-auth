@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.openwork import TOKEN_KIND
+from tests.as_defaults import AS_TEST_DEFAULTS
 
 
 def make_test_settings(**overrides):
@@ -25,7 +26,7 @@ def make_test_settings(**overrides):
         litellm_url="http://litellm.test",
         litellm_master_key="sk-test",
         openwork_enabled=True,
-        as_redis_url="memory://",
+        **AS_TEST_DEFAULTS,
     )
     base.update(overrides)
     return Settings(**base)

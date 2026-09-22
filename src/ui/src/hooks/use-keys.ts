@@ -34,7 +34,6 @@ import type {
   DeleteKeyResponse,
   KeyRow,
   KeysResponse,
-  MakeDefaultResponse,
 } from '@/lib/api-types';
 import { useFreshKeysStore } from '@/stores/fresh-keys';
 import { useToast } from '@/hooks/use-toast';
@@ -88,18 +87,6 @@ export function useKeys() {
       throw new Error('keys-load-failed');
     },
   });
-}
-
-/**
- * Derived: does the user have an explicit default key? Reads the keys query (no
- * extra fetch) and returns true iff some key carries is_default. Safe before the
- * query settles / on error — returns false (never throws). Shared by the AppShell
- * CHAT/Models/MCPs nav gating and the Models/MCP route gates (per-user catalog
- * reads are scoped to the default key via the gateway's custom auth).
- */
-export function useHasDefaultKey(): boolean {
-  const { data } = useKeys();
-  return (data ?? []).some((k) => k.is_default);
 }
 
 /**
@@ -175,20 +162,6 @@ export function useDeleteKey() {
     (_data, id) => {
       dropFresh(id);
     },
-  );
-}
-
-/**
- * POST /api/session/keys/{id}/default. Backend returns HTTP 200 { status:
- * "default", id } (session.py::session_make_default), promoting the key to the
- * user's explicit default and clearing any prior default. On success the list is
- * invalidated so the DEFAULT badge + revoke-guard re-render.
- */
-export function useMakeDefault() {
-  return useKeyMutation<string, MakeDefaultResponse>(
-    (id) => postJson<MakeDefaultResponse>(`/api/session/keys/${encodeURIComponent(id)}/default`, {}),
-    'make-default-failed',
-    'Could not set the default key. Please try again.',
   );
 }
 

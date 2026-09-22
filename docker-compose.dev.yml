@@ -40,6 +40,19 @@ services:
       LITELLM_MASTER_KEY: sk-mock-master
       SESSION_SECRET_KEY: dev-session-secret-change-me-0123456789abcdef
       SESSION_HTTPS_ONLY: "false"
+      AS_SIGNING_KEY_PEM: |-
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAooWM8tDQuarT7TUDyin9
+        lSI/S9eWrSKdnQuHfPOxTdhZqlzZrpRDWzDSJmhsRzcmJ9nlXJVQJDGA7SULTLOK
+        iPkdUI3xXVZWccmc7mdS8ggrSkNRG77+DaGZSw9o5hU8zJd3OaI8M1v8fJ6hcM1z
+        UK7EiUmuLcpsLpMXwxjdjrUcxFTf0qchNNWv/PZL9d8f+3j5tDOxvlmI5TRrktWY
+        uRpdP3CgmTgm1/pT63etOpymOdyz/t2L8dZErJ42OvP6oJK0k/HcPQPOzbGfmwlm
+        Pa3ZUxn7dBNDw4J8pn+c/cVdfz0GdeKF280UlMx/p02iTFJUsYXRq0t7ekd2DrOR
+        rQIDAQAB
+        -----END PUBLIC KEY-----
+      AS_KEY_ENCRYPTION_KEY: QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=
+      AS_REDIS_URL: memory://
+      INTERNAL_TOKEN: dev-internal-token
     extra_hosts:
       # Make oidc.localtest.me resolve to the host inside the container so the
       # server-side discovery/token fetch hits the same published mock-oidc the

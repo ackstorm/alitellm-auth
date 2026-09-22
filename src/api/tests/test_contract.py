@@ -8,6 +8,7 @@ import pytest
 
 from app.config import Settings
 from app import contract
+from tests.as_defaults import AS_TEST_DEFAULTS
 
 
 def make_settings(**kwargs) -> Settings:
@@ -19,6 +20,7 @@ def make_settings(**kwargs) -> Settings:
         litellm_url="http://litellm.test",
         litellm_master_key="sk-admin",
         api_public_url="https://api.test",
+        **AS_TEST_DEFAULTS,
     )
     return Settings(**{**defaults, **kwargs})
 

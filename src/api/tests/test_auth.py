@@ -11,6 +11,7 @@ from itsdangerous import TimestampSigner
 from app.config import Settings
 from app.litellm_client import LiteLLMUserNotFound
 from app.main import create_app
+from tests.as_defaults import AS_TEST_DEFAULTS
 
 
 def make_test_settings() -> Settings:
@@ -23,6 +24,7 @@ def make_test_settings() -> Settings:
         litellm_url="http://litellm.test",
         litellm_master_key="sk-test",
         api_public_url="https://api.test",
+        **AS_TEST_DEFAULTS,
     )
 
 

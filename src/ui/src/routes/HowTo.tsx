@@ -39,7 +39,6 @@ import { useNavigate } from 'react-router';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
-import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useModels } from '@/hooks/use-models';
 import { TAB_PILL, TAB_PILL_LIST } from '@/lib/ui';
 import { cn } from '@/lib/utils';
@@ -167,10 +166,9 @@ export function HowTo() {
   const navigate = useNavigate();
 
   // Model picker: personalize the quickstart snippets with a real alias from the
-  // catalog (gated on a default key, like the other per-user reads). Defaults to
-  // the standard MODEL_ALIAS; the picked value is always kept as a valid option.
-  const hasDefaultKey = useHasDefaultKey();
-  const modelsQuery = useModels(hasDefaultKey);
+  // catalog. Defaults to the standard MODEL_ALIAS; the picked value is always
+  // kept as a valid option.
+  const modelsQuery = useModels();
   const catalogAliases = (modelsQuery.data?.models ?? [])
     .map((m) => m.name)
     .filter((n): n is string => typeof n === 'string' && n.length > 0);
@@ -689,7 +687,7 @@ gemini`,
                     Create one on the{' '}
                     <button
                       type="button"
-                      onClick={() => navigate('/')}
+                      onClick={() => navigate('/keys')}
                       className="inline-flex cursor-pointer items-center gap-1 font-medium text-primary hover:underline"
                     >
                       <KeyRound className="size-3.5" aria-hidden="true" />

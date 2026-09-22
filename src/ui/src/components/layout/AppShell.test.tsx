@@ -39,6 +39,7 @@ const ME: SessionMe = {
   email: 'alice@example.com',
   name: 'Alice Example',
   team_id: 'team-platform',
+  access_groups: [],
   endpoint: 'https://api.acme.ai',
   limits: null,
   spend: { current: 0, source: 'user' },
@@ -63,7 +64,6 @@ function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
     created_at: null,
     expires: null,
     last_used: null,
-    is_default: false,
     ...overrides,
   };
 }
@@ -87,50 +87,21 @@ beforeEach(() => {
 
 describe('AppShell — CHAT nav gating', () => {
   it('with a default key, CHAT is an external link to chat.<domain>', () => {
-    setKeys([makeRow({ id: 'key-1', is_default: true })]);
+    setKeys([makeRow({ id: 'key-1' })]);
     renderShell();
     const link = screen.getByRole('link', { name: 'Chat' });
     expect(link).toHaveAttribute('href', 'https://chat.acme.ai');
     expect(link).toHaveAttribute('target', '_blank');
   });
 
-  it('without a default key, CHAT is disabled (no link) with a hint', () => {
-    setKeys([makeRow({ id: 'key-1', is_default: false })]);
-    renderShell();
-    expect(screen.queryByRole('link', { name: 'Chat' })).not.toBeInTheDocument();
-    const disabled = screen.getByText('Chat');
-    expect(disabled).toHaveAttribute('aria-disabled', 'true');
-    expect(disabled).not.toHaveAttribute('href');
-    expect(disabled.getAttribute('title') ?? '').toMatch(/default key/i);
-  });
-
-  it('treats an undefined keys list as no default', () => {
-    setKeys(undefined);
-    renderShell();
-    expect(screen.queryByRole('link', { name: 'Chat' })).not.toBeInTheDocument();
-    expect(screen.getByText('Chat')).toHaveAttribute('aria-disabled', 'true');
-  });
 });
 
 describe('AppShell — Models/MCPs nav gating', () => {
   it('with a default key, Models + MCPs are nav links', () => {
-    setKeys([makeRow({ id: 'key-1', is_default: true })]);
+    setKeys([makeRow({ id: 'key-1' })]);
     renderShell();
     expect(screen.getByRole('link', { name: 'Models' })).toHaveAttribute('href', '/models');
     expect(screen.getByRole('link', { name: 'MCPs' })).toHaveAttribute('href', '/mcp');
-  });
-
-  it('without a default key, Models + MCPs are disabled (no link) with a hint', () => {
-    setKeys([makeRow({ id: 'key-1', is_default: false })]);
-    renderShell();
-    expect(screen.queryByRole('link', { name: 'Models' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'MCPs' })).not.toBeInTheDocument();
-    for (const label of ['Models', 'MCPs']) {
-      const el = screen.getByText(label);
-      expect(el).toHaveAttribute('aria-disabled', 'true');
-      expect(el).not.toHaveAttribute('href');
-      expect(el.getAttribute('title') ?? '').toMatch(/default key/i);
-    }
   });
 
   it('KEYS / STATS / HOW-TO stay links regardless of default key', () => {
@@ -173,5 +144,21 @@ describe('AppShell — header menus do not scroll-lock the page', () => {
     // How-to is an always-ungated item in the mobile nav menu.
     expect(await screen.findByRole('menuitem', { name: 'How-to' })).toBeInTheDocument();
     expect(document.body.hasAttribute('data-scroll-locked')).toBe(false);
+  });
+});
+
+describe('AppShell — nothing is gated on a key any more', () => {
+  it('links Models, MCPs and A2A even when the user has no keys at all', () => {
+    setKeys([]);
+    renderShell();
+    for (const label of ['Models', 'MCPs', 'A2A']) {
+      expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it('links Chat with no key: it forwards the user\'s own identity token', () => {
+    setKeys([]);
+    renderShell();
+    expect(screen.getByRole('link', { name: /Chat/ })).toBeInTheDocument();
   });
 });

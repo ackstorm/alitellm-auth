@@ -42,7 +42,6 @@ def make_settings(**over) -> Settings:
         litellm_url="http://litellm.test",
         litellm_master_key="sk-test",
         api_public_url="https://api.test",
-        as_enabled=True,
         as_redis_url="memory://",
         as_signing_key_pem=_pem(),
         as_key_encryption_key=Fernet.generate_key().decode(),

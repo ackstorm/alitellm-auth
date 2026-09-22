@@ -18,7 +18,6 @@ import type { KeyRow, SessionMe } from '@/lib/api-types';
 vi.mock('@/hooks/use-keys', () => ({
   useKeys: vi.fn(),
   useDeleteKey: vi.fn(),
-  useMakeDefault: vi.fn(),
   useToggleKeyBlock: vi.fn(),
   useChangeKeyTeam: vi.fn(),
   KEYS_QUERY_KEY: ['session', 'keys'],
@@ -41,7 +40,6 @@ import {
   useChangeKeyTeam,
   useDeleteKey,
   useKeys,
-  useMakeDefault,
   useToggleKeyBlock,
 } from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
@@ -60,7 +58,6 @@ import { initialToastState, useToastStore } from '@/hooks/use-toast';
 
 const useKeysMock = vi.mocked(useKeys);
 const useDeleteKeyMock = vi.mocked(useDeleteKey);
-const useMakeDefaultMock = vi.mocked(useMakeDefault);
 const useToggleKeyBlockMock = vi.mocked(useToggleKeyBlock);
 const useChangeKeyTeamMock = vi.mocked(useChangeKeyTeam);
 const useStatsMock = vi.mocked(useStats);
@@ -72,6 +69,7 @@ function makeMe(overrides: Partial<SessionMe> = {}): SessionMe {
     email: 'alice@example.com',
     name: 'Alice Example',
     team_id: 'team-platform',
+    access_groups: [],
     endpoint: 'https://litellm.example.com',
     limits: null,
     spend: { current: 12.5, source: 'user' },
@@ -93,7 +91,6 @@ function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
     created_at: '2026-03-01T10:00:00+00:00',
     expires: null,
     last_used: null,
-    is_default: false,
     ...overrides,
   };
 }
@@ -137,10 +134,6 @@ beforeEach(() => {
     isPending: false,
   } as unknown as ReturnType<typeof useDeleteKey>);
   // Default the make-default mutation to a no-op.
-  useMakeDefaultMock.mockReturnValue({
-    mutate: vi.fn(),
-    isPending: false,
-  } as unknown as ReturnType<typeof useMakeDefault>);
   // Default the block-toggle mutation to a no-op.
   useToggleKeyBlockMock.mockReturnValue({
     mutate: vi.fn(),
@@ -175,40 +168,6 @@ describe('Dashboard — top row + tiles', () => {
     render(<Dashboard me={makeMe({ name: 'Alice Example' })} />);
     expect(screen.getByText(/Welcome back,/)).toBeInTheDocument();
     expect(screen.getByText('Alice Example')).toBeInTheDocument();
-  });
-
-  it('Team tile shows me.team_id', () => {
-    setKeysSuccess([]);
-    render(<Dashboard me={makeMe({ team_id: 'team-platform' })} />);
-    expect(screen.getByText('team-platform')).toBeInTheDocument();
-  });
-
-  it('KEYS & TEAMS tile shows a pill per distinct team the keys belong to', () => {
-    // Pills now derive from the KEYS' team_id (deduped), resolved to the team
-    // alias — NOT the full member-teams list. Two keys on team 'a', one on 'b',
-    // none on 'c' -> Alpha + Bravo pills, no Charlie.
-    useTeamsMock.mockReturnValue({
-      data: [
-        { id: 'a', alias: 'Alpha' },
-        { id: 'b', alias: 'Bravo' },
-        { id: 'c', alias: 'Charlie' },
-      ],
-    } as unknown as ReturnType<typeof useTeams>);
-    setKeysSuccess([
-      makeRow({ id: 'key-1', team_id: 'a' }),
-      makeRow({ id: 'key-2', team_id: 'a' }),
-      makeRow({ id: 'key-3', team_id: 'b' }),
-    ]);
-    const { container } = render(
-      <Dashboard me={makeMe({ team_id: 'team-platform' })} />,
-    );
-    // Scope to the KPI row's pills — the KeysTable below also renders each key's
-    // team alias, so an unscoped getByText('Alpha') would match multiple nodes.
-    const row = container.querySelector('[data-slot="kpi-row"]') as HTMLElement;
-    const pills = [...row.querySelectorAll('[data-slot="team-pill"]')].map((e) =>
-      e.textContent?.trim(),
-    );
-    expect(pills).toEqual(['Alpha', 'Bravo']); // deduped, no Charlie
   });
 
   it('Spend (MTD) shows formatCurrency(stats.totals.spend) when stats load', () => {
@@ -359,5 +318,41 @@ describe('Dashboard — keys section + modals', () => {
     const item = await screen.findByRole('menuitem', { name: 'Revoke key' });
     fireEvent.keyDown(item, { key: 'Enter' });
     expect(screen.getByText('Revoke Key')).toBeInTheDocument();
+  });
+});
+
+describe('Dashboard — access groups tile', () => {
+  it('shows a pill per access group, without our `team-` bookkeeping prefix', () => {
+    setKeysSuccess([makeRow({ id: 'key-1' })]);
+    const { container } = render(
+      <Dashboard me={makeMe({ access_groups: ['team-default', 'team-dream'] })} />
+    );
+    const pills = [...container.querySelectorAll('[data-slot="team-pill"]')].map(
+      (el) => el.textContent
+    );
+    expect(pills).toEqual(['default', 'dream']);
+  });
+
+  it('keeps a group name that carries no prefix as-is', () => {
+    setKeysSuccess([makeRow({ id: 'key-1' })]);
+    const { container } = render(<Dashboard me={makeMe({ access_groups: ['research'] })} />);
+    expect(container.querySelector('[data-slot="team-pill"]')?.textContent).toBe('research');
+  });
+
+  it('says so when the user has no access groups at all', () => {
+    setKeysSuccess([makeRow({ id: 'key-1' })]);
+    const { container } = render(<Dashboard me={makeMe({ access_groups: [] })} />);
+    expect(container.querySelector('[data-slot="team-pill"]')).not.toBeInTheDocument();
+    expect(screen.getByText(/No access groups/i)).toBeInTheDocument();
+  });
+
+  it('never shows the personal team — it grants nothing on its own', () => {
+    setKeysSuccess([makeRow({ id: 'key-1', team_id: 'user-alice@example.com' })]);
+    render(
+      <Dashboard
+        me={makeMe({ team_id: 'user-alice@example.com', access_groups: ['team-default'] })}
+      />
+    );
+    expect(screen.queryByText('user-alice@example.com')).not.toBeInTheDocument();
   });
 });

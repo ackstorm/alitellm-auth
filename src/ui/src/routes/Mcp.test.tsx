@@ -10,18 +10,12 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { McpResponse, McpServerRow } from '@/lib/api-types';
 
 vi.mock('@/hooks/use-mcp', () => ({ useMcp: vi.fn() }));
-vi.mock('@/hooks/use-keys', () => ({ useHasDefaultKey: vi.fn() }));
 
 import { useMcp } from '@/hooks/use-mcp';
-import { useHasDefaultKey } from '@/hooks/use-keys';
 import { Mcp } from './Mcp';
 
 const useMcpMock = vi.mocked(useMcp);
-const useHasDefaultKeyMock = vi.mocked(useHasDefaultKey);
 
-// Default: the user HAS a default key (the branches under test need it). The
-// no-default gate has its own suite that flips this to false.
-beforeEach(() => useHasDefaultKeyMock.mockReturnValue(true));
 
 function makeServer(over: Partial<McpServerRow> = {}): McpServerRow {
   return {
@@ -73,17 +67,6 @@ afterEach(() => {
   cleanup();
 });
 
-describe('Mcp — no default key (gate)', () => {
-  it('renders the default-key prompt and does NOT call useMcp for data', () => {
-    useHasDefaultKeyMock.mockReturnValue(false);
-    setSuccess({ servers: [makeServer()], available: true });
-    render(<Mcp />);
-    expect(screen.getByText('A default key is required')).toBeInTheDocument();
-    expect(screen.getByText('MCP')).toBeInTheDocument(); // header still shows
-    expect(screen.queryByText('GitHub')).not.toBeInTheDocument();
-    expect(useMcpMock).toHaveBeenCalledWith(false); // fetch disabled
-  });
-});
 
 describe('Mcp — loading', () => {
   beforeEach(() => setPending());
@@ -106,21 +89,7 @@ describe('Mcp — error', () => {
   });
 });
 
-describe('Mcp — unavailable (no gateway)', () => {
-  it('shows the calm "not enabled" state when available is false', () => {
-    setSuccess({ servers: [], available: false });
-    render(<Mcp />);
-    expect(screen.getByText('MCP gateway not enabled')).toBeInTheDocument();
-  });
-});
 
-describe('Mcp — empty (gateway on, no servers)', () => {
-  it('shows the empty state', () => {
-    setSuccess({ servers: [], available: true });
-    render(<Mcp />);
-    expect(screen.getByText('No MCP servers yet')).toBeInTheDocument();
-  });
-});
 
 describe('Mcp — populated', () => {
   it('renders the server name, status, tools, and access group', () => {

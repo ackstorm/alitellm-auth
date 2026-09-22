@@ -15,8 +15,10 @@ from itsdangerous import TimestampSigner
 from pydantic import ValidationError
 
 from app.config import Settings
+from app.internal import FrontKeyUnavailable
 from app.litellm_client import LiteLLMUserNotFound, TeamMembershipError
 from app.main import create_app
+from tests.as_defaults import AS_TEST_DEFAULTS
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -35,6 +37,7 @@ def make_test_settings() -> Settings:
         litellm_url="http://litellm.test",
         litellm_master_key="sk-test",
         api_public_url="https://api.test",
+        **AS_TEST_DEFAULTS,
         session_https_only=False,
     )
 
@@ -48,6 +51,23 @@ def _make_session_cookie(secret: str, data: dict) -> str:
 
 def _authed_cookie(email: str = "alice@example.com", name: str = "Alice") -> dict:
     return {"session": _make_session_cookie(_TEST_SESSION_SECRET, {"email": email, "name": name})}
+
+
+@pytest.fixture(autouse=True)
+def front_key():
+    """Resolve any caller's own LiteLLM key without a store or a mint.
+
+    Autouse because every per-user read (models, MCP, A2A, latency) now goes out
+    under the caller's key, so a route that used to need no setup would otherwise
+    502 on an unreachable AS store. The fake key carries the email so a test can
+    assert WHOSE key was used, which is the property that replaced x-user-id.
+    """
+    with patch(
+        "app.session.resolve_front_key",
+        new_callable=AsyncMock,
+        side_effect=lambda email, settings: f"sk-front-{email}",
+    ) as resolver:
+        yield resolver
 
 
 @pytest.fixture()
@@ -447,79 +467,6 @@ def test_create_key_duplicate_alias_returns_422(client):
     assert "default" in response.json()["detail"]
 
 
-def test_create_key_defaults_when_no_default_exists(client):
-    """When NO default exists, the just-created key is promoted (first key case)."""
-    with (
-        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
-        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
-        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
-    ):
-        mock_gen.return_value = {"key": "sk-first", "id": "new-id", "team_id": "team-test-client"}
-        mock_list.return_value = [
-            {"id": "new-id", "token": "tok-new", "is_default": False, "metadata": {"email": "x"}},
-        ]
-        response = client.post(
-            "/api/session/keys",
-            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
-            cookies=_authed_cookie(),
-            content="{}",
-        )
-    assert response.status_code == 200
-    assert response.json()["is_default"] is True
-    mock_set.assert_awaited_once()
-    assert mock_set.await_args.args[0] == "tok-new"
-    assert mock_set.await_args.kwargs.get("is_default") is True
-
-
-def test_create_key_defaults_with_other_nondefault_keys(client):
-    """Presence check, NOT positional: with several keys but none default, the new
-    key (3rd here) still becomes the default."""
-    with (
-        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
-        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
-        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
-    ):
-        mock_gen.return_value = {"key": "sk-third", "id": "new-id", "team_id": "team-test-client"}
-        mock_list.return_value = [
-            {"id": "old-1", "token": "tok-1", "is_default": False, "metadata": {}},
-            {"id": "old-2", "token": "tok-2", "is_default": False, "metadata": {}},
-            {"id": "new-id", "token": "tok-new", "is_default": False, "metadata": {}},
-        ]
-        response = client.post(
-            "/api/session/keys",
-            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
-            cookies=_authed_cookie(),
-            content="{}",
-        )
-    assert response.status_code == 200
-    assert response.json()["is_default"] is True
-    mock_set.assert_awaited_once()
-    assert mock_set.await_args.args[0] == "tok-new"
-
-
-def test_create_key_does_not_reassign_existing_default(client):
-    """A subsequent key is NOT auto-promoted when a default already exists."""
-    with (
-        patch("app.session.generate_litellm_key", new_callable=AsyncMock) as mock_gen,
-        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
-        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
-    ):
-        mock_gen.return_value = {"key": "sk-second", "id": "new-id", "team_id": "team-test-client"}
-        mock_list.return_value = [
-            {"id": "old-id", "token": "tok-old", "is_default": True, "metadata": {}},
-            {"id": "new-id", "token": "tok-new", "is_default": False, "metadata": {}},
-        ]
-        response = client.post(
-            "/api/session/keys",
-            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
-            cookies=_authed_cookie(),
-            content="{}",
-        )
-    assert response.status_code == 200
-    assert response.json()["is_default"] is False
-    mock_set.assert_not_awaited()
-
-
 def test_create_key_with_valid_team(client):
     """A client-supplied team_id the user belongs to is validated against the
     SESSION email's memberships, then threaded into /key/generate."""
@@ -638,33 +585,6 @@ def test_delete_foreign_key_403(client):
     assert response_foreign.json()["detail"] == response_nonexistent.json()["detail"]
 
 
-def test_delete_default_key_blocked_409(client):
-    """The default key cannot be deleted — 409 and NO /key/delete call."""
-    owned = [
-        {
-            "id": "key-a",
-            "token": "tok-a",
-            "key_alias": "a",
-            "is_default": True,
-            "managed": True,
-            "metadata": {"is_default": True},
-        }
-    ]
-    with (
-        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
-        patch("app.session.delete_litellm_key", new_callable=AsyncMock) as mock_delete,
-    ):
-        mock_list.return_value = owned
-        response = client.delete(
-            "/api/session/keys/key-a",
-            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
-            cookies=_authed_cookie(),
-        )
-    assert response.status_code == 409
-    assert "default" in response.json()["detail"].lower()
-    mock_delete.assert_not_awaited()
-
-
 def test_delete_non_default_key_ok(client):
     """A non-default key still deletes normally (happy path unchanged)."""
     owned = [
@@ -696,156 +616,6 @@ def test_delete_non_default_key_ok(client):
 # ---------------------------------------------------------------------------
 
 
-def test_make_default_promotes_and_demotes(client):
-    """POST .../{id}/default promotes the target and clears the prior default."""
-    owned = [
-        {
-            "id": "key-a",
-            "token": "tok-a",
-            "key_alias": "a",
-            "is_default": True,
-            "metadata": {"email": "alice@example.com", "is_default": True},
-        },
-        {
-            "id": "key-b",
-            "token": "tok-b",
-            "key_alias": "b",
-            "is_default": False,
-            "managed": True,
-            "metadata": {"email": "alice@example.com"},
-        },
-    ]
-    with (
-        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
-        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
-    ):
-        mock_list.return_value = owned
-        response = client.post(
-            "/api/session/keys/key-b/default",
-            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
-            cookies=_authed_cookie(),
-            content="{}",
-        )
-    assert response.status_code == 200
-    assert response.json() == {"status": "default", "id": "key-b"}
-    calls = mock_set.await_args_list
-    # target promoted with the merged existing metadata
-    assert any(c.args[0] == "tok-b" and c.kwargs["is_default"] is True for c in calls)
-    # prior default demoted
-    assert any(c.args[0] == "tok-a" and c.kwargs["is_default"] is False for c in calls)
-
-
-def test_make_default_demotes_before_promoting(client):
-    """#5: prior default is demoted BEFORE the target is promoted, so a partial
-    failure can never leave two keys is_default=True."""
-    owned = [
-        {
-            "id": "key-old",
-            "token": "tok-old",
-            "key_alias": "old",
-            "is_default": True,
-            "metadata": {"email": "alice@example.com", "is_default": True},
-        },
-        {
-            "id": "key-new",
-            "token": "tok-new",
-            "key_alias": "new",
-            "is_default": False,
-            "managed": True,
-            "metadata": {"email": "alice@example.com"},
-        },
-    ]
-    with (
-        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
-        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
-    ):
-        mock_list.return_value = owned
-        response = client.post(
-            "/api/session/keys/key-new/default",
-            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
-            cookies=_authed_cookie(),
-            content="{}",
-        )
-    assert response.status_code == 200
-    # (token, is_default) call order: demote of the old default must precede the
-    # promote of the target, and the promote must be the LAST call.
-    order = [(c.args[0], c.kwargs["is_default"]) for c in mock_set.await_args_list]
-    assert ("tok-new", True) in order
-    assert ("tok-old", False) in order
-    assert order.index(("tok-old", False)) < order.index(("tok-new", True))
-    assert order[-1] == ("tok-new", True)
-
-
-def test_make_default_foreign_key_403(client):
-    """A foreign/unknown id → 403 and NO /key/update call (D-12, no existence leak)."""
-    owned = [
-        {
-            "id": "key-a",
-            "token": "tok-a",
-            "key_alias": "a",
-            "is_default": False,
-            "managed": True,
-            "metadata": {},
-        }
-    ]
-    with (
-        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
-        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
-    ):
-        mock_list.return_value = owned
-        response = client.post(
-            "/api/session/keys/not-mine/default",
-            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
-            cookies=_authed_cookie(),
-            content="{}",
-        )
-    assert response.status_code == 403
-    mock_set.assert_not_awaited()
-
-
-def test_make_default_requires_origin(client):
-    """Missing Origin/Referer → 403 (assert_same_origin)."""
-    response = client.post(
-        "/api/session/keys/key-a/default",
-        headers={"content-type": "application/json"},
-        cookies=_authed_cookie(),
-        content="{}",
-    )
-    assert response.status_code == 403
-
-
-def test_make_default_502_on_litellm_error(client):
-    """A /key/update failure → 502."""
-    owned = [
-        {
-            "id": "key-a",
-            "token": "tok-a",
-            "key_alias": "a",
-            "is_default": False,
-            "managed": True,
-            "metadata": {},
-        }
-    ]
-    err = httpx.HTTPStatusError(
-        "boom",
-        request=httpx.Request("POST", "http://litellm.test/key/update"),
-        response=httpx.Response(500),
-    )
-    with (
-        patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
-        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
-    ):
-        mock_list.return_value = owned
-        mock_set.side_effect = err
-        response = client.post(
-            "/api/session/keys/key-a/default",
-            headers={"content-type": "application/json", "origin": "http://localhost:8080"},
-            cookies=_authed_cookie(),
-            content="{}",
-        )
-    assert response.status_code == 502
-
-
 # ---------------------------------------------------------------------------
 # Disable key — POST /api/session/keys/{id}/block (block / unblock)
 # ---------------------------------------------------------------------------
@@ -853,7 +623,7 @@ def test_make_default_502_on_litellm_error(client):
 
 def test_block_key_disables_owned_key(client):
     """blocked:true on an owned key → calls block_litellm_key(..., blocked=True)."""
-    owned = [{"id": "key-a", "token": "tok-a", "is_default": False, "metadata": {}}]
+    owned = [{"id": "key-a", "token": "tok-a", "metadata": {}}]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
@@ -874,7 +644,7 @@ def test_block_key_disables_owned_key(client):
 
 def test_block_key_can_disable_the_default_key(client):
     """The default key MAY be disabled (no 409 guard — caller's explicit choice)."""
-    owned = [{"id": "key-a", "token": "tok-a", "is_default": True, "metadata": {}}]
+    owned = [{"id": "key-a", "token": "tok-a", "metadata": {}}]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
@@ -892,7 +662,7 @@ def test_block_key_can_disable_the_default_key(client):
 
 def test_unblock_key_reenables(client):
     """blocked:false → unblock path; status 'active'."""
-    owned = [{"id": "key-a", "token": "tok-a", "is_default": False, "metadata": {}}]
+    owned = [{"id": "key-a", "token": "tok-a", "metadata": {}}]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
@@ -911,7 +681,7 @@ def test_unblock_key_reenables(client):
 
 def test_block_key_foreign_id_403(client):
     """A foreign/unknown id → 403 and NO block call (D-12)."""
-    owned = [{"id": "key-a", "token": "tok-a", "is_default": False, "metadata": {}}]
+    owned = [{"id": "key-a", "token": "tok-a", "metadata": {}}]
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
@@ -928,17 +698,14 @@ def test_block_key_foreign_id_403(client):
 
 
 def test_foreign_unmanaged_key_locks_mutations_but_allows_block(client):
-    """A key not minted here (managed=False) is listed but locked: delete /
-    make-default / change-team → 409; only disable/enable (block) is allowed."""
-    foreign = [
-        {"id": "ekid_01", "token": "tok-x", "is_default": False, "managed": False, "metadata": {}}
-    ]
+    """A key not minted here (managed=False) is listed but locked: delete and
+    change-team → 409; only disable/enable (block) is allowed."""
+    foreign = [{"id": "ekid_01", "token": "tok-x", "managed": False, "metadata": {}}]
     hdr = {"content-type": "application/json", "origin": "http://localhost:8080"}
 
     with (
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
         patch("app.session.delete_litellm_key", new_callable=AsyncMock) as mock_delete,
-        patch("app.session.set_litellm_key_default", new_callable=AsyncMock) as mock_set,
         patch("app.session.update_litellm_key_team", new_callable=AsyncMock) as mock_team,
         patch("app.session.assert_team_membership", new_callable=AsyncMock),
         patch("app.session.block_litellm_key", new_callable=AsyncMock) as mock_block,
@@ -948,12 +715,6 @@ def test_foreign_unmanaged_key_locks_mutations_but_allows_block(client):
         d = client.delete("/api/session/keys/ekid_01", headers=hdr, cookies=_authed_cookie())
         assert d.status_code == 409
         mock_delete.assert_not_awaited()
-
-        p = client.post(
-            "/api/session/keys/ekid_01/default", headers=hdr, cookies=_authed_cookie(), content="{}"
-        )
-        assert p.status_code == 409
-        mock_set.assert_not_awaited()
 
         t = client.post(
             "/api/session/keys/ekid_01/team",
@@ -976,7 +737,7 @@ def test_foreign_unmanaged_key_locks_mutations_but_allows_block(client):
 
 def test_block_key_invalid_body_422(client):
     """A body missing `blocked` → 422."""
-    owned = [{"id": "key-a", "token": "tok-a", "is_default": False, "metadata": {}}]
+    owned = [{"id": "key-a", "token": "tok-a", "metadata": {}}]
     with patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list:
         mock_list.return_value = owned
         response = client.post(
@@ -995,9 +756,7 @@ def test_block_key_invalid_body_422(client):
 
 def test_change_key_team_moves_owned_key(client):
     """An owned key + a team the user belongs to → /key/update with the hashed token."""
-    owned = [
-        {"id": "id-1", "token": "hash-1", "is_default": False, "managed": True, "metadata": {}}
-    ]
+    owned = [{"id": "id-1", "token": "hash-1", "managed": True, "metadata": {}}]
     with (
         patch("app.session.assert_team_membership", new_callable=AsyncMock) as mock_assert,
         patch("app.session.list_session_keys", new_callable=AsyncMock) as mock_list,
@@ -1364,6 +1123,30 @@ def test_stats_empty_window_zero_not_null(client):
     assert data["models"] == []
 
 
+def test_latency_degrades_when_the_callers_key_cannot_be_resolved(front_key, client):
+    """No key, no read. The key IS the scope, so a failure to get one must not
+    fall back to the master key -- that would read every user's rows."""
+    fetch = AsyncMock()
+    front_key.side_effect = FrontKeyUnavailable("alice@example.com")
+    with patch("app.session.fetch_user_spend_logs", fetch):
+        response = client.get("/api/session/latency", cookies=_authed_cookie())
+
+    assert response.status_code == 502
+    fetch.assert_not_awaited()
+
+
+def test_latency_reads_under_the_authenticated_users_own_key(client):
+    fetch = AsyncMock(return_value=([], False))
+    with patch("app.session.fetch_user_spend_logs", fetch):
+        response = client.get(
+            "/api/session/latency?user_id=victim@example.com",
+            cookies=_authed_cookie(email="alice@example.com"),
+        )
+
+    assert response.status_code == 200
+    assert fetch.await_args.args[0] == "sk-front-alice@example.com"
+
+
 # ---------------------------------------------------------------------------
 # D-18 — Origin / Referer guard (assert_same_origin)
 # ---------------------------------------------------------------------------
@@ -1725,13 +1508,13 @@ def test_session_models_502_on_backend_failure(client):
     assert resp.status_code == 502
 
 
-def test_session_models_forwards_email_as_user_id(client):
-    """The handler scopes the catalog to the session user via user_id (x-user-id)."""
+def test_session_models_reads_under_the_callers_own_key(client):
+    """LiteLLM scopes the catalog itself, because we ask as the user."""
     with patch("app.session.list_litellm_models", new_callable=AsyncMock) as mock_models:
         mock_models.return_value = []
         resp = client.get("/api/session/models", cookies=_authed_cookie())
     assert resp.status_code == 200
-    assert mock_models.await_args.kwargs.get("user_id") == "alice@example.com"
+    assert mock_models.await_args.args[1] == "sk-front-alice@example.com"
 
 
 # ---------------------------------------------------------------------------
@@ -1787,13 +1570,13 @@ def test_session_mcp_401_without_cookie(client):
     assert resp.status_code == 401
 
 
-def test_session_mcp_forwards_email_as_user_id(client):
-    """The handler scopes the MCP catalog to the session user via user_id (x-user-id)."""
+def test_session_mcp_reads_under_the_callers_own_key(client):
+    """LiteLLM scopes the MCP catalog itself, because we ask as the user."""
     with patch("app.session.list_litellm_mcp_servers", new_callable=AsyncMock) as mock_mcp:
         mock_mcp.return_value = []
         resp = client.get("/api/session/mcp", cookies=_authed_cookie())
     assert resp.status_code == 200
-    assert mock_mcp.await_args.kwargs.get("user_id") == "alice@example.com"
+    assert mock_mcp.await_args.args[1] == "sk-front-alice@example.com"
 
 
 # ---------------------------------------------------------------------------
@@ -1848,13 +1631,13 @@ def test_session_a2a_401_without_cookie(client):
     assert resp.status_code == 401
 
 
-def test_session_a2a_forwards_email_as_user_id(client):
-    """The handler scopes the A2A catalog to the session user via user_id (x-user-id)."""
+def test_session_a2a_reads_under_the_callers_own_key(client):
+    """LiteLLM scopes the A2A catalog itself, because we ask as the user."""
     with patch("app.session.list_litellm_a2a_agents", new_callable=AsyncMock) as mock_a2a:
         mock_a2a.return_value = []
         resp = client.get("/api/session/a2a", cookies=_authed_cookie())
     assert resp.status_code == 200
-    assert mock_a2a.await_args.kwargs.get("user_id") == "alice@example.com"
+    assert mock_a2a.await_args.args[1] == "sk-front-alice@example.com"
 
 
 # ---------------------------------------------------------------------------
@@ -2091,3 +1874,55 @@ def test_stats_budget_matches_me_on_the_personal_path(client_personal):
     b = response.json()["budget"]
     assert b == {**b, "max_budget": 20.0, "current": 4.0, "source": "team", "has_budget": True}
     member.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Access groups on /api/session/me — the capability behind a personal team
+# ---------------------------------------------------------------------------
+
+
+def test_me_reports_the_personal_teams_access_groups(client_personal):
+    """The team grants nothing; the attached groups are the whole capability."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_budget", new_callable=AsyncMock) as mock_budget,
+        patch("app.session.get_team_access_groups", new_callable=AsyncMock) as mock_groups,
+    ):
+        mock_user.return_value = {"user_id": "alice@example.com"}
+        mock_budget.return_value = None
+        mock_groups.return_value = ["team-default", "team-dream"]
+        resp = client_personal.get("/api/session/me", cookies=_authed_cookie())
+
+    assert resp.status_code == 200
+    assert resp.json()["access_groups"] == ["team-default", "team-dream"]
+    assert mock_groups.await_args.args[0] == "user-alice@example.com"
+
+
+def test_me_degrades_to_no_access_groups_when_the_team_is_unreadable(client_personal):
+    """An unreadable team under-reports capability rather than inventing it."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_budget", new_callable=AsyncMock) as mock_budget,
+        patch("app.session.get_team_access_groups", new_callable=AsyncMock) as mock_groups,
+    ):
+        mock_user.return_value = {"user_id": "alice@example.com"}
+        mock_budget.return_value = None
+        mock_groups.side_effect = httpx.RequestError("boom")
+        resp = client_personal.get("/api/session/me", cookies=_authed_cookie())
+
+    assert resp.status_code == 200
+    assert resp.json()["access_groups"] == []
+
+
+def test_me_has_no_access_groups_on_the_shared_team_path(client):
+    """Without personal teams there is no per-user group attachment to report."""
+    with (
+        patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user,
+        patch("app.session.get_team_member_budget", new_callable=AsyncMock) as mock_member,
+    ):
+        mock_user.return_value = {"user_id": "alice@example.com"}
+        mock_member.return_value = None
+        resp = client.get("/api/session/me", cookies=_authed_cookie())
+
+    assert resp.status_code == 200
+    assert resp.json()["access_groups"] == []

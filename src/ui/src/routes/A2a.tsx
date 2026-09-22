@@ -13,10 +13,8 @@
 import { useState } from 'react';
 import { Bot, ExternalLink } from 'lucide-react';
 
-import { RequiresDefaultKey } from '@/components/layout/RequiresDefaultKey';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TableSearch, matchesSearch } from '@/components/ui/table-search';
-import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useA2a } from '@/hooks/use-a2a';
 import { useSessionStore } from '@/stores/session';
 import type { A2aAgentRow } from '@/lib/api-types';
@@ -135,10 +133,8 @@ function StateCard({ heading, body }: { heading: string; body: string }) {
 }
 
 export function A2a() {
-  // Per-user catalog: gated on a default key (the gateway scopes the read through
-  // it). No default → render the prompt and DON'T fetch (useA2a disabled).
-  const hasDefault = useHasDefaultKey();
-  const query = useA2a(hasDefault);
+  // Per-user catalog: LiteLLM scopes the read to the caller's own key.
+  const query = useA2a();
   const me = useSessionStore((s) => s.me);
   const apiBase = me?.endpoint || FALLBACK_API_BASE;
   const [search, setSearch] = useState('');
@@ -162,15 +158,6 @@ export function A2a() {
     </div>
   );
 
-  // No default key → calm "set a default" prompt (no request fired).
-  if (!hasDefault) {
-    return (
-      <div className="flex flex-col gap-8">
-        {header}
-        <RequiresDefaultKey subject="A2A agents" />
-      </div>
-    );
-  }
 
   // Error (502 / network).
   if (query.isError) {

@@ -7,6 +7,7 @@ returns a key, user data, or any secret-bearing field (threat T-09-18).
 """
 
 from fastapi.testclient import TestClient
+from tests.as_defaults import AS_TEST_DEFAULTS
 
 
 def make_test_settings(**overrides):
@@ -21,6 +22,7 @@ def make_test_settings(**overrides):
         litellm_url="http://litellm.test",
         litellm_master_key="sk-test",
         api_public_url="https://api.test",
+        **AS_TEST_DEFAULTS,
     )
     base.update(overrides)
     return Settings(**base)

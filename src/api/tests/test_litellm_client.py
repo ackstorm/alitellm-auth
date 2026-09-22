@@ -26,6 +26,7 @@ from app.litellm_client import (
     _project_session_key,
     strip_bearer_prefix,
 )
+from tests.as_defaults import AS_TEST_DEFAULTS
 
 
 def _json_body(route) -> dict:
@@ -44,6 +45,7 @@ def make_settings(**kwargs):
         litellm_url="http://litellm.test",
         litellm_master_key="sk-admin",
         api_public_url="https://api.test",
+        **AS_TEST_DEFAULTS,
     )
     return Settings(**{**defaults, **kwargs})
 
@@ -1512,90 +1514,12 @@ async def test_list_litellm_a2a_agents_404_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_project_session_key_reads_is_default_from_metadata():
-    from app.litellm_client import _project_session_key
-
-    md = {"created_at": "2026-06-05T10:00:00+00:00", "is_default": True}
-    row = {"token": "hash-abc", "key_alias": "key-a", "metadata": md}
-    out = _project_session_key(row, md)
-    assert out["is_default"] is True
-    # Raw metadata is carried through for server-side read-modify-write (stripped
-    # by the session router before reaching the browser).
-    assert out["metadata"] is md
-
-
-def test_project_session_key_default_false_when_flag_absent():
-    from app.litellm_client import _project_session_key
-
-    out = _project_session_key({"token": "h", "key_alias": "k"}, {})
-    assert out["is_default"] is False
-
-
 def test_project_session_key_includes_team_id():
     from app.litellm_client import _project_session_key
 
     row = {"token": "h", "team_id": "run", "metadata": {}}
     out = _project_session_key(row, {})
     assert out["team_id"] == "run"
-
-
-# ---------------------------------------------------------------------------
-# A2: set_litellm_key_default — write path (/key/update metadata merge)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_set_litellm_key_default_sends_merged_metadata():
-    from app.litellm_client import set_litellm_key_default
-
-    settings = make_settings()
-    route = respx.post(f"{settings.litellm_url}/key/update").mock(
-        return_value=httpx.Response(200, json={"key": "hash-abc"})
-    )
-    await set_litellm_key_default(
-        "hash-abc",
-        settings,
-        is_default=True,
-        existing_metadata={"email": "a@b.com", "source": "token-factory"},
-    )
-    body = _json_body(route)
-    assert body["key"] == "hash-abc"
-    assert body["metadata"]["is_default"] is True
-    assert body["metadata"]["email"] == "a@b.com"  # preserved
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_set_litellm_key_default_false_removes_flag():
-    from app.litellm_client import set_litellm_key_default
-
-    settings = make_settings()
-    route = respx.post(f"{settings.litellm_url}/key/update").mock(
-        return_value=httpx.Response(200, json={})
-    )
-    await set_litellm_key_default(
-        "h",
-        settings,
-        is_default=False,
-        existing_metadata={"email": "a@b.com", "is_default": True},
-    )
-    body = _json_body(route)
-    assert body["metadata"].get("is_default") in (False, None)
-    assert body["metadata"]["email"] == "a@b.com"  # preserved
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_set_litellm_key_default_raises_on_5xx():
-    from app.litellm_client import set_litellm_key_default
-
-    settings = make_settings()
-    respx.post(f"{settings.litellm_url}/key/update").mock(
-        return_value=httpx.Response(500, text="boom")
-    )
-    with pytest.raises(httpx.HTTPStatusError):
-        await set_litellm_key_default("h", settings, is_default=True, existing_metadata={})
 
 
 # ---------------------------------------------------------------------------
@@ -1643,21 +1567,25 @@ async def test_update_litellm_key_team_raises_on_5xx():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_list_models_sends_x_user_id_header():
+async def test_list_models_calls_as_the_key_owner_without_the_master_key():
+    """The user's key alone. Sending the master key too would let LiteLLM answer
+    as admin, which is the failure the impersonation header used to have."""
     from app.litellm_client import list_litellm_models
 
     settings = make_settings()
     route = respx.get(f"{settings.litellm_url}/model_group/info").mock(
         return_value=httpx.Response(200, json={"data": []})
     )
-    await list_litellm_models(settings, user_id="alice@example.com")
-    assert route.calls.last.request.headers["x-user-id"] == "alice@example.com"
-    assert route.calls.last.request.headers["authorization"].startswith("Bearer ")
+    await list_litellm_models(settings, "sk-alice")
+    sent = route.calls.last.request.headers
+    assert sent["x-litellm-api-key"] == "sk-alice"
+    assert "authorization" not in sent
+    assert "x-user-id" not in sent
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_list_models_omits_x_user_id_when_none():
+async def test_list_models_falls_back_to_the_admin_view_without_a_key():
     from app.litellm_client import list_litellm_models
 
     settings = make_settings()
@@ -1670,21 +1598,22 @@ async def test_list_models_omits_x_user_id_when_none():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_list_mcp_sends_x_user_id_header():
+async def test_list_mcp_calls_as_the_key_owner_without_the_master_key():
     from app.litellm_client import list_litellm_mcp_servers
 
     settings = make_settings()
     route = respx.get(f"{settings.litellm_url}/v1/mcp/server").mock(
         return_value=httpx.Response(200, json=[])
     )
-    await list_litellm_mcp_servers(settings, user_id="alice@example.com")
-    assert route.calls.last.request.headers["x-user-id"] == "alice@example.com"
-    assert route.calls.last.request.headers["authorization"].startswith("Bearer ")
+    await list_litellm_mcp_servers(settings, "sk-alice")
+    sent = route.calls.last.request.headers
+    assert sent["x-litellm-api-key"] == "sk-alice"
+    assert "authorization" not in sent
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_list_mcp_omits_x_user_id_when_none():
+async def test_list_mcp_falls_back_to_the_admin_view_without_a_key():
     from app.litellm_client import list_litellm_mcp_servers
 
     settings = make_settings()
@@ -1957,7 +1886,7 @@ def test_deny_all_permissions_shape():
     """An empty grant is ALL for models/agents, so 'nothing' needs sentinels."""
     from app.litellm_client import DENY_ALL_AGENT, DENY_ALL_MODEL, deny_all_object_permission
 
-    assert DENY_ALL_MODEL == "__deny_all__"
+    assert DENY_ALL_MODEL == "no-default-models"  # LiteLLM filters it from catalogs
     assert DENY_ALL_AGENT == "00000000-0000-0000-0000-000000000000"
 
     perm = deny_all_object_permission()
@@ -2478,3 +2407,48 @@ async def test_get_team_budget_none_when_nothing_configured():
     from app.litellm_client import get_team_budget
 
     assert await get_team_budget("user-alice@example.com", settings) is None
+
+
+# ---------------------------------------------------------------------------
+# get_team_access_groups — the names behind a personal team's capability
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_access_groups_reads_names_from_team_info():
+    settings = make_settings()
+    respx.get(f"{settings.litellm_url}/team/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "team_info": {
+                    "team_id": "user-alice@example.com",
+                    "access_group_details": [
+                        {"access_group_id": "b", "access_group_name": "team-run"},
+                        {"access_group_id": "a", "access_group_name": "team-default"},
+                        {"access_group_id": "c"},
+                    ],
+                }
+            },
+        )
+    )
+    from app.litellm_client import get_team_access_groups
+
+    assert await get_team_access_groups("user-alice@example.com", settings) == [
+        "team-default",
+        "team-run",
+    ]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_team_access_groups_empty_when_unreadable():
+    """Under-report capability rather than invent it."""
+    settings = make_settings()
+    respx.get(f"{settings.litellm_url}/team/info").mock(
+        return_value=httpx.Response(404, json={"error": "nope"})
+    )
+    from app.litellm_client import get_team_access_groups
+
+    assert await get_team_access_groups("user-ghost@example.com", settings) == []

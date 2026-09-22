@@ -43,7 +43,6 @@ function makeKey(overrides: Partial<KeyRow> = {}): KeyRow {
     created_at: null,
     expires: null,
     last_used: null,
-    is_default: false,
     ...overrides,
   };
 }
@@ -157,7 +156,7 @@ describe('DeleteKeyModal — confirm error', () => {
     setMutation(mutateAsync);
     const onClose = vi.fn();
     render(
-      <DeleteKeyModal keyToDelete={makeKey({ id: 'key-abc', is_default: true })} onClose={onClose} />,
+      <DeleteKeyModal keyToDelete={makeKey({ id: 'key-abc' })} onClose={onClose} />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Revoke' }));

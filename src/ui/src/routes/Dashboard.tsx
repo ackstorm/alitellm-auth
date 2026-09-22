@@ -27,13 +27,11 @@ import { KpiRow } from '@/components/stats/KpiRow';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useKeys } from '@/hooks/use-keys';
 import { useStats } from '@/hooks/use-stats';
-import { useTeams } from '@/hooks/use-teams';
 import type {
   KeyRow,
   SessionLimits,
   SessionMe,
   SessionSpend,
-  Team,
 } from '@/lib/api-types';
 import { BudgetMeter } from '@/components/ui/budget-meter';
 import { formatCurrency, formatInt } from '@/lib/format';
@@ -86,30 +84,34 @@ function EndpointChip({ endpoint }: { endpoint: string }) {
   );
 }
 
-// ── KeysTeamsTile ────────────────────────────────────────────────────────────
+// ── KeysGroupsTile ───────────────────────────────────────────────────────────
 // The 4th KPI-row cell on the KEYS tab (swaps in for AVG COST). Shares the
 // KpiCard card chrome (see stats/KpiRow) so it reads as the same component: a
 // tinted Key accent-chip + 11px caption, the active-key COUNT as the 24px value,
-// and — below — the distinct teams those keys belong to as colored pills
-// (merging the old separate Active-keys + Teams tiles into one). Count is
-// EM_DASH until the keys query resolves; pills fall back to me.team_id, then
-// EM_DASH, when no key carries a team.
-function KeysTeamsTile({
+// and — below — the access groups that grant this user their models, MCP servers
+// and agents.
+//
+// It deliberately does NOT derive teams from the keys. Every key a user owns now
+// lives in their own personal team, which grants nothing by itself: the capability
+// arrives through the access groups attached to it. Listing the personal team back
+// to its owner says only "these are yours", which they know.
+// Access groups are named `team-<something>` by the operator that creates them.
+// That prefix is our bookkeeping, not part of the name a user recognises.
+function displayGroup(name: string): string {
+  return name.startsWith('team-') ? name.slice('team-'.length) : name;
+}
+
+function KeysGroupsTile({
   keyRows,
-  teams,
+  accessGroups,
   fallback,
 }: {
   keyRows: KeyRow[] | null;
-  teams: Team[];
+  accessGroups: string[];
   fallback: string;
 }) {
   const active = keyRows ? keyRows.filter((k) => !isRevoked(k)) : null;
   const count = active ? formatInt(active.length) : EM_DASH;
-  // Distinct, order-preserving team ids across the active keys (null team_id =
-  // not team-scoped → skipped), resolved to a display alias via the teams list.
-  const teamIds = active
-    ? [...new Set(active.map((k) => k.team_id).filter((id): id is string => !!id))]
-    : [];
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
       <div className="flex items-center gap-2">
@@ -130,11 +132,11 @@ function KeysTeamsTile({
           </span>
         ) : null}
       </div>
-      {teamIds.length > 0 ? (
+      {accessGroups.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
-          {teamIds.map((id, i) => (
+          {accessGroups.map((name, i) => (
             <span
-              key={id}
+              key={name}
               data-slot="team-pill"
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-elevated px-2 py-0.5 font-sans text-xs font-medium text-text-secondary"
             >
@@ -143,7 +145,7 @@ function KeysTeamsTile({
                 style={{ background: teamColorVar(i) }}
                 aria-hidden="true"
               />
-              {teams.find((t) => t.id === id)?.alias ?? id}
+              {displayGroup(name)}
             </span>
           ))}
         </div>
@@ -226,7 +228,6 @@ function BudgetBar({
 
 export function Dashboard({ me }: DashboardProps) {
   const query = useKeys();
-  const { data: teams } = useTeams();
   const openModal = useCreateKeyModalStore((s) => s.openModal);
 
   // The dashboard owns the delete target; KeysTable's per-row revoke action
@@ -235,7 +236,7 @@ export function Dashboard({ me }: DashboardProps) {
 
   // ── Metric tiles (DASH-06) ──────────────────────────────────────────────────
   // The top row is the STATS KPI cards (requests/tokens/spend — with deltas +
-  // sub-notes) over the month-to-date range, plus a combined keys+teams tile in
+  // sub-notes) over the month-to-date range, plus a combined keys+groups tile in
   // the 4th slot. The range is computed once on mount (a fresh `new Date()` each
   // render would thrash the query key). Pending/errored figures degrade to
   // EM_DASH inside KpiCard automatically, so no per-tile guards are needed here.
@@ -253,18 +254,18 @@ export function Dashboard({ me }: DashboardProps) {
       </div>
 
       {/* DASH-06: metric header — the STATS KPI cards (requests/tokens/spend,
-          with deltas) over MTD, with a combined keys+teams tile in the 4th slot
+          with deltas) over MTD, with a combined keys+groups tile in the 4th slot
           in place of AVG COST. */}
       <KpiRow
         totals={stats.isSuccess ? stats.data?.totals : undefined}
         series={stats.isSuccess ? stats.data?.series : undefined}
         fourthCard={
-          <KeysTeamsTile
+          <KeysGroupsTile
             keyRows={
               query.isSuccess && query.data ? selectKeyRows(query.data) : null
             }
-            teams={teams ?? []}
-            fallback={me.team_id || EM_DASH}
+            accessGroups={me.access_groups ?? []}
+            fallback="No access groups — ask an admin for access"
           />
         }
       />

@@ -2,6 +2,61 @@
 
 ## [unreleased]
 
+## [0.18.0] - 2026-09-22
+
+### Changed
+
+- **Per-user catalogs are read under the caller's own LiteLLM key.** Models,
+  MCP servers, A2A agents, keys and spend are fetched with
+  `x-litellm-api-key: <the user's key>` and no master key at all, so LiteLLM's
+  native auth scopes every answer by the key's own team and access groups. This
+  replaces the `sso_key_swapper` impersonation path (master key +
+  `x-user-id`), which failed **OPEN**: wherever the gateway custom auth was
+  absent, the master key authenticated as full admin and the "per-user" catalog
+  was silently the global one. A virtual key has no such mode. The key itself
+  comes from the AS store via `app/internal.py::resolve_front_key` — the same
+  credential the authz proxy injects — and is never taken from client input.
+- **The deny-all sentinel is now LiteLLM's own `no-default-models`** instead of
+  `__deny_all__`. `get_complete_model_list` filters exactly this value out of
+  every catalog it builds, so a deny-all team lists zero models rather than one
+  phantom row that every OpenAI-compatible client renders as a real model.
+  Inference is refused identically either way (403 `team_model_access_denied`).
+- The dashboard's teams tile now shows **access groups**, read from
+  `/team/info.access_group_details`, with the operator's `team-` bookkeeping
+  prefix stripped. It no longer derives a team list from the user's keys.
+- Keys marked `managed: false` (foreign `pkid_`/`ekid_` keys) carry an
+  `EXTERNAL` badge, so a row with no actions explains itself.
+
+### Added
+
+- `GET /api/session/me` returns `access_groups`: the names of the access groups
+  attached to the caller's personal team. Empty on the shared-team path and
+  empty when the team could not be read (under-report, never invent).
+
+### Removed
+
+- **The default-key concept, end to end.** `POST /api/session/keys/{id}/default`,
+  the `is_default` field on every key row, the auto-assign on first key, the
+  409 guard against deleting a default, and in the console the DEFAULT badge,
+  the "Make default" action, `useMakeDefault`/`useHasDefaultKey` and the
+  `RequiresDefaultKey` gate on Models/MCPs/A2A/How-to/Chat. Nothing needs a
+  marked key any more: the console resolves the user's key from the session,
+  and Chat forwards the user's own identity-provider token.
+- The TEAM column and the "Change team" action on the keys table. Keys are not
+  assigned to a team by this console any more.
+- `_scoping_enforced` and the `scoping_unverified` degrade in the session API,
+  which existed only to stop `/spend/logs` returning every user's rows when the
+  impersonation contract was unenforced. The key is the scope now.
+
+### Breaking
+
+- **`AS_ENABLED` is gone; the OAuth front door is always on.** The console
+  resolves each user's LiteLLM key out of the AS store, so there is no
+  deployment that works without it. `AS_SIGNING_KEY_PEM`,
+  `AS_KEY_ENCRYPTION_KEY`, `AS_REDIS_URL` and `INTERNAL_TOKEN` are now
+  unconditionally required and the pod refuses to start without them. The
+  chart's `authServer.enabled` value was removed with it.
+
 ## [0.17.0] - 2026-09-22
 
 ### Added

@@ -14,10 +14,8 @@
 import { useState } from 'react';
 import { Boxes, ExternalLink } from 'lucide-react';
 
-import { RequiresDefaultKey } from '@/components/layout/RequiresDefaultKey';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TableSearch, matchesSearch } from '@/components/ui/table-search';
-import { useHasDefaultKey } from '@/hooks/use-keys';
 import { useMcp } from '@/hooks/use-mcp';
 import type { McpServerRow } from '@/lib/api-types';
 import { cn } from '@/lib/utils';
@@ -186,10 +184,8 @@ function StateCard({ heading, body }: { heading: string; body: string }) {
 }
 
 export function Mcp() {
-  // Per-user catalog: gated on a default key (the gateway scopes the read through
-  // it). No default → render the prompt and DON'T fetch (useMcp disabled).
-  const hasDefault = useHasDefaultKey();
-  const query = useMcp(hasDefault);
+  // Per-user catalog: LiteLLM scopes the read to the caller's own key.
+  const query = useMcp();
   const [search, setSearch] = useState('');
   const header = (
     <div>
@@ -202,15 +198,6 @@ export function Mcp() {
     </div>
   );
 
-  // No default key → calm "set a default" prompt (no request fired).
-  if (!hasDefault) {
-    return (
-      <div className="flex flex-col gap-8">
-        {header}
-        <RequiresDefaultKey subject="MCP servers" />
-      </div>
-    );
-  }
 
   // Error (502 / network).
   if (query.isError) {

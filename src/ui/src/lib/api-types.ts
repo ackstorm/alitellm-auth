@@ -36,6 +36,13 @@ export interface SessionMe {
   email: string;
   name: string;
   team_id: string;
+  /**
+   * Names of the access groups attached to the personal team — the capability
+   * the user actually has. The team itself grants nothing, so this (not the
+   * team) is what the console shows. Empty on the shared-team deployment path,
+   * and empty when the team could not be read (under-report, never invent).
+   */
+  access_groups: string[];
   endpoint: string;
   limits: SessionLimits | null;
   spend: SessionSpend;
@@ -72,12 +79,10 @@ export interface KeyRow {
   expires: string | null;
   /** LiteLLM per-key last-used timestamp (its `last_active`); null until used. */
   last_used: string | null;
-  /** Explicit default-key flag (metadata-backed; session API derives it). */
-  is_default: boolean;
   /**
    * True only for keys THIS service minted (metadata.source == "token-factory").
-   * Foreign keys (e.g. ekid_/pkid_) are shown but locked: no delete, make-default,
-   * or change-team — only disable/enable. Backend enforces (409); the UI hides the
+   * Foreign keys (e.g. ekid_/pkid_) are shown but locked: no delete, only
+   * disable/enable. Backend enforces (409); the UI marks them and hides the
    * locked actions so users don't hit the error.
    */
   managed?: boolean;
@@ -120,12 +125,6 @@ export interface CreateKeyResponse {
 
 /** DELETE /api/session/keys/{id} response. session.py::session_delete_key. */
 export interface DeleteKeyResponse {
-  status: string;
-  id: string;
-}
-
-/** POST /api/session/keys/{id}/default response. session.py::session_make_default. */
-export interface MakeDefaultResponse {
   status: string;
   id: string;
 }

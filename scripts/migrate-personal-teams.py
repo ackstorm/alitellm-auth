@@ -17,7 +17,7 @@ import time
 
 import httpx
 
-DENY_ALL_MODEL = "__deny_all__"
+DENY_ALL_MODEL = "no-default-models"
 DENY_ALL_AGENT = "00000000-0000-0000-0000-000000000000"
 TEAM_METADATA = {"source": "token-factory", "alt_managed": "user-team"}
 ACH_KEY_PREFIXES = ("pkid_", "ekid_")
@@ -26,7 +26,7 @@ ACH_TEAM_PREFIX = "ach-"
 EPILOG = """
 WHAT IT DOES
   For every virtual key this service minted, ensures the owner's personal team
-  exists (created CLOSED: models=[__deny_all__], deny-all object_permission)
+  exists (created CLOSED: models=[no-default-models], deny-all object_permission)
   and then POST /key/update to move the key into it.
 
   It does NOT attach access groups. The service attaches them on the user's

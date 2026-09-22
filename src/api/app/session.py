@@ -41,6 +41,7 @@ from app.litellm_client import (
     fetch_user_spend_logs,
     generate_litellm_key,
     get_litellm_user,
+    get_team_access_groups,
     get_team_budget,
     get_team_member_budget,
     list_litellm_a2a_agents,
@@ -48,10 +49,13 @@ from app.litellm_client import (
     list_litellm_models,
     list_session_keys,
     list_user_teams,
-    set_litellm_key_default,
     update_litellm_key_team,
     user_daily_activity,
-    verify_user_scoping_contract,
+)
+from app.internal import (
+    FrontKeyMintInProgress,
+    FrontKeyUnavailable,
+    resolve_front_key,
 )
 from app.stats import (
     aggregate_window,
@@ -285,12 +289,17 @@ async def session_me(
     litellm_user: dict = {}
     member_budget: dict | None = None
     team_budget: dict | None = None
+    access_groups: list[str] = []
     try:
-        user_res, budget_res = await asyncio.gather(
+        user_res, budget_res, groups_res = await asyncio.gather(
             get_litellm_user(email, settings),
             get_team_budget(team_id, settings)
             if personal
             else get_team_member_budget(email, settings),
+            # The capability the user actually has. Only meaningful on a personal
+            # team, where the team itself grants nothing and every model, MCP
+            # server and agent arrives through an attached group.
+            get_team_access_groups(team_id, settings) if personal else _no_access_groups(),
             return_exceptions=True,
         )
         if isinstance(user_res, LiteLLMUserNotFound):
@@ -305,6 +314,10 @@ async def session_me(
             team_budget = budget_res
         else:
             member_budget = budget_res
+        if isinstance(groups_res, BaseException):
+            logger.warning("session_me: access-group fetch failed for %s: %s", email, groups_res)
+        elif isinstance(groups_res, list):
+            access_groups = groups_res
     except Exception as exc:  # defensive: gather itself should not raise
         logger.error("session_me: budget gather failed for %s: %s", email, exc)
 
@@ -326,6 +339,7 @@ async def session_me(
             "name": name,
             "groups": groups,
             "team_id": team_id,
+            "access_groups": access_groups,
             "endpoint": settings.api_public_url,
             "limits": limits,
             "spend": spend,
@@ -348,7 +362,6 @@ async def session_list_keys(
     keys = await _relist_or_502(email, settings, "session_list_keys: list failed")
     # D-17: never expose the raw sk- ("key"), the server-side delete hash ("token"),
     # nor the raw "metadata" (may hold factory user_meta_extra) to the browser.
-    # The derived "is_default" bool DOES go to the browser.
     safe_keys = [
         {k: v for k, v in kd.items() if k not in ("key", "token", "metadata")} for kd in keys
     ]
@@ -509,35 +522,6 @@ async def _mint_session_key(
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
 
-async def _auto_default_new_key(email: str, settings: Settings, key_data: dict) -> bool:
-    """If the user has NO default key, make the key we JUST created the default.
-
-    This is a presence check, not a positional one — it does not matter whether
-    this is the 1st key or the 5th; whenever no default exists, the new key
-    becomes it (so the very first key is default, and the user is never left
-    without one). An existing default is never silently reassigned (that stays
-    explicit-only via the kebab). Non-fatal: the key is already minted, so any
-    failure here just leaves it un-defaulted (the user can set one manually).
-    """
-    try:
-        user_keys = await list_session_keys(email, settings)
-        if any(k.get("is_default") for k in user_keys):
-            return False
-        new_key = next((k for k in user_keys if k.get("id") == key_data["id"]), None)
-        if new_key is None:
-            return False
-        await set_litellm_key_default(
-            new_key["token"],
-            settings,
-            is_default=True,
-            existing_metadata=new_key.get("metadata") or {},
-        )
-        return True
-    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-        logger.warning("session_create_key: auto-default failed for %s: %s", email, exc)
-        return False
-
-
 @router.post("/keys", response_model=None)
 async def session_create_key(
     request: Request,
@@ -562,7 +546,6 @@ async def session_create_key(
     team_id = await _validate_key_team(email, body.team_id, settings)
 
     key_data = await _mint_session_key(email, settings, name, duration, alias, team_id)
-    is_default = await _auto_default_new_key(email, settings, key_data)
 
     # Return the sk- ONCE — it is never stored and cannot be recovered (SAPI-04)
     return JSONResponse(
@@ -570,7 +553,6 @@ async def session_create_key(
             "key": key_data["key"],
             "id": key_data["id"],
             "team_id": key_data.get("team_id"),
-            "is_default": is_default,
         }
     )
 
@@ -600,12 +582,6 @@ async def session_delete_key(
         # D-12: 403 regardless of whether the key exists elsewhere or nowhere
         raise HTTPException(status_code=403, detail="Not authorized")
     _require_managed(target)
-    if target.get("is_default"):
-        # The default key is undeletable until another key is promoted.
-        raise HTTPException(
-            status_code=409,
-            detail="Cannot delete the default key. Make another key default first.",
-        )
     # /key/list returns the hashed "token" (not the sk- plaintext); /key/delete accepts it.
     target_token = target.get("token")
 
@@ -619,61 +595,6 @@ async def session_delete_key(
         raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
 
     return JSONResponse({"status": "deleted", "id": key_id})
-
-
-@router.post("/keys/{key_id}/default", response_model=None)
-async def session_make_default(
-    request: Request,
-    key_id: str,
-    user: dict = Depends(require_session_user),
-) -> JSONResponse:
-    """Promote an owned key to be the user's default (explicit-only).
-
-    Sets is_default=True on the target and clears it on any other key that
-    currently has it. 403 for a foreign/unknown id (no existence leak, D-12).
-    The default is metadata-backed; session_create_key auto-assigns a newly
-    created key ONLY when no default currently exists (presence check, not
-    positional) — reassigning between existing keys is explicit (here).
-    """
-    settings: Settings = request.app.state.settings
-    assert_same_origin(request, settings)
-    email = user["email"]
-
-    user_keys = await _relist_or_502(email, settings, "session_make_default: relist failed")
-
-    target = next((k for k in user_keys if k.get("id") == key_id), None)
-    if target is None:
-        # D-12: 403 regardless of whether the key exists elsewhere or nowhere
-        raise HTTPException(status_code=403, detail="Not authorized")
-    _require_managed(target)
-
-    try:
-        # Demote any OTHER current default FIRST, then promote the target LAST.
-        # Order matters (#5): if a demote fails mid-loop we 502 with the target
-        # not yet promoted (≤1 default remains), never the two-default wedge that
-        # would 409-block deletion of both keys.
-        for k in user_keys:
-            if k.get("id") != key_id and k.get("is_default"):
-                await set_litellm_key_default(
-                    k["token"],
-                    settings,
-                    is_default=False,
-                    existing_metadata=k.get("metadata") or {},
-                )
-        await set_litellm_key_default(
-            target["token"],
-            settings,
-            is_default=True,
-            existing_metadata=target.get("metadata") or {},
-        )
-    except httpx.HTTPStatusError as exc:
-        logger.error("session_make_default: update failed for %s: %s", key_id, exc)
-        raise HTTPException(status_code=502, detail="Failed to set default key")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="LiteLLM backend unreachable")
-
-    logger.info("session_make_default: user %s set default key %s", email, key_id)
-    return JSONResponse({"status": "default", "id": key_id})
 
 
 @router.post("/keys/{key_id}/block", response_model=None)
@@ -937,24 +858,25 @@ def _latency_unavailable(reason: str) -> dict[str, Any]:
     }
 
 
-async def _scoping_enforced(request: Request, settings: Settings) -> bool:
-    """True ONLY when the sso_key_swapper impersonation contract is verified enforced.
+async def _no_access_groups() -> list[str]:
+    """The shared-team path has no access groups to report."""
+    return []
 
-    /spend/logs via master+x-user-id is safe ONLY when the custom auth is installed;
-    without it, master+x-user-id authenticates as full admin and /spend/logs returns
-    EVERY user's rows (cross-user leak + the ~83 MB OOM). So the latency route must
-    NEVER hit /spend/logs unless this returns True.
 
-    Caches the resolved status on app.state (probe = one cheap /v1/models GET) so we
-    verify at most once per process; re-probes only while "unknown" (LiteLLM was
-    unreachable at check time). A deployment installing the swapper later is picked up
-    on the next pod restart, mirroring the startup contract check.
+async def _user_key(email: str, settings: Settings) -> str:
+    """The caller's own LiteLLM key, for calls that must answer AS them.
+
+    Every per-user read (models, MCP, A2A, spend logs) goes out under this key
+    rather than the master key, so LiteLLM itself decides what the user may see.
+    It is the SAME key the authz proxy hands their CLI clients, which is what
+    makes the console's answer and the gateway's answer the same answer.
     """
-    cached = getattr(request.app.state, "scoping_contract", "unknown")
-    if cached == "unknown":
-        cached = await verify_user_scoping_contract(settings)
-        request.app.state.scoping_contract = cached
-    return cached == "enforced"
+    try:
+        return await resolve_front_key(email, settings)
+    except FrontKeyMintInProgress:
+        raise HTTPException(status_code=503, detail="key is being created, retry") from None
+    except FrontKeyUnavailable:
+        raise HTTPException(status_code=502, detail="LiteLLM key unavailable") from None
 
 
 @router.get("/latency", response_model=None)
@@ -984,7 +906,7 @@ async def session_latency(
     A window with more pages than the cap is labelled sampled=true (a recent sample).
 
     Degrades to a calm {available: false} 200 (never breaks the page) when the
-    scoping contract is unverified (SECURITY gate — see _scoping_enforced) or the
+    user's key cannot be resolved or the
     /spend/logs fetch fails. An empty window is a valid {available: true} with null
     latency figures.
     """
@@ -996,14 +918,9 @@ async def session_latency(
     span = (end - start).days + 1
     window = {"start": start.isoformat(), "end": end.isoformat(), "days": span}
 
-    # SECURITY gate: never touch /spend/logs unless impersonation scoping is enforced.
-    if not await _scoping_enforced(request, settings):
-        logger.info("session_latency: scoping contract unverified, degrading for %s", email)
-        return JSONResponse(_latency_unavailable("scoping_unverified"))
-
     try:
         rows, truncated = await fetch_user_spend_logs(
-            email, settings, start.isoformat(), end.isoformat()
+            await _user_key(email, settings), settings, start.isoformat(), end.isoformat()
         )
     except (httpx.HTTPStatusError, httpx.RequestError) as exc:
         logger.warning("session_latency: /spend/logs fetch failed for %s: %s", email, exc)
@@ -1028,7 +945,7 @@ async def session_models(
     """
     settings: Settings = request.app.state.settings
     try:
-        models = await list_litellm_models(settings, user_id=user["email"])
+        models = await list_litellm_models(settings, await _user_key(user["email"], settings))
     except (httpx.HTTPStatusError, httpx.RequestError) as exc:
         logger.error("session_models: catalog fetch failed: %s", exc)
         raise HTTPException(status_code=502, detail="Model catalog unavailable")
@@ -1036,7 +953,7 @@ async def session_models(
 
 
 async def _degrading_catalog(
-    settings: Settings, *, lister, user_id: str, key: str, label: str
+    settings: Settings, *, lister, api_key: str, key: str, label: str
 ) -> JSONResponse:
     """Run a per-user, read-only catalog lister and shape the response (MCP / A2A).
 
@@ -1044,7 +961,7 @@ async def _degrading_catalog(
     enabled); 5xx / unreachable -> 502. ``label`` names the feature in logs/detail.
     """
     try:
-        items = await lister(settings, user_id=user_id)
+        items = await lister(settings, api_key)
     except httpx.HTTPStatusError as exc:
         if exc.response is not None and exc.response.status_code == 404:
             logger.info("%s catalog unavailable (404), degrading", label)
@@ -1076,7 +993,7 @@ async def session_mcp(
     return await _degrading_catalog(
         settings,
         lister=list_litellm_mcp_servers,
-        user_id=user["email"],
+        api_key=await _user_key(user["email"], settings),
         key="servers",
         label="MCP",
     )
@@ -1102,7 +1019,7 @@ async def session_a2a(
     return await _degrading_catalog(
         settings,
         lister=list_litellm_a2a_agents,
-        user_id=user["email"],
+        api_key=await _user_key(user["email"], settings),
         key="agents",
         label="A2A",
     )

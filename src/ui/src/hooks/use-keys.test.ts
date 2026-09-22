@@ -27,9 +27,7 @@ import {
   useChangeKeyTeam,
   useCreateKey,
   useDeleteKey,
-  useHasDefaultKey,
   useKeys,
-  useMakeDefault,
   useToggleKeyBlock,
 } from './use-keys';
 import { initialFreshKeysState, useFreshKeysStore } from '@/stores/fresh-keys';
@@ -52,7 +50,6 @@ const ROW: KeyRow = {
   created_at: '2026-03-01T10:00:00+00:00',
   expires: null,
   last_used: null,
-  is_default: false,
 };
 
 /** Build a fresh QueryClient with retries off so error tests resolve fast. */
@@ -202,53 +199,6 @@ describe('useDeleteKey', () => {
   });
 });
 
-describe('useMakeDefault', () => {
-  it('200 -> POSTs the default endpoint AND invalidates the keys query', async () => {
-    postJsonMock.mockResolvedValue({
-      status: 200,
-      data: { status: 'default', id: 'key-1' },
-    });
-
-    const client = makeClient();
-    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
-
-    const { result } = renderHook(() => useMakeDefault(), {
-      wrapper: wrapperFor(client),
-    });
-
-    await result.current.mutateAsync('key-1');
-
-    expect(postJsonMock).toHaveBeenCalledWith('/api/session/keys/key-1/default', {});
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: KEYS_QUERY_KEY });
-  });
-
-  it('non-200 (502) -> rejects', async () => {
-    postJsonMock.mockResolvedValue({ status: 502, data: null });
-
-    const { result } = renderHook(() => useMakeDefault(), {
-      wrapper: wrapperFor(makeClient()),
-    });
-
-    await expect(result.current.mutateAsync('key-x')).rejects.toThrow();
-  });
-
-  it('non-200 -> pushes an error toast', async () => {
-    postJsonMock.mockResolvedValue({ status: 502, data: null });
-    const toastSpy = vi.spyOn(useToastStore.getState(), 'toast');
-
-    const { result } = renderHook(() => useMakeDefault(), {
-      wrapper: wrapperFor(makeClient()),
-    });
-
-    await expect(result.current.mutateAsync('key-x')).rejects.toThrow();
-    await waitFor(() =>
-      expect(toastSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: 'error' }),
-      ),
-    );
-    toastSpy.mockRestore();
-  });
-});
 
 describe('useChangeKeyTeam', () => {
   it('200 -> POSTs the team endpoint AND invalidates the keys query', async () => {
@@ -325,32 +275,3 @@ describe('useToggleKeyBlock', () => {
   });
 });
 
-describe('useHasDefaultKey', () => {
-  it('true once a key with is_default loads', async () => {
-    getJsonMock.mockResolvedValue({
-      status: 200,
-      data: { keys: [{ ...ROW, is_default: true }] },
-    });
-    const { result } = renderHook(() => useHasDefaultKey(), {
-      wrapper: wrapperFor(makeClient()),
-    });
-    await waitFor(() => expect(result.current).toBe(true));
-  });
-
-  it('false when keys load but none is_default', async () => {
-    getJsonMock.mockResolvedValue({ status: 200, data: { keys: [ROW] } });
-    const { result } = renderHook(() => useHasDefaultKey(), {
-      wrapper: wrapperFor(makeClient()),
-    });
-    await waitFor(() => expect(getJsonMock).toHaveBeenCalled());
-    expect(result.current).toBe(false);
-  });
-
-  it('false while pending / on error (never throws)', () => {
-    getJsonMock.mockResolvedValue({ status: 500, data: null });
-    const { result } = renderHook(() => useHasDefaultKey(), {
-      wrapper: wrapperFor(makeClient()),
-    });
-    expect(result.current).toBe(false);
-  });
-});

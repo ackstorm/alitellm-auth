@@ -22,7 +22,6 @@ function userKey(over: Partial<KeyRow> = {}): KeyRow {
     created_at: null,
     expires: null,
     last_used: null,
-    is_default: false,
     ...over,
   };
 }

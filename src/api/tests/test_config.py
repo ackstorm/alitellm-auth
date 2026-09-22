@@ -1,11 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
-from cryptography.fernet import Fernet
 import pytest
 from unittest.mock import patch
+
+from tests.as_defaults import AS_TEST_DEFAULTS
+
+# The front door is not optional, so every Settings built here has to carry its
+# four secrets. Mirrors AS_TEST_DEFAULTS in the env-var spelling get_settings reads.
+AS_ENV = {
+    "AS_REDIS_URL": AS_TEST_DEFAULTS["as_redis_url"],
+    "AS_SIGNING_KEY_PEM": AS_TEST_DEFAULTS["as_signing_key_pem"],
+    "AS_KEY_ENCRYPTION_KEY": AS_TEST_DEFAULTS["as_key_encryption_key"],
+    "INTERNAL_TOKEN": AS_TEST_DEFAULTS["internal_token"],
+}
 
 
 def test_settings_load_from_env():
     env = {
+        **AS_ENV,
         "APP_BASE_URL": "http://localhost:8080",
         "SESSION_SECRET_KEY": "test-secret-32-chars-padding-xxx",
         "OAUTH_ISSUER_URL": "http://dex.test/dex",
@@ -39,6 +50,7 @@ def test_settings_missing_required_raises():
 def test_brand_link_fields_default_neutral():
     """Brand/link fields default to alitellm-auth-neutral values when unset (D-01)."""
     env = {
+        **AS_ENV,
         "APP_BASE_URL": "http://localhost:8080",
         "SESSION_SECRET_KEY": "test-secret-32-chars-padding-xxx",
         "OAUTH_ISSUER_URL": "http://dex.test/dex",
@@ -66,6 +78,7 @@ def test_brand_link_fields_default_neutral():
 def test_brand_link_fields_load_from_env():
     """Brand/link fields load from environment variables."""
     env = {
+        **AS_ENV,
         "APP_BASE_URL": "http://localhost:8080",
         "SESSION_SECRET_KEY": "test-secret-32-chars-padding-xxx",
         "OAUTH_ISSUER_URL": "http://dex.test/dex",
@@ -105,6 +118,7 @@ def test_settings_team_id_property():
         litellm_url="http://litellm.test",
         litellm_master_key="sk-test",
         api_public_url="https://api.test",
+        **AS_TEST_DEFAULTS,
     )
     # Defaults to "default", decoupled from oauth_client_id.
     assert Settings(**base).team_id == "default"
@@ -121,16 +135,16 @@ def _base(**over):
         oauth_client_secret="test-secret",
         litellm_url="http://litellm.test",
         litellm_master_key="sk-test",
+        **AS_TEST_DEFAULTS,
     )
     kw.update(over)
     return kw
 
 
-def test_as_is_off_by_default():
+def test_as_defaults_are_derived_from_the_app():
     from app.config import Settings
 
     s = Settings(**_base())
-    assert s.as_enabled is False
     assert s.as_issuer == "http://localhost:8080"
     assert s.as_refresh_ttl_seconds == 7 * 86400
 
@@ -145,18 +159,10 @@ def test_as_issuer_url_overrides_app_base_url_and_strips_slash():
 
 
 def _as_on(**over):
-    kw = dict(
-        as_enabled=True,
-        as_signing_key_pem="-----BEGIN",
-        as_key_encryption_key=Fernet.generate_key().decode(),
-        as_redis_url="memory://",
-        internal_token="shh",
-    )
-    kw.update(over)
-    return _base(**kw)
+    return _base(**over)
 
 
-def test_as_enabled_requires_every_secret():
+def test_the_front_door_requires_every_secret():
     from pydantic import ValidationError
 
     from app.config import Settings
@@ -172,7 +178,7 @@ def test_as_enabled_requires_every_secret():
             Settings(**_as_on(**{field: ""}))
 
 
-def test_as_enabled_rejects_an_invalid_fernet_key_at_startup():
+def test_the_front_door_rejects_an_invalid_fernet_key_at_startup():
     from pydantic import ValidationError
 
     from app.config import Settings
@@ -198,6 +204,7 @@ def _openwork_base(**overrides):
         oauth_client_secret="test-secret",
         litellm_url="http://litellm.test",
         litellm_master_key="sk-test",
+        **AS_TEST_DEFAULTS,
     )
     base.update(overrides)
     return base
@@ -219,16 +226,6 @@ def test_openwork_accent_color_must_be_a_radix_family():
 
     with pytest.raises(ValidationError):
         Settings(**_openwork_base(openwork_accent_color="#ff00ff"))
-
-
-def test_openwork_enabled_requires_a_store_url():
-    from pydantic import ValidationError
-
-    from app.config import Settings
-
-    with pytest.raises(ValidationError, match="AS_REDIS_URL"):
-        Settings(**_openwork_base(openwork_enabled=True))
-    assert Settings(**_openwork_base(openwork_enabled=True, as_redis_url="memory://"))
 
 
 def test_personal_team_settings_default_off():

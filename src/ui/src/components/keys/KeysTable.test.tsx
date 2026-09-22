@@ -10,72 +10,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 
-import type { BlockKeyResponse, KeyRow, MakeDefaultResponse } from '@/lib/api-types';
+import type { BlockKeyResponse, KeyRow } from '@/lib/api-types';
 import { relativeTime } from '@/lib/relative-time';
 
 // Mock the data hook — each test sets useKeys's return value.
 vi.mock('@/hooks/use-keys', () => ({
   useKeys: vi.fn(),
-  useMakeDefault: vi.fn(),
   useToggleKeyBlock: vi.fn(),
-  useChangeKeyTeam: vi.fn(),
   KEYS_QUERY_KEY: ['session', 'keys'],
 }));
 
-// Mock the teams hook — KeysTable reads it to populate the Change-team picker
-// and to decide whether to surface the action at all.
-vi.mock('@/hooks/use-teams', () => ({
-  useTeams: vi.fn(),
-}));
-
 import {
-  useChangeKeyTeam,
   useKeys,
-  useMakeDefault,
   useToggleKeyBlock,
 } from '@/hooks/use-keys';
-import { useTeams } from '@/hooks/use-teams';
-import type { ChangeKeyTeamResponse, Team } from '@/lib/api-types';
-import type { UseQueryResult as UseQueryResultTeams } from '@tanstack/react-query';
 import { KeysTable } from './KeysTable';
 
 const useKeysMock = vi.mocked(useKeys);
-const useMakeDefaultMock = vi.mocked(useMakeDefault);
 const useToggleKeyBlockMock = vi.mocked(useToggleKeyBlock);
-const useChangeKeyTeamMock = vi.mocked(useChangeKeyTeam);
-const useTeamsMock = vi.mocked(useTeams);
 
-const TEAMS: Team[] = [
-  { id: 'team-alpha', alias: 'Alpha' },
-  { id: 'team-beta', alias: 'Beta' },
-];
 
 // Reusable mutation stubs; reset per test via beforeEach.
-let makeDefaultMutate: ReturnType<typeof vi.fn>;
 let toggleBlockMutate: ReturnType<typeof vi.fn>;
-let changeTeamMutate: ReturnType<typeof vi.fn>;
 beforeEach(() => {
-  makeDefaultMutate = vi.fn();
-  useMakeDefaultMock.mockReturnValue({
-    mutate: makeDefaultMutate,
-  } as unknown as UseMutationResult<MakeDefaultResponse, Error, string>);
   toggleBlockMutate = vi.fn();
   useToggleKeyBlockMock.mockReturnValue({
     mutate: toggleBlockMutate,
   } as unknown as UseMutationResult<BlockKeyResponse, Error, { id: string; blocked: boolean }>);
-  changeTeamMutate = vi.fn();
-  useChangeKeyTeamMock.mockReturnValue({
-    mutate: changeTeamMutate,
-    isPending: false,
-  } as unknown as UseMutationResult<
-    ChangeKeyTeamResponse,
-    Error,
-    { id: string; teamId: string }
-  >);
-  // Default: two teams available -> Change team action is offered.
-  useTeamsMock.mockReturnValue({
-    data: TEAMS,
-  } as unknown as UseQueryResultTeams<Team[]>);
 });
 
 // A minimal projected /keys row factory (mirrors the api-types KeyRow contract).
@@ -92,7 +53,6 @@ function makeRow(overrides: Partial<KeyRow> = {}): KeyRow {
     created_at: '2026-03-01T10:00:00+00:00',
     expires: null,
     last_used: null,
-    is_default: false,
     ...overrides,
   };
 }
@@ -276,55 +236,9 @@ describe('KeysTable — delete action', () => {
   });
 });
 
-describe('KeysTable — default key', () => {
-  it('shows a DEFAULT badge on the default key only', () => {
-    setRows([
-      makeRow({ id: 'key-default', key_alias: 'default-key', is_default: true }),
-      makeRow({ id: 'key-other', key_alias: 'other-key', is_default: false }),
-    ]);
-    render(<KeysTable onDelete={vi.fn()} />);
-    expect(screen.getAllByText('DEFAULT')).toHaveLength(1);
-  });
-
-  it('a non-default key offers "Set as default" in its kebab menu', async () => {
-    setRows([makeRow({ id: 'key-other', is_default: false })]);
-    render(<KeysTable onDelete={vi.fn()} />);
-    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
-      key: 'Enter',
-    });
-    const item = await screen.findByRole('menuitem', { name: 'Set as default' });
-    expect(item).toBeInTheDocument();
-  });
-
-  it('choosing "Set as default" fires the mutation with the row id', async () => {
-    setRows([makeRow({ id: 'key-other', is_default: false })]);
-    render(<KeysTable onDelete={vi.fn()} />);
-    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
-      key: 'Enter',
-    });
-    const item = await screen.findByRole('menuitem', { name: 'Set as default' });
-    fireEvent.keyDown(item, { key: 'Enter' });
-    expect(makeDefaultMutate).toHaveBeenCalledWith('key-other');
-  });
-
-  it('the default key omits "Set as default" and disables Revoke', async () => {
-    setRows([makeRow({ id: 'key-default', is_default: true })]);
-    render(<KeysTable onDelete={vi.fn()} />);
-    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
-      key: 'Enter',
-    });
-    await screen.findByRole('menuitem', { name: 'Default key' });
-    expect(
-      screen.queryByRole('menuitem', { name: 'Set as default' })
-    ).not.toBeInTheDocument();
-    // Revoke is present but disabled on the default key (Chat needs a default).
-    expect(screen.getByRole('menuitem', { name: /Revoke/ })).toHaveAttribute(
-      'data-disabled'
-    );
-  });
-
+describe('KeysTable — keys minted elsewhere', () => {
   it('an unmanaged (foreign) key locks its kebab to Disable only', async () => {
-    setRows([makeRow({ id: 'ekid_01', managed: false, is_default: false })]);
+    setRows([makeRow({ id: 'ekid_01', managed: false })]);
     render(<KeysTable onDelete={vi.fn()} />);
     fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
       key: 'Enter',
@@ -332,24 +246,31 @@ describe('KeysTable — default key', () => {
     await screen.findByRole('menuitem', { name: 'Managed externally' });
     // Disable is still allowed; the three management actions are gone.
     expect(screen.getByRole('menuitem', { name: 'Disable key' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'Set as default' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /Change team/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Revoke/ })).not.toBeInTheDocument();
   });
 
-  it('nudges to set a default when there are keys but none is default', () => {
-    setRows([
-      makeRow({ id: 'key-1', is_default: false }),
-      makeRow({ id: 'key-2', is_default: false }),
-    ]);
+  it('marks a foreign key EXTERNAL so its missing actions are explained', () => {
+    setRows([makeRow({ id: 'ekid_01', managed: false })]);
+    const { container } = render(<KeysTable onDelete={vi.fn()} />);
+    expect(container.querySelector('[data-slot="key-external-badge"]')).toBeInTheDocument();
+  });
+
+  it('leaves a key minted here unmarked', () => {
+    setRows([makeRow({ id: 'key-abc123', managed: true })]);
+    const { container } = render(<KeysTable onDelete={vi.fn()} />);
+    expect(container.querySelector('[data-slot="key-external-badge"]')).not.toBeInTheDocument();
+  });
+
+  it('shows no Team column — every key a user can act on is in their own team', () => {
+    setRows([makeRow({ team_id: 'user-alice@example.com' })]);
     render(<KeysTable onDelete={vi.fn()} />);
-    expect(screen.getByText(/No default key set/i)).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Team/i })).not.toBeInTheDocument();
   });
 
   it('hides the nudge once a default exists', () => {
     setRows([
-      makeRow({ id: 'key-1', is_default: true }),
-      makeRow({ id: 'key-2', is_default: false }),
+      makeRow({ id: 'key-1' }),
+      makeRow({ id: 'key-2' }),
     ]);
     render(<KeysTable onDelete={vi.fn()} />);
     expect(screen.queryByText(/No default key set/i)).not.toBeInTheDocument();
@@ -390,47 +311,9 @@ describe('KeysTable — disable / enable (LiteLLM block)', () => {
   });
 });
 
-describe('KeysTable — team column + change team', () => {
-  it('shows the team alias (resolved from team_id) in the Team column', () => {
-    setRows([makeRow({ id: 'key-t', team_id: 'team-alpha' })]);
-    render(<KeysTable onDelete={vi.fn()} />);
-    expect(screen.getByRole('columnheader', { name: 'Team' })).toBeInTheDocument();
-    // team-alpha resolves to its alias "Alpha" (matching the picker/dialog/tile).
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.queryByText('team-alpha')).not.toBeInTheDocument();
-  });
-
-  it('falls back to the raw team_id when it has no alias match', () => {
-    setRows([makeRow({ id: 'key-u', team_id: 'team-unknown' })]);
-    render(<KeysTable onDelete={vi.fn()} />);
-    expect(screen.getByText('team-unknown')).toBeInTheDocument();
-  });
-
-  it('opens change-team dialog and calls useChangeKeyTeam.mutate with picked team', async () => {
-    setRows([makeRow({ id: 'key-x', team_id: 'team-alpha' })]);
-    render(<KeysTable onDelete={vi.fn()} />);
-
-    // Open the kebab and choose "Change team…" (Radix content is portaled).
-    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
-      key: 'Enter',
-    });
-    const item = await screen.findByRole('menuitem', { name: /Change team/ });
-    fireEvent.keyDown(item, { key: 'Enter' });
-
-    // The dialog (also portaled) carries a native <select> defaulting to the
-    // key's current team; Save is disabled until a different team is picked.
-    const select = await screen.findByRole('combobox');
-    fireEvent.change(select, { target: { value: 'team-beta' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-
-    expect(changeTeamMutate).toHaveBeenCalledWith({ id: 'key-x', teamId: 'team-beta' });
-  });
-
-  it('hides the Change team item when no teams are loaded', async () => {
-    useTeamsMock.mockReturnValue({
-      data: [],
-    } as unknown as UseQueryResultTeams<Team[]>);
-    setRows([makeRow({ id: 'key-x', team_id: null })]);
+describe('KeysTable — no team management', () => {
+  it('offers no Change team action: a key can only live in its owner\'s team', async () => {
+    setRows([makeRow({ id: 'key-x', team_id: 'user-alice@example.com' })]);
     render(<KeysTable onDelete={vi.fn()} />);
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {

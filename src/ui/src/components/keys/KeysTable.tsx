@@ -23,17 +23,11 @@ import * as React from 'react';
 import { MoreVertical, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+
 import {
   DataTable,
   type DataTableColumn,
 } from '@/components/ui/data-table';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,16 +36,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  useChangeKeyTeam,
   useKeys,
-  useMakeDefault,
   useToggleKeyBlock,
 } from '@/hooks/use-keys';
-import { useTeams } from '@/hooks/use-teams';
 import { formatDate, formatInt } from '@/lib/format';
 import { isBlocked, isExpired, selectKeyRows } from '@/lib/keys';
 import { isStale, relativeTime } from '@/lib/relative-time';
-import { teamColorVar } from '@/lib/team-color';
 import { cn } from '@/lib/utils';
 import type { KeyRow } from '@/lib/api-types';
 
@@ -100,22 +90,8 @@ const STATUS_RANK: Record<ReturnType<typeof statusFor>['label'], number> = {
 
 export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
   const query = useKeys();
-  const makeDefault = useMakeDefault();
   const toggleBlock = useToggleKeyBlock();
-  // Teams the user may move a key into. [] when teams are unavailable — the
-  // Change-team action is then hidden entirely (single-team deployments).
-  const teams = useTeams().data ?? [];
-  const changeTeam = useChangeKeyTeam();
-  // The change-team dialog target (null = closed) + the picked team id.
-  const [changing, setChanging] = React.useState<KeyRow | null>(null);
-  const [pickedTeam, setPickedTeam] = React.useState('');
   const rows = selectKeyRows(query.data);
-
-  // Resolve a key's team_id to its display alias (matching the picker / change
-  // dialog / dashboard tile, which all show aliases). Falls back to the raw id
-  // when teams aren't loaded or the id has no match, then EM_DASH when null.
-  const teamAlias = (id: string | null): string =>
-    (id ? teams.find((t) => t.id === id)?.alias : null) ?? id ?? EM_DASH;
 
   // ── State branches (exact copy lifted from keys-table.js) ───────────────────
   if (query.isPending) {
@@ -168,15 +144,16 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
               <span className="text-foreground truncate text-sm font-semibold">
                 {name}
               </span>
-              {row.is_default ? (
-                // Accent star pill — the default key is the one Chat uses and
-                // the only one that can't be deleted, so it earns an elevated
-                // marker (primary tint + filled star) instead of a muted pill.
+              {row.managed === false ? (
+                // Minted elsewhere (ach's pkid_/ekid_ keys, listed here because
+                // they carry this user_id). Muted, not accented: it explains why
+                // the row's actions are missing, it is not a status to aspire to.
                 <span
-                  data-slot="key-default-badge"
-                  className="inline-flex shrink-0 items-center rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-primary"
+                  data-slot="key-external-badge"
+                  className="text-muted-foreground inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide"
+                  title="Created outside this console — managed by another service"
                 >
-                  DEFAULT
+                  EXTERNAL
                 </span>
               ) : null}
             </div>
@@ -192,26 +169,6 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         );
       },
       sortAccessor: (row) => row.key_alias || row.id,
-    },
-    {
-      key: 'team',
-      header: 'Team',
-      className: 'font-mono text-xs whitespace-nowrap',
-      cell: (row) => (
-        <span className="inline-flex items-center gap-1.5">
-          <span
-            className="size-2 shrink-0 rounded-full"
-            style={{
-              background: teamColorVar(
-                teams.findIndex((t) => t.id === row.team_id)
-              ),
-            }}
-            aria-hidden="true"
-          />
-          {teamAlias(row.team_id)}
-        </span>
-      ),
-      sortAccessor: (row) => teamAlias(row.team_id),
     },
     {
       key: 'created',
@@ -274,23 +231,8 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
     },
   ];
 
-  // Explicit-only nudge: the user has keys but has not picked a default yet.
-  // A default is never auto-assigned, and Chat is gated on having one — so prompt.
-  const showDefaultNudge = rows.length > 0 && !rows.some((r) => r.is_default);
-
   return (
     <div className="flex flex-col gap-3">
-      {showDefaultNudge ? (
-        <div
-          data-slot="keys-default-nudge"
-          className="border-primary/30 bg-primary/5 text-foreground rounded-lg border px-3 py-2 text-xs"
-        >
-          No default key set. Open a key&apos;s{' '}
-          <MoreVertical className="inline size-3 align-[-1px]" aria-hidden="true" />{' '}
-          menu and choose <span className="font-semibold">Set as default</span> to
-          enable Chat.
-        </div>
-      ) : null}
       <DataTable
         data-slot="keys-table"
         columns={columns}
@@ -301,14 +243,7 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         getRowId={(row) => row.id ?? ''}
         // Dim a disabled (blocked) row so it reads as inactive at a glance (the
         // kebab is portaled to <body>, so its Enable item stays full opacity).
-        // The default key gets an accent left-rail + faint tint so the one key
-        // Chat uses is findable at a glance.
-        rowClassName={(row) =>
-          cn(
-            row.blocked && 'opacity-40',
-            row.is_default && 'border-l-2 border-l-primary bg-primary/[0.04]'
-          )
-        }
+        rowClassName={(row) => cn(row.blocked && 'opacity-40')}
         actionsHeader="Action"
         empty={
           <div data-slot="keys-table-empty" className="py-6">
@@ -333,28 +268,18 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 {/* Foreign keys (managed === false, e.g. ekid_/pkid_) are locked:
-                    only Disable/Enable is offered. Set-default, change-team, and
-                    revoke are hidden — the backend also 409s them. */}
+                    only Disable/Enable is offered. Revoke is hidden — the backend
+                    also 409s it. */}
                 {row.managed === false ? (
-                  <DropdownMenuItem disabled data-slot="key-unmanaged">
-                    Managed externally
-                  </DropdownMenuItem>
-                ) : row.is_default ? (
-                  <DropdownMenuItem disabled data-slot="key-is-default">
-                    Default key
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    data-slot="key-set-default"
-                    onSelect={() => makeDefault.mutate(row.id ?? '')}
-                  >
-                    Set as default
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
+                  <>
+                    <DropdownMenuItem disabled data-slot="key-unmanaged">
+                      Managed externally
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
                 {/* Disable/Enable — reversible LiteLLM block. Any key may be
-                    disabled, including the default (Chat then stays gated until
-                    re-enabled) and foreign keys. */}
+                    disabled, foreign ones included. */}
                 <DropdownMenuItem
                   data-slot="key-toggle-block"
                   onSelect={() =>
@@ -363,32 +288,18 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
                 >
                   {row.blocked ? 'Enable key' : 'Disable key'}
                 </DropdownMenuItem>
-                {/* Change team — only when the user belongs to >1 team AND the key
-                    is managed here; opens the dialog seeded with the row's team. */}
-                {teams.length > 0 && row.managed !== false ? (
-                  <DropdownMenuItem
-                    data-slot="key-change-team"
-                    onSelect={() => {
-                      setChanging(row);
-                      setPickedTeam(row.team_id ?? '');
-                    }}
-                  >
-                    Change team…
-                  </DropdownMenuItem>
-                ) : null}
-                {/* Revoke — destructive; disabled on the default key AND on foreign
-                    keys (this service does not own their provisioning). */}
+                {/* Revoke — destructive; hidden on foreign keys (this service does
+                    not own their provisioning). */}
                 {row.managed !== false ? (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       data-slot="key-delete"
-                      disabled={row.is_default}
                       onSelect={() => onDelete(row)}
                       className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                     >
                       <Trash2 aria-hidden="true" />
-                      {row.is_default ? 'Revoke (make another default first)' : 'Revoke key'}
+                      Revoke key
                     </DropdownMenuItem>
                   </>
                 ) : null}
@@ -398,52 +309,6 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
         )}
       />
 
-      {/* Change-team dialog. Controlled by `changing` (null = closed). The team
-          picker is a native <select> styled to match Input (no shadcn Select in
-          this project); Save is gated to a real, different team. */}
-      <Dialog
-        open={changing !== null}
-        onOpenChange={(o) => {
-          if (!o) setChanging(null);
-        }}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Change team</DialogTitle>
-          </DialogHeader>
-          <select
-            aria-label="Team"
-            value={pickedTeam}
-            onChange={(e) => setPickedTeam(e.target.value)}
-            className="border-input dark:bg-input/30 h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-          >
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.alias}
-              </option>
-            ))}
-          </select>
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={() => setChanging(null)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={
-                changeTeam.isPending ||
-                pickedTeam === '' ||
-                pickedTeam === changing?.team_id
-              }
-              onClick={() => {
-                changeTeam.mutate({ id: changing!.id ?? '', teamId: pickedTeam });
-                setChanging(null);
-              }}
-            >
-              Save
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

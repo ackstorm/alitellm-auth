@@ -32,7 +32,6 @@ const PAYLOAD: KeyRow[] = [
     created_at: '2026-03-01T10:00:00+00:00',
     expires: null,
     last_used: null,
-    is_default: false,
   },
   {
     id: 'key-def456',
@@ -46,7 +45,6 @@ const PAYLOAD: KeyRow[] = [
     created_at: '2026-02-01T08:00:00+00:00',
     expires: '2099-01-01T00:00:00+00:00',
     last_used: null,
-    is_default: false,
   },
 ];
 

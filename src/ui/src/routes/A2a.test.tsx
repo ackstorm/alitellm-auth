@@ -10,18 +10,12 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { A2aResponse, A2aAgentRow } from '@/lib/api-types';
 
 vi.mock('@/hooks/use-a2a', () => ({ useA2a: vi.fn() }));
-vi.mock('@/hooks/use-keys', () => ({ useHasDefaultKey: vi.fn() }));
 
 import { useA2a } from '@/hooks/use-a2a';
-import { useHasDefaultKey } from '@/hooks/use-keys';
 import { A2a } from './A2a';
 
 const useA2aMock = vi.mocked(useA2a);
-const useHasDefaultKeyMock = vi.mocked(useHasDefaultKey);
 
-// Default: the user HAS a default key (the branches under test need it). The
-// no-default gate has its own suite that flips this to false.
-beforeEach(() => useHasDefaultKeyMock.mockReturnValue(true));
 
 function makeAgent(over: Partial<A2aAgentRow> = {}): A2aAgentRow {
   return {
@@ -72,17 +66,6 @@ afterEach(() => {
   cleanup();
 });
 
-describe('A2a — no default key (gate)', () => {
-  it('renders the default-key prompt and does NOT call useA2a for data', () => {
-    useHasDefaultKeyMock.mockReturnValue(false);
-    setSuccess({ agents: [makeAgent()], available: true });
-    render(<A2a />);
-    expect(screen.getByText('A default key is required')).toBeInTheDocument();
-    expect(screen.getByText('A2A')).toBeInTheDocument(); // header still shows
-    expect(screen.queryByText('Research Agent')).not.toBeInTheDocument();
-    expect(useA2aMock).toHaveBeenCalledWith(false); // fetch disabled
-  });
-});
 
 describe('A2a — loading', () => {
   beforeEach(() => setPending());
@@ -105,21 +88,7 @@ describe('A2a — error', () => {
   });
 });
 
-describe('A2a — unavailable (no gateway)', () => {
-  it('shows the calm "not enabled" state when available is false', () => {
-    setSuccess({ agents: [], available: false });
-    render(<A2a />);
-    expect(screen.getByText('A2A gateway not enabled')).toBeInTheDocument();
-  });
-});
 
-describe('A2a — empty (gateway on, no agents)', () => {
-  it('shows the empty state', () => {
-    setSuccess({ agents: [], available: true });
-    render(<A2a />);
-    expect(screen.getByText('No A2A agents yet')).toBeInTheDocument();
-  });
-});
 
 describe('A2a — populated', () => {
   it('renders the agent name, version, and skills', () => {
