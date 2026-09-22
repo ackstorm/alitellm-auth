@@ -1032,6 +1032,24 @@ def deny_all_object_permission() -> dict:
     }
 
 
+def access_groups_for_user(email: str, settings: Settings) -> list[str]:
+    """Access-group NAMES this user is entitled to: baseline plus own grants.
+
+    Order-preserving and deduped so a no-op login produces an identical id list
+    and does not churn /team/update.
+    """
+    # The LiteLLM user_id IS the email and the AS lower-cases `sub`, so a
+    # lookup that misses on casing would silently under-grant (same reason
+    # config.personal_team_id() case-folds).
+    explicit = settings.user_access_groups.get(email.strip().lower(), [])
+    # dict keys are insertion-ordered since 3.7: dedupe without losing order
+    # (a set would lose it; an `in list` loop would be quadratic).
+    seen: dict[str, None] = {}
+    for name in [*settings.default_access_groups, *explicit]:
+        seen.setdefault(name, None)
+    return list(seen)
+
+
 # ── LiteLLM User lifecycle ──────────────────────────────────────────────────
 
 # LiteLLM v1.83 returns this placeholder for unknown/ambiguous user lookups

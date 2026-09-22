@@ -1965,3 +1965,26 @@ def test_deny_all_permissions_shape():
     assert perm["mcp_access_groups"] == []
     assert perm["agents"] == [DENY_ALL_AGENT]  # fails OPEN on empty (F5)
     assert perm["agent_access_groups"] == []
+
+
+def test_access_groups_for_user_is_defaults_plus_explicit_grant():
+    from app.litellm_client import access_groups_for_user
+
+    settings = make_settings(
+        default_access_groups=["team-default"],
+        user_access_groups={"alice@example.com": ["team-dream"]},
+    )
+
+    assert access_groups_for_user("alice@example.com", settings) == ["team-default", "team-dream"]
+    assert access_groups_for_user("Alice@Example.COM ", settings) == ["team-default", "team-dream"]
+    assert access_groups_for_user("nobody@example.com", settings) == ["team-default"]
+
+
+def test_access_groups_for_user_dedupes_and_preserves_order():
+    from app.litellm_client import access_groups_for_user
+
+    settings = make_settings(
+        default_access_groups=["team-default"],
+        user_access_groups={"alice@example.com": ["team-default", "team-dream"]},
+    )
+    assert access_groups_for_user("alice@example.com", settings) == ["team-default", "team-dream"]
