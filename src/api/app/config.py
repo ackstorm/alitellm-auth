@@ -51,6 +51,22 @@ class Settings(BaseSettings):
     # Set false for OSS forks / deployments not using per-user catalog scoping.
     # Env var: LITELLM_USER_SCOPING_CHECK
     litellm_user_scoping_check: bool = True
+    # Per-user teams (docs/plans/2026-09-22-per-user-teams.md). OFF by default:
+    # switching the team a key lives in changes what every client can reach, so
+    # it is opted into per deployment and rolled back by clearing the flag.
+    personal_teams_enabled: bool = False
+    # Namespace guard. `ach` owns ach-user-*/ach-env-* in the same proxy; this
+    # prefix must never collide with those.
+    personal_team_prefix: str = "user-"
+    # Unified access-group NAMES (GET /v1/access_group) granted to everyone.
+    # Empty default is deliberate: enabling the flag without naming a group
+    # gives a user a working, budgeted, totally closed team — a visible
+    # "nothing works" beats a silent over-grant.
+    default_access_groups: list[str] = []
+    # email -> extra access-group names, on top of default_access_groups.
+    # Phase 1 entitlement source; Dex `groups` will feed this later without
+    # changing the call site.
+    user_access_groups: dict[str, list[str]] = {}
     # OAuth 2.1 authorization server — the front door (docs/plans/2026-09-17-oauth-front-door.md).
     # Off by default; nothing below is read unless AS_ENABLED=true.
     as_enabled: bool = False
@@ -230,6 +246,11 @@ class Settings(BaseSettings):
     def team_id(self) -> str:
         """Shared team id for the single per-deployment team (LITELLM_DEFAULT_TEAM)."""
         return self.litellm_default_team
+
+    def personal_team_id(self, email: str) -> str:
+        """Deterministic team id for a user. Lower-cased: the LiteLLM user_id is
+        the email and the AS lower-cases `sub`, so both sides must agree."""
+        return f"{self.personal_team_prefix}{email.strip().lower()}"
 
 
 def get_settings() -> Settings:

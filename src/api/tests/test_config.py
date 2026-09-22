@@ -229,3 +229,15 @@ def test_openwork_enabled_requires_a_store_url():
     with pytest.raises(ValidationError, match="AS_REDIS_URL"):
         Settings(**_openwork_base(openwork_enabled=True))
     assert Settings(**_openwork_base(openwork_enabled=True, as_redis_url="memory://"))
+
+
+def test_personal_team_settings_default_off():
+    """The new model ships disabled: rollout is a per-deployment decision."""
+    from app.config import Settings
+
+    s = Settings(**_base())
+    assert s.personal_teams_enabled is False
+    assert s.personal_team_prefix == "user-"
+    assert s.default_access_groups == []
+    assert s.user_access_groups == {}
+    assert s.personal_team_id("Alice@Example.com ") == "user-alice@example.com"
