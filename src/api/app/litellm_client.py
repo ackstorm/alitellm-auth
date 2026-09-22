@@ -306,7 +306,7 @@ async def ensure_team_and_user(
     * flag ON — ensure_personal_team(): a deny-all team per user, opened only
       by the access groups the user is entitled to. Step A3 is SKIPPED there:
       with exactly one member, team.max_budget already IS the per-user cap, and
-      team_member_budget is not supported on LiteLLM v1.89.2 anyway.
+      team_member_budget is not supported on LiteLLM v1.99.1 anyway.
 
     An explicit team_id argument wins over BOTH: the console key-create path
     passes one during rollout and must keep landing where it asked for.
@@ -415,7 +415,7 @@ async def ensure_team_and_user(
     # skip_member_budget: on a personal team the cap is the TEAM budget, written
     # once at create time by ensure_personal_team. A second per-member cap would
     # be redundant (one member) and /team/member_update does not honour
-    # max_budget_in_team on v1.89.2 regardless.
+    # max_budget_in_team on v1.99.1 regardless.
     factory_user_budget = factory.get("user", {}).get("max_budget")
     if (
         not skip_member_budget
@@ -1091,7 +1091,7 @@ async def get_key_info(api_key: str, settings: Settings) -> dict:
 
 
 # An EMPTY grant list is not "nothing" in LiteLLM -- for `models` and for
-# `object_permission.agents` it means EVERYTHING. Measured on v1.89.2: a team
+# `object_permission.agents` it means EVERYTHING. Measured on v1.99.1: a team
 # with agents:[] saw all 7 agents, exactly like the master key. So writing
 # "this team may reach nothing" needs values that cannot match a real object.
 #
@@ -1153,7 +1153,7 @@ async def resolve_access_group_ids(names: list[str], settings: Settings) -> list
         resp = await client.get("/v1/access_group", headers=_admin_headers(settings))
     if not resp.is_success:
         _raise_litellm(resp, "/v1/access_group")
-    # A bare array is what v1.89.2 returns, but this endpoint is young and this
+    # A bare array is what v1.99.1 returns, but this endpoint is young and this
     # repo has eaten a LiteLLM shape change before (CLAUDE.md H2). Anything that
     # is not the measured shape degrades into the missing-names path below --
     # ERROR logged, fail closed -- instead of an AttributeError that escapes the
@@ -1184,7 +1184,7 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
     Phase 1 -- CREATE CLOSED. models/object_permission are the deny-all
     sentinels and stay that way for the life of the team. The budget envelope
     from the Helm factory `user` block is written HERE AND ONLY HERE: budget
-    edits do not propagate to live keys (measured on v1.89.2 -- a key still
+    edits do not propagate to live keys (measured on v1.99.1 -- a key still
     cited a cap of 1e-06 three minutes after it was raised to 5.0), and
     re-writing on every login would silently stamp over a cap someone raised
     by hand.

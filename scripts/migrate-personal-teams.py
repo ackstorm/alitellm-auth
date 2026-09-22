@@ -86,7 +86,7 @@ def already_exists(resp: httpx.Response) -> bool:
 
 def fetch_keys(client: httpx.Client, email: str | None) -> list:
     """All keys, paginated. return_full_object=true is required for metadata/user_id."""
-    # size=100 is a CEILING, not a preference. Measured on v1.89.2: size=50 and
+    # size=100 is a CEILING, not a preference. Measured on v1.99.1: size=50 and
     # size=100 both return all 27 keys, but size=200 returns {"keys": [],
     # "total_count": null} with HTTP 200 and no error at all. Raising this would
     # make the script report "nothing to migrate" and look like a clean no-op.
