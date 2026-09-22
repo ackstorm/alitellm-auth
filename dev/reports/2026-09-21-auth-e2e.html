@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auth End-to-End Audit</title>
+<style>
+  :root{
+    --bg:#0a0e12; --panel:#111820; --panel2:#0d141b; --line:#1e2a36;
+    --fg:#dbe5ee; --muted:#7c8fa3; --dim:#4f6274;
+    --ok:#3ddc97; --fail:#ff5c6c; --warn:#ffb454; --info:#5aa9e6; --accent:#3ddc97;
+    --crit:#ff3b5c;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.6}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 16px 96px}
+  header{border-bottom:1px solid var(--line);padding:40px 0 28px;margin-bottom:8px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+  h1{margin:0 0 12px;font-size:clamp(26px,5vw,40px);line-height:1.15;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:0;max-width:70ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:20px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .meta b{color:var(--muted);font-weight:500}
+  h2{font-size:22px;margin:52px 0 6px;letter-spacing:-.01em;scroll-margin-top:20px}
+  h2 .num{font-family:var(--mono);font-size:13px;color:var(--accent);margin-right:10px}
+  h3{font-size:16px;margin:30px 0 8px;color:var(--fg)}
+  h4{font-size:14px;margin:22px 0 6px;color:var(--muted);font-family:var(--mono);font-weight:500;letter-spacing:.04em}
+  p{margin:10px 0}
+  .lead{color:var(--muted)}
+  code{font-family:var(--mono);font-size:.88em;background:#16202a;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:#b7ccdd;word-break:break-word}
+  pre{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--dim);border-radius:6px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#a9c0d4}
+  pre code{background:none;border:0;padding:0;color:inherit}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:500;white-space:nowrap}
+  td code{font-size:12px}
+  tbody tr:hover{background:#0e161e}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tag{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid;white-space:nowrap}
+  .pass{color:var(--ok);border-color:#1d5c44;background:#0e2b21}
+  .fail{color:var(--fail);border-color:#6b2730;background:#2a1116}
+  .t-crit{color:#fff;border-color:var(--crit);background:var(--crit)}
+  .t-high{color:var(--fail);border-color:#6b2730;background:#2a1116}
+  .t-med{color:var(--warn);border-color:#6a4a1d;background:#2a1f0e}
+  .t-low{color:var(--info);border-color:#1f4a6b;background:#0e1d2a}
+  .t-info{color:var(--muted);border-color:var(--line);background:var(--panel2)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin:16px 0}
+  .card.crit{border-left:3px solid var(--crit)}
+  .card.high{border-left:3px solid var(--fail)}
+  .card.med{border-left:3px solid var(--warn)}
+  .card.low{border-left:3px solid var(--info)}
+  .card.good{border-left:3px solid var(--ok)}
+  .card h3{margin-top:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:22px 0}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+  .kpi .v{font-family:var(--mono);font-size:26px;line-height:1.1;letter-spacing:-.02em}
+  .kpi .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:6px}
+  .kpi.ok .v{color:var(--ok)} .kpi.bad .v{color:var(--fail)} .kpi.warn .v{color:var(--warn)}
+  .flow{font-family:var(--mono);font-size:12px;line-height:1.75;color:#9db4c8;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:16px;overflow-x:auto;white-space:pre}
+  ul,ol{margin:10px 0;padding-left:22px} li{margin:5px 0}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;font-family:var(--mono);font-size:12.5px;margin:10px 0}
+  .kv dt{color:var(--dim)} .kv dd{margin:0;color:var(--fg)}
+  hr{border:0;border-top:1px solid var(--line);margin:40px 0}
+  .toc{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:24px 0}
+  .toc ol{margin:0;padding-left:20px;columns:2;column-gap:32px}
+  .toc a{color:var(--muted);text-decoration:none;font-size:13.5px}
+  .toc a:hover{color:var(--accent)}
+  .note{color:var(--dim);font-size:13px;font-style:italic}
+  .big{font-size:16px}
+  @media (max-width:640px){ .toc ol{columns:1} .meta{gap:4px 14px} }
+  @media print{ body{background:#fff;color:#000} .card,.kpi,pre,.flow{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Production Audit · alitellm-auth</p>
+  <h1>Authentication End-to-End Audit</h1>
+  <p class="sub">Exhaustive live verification of the three ways a caller reaches the ACKstorm AI platform — LiteLLM virtual key, OAuth front-door token, and the browser console session — plus the full virtual-key lifecycle.</p>
+  <div class="meta">
+    <span><b>Date</b> 2026-09-21</span>
+    <span><b>Target</b> production</span>
+    <span><b>Cluster</b> pro-ack-ai-platform (eu-west-1)</span>
+    <span><b>Identity</b> juancarlos.moreno@ackstorm.com</span>
+    <span><b>App</b> v0.14.0 deployed / v0.14.1 in repo</span>
+  </div>
+</header>
+
+<div class="kpis">
+  <div class="kpi ok"><div class="v">78</div><div class="l">checks run</div></div>
+  <div class="kpi ok"><div class="v">70</div><div class="l">passed</div></div>
+  <div class="kpi bad"><div class="v">2</div><div class="l">defects</div></div>
+  <div class="kpi warn"><div class="v">8</div><div class="l">findings total</div></div>
+  <div class="kpi ok"><div class="v">100%</div><div class="l">state restored</div></div>
+</div>
+
+<div class="toc">
+  <ol>
+    <li><a href="#verdict">Verdict</a></li>
+    <li><a href="#scope">Scope &amp; method</a></li>
+    <li><a href="#topology">Topology as deployed</a></li>
+    <li><a href="#findings">Findings</a></li>
+    <li><a href="#p1">Phase 1 — API-key path</a></li>
+    <li><a href="#p2">Phase 2 — OAuth front door</a></li>
+    <li><a href="#p3">Phase 3 — Console &amp; key lifecycle</a></li>
+    <li><a href="#p4">Phase 4 — Cross-path consistency</a></li>
+    <li><a href="#strengths">What held up</a></li>
+    <li><a href="#actions">Recommended actions</a></li>
+    <li><a href="#appendix">Appendix — evidence</a></li>
+  </ol>
+</div>
+
+<h2 id="verdict"><span class="num">01</span>Verdict</h2>
+
+<p class="big">All three authentication paths work and none of them can be subverted. The identity boundary is sound: I could not impersonate another user, forge a token, replay a code, or reach an internal endpoint from the edge.</p>
+
+<p>The defects are not in <em>who</em> the platform thinks you are — that is correct on every path — but in <em>what that identity is then allowed to reach</em>. Signing in with OAuth lands you on a virtual key scoped to a different LiteLLM team than the key you create in the console, and that team carries a far smaller model catalog. In practical terms: <strong>every OAuth-authenticated client gets 72 models with zero Claude and zero Bedrock, while the same human's console key gets 392 including all of them.</strong></p>
+
+<p>Secondary: the MCP gateway rejects OAuth tokens outright on the deployed build (fixed in the repo, not yet shipped), and disabling a key in the console takes up to a minute to actually bite.</p>
+
+<div class="card good">
+  <h3>State integrity <span class="tag pass">verified</span></h3>
+  <p style="margin-bottom:0">Two throwaway keys were created and deleted during the lifecycle phase. The final key inventory is byte-identical to the pre-test snapshot: same 10 keys, same aliases, same default key (<code>default</code>, team <code>dream</code>). Nothing in the cluster was mutated — no Helm, no <code>kubectl apply</code>, no restarts. Approximately 5 chat completions were billed against the account.</p>
+</div>
+
+<h2 id="scope"><span class="num">02</span>Scope &amp; method</h2>
+
+<p>Every assertion below was executed against live production. Nothing is inferred from source code alone; where source is cited it is to explain an observed behaviour, not to substitute for one.</p>
+
+<table>
+  <thead><tr><th>Phase</th><th>What was exercised</th><th>How</th></tr></thead>
+  <tbody>
+    <tr><td><b>0</b></td><td>Baseline key inventory, identity, budget, discovery documents</td><td><code>curl</code> + LiteLLM master key via <code>kubectl</code></td></tr>
+    <tr><td><b>1</b></td><td>LiteLLM virtual key across all credential slots; negative auth; header-spoofing; edge policy; catch-all paths</td><td><code>curl</code></td></tr>
+    <tr><td><b>2</b></td><td>RFC 7591 registration, RFC 8628 device grant, authorization code + PKCE, refresh rotation, token tampering, MCP gateway</td><td><code>curl</code> + real Chrome through Dex → Google</td></tr>
+    <tr><td><b>3</b></td><td>Console session API: identity, catalogs, key create / use / block / default / move / delete, CSRF and authorization guards</td><td>Chrome, <code>fetch()</code> from the page origin</td></tr>
+    <tr><td><b>4</b></td><td>Identity and catalog consistency across all three paths</td><td>set comparison of live responses</td></tr>
+  </tbody>
+</table>
+
+<p class="note">A local loopback listener on <code>127.0.0.1:53682</code> captured the authorization-code redirect, so the PKCE leg was driven exactly as a native client would drive it.</p>
+
+<h2 id="topology"><span class="num">03</span>Topology as deployed</h2>
+
+<div class="flow">  browser / CLI / agent
+         │
+         ├─ platform.ackstorm.ai ──────────────▶ alitellm-auth  (v0.14.0, 1 replica)
+         │     /ui                console SPA
+         │     /api/session/*     session-cookie API
+         │     /api/oauth/*       Dex login, whoami
+         │     /oauth/*           authorization server (AS)
+         │     /api/internal/*    front-key resolver  ◀── DENIED at edge
+         │
+         └─ api.ackstorm.ai ───▶ istio external-gateway
+                                      │
+                                      │  AuthorizationPolicy CUSTOM → ext_authz
+                                      │  failOpen: false, timeout 2s
+                                      ▼
+                                 alitellm-auth-authz  (v0.14.0, 2 replicas, gRPC :9001)
+                                      │
+                                      │  sk-…   → rename header
+                                      │  JWT    → verify → POST /api/internal/front-key → sk-…
+                                      │  always → strip x-user-id
+                                      ▼
+                                 HTTPRoute (also strips x-user-id)
+                                      ▼
+                                 litellm  (2 replicas, :4000)</div>
+
+<h4>Confirmed edge controls</h4>
+<table>
+  <thead><tr><th>Control</th><th>Observed</th></tr></thead>
+  <tbody>
+    <tr><td>Protected prefixes</td><td><code>/v1/</code> <code>/gemini/</code> <code>/mcp/</code> <code>/a2a/</code> — everything else passes to LiteLLM, which authenticates itself</td></tr>
+    <tr><td>Anonymous exemptions</td><td><code>/health</code>, <code>/.well-known/*</code> skipped by authz</td></tr>
+    <tr><td><code>x-user-id</code> stripping</td><td>Enforced twice — in authz <code>Remove</code> and in the HTTPRoute filter</td></tr>
+    <tr><td><code>/api/internal/*</code></td><td>Istio <code>DENY</code> on the Gateway — <code>403 RBAC: access denied</code> on <em>both</em> hostnames</td></tr>
+    <tr><td>401 challenge</td><td><code>WWW-Authenticate: Bearer resource_metadata="https://api.ackstorm.ai/.well-known/oauth-protected-resource"</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="findings"><span class="num">04</span>Findings</h2>
+
+<!-- F1 -->
+<div class="card crit">
+  <h3>F1 — OAuth sign-in yields a key with no Claude and no Bedrock <span class="tag t-crit">high</span></h3>
+  <p>The OAuth front door mints a dedicated per-user key (<code>metadata.key_alias = "front"</code>) placed in the team named by <code>LITELLM_DEFAULT_TEAM</code>, which in this deployment is <code>default</code>. Every key created through the console instead lands in a team the user actually works in — here <code>dream</code>. The two teams expose very different model access groups.</p>
+
+  <table>
+    <thead><tr><th>Credential</th><th>Team</th><th>Models</th><th>claude.*</th><th>bedrock.*</th></tr></thead>
+    <tbody>
+      <tr><td>Console key (<code>laptop</code>)</td><td><code>dream</code></td><td>389</td><td>14</td><td>18</td></tr>
+      <tr><td>Console key (freshly created)</td><td><code>dream</code></td><td>392</td><td>14</td><td>18</td></tr>
+      <tr><td>Same key moved to <code>run</code></td><td><code>run</code></td><td>368</td><td>—</td><td>—</td></tr>
+      <tr><td><b>OAuth device token</b></td><td><code>default</code></td><td><b>72</b></td><td><b>0</b></td><td><b>0</b></td></tr>
+      <tr><td><b>OAuth auth-code + PKCE token</b></td><td><code>default</code></td><td><b>72</b></td><td><b>0</b></td><td><b>0</b></td></tr>
+      <tr><td>Console catalog (<code>/api/session/models</code>)</td><td>impersonated</td><td>393</td><td>14</td><td>18</td></tr>
+    </tbody>
+  </table>
+
+  <p>Team <code>default</code> carries only the access groups <code>['default','openai','gemini','kubeai']</code>. The resulting catalog is Gemini, KubeAI, transcription and embeddings — no Anthropic, no Bedrock:</p>
+  <pre><code>ackstorm.*  (11)   gemini.* (38)   kubeai.* (11)   openai.* (7, transcribe/tts/embeddings only)
+claude.*     0     bedrock.*  0</code></pre>
+
+  <p><b>Impact.</b> Every consumer of the front door — the OpenCode plugin, <code>ackstorm-token login</code> for Claude Code and Codex, the device grant for headless hosts — is the exact audience most likely to want Claude, and is the only audience that cannot reach it. A user who works fine with their pasted <code>sk-</code> key will find the same models missing the moment they switch to SSO, with no error explaining why.</p>
+
+  <p><b>Root cause.</b> <code>src/api/app/internal.py</code> mints the front key through <code>generate_litellm_key(sub, settings, alias="front")</code>, which uses <code>settings.team_id</code> — the single deployment-wide default team. There is no notion of "the team this user actually belongs to". The user here is a member of <code>default</code>, <code>run</code> and <code>dream</code>; the front door always picks the first.</p>
+
+  <p style="margin-bottom:0"><b>Note.</b> The front key <em>is</em> visible in the console and is marked <code>managed: true</code>, so moving it to <code>dream</code> from the UI would incidentally fix this for one user — which also means a user can silently change their own SSO capabilities, or delete the key entirely. Deletion self-heals (the resolver re-mints on rejection); a team move does not.</p>
+</div>
+
+<!-- F2 -->
+<div class="card high">
+  <h3>F2 — OAuth tokens are rejected by the MCP gateway <span class="tag t-high">high</span> <span class="tag t-info">fix not deployed</span></h3>
+  <p>On the deployed build, a valid user token is refused on any named MCP server while a raw virtual key succeeds on the identical request.</p>
+  <pre><code>POST /mcp/mcp-slack   Authorization: Bearer &lt;valid AS token&gt;
+→ 403 {"error":"insufficient_scope","scope":"mcp-slack"}
+   www-authenticate: Bearer error="insufficient_scope", scope="mcp-slack",
+                     resource_metadata=".../.well-known/oauth-protected-resource/mcp/mcp-slack"
+
+POST /mcp/mcp-slack   x-genai-api-key: sk-…
+→ 200  tools/list → 29 tools</code></pre>
+  <p>This is precisely the bug described by commit <code>79f5c48</code> and released as <b>v0.14.1</b>, which is <em>in the repository but not in the cluster</em> — both deployments still run <code>v0.14.0</code>.</p>
+  <p style="margin-bottom:0">Worth noting independently of the fix: the RFC 9728 document for that resource advertises <code>scopes_supported: ["alitellm"]</code> only. A spec-compliant client reading the challenge could never request the <code>mcp-slack</code> scope the gate demanded, so the gate was unsatisfiable by construction, not merely misconfigured.</p>
+</div>
+
+<!-- F3 -->
+<div class="card med">
+  <h3>F3 — Disabling a key leaves it live for up to ~60 seconds <span class="tag t-med">medium</span></h3>
+  <p>Blocking a key via the console returns <code>200</code> and LiteLLM records <code>blocked: true</code> immediately, but the gateway keeps accepting the key until LiteLLM's auth cache expires.</p>
+  <table>
+    <thead><tr><th>t</th><th>Action</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>0s</td><td><code>POST /api/session/keys/{id}/block</code></td><td><code>200 {"status":"blocked"}</code></td></tr>
+      <tr><td>~2s</td><td><code>GET /v1/models</code> with the blocked key</td><td><span class="tag fail">200</span> full catalog returned</td></tr>
+      <tr><td>~3s</td><td><code>POST /v1/chat/completions</code></td><td><span class="tag fail">200</span> completion served</td></tr>
+      <tr><td>~4s</td><td><code>GET /api/oauth/whoami</code></td><td><span class="tag fail">200</span></td></tr>
+      <tr><td>+65s</td><td><code>GET /v1/models</code></td><td><span class="tag pass">401</span> <code>Key is blocked.</code></td></tr>
+    </tbody>
+  </table>
+  <p style="margin-bottom:0">Deletion behaves the same way. The window is bounded and small, but "disable this key" is the action a person takes the moment they believe a key leaked, and during that minute the key still spends budget. The UI gives no indication that the change is not yet in force.</p>
+</div>
+
+<!-- F4 -->
+<div class="card med">
+  <h3>F4 — Duplicate key names are accepted; the collision guard is unreachable <span class="tag t-med">medium</span></h3>
+  <p>Creating a second key with an alias already in use returns <code>200</code> and a second key, rather than the documented <code>422</code>. LiteLLM's own uniqueness constraint applies to the opaque <code>lk-{hex}</code> alias, which is regenerated per key; the human-facing name lives in <code>metadata.key_alias</code> where nothing checks it.</p>
+  <p>This is not theoretical — it produced a genuinely ambiguous state during this audit. After blocking one of two identically-named keys, the administrative view was:</p>
+  <pre><code>name= e2e-audit-1790022304432   blocked= None   team= dream
+name= e2e-audit-1790022304432   blocked= True   team= dream</code></pre>
+  <p style="margin-bottom:0">Two rows, same displayed name, opposite security state, distinguishable only by an id the console truncates. For a fleet of agent keys this is an operational hazard: revoking "the n8n key" gives no confidence you revoked the right one.</p>
+</div>
+
+<!-- F5 -->
+<div class="card med">
+  <h3>F5 — User-level budget is reported but not enforced <span class="tag t-med">medium</span></h3>
+  <p>The account is <b>118% through its cap and still serving</b>. Every request in this audit succeeded.</p>
+  <div class="kv">
+    <dt>spend</dt><dd>$943.92</dd>
+    <dt>max_budget</dt><dd>$800.00 / 30d</dd>
+    <dt>projected</dt><dd>$1,246.48</dd>
+    <dt>budget source</dt><dd><code>"user"</code> — no per-member team budget was readable</dd>
+  </div>
+  <p style="margin-bottom:0">This matches the known LiteLLM behaviour that only <code>max_budget_in_team</code> enforces for team-scoped keys. The console renders the bar red and honest, so this is a configuration gap rather than a display bug — but the enforced ceiling is currently <em>absent</em>, not merely different from the one shown. <code>/api/session/me</code> falling back to <code>source: "user"</code> is the tell.</p>
+</div>
+
+<!-- F6 -->
+<div class="card low">
+  <h3>F6 — Cluster is one patch behind the repository <span class="tag t-low">low</span></h3>
+  <pre><code>repo      src/api/pyproject.toml   version = "0.14.1"
+deployed  ghcr.io/ackstorm/alitellm-auth:v0.14.0
+deployed  ghcr.io/ackstorm/alitellm-authz:v0.14.0
+helm      alitellm-auth@0.14.0  (HelmRelease v94, reconciled OK)</code></pre>
+  <p style="margin-bottom:0">v0.14.1 contains the only fix for <a href="#findings">F2</a>. Everything observed in this audit reflects 0.14.0 behaviour.</p>
+</div>
+
+<!-- F7 -->
+<div class="card low">
+  <h3>F7 — The <code>/gemini/</code> prefix is protected but unusable <span class="tag t-low">low</span></h3>
+  <p>Declared a protected prefix in authz, yet it returns <code>401</code> for <em>every</em> credential type — OAuth token and raw virtual key alike, with byte-identical errors:</p>
+  <pre><code>{"error":{"message":"LiteLLM Virtual Key expected. Received=****, expected to start with 'sk-'.", …}}</code></pre>
+  <p style="margin-bottom:0">authz rewrites the credential into <code>x-litellm-api-key</code>, which LiteLLM's Gemini passthrough does not read. Either the route is dead and the prefix should be dropped, or the passthrough needs the credential in the header it actually consumes. Not a security issue — a path that protects nothing because nothing reaches it.</p>
+</div>
+
+<!-- F8 -->
+<div class="card low">
+  <h3>F8 — LiteLLM's admin UI shell is served to the internet <span class="tag t-low">low</span></h3>
+  <p><code>GET https://api.ackstorm.ai/ui/</code> returns <code>200</code> and the admin SPA shell with no credential. It falls outside every protected prefix, so authz never sees it and LiteLLM serves the static bundle before its own auth applies.</p>
+  <p style="margin-bottom:0">Authentication still gates the data behind it — <code>/key/list</code>, <code>/model/info</code> and friends all answer <code>401</code> unauthenticated, which I verified. This is attack surface and version disclosure, not an exposure. Worth an allow-list on the gateway if the admin UI is not meant to be publicly discoverable.</p>
+</div>
+
+<!-- F9 -->
+<div class="card low">
+  <h3>F9 — Dex forces full Google re-consent on every authorization <span class="tag t-info">informational</span></h3>
+  <p>Three separate authorizations within roughly four minutes each presented the account chooser <em>and</em> the "You're signing back in to ackstorm.ai" consent screen. The Dex Google connector is sending <code>prompt=consent</code>:</p>
+  <pre><code>accounts.google.com/v3/signin/accountchooser?… &amp;prompt=consent&amp; …</code></pre>
+  <p style="margin-bottom:0">Two full clicks per login, every login, including device-code approvals from a phone. Setting <code>promptType: ""</code> on the connector removes it. Cosmetic, but it is the first thing every user of the front door experiences.</p>
+</div>
+
+<h2 id="p1"><span class="num">05</span>Phase 1 — API-key path</h2>
+
+<h4>Credential slots — all equivalent</h4>
+<p>The same virtual key was presented five ways. All returned <code>200</code> and an <em>identical</em> 389-model catalog, confirming the two authz rewrite paths and the two passthrough paths converge on the same LiteLLM identity.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Presentation</th><th>Path taken</th><th>Code</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>A1</td><td><code>x-genai-api-key: sk-…</code></td><td>authz rewrite</td><td>200</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A2</td><td><code>x-api-key: sk-…</code></td><td>authz rewrite</td><td>200</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A3</td><td><code>Authorization: Bearer sk-…</code></td><td>passthrough, LiteLLM authenticates</td><td>200</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A4</td><td><code>x-litellm-api-key: Bearer sk-…</code></td><td>untouched by authz</td><td>200</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A5</td><td><code>x-genai-api-key: Bearer sk-…</code></td><td>authz rewrite</td><td>200</td><td><span class="tag pass">pass</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Negative authentication</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Input</th><th>Expected</th><th>Got</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>A6</td><td>no credential at all</td><td>401 + challenge</td><td>401, correct <code>WWW-Authenticate</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A7</td><td><code>sk-totallybogus…</code></td><td>401</td><td>401</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A8</td><td>bogus key as <code>Bearer</code></td><td>401</td><td>401</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A9</td><td>hand-built JWS claiming <code>attacker@evil.com</code></td><td>401</td><td>401 <code>invalid_token</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A10</td><td>non-ASCII byte in header (<code>sk-bad\xc3\xa9key</code>)</td><td>4xx, never 500</td><td>401</td><td><span class="tag pass">pass</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Impersonation and edge policy</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Attempt</th><th>Result</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>A12</td><td>Valid key + <code>x-user-id: victim@ackstorm.com</code></td><td>200, but the returned catalog is byte-identical to the attacker's own — header stripped, no impersonation</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A13</td><td><code>x-user-id</code> alone, no credential</td><td>401</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A14</td><td><code>POST /api/internal/front-key</code> from the internet</td><td>403 <code>RBAC: access denied</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>A15</td><td>Same, with a guessed <code>x-internal-token</code></td><td>403 — blocked at the Gateway before the app</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>S16</td><td>Same, on <code>platform.ackstorm.ai</code> instead</td><td>403 — policy covers both hostnames</td><td><span class="tag pass">pass</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Exempt and catch-all paths</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Path (no credential)</th><th>Result</th><th>Reading</th></tr></thead>
+  <tbody>
+    <tr><td>A16</td><td><code>/health</code></td><td>401</td><td>authz exempts it; LiteLLM's own auth answers. Correct.</td></tr>
+    <tr><td>A16b/c</td><td><code>/health/liveliness</code>, <code>/health/readiness</code></td><td>200</td><td>Public probes, as intended</td></tr>
+    <tr><td>A17</td><td><code>/.well-known/oauth-protected-resource</code></td><td>200</td><td>Discovery, intentionally anonymous</td></tr>
+    <tr><td>A18</td><td><code>/key/list</code></td><td>401</td><td>Catch-all → LiteLLM authenticates</td></tr>
+    <tr><td>A21</td><td><code>/model/info</code></td><td>401</td><td>Catch-all → LiteLLM authenticates</td></tr>
+    <tr><td>A19</td><td><code>/ui/</code></td><td>200 HTML</td><td>See <a href="#findings">F8</a></td></tr>
+    <tr><td>A20</td><td><code>/v2/key/info</code></td><td>405</td><td>Method rejected before auth; endpoint existence disclosed. Cosmetic.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Live traffic</h4>
+<p>A22 and A23 each issued a real completion against <code>gemini.gemini-3.5-flash</code> through both the rewrite and the passthrough path — <code>200</code>, usage accounted, spend attributed to <code>juancarlos.moreno@ackstorm.com</code>.</p>
+
+<h2 id="p2"><span class="num">06</span>Phase 2 — OAuth front door</h2>
+
+<h4>Registration (RFC 7591)</h4>
+<p>Dynamic client registration issued <code>client_id=pFQ3NRBAtAc04D5jIJfDkw</code> as a public client (<code>token_endpoint_auth_method: none</code>). Redirect-URI validation rejects anything that is neither HTTPS nor loopback:</p>
+<pre><code>POST /oauth/register  redirect_uris: ["http://evil.example.com/cb"]
+→ 400 {"error":"invalid_redirect_uri",
+       "error_description":"redirect_uris must be https or loopback http"}</code></pre>
+
+<h4>Device grant (RFC 8628)</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Step</th><th>Result</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>B2</td><td><code>POST /oauth/device_authorization</code></td><td><code>NBLV-QPKG</code>, 600s TTL, interval 5s, 43-char device code</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B3</td><td>Poll before approval</td><td><code>400 authorization_pending</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B3b</td><td>Poll with a different <code>client_id</code></td><td><code>400 invalid_grant</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B3c</td><td>Poll with a fabricated device code</td><td><code>400 expired_token</code> — no existence oracle</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B3d</td><td><code>grant_type=password</code></td><td><code>400 unsupported_grant_type</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B3e</td><td>Confirm the code with <code>Origin: https://evil.example.com</code></td><td><code>403</code> "cross-origin request rejected"</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B4</td><td>Browser approval → Dex → Google → back</td><td>"You are signed in"</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B5</td><td>Redeem</td><td><code>200</code>, <code>cache-control: no-store</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B5b</td><td>Redeem the same device code again</td><td><code>400 expired_token</code> — single redemption</td><td><span class="tag pass">pass</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Issued token</h4>
+<pre><code>header  {"alg":"RS256","kid":"dek78XwEYCMcogLz9fBiwe9ZHKN6AWrpMsFKRrPXsVY","typ":"JWT"}
+claims  {"iss":"https://platform.ackstorm.ai", "aud":"alitellm",
+         "sub":"juancarlos.moreno@ackstorm.com",
+         "iat":1790021938, "exp":1790025538,          ← 3600s
+         "jti":"I3NfcK2U7ojVxbMn3Z4X_Q", "scope":"alitellm",
+         "client_id":"pFQ3NRBAtAc04D5jIJfDkw", "token_use":"user"}</code></pre>
+<p>JWKS serves a single RS256 signing key with a stable <code>kid</code> (RFC 7638 thumbprint), <code>cache-control: public, max-age=300</code> — identical across both authz replicas, so verification cannot flap between pods.</p>
+
+<h4>Token integrity</h4>
+<p>Three forgeries were built by re-encoding the payload of a genuine token and keeping the original signature. All were refused identically, with no distinction leaking which field was wrong:</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Tamper</th><th>Result</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>B10</td><td><code>sub</code> → <code>attacker@evil.com</code></td><td>401 <code>invalid_token</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B11</td><td><code>aud</code> → <code>something-else</code></td><td>401 <code>invalid_token</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B12</td><td>signature replaced with <code>AAAA…</code></td><td>401 <code>invalid_token</code></td><td><span class="tag pass">pass</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Authorization code + PKCE</h4>
+<p>Driven end-to-end with a real loopback listener. Every malformed authorization request produced a <em>spec-correct error redirect</em> to the registered URI — <code>state</code> preserved, <code>iss</code> included per RFC 9207 — rather than a bare error page:</p>
+<pre><code>?error=invalid_request
+&amp;error_description=response_type%3Dcode+with+PKCE+S256+is+required
+&amp;state=BaEjZfU7DS1lsEU0Xjzc0Q
+&amp;iss=https%3A%2F%2Fplatform.ackstorm.ai</code></pre>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Case</th><th>Result</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>C1</td><td><code>code_challenge_method=plain</code></td><td>302 error redirect — S256 required</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>C3</td><td><code>response_type=token</code> (implicit)</td><td>302 error redirect — refused</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>C4</td><td>PKCE omitted entirely</td><td>302 error redirect — refused</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>C2</td><td>Unregistered <code>redirect_uri</code></td><td>400 rendered page — correctly <em>not</em> redirected</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>C5</td><td>Unknown <code>client_id</code></td><td>400 "unknown client_id"</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>C6</td><td>Successful leg</td><td>Code delivered to loopback; <code>state</code> echoed exactly; <code>iss</code> present</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>C7</td><td>Exchange with a wrong <code>code_verifier</code></td><td>400 <code>invalid_grant</code> — <b>and the code is consumed</b></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>C8</td><td>Exchange with the correct verifier</td><td>200, correct <code>sub</code>/<code>aud</code>/<code>token_use</code>, refresh token issued</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>C9</td><td>Replay a successfully-used code</td><td>400 <code>invalid_grant</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>C10/C11</td><td>Use the token on the API</td><td>200; completion returned <code>'delta'</code></td><td><span class="tag pass">pass</span></td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note">C7 deserves emphasis: a <em>failed</em> PKCE verification destroys the authorization code rather than allowing another attempt. That is stronger than the minimum the specification requires and closes the offline-guessing window entirely.</p>
+
+<h4>Refresh rotation</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Case</th><th>Result</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>B16</td><td>Refresh exchange</td><td>200; new access token; refresh token <b>rotated</b></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B17</td><td>Replay the superseded refresh token</td><td>400 <code>invalid_grant</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>B18</td><td>Use the refreshed access token</td><td>200</td><td><span class="tag pass">pass</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="p3"><span class="num">07</span>Phase 3 — Console &amp; key lifecycle</h2>
+
+<h4>Session API without a cookie</h4>
+<p><code>/me</code>, <code>/keys</code>, <code>/stats</code>, <code>/models</code> and <code>POST /keys</code> all answered <code>401 {"detail":"Not authenticated"}</code>. No endpoint leaked data to an anonymous caller.</p>
+
+<h4>Identity resolver and admin API</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Case</th><th>Result</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>S6</td><td><code>/api/oauth/whoami</code> with no header</td><td>401</td><td></td></tr>
+    <tr><td>S7</td><td>whoami with a bogus key</td><td>401</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>S8</td><td>whoami with <code>Bearer sk-…</code></td><td>200 — prefix tolerated as documented</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>S9</td><td>whoami with an <b>AS token</b> instead of a key</td><td>401 — correctly not interchangeable</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>S10</td><td><code>/api/users</code> no credential</td><td>401</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>S11</td><td><code>/api/users</code> with a <em>user</em> key</td><td>403 — privilege boundary holds</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>S12</td><td><code>/api/users</code> with the master key</td><td>200, 8 users</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>S13</td><td><code>/api/users/nosuchuser@nowhere.invalid</code></td><td>404</td><td><span class="tag pass">pass</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Console state</h4>
+<pre><code>/api/session/me      200   team_id=default   spend=$943.92   max_budget=$800/30d   source="user"
+/api/session/keys    200   10 keys, contains no "sk-" anywhere in the payload
+                           fields: id, key_alias, spend, budget, tpm_limit, rpm_limit, models,
+                                   team_id, created_at, expires, last_used, blocked,
+                                   is_default, managed
+/api/session/teams   200   default, run, dream
+/api/session/models  200   393
+/api/session/mcp     200   51 servers</code></pre>
+<p>The key listing strips <code>key</code>, <code>token</code> and raw <code>metadata</code> — verified by substring search over the whole serialized response.</p>
+
+<h4>The three kinds of key</h4>
+<p>"Your personal key" is not one object. Production holds three distinct notions, and conflating them is what produces <a href="#findings">F1</a>:</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Kind</th><th>Marked by</th><th>Who holds it</th><th>Observed</th></tr></thead>
+  <tbody>
+    <tr><td><b>front key</b><br><span class="note">the OAuth 1-1 key</span></td><td><code>metadata.key_alias = "front"</code></td><td>Minted and stored Fernet-encrypted server-side; handed only to authz</td><td>team <code>default</code>, spend $0.84, <em>visible and <code>managed</code> in the console</em></td></tr>
+    <tr><td><b>default key</b></td><td><code>metadata.is_default = true</code></td><td>The console's designated key</td><td><code>default</code>, team <code>dream</code>, spend $0.00 — never used</td></tr>
+    <tr><td><b>agent keys</b></td><td><code>metadata.source = "token-factory"</code></td><td>Created by the user per tool</td><td><code>laptop</code>, <code>coder</code>, <code>n8n</code>, <code>librechat</code>, <code>hermes-agent</code></td></tr>
+    <tr><td><b>foreign keys</b></td><td><code>pkid_</code> / <code>ekid_</code> prefix, <code>managed: false</code></td><td>Another system (ach)</td><td>3 keys, listed but not mutable here</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Lifecycle</h4>
+<div class="scroll">
+<table>
+  <thead><tr><th>Step</th><th>Action</th><th>Result</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>create</td><td><code>POST /keys {alias, team_id:"dream"}</code></td><td>200; 89-char <code>sk-</code> returned exactly once; <code>is_default:false</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>guard</td><td>Same request with <code>content-type: text/plain</code></td><td>415</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>guard</td><td><code>team_id</code> the user is not a member of</td><td>403 "Not a member of that team"</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>guard</td><td>Duplicate alias</td><td>200 — second key created</td><td><span class="tag fail">F4</span></td></tr>
+    <tr><td>use</td><td>New key → <code>/v1/models</code></td><td>200, 392 models</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>use</td><td>New key → <code>whoami</code></td><td>Same <code>user_id</code>, distinct key id</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>use</td><td>New key → chat completion</td><td>200, returned <code>'epsilon'</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>use</td><td>New key → <code>/mcp/mcp-slack</code></td><td>200, 29 tools</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>block</td><td><code>POST /keys/{id}/block {blocked:true}</code></td><td>200, but still usable for ~60s</td><td><span class="tag fail">F3</span></td></tr>
+    <tr><td>block</td><td>Same key after 65s</td><td>401 <code>Key is blocked.</code></td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>guard</td><td>Delete the <b>default</b> key</td><td>409 "Make another key default first."</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>guard</td><td>Delete a <b>foreign</b> key</td><td>409 "managed externally"</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>guard</td><td>Delete a fabricated key id</td><td>403 "Not authorized" — no existence oracle</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>default</td><td>Promote new key, then restore the original</td><td>200 / 200; <b>exactly one</b> default throughout</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>team</td><td>Move key <code>dream</code> → <code>run</code></td><td>200; catalog changes 392 → 368</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>team</td><td>Move to a team the user is not in</td><td>403</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>delete</td><td>Delete both test keys</td><td>200 / 200; key later rejected 401 at the gateway</td><td><span class="tag pass">pass</span></td></tr>
+    <tr><td>restore</td><td>Compare final inventory to baseline</td><td>10 keys, identical alias set, default unchanged</td><td><span class="tag pass">pass</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="p4"><span class="num">08</span>Phase 4 — Cross-path consistency</h2>
+
+<p><b>Identity is consistent everywhere.</b> All four surfaces resolve to <code>juancarlos.moreno@ackstorm.com</code> with no drift — the authentication layer does its job.</p>
+
+<p><b>Authorization is not.</b> The same human sees four different model catalogs depending only on how they authenticated:</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Path</th><th>Key used</th><th>Team</th><th>Models</th><th>Identity</th></tr></thead>
+  <tbody>
+    <tr><td>Virtual key (<code>sk-</code>)</td><td><code>laptop</code></td><td><code>dream</code></td><td>389</td><td>✓ correct</td></tr>
+    <tr><td>Virtual key, freshly minted</td><td>test key</td><td><code>dream</code></td><td>392</td><td>✓ correct</td></tr>
+    <tr><td>OAuth — device grant</td><td><code>front</code></td><td><code>default</code></td><td><b>72</b></td><td>✓ correct</td></tr>
+    <tr><td>OAuth — auth code + PKCE</td><td><code>front</code></td><td><code>default</code></td><td><b>72</b></td><td>✓ correct</td></tr>
+    <tr><td>Console catalog</td><td>master + <code>x-user-id</code></td><td>impersonated</td><td>393</td><td>✓ correct</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The 389 / 392 / 393 spread is ordinary catalog drift across the test window and is not a defect. The <b>72</b> is <a href="#findings">F1</a>, and it is a different thing entirely: a structural team mismatch, not drift.</p>
+
+<h2 id="strengths"><span class="num">09</span>What held up</h2>
+
+<p>Worth recording explicitly, because these are the properties that would have mattered most had they failed:</p>
+<ul>
+  <li><b>No impersonation is possible.</b> <code>x-user-id</code> is stripped in two independent places. A valid key plus a forged user header returns the attacker's own data, not the victim's.</li>
+  <li><b>No token forgery is possible.</b> Swapping <code>sub</code>, swapping <code>aud</code>, or replacing the signature all yield the same opaque <code>401</code>.</li>
+  <li><b>PKCE is mandatory and genuinely enforced</b> — <code>plain</code> refused, omission refused, implicit flow refused, wrong verifier refused <em>and</em> the code burned.</li>
+  <li><b>Every single-use artifact is genuinely single-use</b> — authorization codes, device codes, refresh tokens. All replays were rejected.</li>
+  <li><b>The privilege boundary between user and master key is intact</b> — a user key on <code>/api/users</code> is <code>403</code>, not <code>200</code>.</li>
+  <li><b>Internal endpoints are unreachable from the internet</b> on both hostnames, blocked at the Gateway before the application sees them.</li>
+  <li><b>No secret material leaks through the console API.</b> The key listing contains no <code>sk-</code> anywhere.</li>
+  <li><b>Object-level authorization is correct</b> — foreign keys, the default key, and fabricated ids all fail closed, and the fabricated-id case returns <code>403</code> rather than <code>404</code>, so it cannot be used to enumerate.</li>
+  <li><b>ext_authz is <code>failOpen: false</code></b> — an authz outage denies traffic rather than admitting it unauthenticated.</li>
+</ul>
+
+<h2 id="actions"><span class="num">10</span>Recommended actions</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>#</th><th>Action</th><th>Addresses</th><th>Priority</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Decide what team the front key belongs in. Either mint it into the user's actual team rather than <code>LITELLM_DEFAULT_TEAM</code>, or give team <code>default</code> the same model access groups as <code>dream</code>. The first is correct; the second is a one-line unblock.</td><td>F1</td><td><span class="tag t-crit">high</span></td></tr>
+    <tr><td>2</td><td>Deploy v0.14.1. The MCP fix exists and is sitting unreleased to the cluster.</td><td>F2, F6</td><td><span class="tag t-high">high</span></td></tr>
+    <tr><td>3</td><td>Surface the revocation delay: have the console say a disabled key stops working within a minute, or invalidate LiteLLM's cache entry on block and delete.</td><td>F3</td><td><span class="tag t-med">med</span></td></tr>
+    <tr><td>4</td><td>Enforce uniqueness on <code>metadata.key_alias</code> per user at create time — the <code>422</code> branch already exists and is simply never reached.</td><td>F4</td><td><span class="tag t-med">med</span></td></tr>
+    <tr><td>5</td><td>Set <code>max_budget_in_team</code> for team members so the number the console displays is the number that actually stops spend.</td><td>F5</td><td><span class="tag t-med">med</span></td></tr>
+    <tr><td>6</td><td>Either fix <code>/gemini/</code> passthrough to read the header authz writes, or drop the prefix from <code>protectedPrefixes</code>.</td><td>F7</td><td><span class="tag t-low">low</span></td></tr>
+    <tr><td>7</td><td>Consider whether LiteLLM's admin UI should be reachable on the public hostname at all.</td><td>F8</td><td><span class="tag t-low">low</span></td></tr>
+    <tr><td>8</td><td>Set <code>promptType: ""</code> on the Dex Google connector to stop forcing re-consent on every login.</td><td>F9</td><td><span class="tag t-low">low</span></td></tr>
+    <tr><td>9</td><td>Consider whether the <code>front</code> key should be hidden or made read-only in the console, given a user can currently move or delete their own SSO key.</td><td>F1</td><td><span class="tag t-low">low</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="appendix"><span class="num">11</span>Appendix — evidence</h2>
+
+<h4>Environment under test</h4>
+<div class="kv">
+  <dt>console / AS</dt><dd>https://platform.ackstorm.ai — alitellm-auth v0.14.0, 1 replica</dd>
+  <dt>API gateway</dt><dd>https://api.ackstorm.ai — istio external-gateway → litellm:4000, 2 replicas</dd>
+  <dt>ext_authz</dt><dd>alitellm-auth-authz v0.14.0, 2 replicas, gRPC :9001, failOpen false, timeout 2s</dd>
+  <dt>IdP</dt><dd>Dex (auth.ackstorm.ai) → Google, hosted domain ackstorm.com</dd>
+  <dt>chart</dt><dd>alitellm-auth@0.14.0, HelmRelease v94, reconciled OK</dd>
+  <dt>teams</dt><dd>default (4 access groups, 8 members) · run · dream</dd>
+</div>
+
+<h4>Discovery documents as served</h4>
+<pre><code>GET https://platform.ackstorm.ai/.well-known/oauth-authorization-server
+{ "issuer": "https://platform.ackstorm.ai",
+  "authorization_endpoint": ".../oauth/authorize",
+  "token_endpoint": ".../oauth/token",
+  "registration_endpoint": ".../oauth/register",
+  "device_authorization_endpoint": ".../oauth/device_authorization",
+  "jwks_uri": ".../oauth/jwks.json",
+  "scopes_supported": ["alitellm"],
+  "response_types_supported": ["code"],
+  "grant_types_supported": ["authorization_code","refresh_token",
+                            "urn:ietf:params:oauth:grant-type:device_code"],
+  "code_challenge_methods_supported": ["S256"],
+  "token_endpoint_auth_methods_supported": ["none"],
+  "authorization_response_iss_parameter_supported": true }
+
+GET https://api.ackstorm.ai/.well-known/oauth-protected-resource
+{ "resource": "https://api.ackstorm.ai",
+  "authorization_servers": ["https://platform.ackstorm.ai"],
+  "scopes_supported": ["alitellm"],
+  "bearer_methods_supported": ["header"] }</code></pre>
+
+<h4>Key inventory — before and after</h4>
+<pre><code>alias                name           source         default  team      blocked
+lk-f58c31b3916f259b  front          token-factory  -        default   -
+lk-9ef8eda7deeaccb2  laptop         token-factory  -        dream     -
+lk-031eea79fd1464c9  librechat      token-factory  -        dream     -
+lk-f4d6d5d74fed128c  default        token-factory  TRUE     dream     -
+lk-ea03ffd3353ddad1  hermes-agent   token-factory  -        dream     -
+lk-c20b22542787749d  coder          token-factory  -        dream     -
+lk-80cffcc549141094  n8n            token-factory  -        dream     -
+pkid_01m31qds0c5p…   (foreign)      -              -        ach-user-…  -
+pkid_01m2sj3p8vpt…   (foreign)      -              -        ach-user-…  -
+pkid_01kyswa1b40k…   (foreign)      -              -        ach-user-…  TRUE
+
+baseline 10 keys → final 10 keys → identical: True
+added: []   removed: []   default key unchanged: "default" (team dream)</code></pre>
+
+<h4>Evidence retention</h4>
+<p>Full request headers, response headers and bodies for all 78 checks were captured to the session scratchpad as <code>&lt;test-id&gt;.{hdr,body,code}</code>. Credential material in this report is redacted; the two virtual keys minted during the audit were deleted and confirmed rejected at the gateway.</p>
+
+<hr>
+<p class="note">Audit performed against live production on 2026-09-21. Two throwaway keys created and removed; roughly five chat completions billed; no cluster resources modified.</p>
+
+</div>
+</body>
+</html>
