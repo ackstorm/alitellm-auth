@@ -2205,3 +2205,124 @@ async def test_ensure_personal_team_raises_when_create_fails_for_real():
     respx.post("http://litellm.test/team/new").mock(return_value=httpx.Response(500))
     with pytest.raises(httpx.HTTPStatusError):
         await ensure_personal_team("alice@example.com", make_settings(), factory={})
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_team_and_user_uses_shared_team_when_flag_off():
+    """Regression guard: the existing shared-team path is untouched by default."""
+    settings = make_settings()
+    assert settings.personal_teams_enabled is False
+
+    new = respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": settings.team_id})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+
+    assert await ensure_team_and_user("alice@example.com", settings) == settings.team_id
+    # The shared team, with its shared alias -- not a per-user one.
+    assert _json_body(new)["team_id"] == settings.team_id
+    assert _json_body(new)["team_alias"] == settings.litellm_default_team
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_team_and_user_uses_personal_team_when_flag_on():
+    settings = make_settings(personal_teams_enabled=True, default_access_groups=["team-default"])
+
+    new = respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
+        )
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    user_new = respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+
+    assert await ensure_team_and_user("alice@example.com", settings) == "user-alice@example.com"
+    # Exactly ONE /team/new, and it is the personal team: the shared team must
+    # never be touched on this path (it may not even exist in the deployment).
+    assert new.call_count == 1
+    assert _json_body(new)["team_id"] == "user-alice@example.com"
+    assert _json_body(update)["access_group_ids"] == ["id-default"]
+    # The user is scoped to the personal team, not the shared one.
+    assert _json_body(user_new)["teams"] == ["user-alice@example.com"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_personal_team_path_skips_member_budget_cap():
+    """max_budget_in_team is redundant with one member, and unsupported on v1.89.2."""
+    settings = make_settings(personal_teams_enabled=True)
+
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+    member_add = respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    # A brand-new user plus a factory user budget is exactly the shape that
+    # makes Step A3 fire on the shared path -- so a skip here is the branch.
+    await ensure_team_and_user(
+        "alice@example.com", settings, factory={"user": {"max_budget": 100}}
+    )
+
+    assert not member_add.called
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_explicit_team_id_still_wins_when_flag_on():
+    """The console key-create path passes a team during rollout."""
+    settings = make_settings(personal_teams_enabled=True)
+
+    new = respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "dream"})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+
+    got = await ensure_team_and_user("alice@example.com", settings, team_id="dream")
+
+    assert got == "dream"
+    assert _json_body(new)["team_id"] == "dream"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_personal_team_path_still_creates_the_litellm_user():
+    """user.max_budget is the only thing that catches a key with NO team."""
+    settings = make_settings(personal_teams_enabled=True)
+
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    user_new = respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(200, json={"user_id": "alice@example.com"})
+    )
+
+    await ensure_team_and_user(
+        "alice@example.com", settings, factory={"user": {"max_budget": 100}}
+    )
+
+    assert user_new.called
+    assert _json_body(user_new)["max_budget"] == 100

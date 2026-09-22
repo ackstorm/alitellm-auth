@@ -248,11 +248,28 @@ async def ensure_team_and_user(
     factory: dict | None = None,
     team_id: str | None = None,
 ) -> str:
-    """Idempotently ensure the shared team and LiteLLM user exist.
+    """Idempotently ensure the user's team and LiteLLM user exist.
 
     Performs Steps A (team), A2 (user), and A3 (member budget)
     in that order. This is a shared prerequisite for both key minting
     (generate_litellm_key) and the eager /ui login path (D-13). Returns the team_id.
+
+    Step A has two shapes, picked by settings.personal_teams_enabled:
+
+    * flag OFF (default) — the historical shared team: POST /team/new for
+      settings.team_id, "already exists" treated as success.
+    * flag ON — ensure_personal_team(): a deny-all team per user, opened only
+      by the access groups the user is entitled to. Step A3 is SKIPPED there:
+      with exactly one member, team.max_budget already IS the per-user cap, and
+      team_member_budget is not supported on LiteLLM v1.89.2 anyway.
+
+    An explicit team_id argument wins over BOTH: the console key-create path
+    passes one during rollout and must keep landing where it asked for.
+
+    Steps A2 and the D-16 backfill run unchanged on both paths. The user-level
+    max_budget is not redundant with the team cap: it is the only thing that
+    catches a key that ends up with no team at all (LiteLLM silently mints a
+    fail-open key against a nonexistent team_id), which the team cap cannot see.
 
     D-16 lazy backfill: if the user already existed (409/400), fetches the
     current user and patches only null/missing factory budget fields via
@@ -268,30 +285,42 @@ async def ensure_team_and_user(
     On subsequent logins/key-mints the cap is left untouched so a manually-raised
     max_budget_in_team is not silently clobbered back to the factory default.
     """
-    team_id = team_id or settings.team_id
     headers = _admin_headers(settings)
 
+    # Resolved BEFORE the branch: ensure_personal_team reads the factory `user`
+    # block for the team budget envelope, so it cannot wait for Step A2.
     if factory is None:
         factory = _load_factory_config(settings.factory_config_path)
     team_extra = {k: v for k, v in factory.get("team", {}).items() if k != "metadata"}
     team_meta_extra = factory.get("team", {}).get("metadata", {})
 
     async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=30.0) as client:
-        # Step A: Create shared team — 409 means it already exists, treat as success.
-        # Lowercase the body before matching so "Team Already Exists" (WR-04) is handled.
-        team_resp = await client.post(
-            "/team/new",
-            headers=headers,
-            json={
-                **team_extra,  # configmap overrides (D-20: team:{} so no team budget)
-                "team_id": team_id,  # validated team choice, else default
-                "team_alias": settings.litellm_default_team,
-                "metadata": {"source": "token-factory", **team_meta_extra},
-            },
-        )
-        team_exists = _already_exists(team_resp)
-        if team_resp.status_code != 200 and not team_exists:
-            _raise_litellm(team_resp, "/team/new")
+        # Step A: the team. `team_id is None` is load-bearing — an explicit team
+        # from the caller wins over the personal team, which is what keeps the
+        # console's key-create path working while the flag is being rolled out.
+        if settings.personal_teams_enabled and team_id is None:
+            # Opens its own client (nested, harmless) because the two-phase
+            # create-closed-then-attach sequence is its own invariant.
+            team_id = await ensure_personal_team(email, settings, factory)
+            skip_member_budget = True
+        else:
+            team_id = team_id or settings.team_id
+            skip_member_budget = False
+            # Create shared team — 409 means it already exists, treat as success.
+            # Lowercase the body before matching so "Team Already Exists" (WR-04) is handled.
+            team_resp = await client.post(
+                "/team/new",
+                headers=headers,
+                json={
+                    **team_extra,  # configmap overrides (D-20: team:{} so no team budget)
+                    "team_id": team_id,  # validated team choice, else default
+                    "team_alias": settings.litellm_default_team,
+                    "metadata": {"source": "token-factory", **team_meta_extra},
+                },
+            )
+            team_exists = _already_exists(team_resp)
+            if team_resp.status_code != 200 and not team_exists:
+                _raise_litellm(team_resp, "/team/new")
 
         # Step A2: Ensure user exists with D-15 factory user budget block.
         user_result = await ensure_litellm_user(
@@ -338,9 +367,14 @@ async def ensure_team_and_user(
     # admin/gitops bump to max_budget_in_team survives re-logins (a re-applied factory value
     # would silently re-block a user who had a higher cap set by hand).
     # H3: only call when the factory provides a non-None, non-zero max_budget value.
+    # skip_member_budget: on a personal team the cap is the TEAM budget, written
+    # once at create time by ensure_personal_team. A second per-member cap would
+    # be redundant (one member) and /team/member_update does not honour
+    # max_budget_in_team on v1.89.2 regardless.
     factory_user_budget = factory.get("user", {}).get("max_budget")
     if (
-        not user_result.get("existed")
+        not skip_member_budget
+        and not user_result.get("existed")
         and factory_user_budget is not None
         and factory_user_budget > 0
     ):
