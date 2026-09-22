@@ -86,6 +86,10 @@ def already_exists(resp: httpx.Response) -> bool:
 
 def fetch_keys(client: httpx.Client, email: str | None) -> list:
     """All keys, paginated. return_full_object=true is required for metadata/user_id."""
+    # size=100 is a CEILING, not a preference. Measured on v1.89.2: size=50 and
+    # size=100 both return all 27 keys, but size=200 returns {"keys": [],
+    # "total_count": null} with HTTP 200 and no error at all. Raising this would
+    # make the script report "nothing to migrate" and look like a clean no-op.
     rows, page = [], 1
     while page <= 200:  # hard stop; 200 pages x 100 = 20k keys
         params = {"page": page, "size": 100, "return_full_object": "true"}
@@ -270,8 +274,10 @@ def main() -> int:
     for row in rows:
         dest, reason = classify(row, args.team_prefix)
         label = describe(row)
-        if reason:
-            skipped.append((label, reason))
+        # classify returns exactly one of the two; assert it so a future edit
+        # that returns neither fails here rather than writing team_id=None.
+        if reason is not None or dest is None:
+            skipped.append((label, reason or "classify returned no destination"))
             continue
         if dest not in known_teams:
             try:
@@ -300,6 +306,11 @@ def main() -> int:
         md = parse_metadata(row.get("metadata"))
         label = md.get("key_alias") or row.get("key_alias") or short(row.get("token"))
         token = row.get("token")
+        # No token means nothing to address the update to. Sending key=null would
+        # be a write with an unknown target, so refuse rather than find out.
+        if not isinstance(token, str) or not token:
+            skipped.append((label, "row carries no token to update"))
+            continue
         before = model_count(client, token)
 
         try:
