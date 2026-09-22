@@ -65,6 +65,20 @@ oauth.framework_integration_cls = ConcurrentStateStarletteIntegration
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
+def normalize_groups(raw: object) -> list[str]:
+    """Coerce the provider's ``groups`` claim to a clean list of strings.
+
+    Dex returns a list of strings; other providers send a single string, or
+    omit the claim entirely when the scope was not granted. Never raises —
+    an unusable claim degrades to [], it does not break the login.
+    """
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [g.strip() for g in raw if isinstance(g, str) and g.strip()]
+
+
 def configure_auth(settings: Settings) -> None:
     """Register the OIDC provider (Dex, Keycloak, etc.). Call once at app startup."""
     oauth.register(
@@ -72,7 +86,7 @@ def configure_auth(settings: Settings) -> None:
         server_metadata_url=f"{settings.oauth_issuer_url}/.well-known/openid-configuration",
         client_id=settings.oauth_client_id,
         client_secret=settings.oauth_client_secret,
-        client_kwargs={"scope": "openid email profile"},
+        client_kwargs={"scope": settings.oauth_scopes},
     )
 
 
@@ -245,7 +259,10 @@ async def auth_callback(request: Request) -> HTMLResponse | RedirectResponse:
     request.session["sub"] = user_info.get("sub")
     request.session["email"] = email
     request.session["name"] = name
+    groups = normalize_groups(user_info.get("groups"))
+    request.session["groups"] = groups
     request.session["authenticated_at"] = datetime.now(timezone.utc).isoformat()
+    logger.info("callback: %s authenticated with %d group(s): %s", email, len(groups), groups)
 
     # 3. Sign-in is UI-only — eager-create the user and redirect to /ui.
     openwork_handoff = bool(request.session.pop("openwork_handoff", False))

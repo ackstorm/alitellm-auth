@@ -22,6 +22,20 @@ class Settings(BaseSettings):
     oauth_issuer_url: str
     oauth_client_id: str
     oauth_client_secret: str
+    # Scopes requested from the OIDC provider, for BOTH the console login and
+    # the authorization-server leg.
+    #
+    # Adding "groups" makes Dex's Google connector perform a Directory API
+    # lookup (serviceAccountFilePath + domainToAdminEmail in the connector
+    # config) and return the user's Workspace groups. That lookup needs
+    # domain-wide delegation for admin.directory.group.readonly; without it Dex
+    # FAILS the login rather than omitting the claim — and this is the only
+    # sign-in path there is, for the console and for every OAuth client.
+    #
+    # So it is OFF by default: opt in per deployment with
+    # OAUTH_SCOPES="openid email profile groups" (Helm: config.oauthScopes),
+    # and roll back by restoring this value and restarting — no image rebuild.
+    oauth_scopes: str = "openid email profile"
 
     # API (LiteLLM backend)
     litellm_url: str  # internal URL used server-side to call admin endpoints

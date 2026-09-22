@@ -2,6 +2,23 @@
 
 ## [unreleased]
 
+## [0.15.0] - 2026-09-22
+
+### Added
+
+- SSO groups: `OAUTH_SCOPES` (Helm `config.oauthScopes`) sets the scopes asked
+  of the OIDC provider for BOTH the console login and the authorization-server
+  leg. Adding `groups` makes Dex's Google connector resolve the user's
+  Workspace groups; the claim is normalised (`normalize_groups`), stamped on
+  the session at `/api/oauth/callback`, logged at `/oauth/as-callback`, and
+  returned by `GET /api/session/me` as `groups: []`.
+  **Off by default** (`openid email profile`): the Directory API lookup needs
+  domain-wide delegation for `admin.directory.group.readonly`, and without it
+  Dex fails the login outright — on the only sign-in path there is. Opt in per
+  deployment, roll back by clearing the value and restarting (no rebuild).
+  Groundwork for granting model/MCP access from identity-provider groups
+  instead of a single LiteLLM team.
+
 ## [0.14.1] - 2026-09-21
 
 ### Changed

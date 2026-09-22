@@ -19,7 +19,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.config import Settings
-from app.auth import oauth
+from app.auth import normalize_groups, oauth
 from app.litellm_client import LiteLLMUserNotFound, ensure_team_and_user, get_litellm_user
 from app.oauth_as.grants import Grants, create_grants
 from app.oauth_as.store import Store, create_store
@@ -37,12 +37,20 @@ PENDING_TTL = 600
 CODE_TTL = 120
 CHAIN_TTL = 600
 HINT_TTL = 600  # the login_hint handed to a broker; one chain step, not a session
+
+
 # offline_access: Dex hands back a refresh token that every refresh of OURS
 # replays at Dex first, so a user disabled at the identity provider is out at
 # the next refresh, not after AS_REFRESH_TTL_SECONDS. Requested only here, not
 # by the console login: Dex keeps ONE refresh token per (user, client) and
 # replaces it whenever a login asks for offline_access.
-DEX_SCOPE = "openid email profile offline_access"
+# Built from settings so the console login and the AS leg always ask for the
+# same scopes (see Settings.oauth_scopes); offline_access is ours alone.
+def _dex_scope() -> str:
+    assert _settings is not None
+    return f"{_settings.oauth_scopes} offline_access"
+
+
 DEXRT = "dexrt"  # store kind: the user's Dex refresh token, keyed by email
 # RFC 8628 device grant: the headless login. The host that needs the token shows
 # a code, the user signs in from any browser, the host polls /oauth/token.
@@ -292,7 +300,9 @@ async def authorize(request: Request):
     # The ingress terminates TLS, so request.url_for may incorrectly report http.
     callback = _settings.app_base_url.rstrip("/") + "/oauth/as-callback"
     # Each in-flight request has its own state; Authlib tracks OAuth state per ID.
-    return await oauth.oidc.authorize_redirect(request, callback, state=pending_id, scope=DEX_SCOPE)
+    return await oauth.oidc.authorize_redirect(
+        request, callback, state=pending_id, scope=_dex_scope()
+    )
 
 
 @router.get("/oauth/as-callback", name="as_callback")
@@ -315,6 +325,8 @@ async def as_callback(request: Request):
     email = (userinfo.get("email") or "").strip().lower()
     if not email:
         return _html_error(400, "the identity provider returned no email")
+    groups = normalize_groups(userinfo.get("groups"))
+    logger.info("as-callback: %s authenticated with %d group(s): %s", email, len(groups), groups)
     dex_refresh = token.get("refresh_token")
     if not dex_refresh:
         # Loud, at login: the alternative is a session that dies at its first refresh.
@@ -536,7 +548,9 @@ async def device_confirm(request: Request):
         ttl=PENDING_TTL,
     )
     callback = _settings.app_base_url.rstrip("/") + "/oauth/as-callback"
-    return await oauth.oidc.authorize_redirect(request, callback, state=pending_id, scope=DEX_SCOPE)
+    return await oauth.oidc.authorize_redirect(
+        request, callback, state=pending_id, scope=_dex_scope()
+    )
 
 
 async def _device_settle(device_code: str, status: str, sub: str = "") -> dict | None:

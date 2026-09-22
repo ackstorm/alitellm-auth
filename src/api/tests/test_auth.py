@@ -389,3 +389,20 @@ def test_auth_callback_token_exchange_error_does_not_leak(client):
         response = client.get("/api/oauth/callback")
     assert response.status_code == 400
     assert "issuer.internal" not in response.text
+
+
+def test_normalize_groups_coerces_provider_shapes() -> None:
+    """The groups claim arrives in several shapes and must never raise (SSO-GRP)."""
+    from app.auth import normalize_groups
+
+    # Dex returns a list of strings; whitespace and empties are dropped.
+    assert normalize_groups(["platform-eng@ackstorm.com", " ai-team@ackstorm.com "]) == [
+        "platform-eng@ackstorm.com",
+        "ai-team@ackstorm.com",
+    ]
+    # A provider that sends a single string still yields a list.
+    assert normalize_groups("solo@ackstorm.com") == ["solo@ackstorm.com"]
+    # Scope not granted / claim absent / junk types degrade to [], never raise.
+    assert normalize_groups(None) == []
+    assert normalize_groups({"not": "a list"}) == []
+    assert normalize_groups([1, None, "", "  ", "ok@x.com"]) == ["ok@x.com"]

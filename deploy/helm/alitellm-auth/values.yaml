@@ -10,7 +10,7 @@ image:
   repo: ghcr.io/ackstorm/alitellm-auth
   # Tag to deploy. Bumped by `make release-bump VERSION=X.Y.Z`. Leave empty to
   # fall back to .Chart.AppVersion.
-  tag: "v0.14.1"
+  tag: "v0.15.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -28,6 +28,14 @@ config:
   appBaseUrl: "https://platform.ackstorm.ai"
   oauthIssuerUrl: "https://dex.ackstorm.ai/dex"
   oauthClientId: "platform"
+  # Scopes requested from the OIDC provider. Leave empty to use the app default
+  # ("openid email profile"). Set "openid email profile groups" to have Dex
+  # return the user's Workspace groups — this requires domain-wide delegation
+  # for admin.directory.group.readonly on the Google connector's service
+  # account. WITHOUT that delegation Dex fails the login outright, and this is
+  # the only sign-in path, so enable it on a deployment you can watch and roll
+  # back by clearing this value (env-only, no image rebuild).
+  oauthScopes: ""
   litellmUrl: "https://litellm.ackstorm.ai"
   # Shared LiteLLM team id + display name (one team per deployment). Decoupled
   # from oauthClientId so the team can be renamed independently.

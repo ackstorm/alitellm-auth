@@ -103,7 +103,7 @@ def require_session_user(request: Request) -> dict:
     email = sess.get("email")
     if not email:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return {"email": email, "name": sess.get("name") or email}
+    return {"email": email, "name": sess.get("name") or email, "groups": sess.get("groups") or []}
 
 
 def assert_same_origin(request: Request, settings: Settings) -> None:
@@ -252,6 +252,7 @@ async def session_me(
     settings: Settings = request.app.state.settings
     email = user["email"]
     name = user["name"]
+    groups = user["groups"]
     team_id = settings.team_id
 
     # Fetch the user object and the ENFORCED per-member budget concurrently;
@@ -295,6 +296,7 @@ async def session_me(
         {
             "email": email,
             "name": name,
+            "groups": groups,
             "team_id": team_id,
             "endpoint": settings.api_public_url,
             "limits": limits,

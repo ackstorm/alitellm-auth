@@ -44,6 +44,10 @@ spec:
               value: {{ .Values.config.oauthIssuerUrl | quote }}
             - name: OAUTH_CLIENT_ID
               value: {{ .Values.config.oauthClientId | quote }}
+            {{- with .Values.config.oauthScopes }}
+            - name: OAUTH_SCOPES
+              value: {{ . | quote }}
+            {{- end }}
             - name: LITELLM_URL
               value: {{ .Values.config.litellmUrl | quote }}
             - name: LITELLM_DEFAULT_TEAM

@@ -1868,3 +1868,35 @@ def test_session_teams_502_on_backend_failure(client):
         mock_teams.side_effect = httpx.RequestError("unreachable")
         resp = client.get("/api/session/teams", cookies=_authed_cookie())
     assert resp.status_code == 502
+
+
+def test_me_carries_sso_groups(client):
+    """/me surfaces the Dex groups stamped on the session at login (SSO-GRP)."""
+    cookie = {
+        "session": _make_session_cookie(
+            _TEST_SESSION_SECRET,
+            {
+                "email": "alice@example.com",
+                "name": "Alice",
+                "groups": ["platform-eng@ackstorm.com", "ai-team@ackstorm.com"],
+            },
+        )
+    }
+    with patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user:
+        mock_user.return_value = _USER_INFO
+        response = client.get("/api/session/me", cookies=cookie)
+    assert response.status_code == 200
+    assert response.json()["groups"] == [
+        "platform-eng@ackstorm.com",
+        "ai-team@ackstorm.com",
+    ]
+
+
+def test_me_groups_absent_is_empty_list(client):
+    """A session predating the groups claim (or a provider that sent none) must
+    still return 200 with an empty list, never a missing key or a 500."""
+    with patch("app.session.get_litellm_user", new_callable=AsyncMock) as mock_user:
+        mock_user.return_value = _USER_INFO
+        response = client.get("/api/session/me", cookies=_authed_cookie())
+    assert response.status_code == 200
+    assert response.json()["groups"] == []
