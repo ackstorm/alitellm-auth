@@ -248,8 +248,14 @@ class Settings(BaseSettings):
         return self.litellm_default_team
 
     def personal_team_id(self, email: str) -> str:
-        """Deterministic team id for a user. Lower-cased: the LiteLLM user_id is
-        the email and the AS lower-cases `sub`, so both sides must agree."""
+        """Deterministic team id for a user.
+
+        Lower-cased because the two sign-in paths disagree: the OAuth AS
+        lower-cases the email before it reaches LiteLLM, the console callback
+        passes it through verbatim. Folding here is what makes both land on
+        ONE team. Do NOT infer the LiteLLM user_id by stripping the prefix --
+        that spelling may differ.
+        """
         return f"{self.personal_team_prefix}{email.strip().lower()}"
 
 

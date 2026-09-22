@@ -1954,17 +1954,17 @@ async def test_assert_team_membership_rejects_non_member(monkeypatch):
 
 
 def test_deny_all_permissions_shape():
-    """F2-F5: an empty grant is ALL, so 'nothing' needs explicit sentinels."""
+    """An empty grant is ALL for models/agents, so 'nothing' needs sentinels."""
     from app.litellm_client import DENY_ALL_AGENT, DENY_ALL_MODEL, deny_all_object_permission
 
     assert DENY_ALL_MODEL == "__deny_all__"
     assert DENY_ALL_AGENT == "00000000-0000-0000-0000-000000000000"
 
     perm = deny_all_object_permission()
-    # mcp_servers fails CLOSED on empty (F4) -- empty list is correct here.
+    # mcp_servers fails CLOSED on empty -- empty list is correct here.
     assert perm["mcp_servers"] == []
     assert perm["mcp_access_groups"] == []
-    assert perm["agents"] == [DENY_ALL_AGENT]  # fails OPEN on empty (F5)
+    assert perm["agents"] == [DENY_ALL_AGENT]  # fails OPEN on empty
     assert perm["agent_access_groups"] == []
 
 
@@ -1991,6 +1991,30 @@ def test_access_groups_for_user_dedupes_and_preserves_order():
     assert access_groups_for_user("alice@example.com", settings) == ["team-default", "team-dream"]
 
 
+def test_access_groups_for_user_matches_config_keys_case_insensitively():
+    """Helm values are hand-edited; a mixed-case key must not be unreachable."""
+    from app.litellm_client import access_groups_for_user
+
+    settings = make_settings(
+        default_access_groups=["team-default"],
+        user_access_groups={"J.Smith@Ackstorm.com": ["team-dream"]},
+    )
+    assert access_groups_for_user("j.smith@ackstorm.com", settings) == [
+        "team-default",
+        "team-dream",
+    ]
+
+
+def test_access_groups_for_user_strips_and_drops_blank_names():
+    from app.litellm_client import access_groups_for_user
+
+    settings = make_settings(default_access_groups=["team-default ", "", "  ", " team-dream"])
+    assert access_groups_for_user("nobody@example.com", settings) == [
+        "team-default",
+        "team-dream",
+    ]
+
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_resolve_access_group_ids_maps_names():
@@ -2002,6 +2026,7 @@ async def test_resolve_access_group_ids_maps_names():
             200,
             json=[
                 {"access_group_id": "id-default", "access_group_name": "team-default"},
+                {"foo": "bar"},  # junk row: the g.get(...) filter must drop it
                 {"access_group_id": "id-dream", "access_group_name": "team-dream"},
                 {"access_group_id": "id-other", "access_group_name": "team-other"},
             ],
@@ -2037,3 +2062,31 @@ async def test_resolve_access_group_ids_empty_input_makes_no_call():
     route = respx.get("http://litellm.test/v1/access_group")
     assert await resolve_access_group_ids([], make_settings()) == []
     assert not route.called
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_survives_a_response_shape_change(caplog):
+    """A wrapped array must fail closed with a log, not raise into the AS path."""
+    from app.litellm_client import resolve_access_group_ids
+
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json={"data": [{"access_group_id": "id-d", "access_group_name": "team-default"}]}
+        )
+    )
+    with caplog.at_level(logging.ERROR):
+        got = await resolve_access_group_ids(["team-default"], make_settings())
+    assert got == []
+    assert "team-default" in caplog.text
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_resolve_access_group_ids_raises_on_backend_failure():
+    """A LiteLLM outage is not a config typo -- it must not be swallowed."""
+    from app.litellm_client import resolve_access_group_ids
+
+    respx.get("http://litellm.test/v1/access_group").mock(return_value=httpx.Response(500))
+    with pytest.raises(httpx.HTTPStatusError):
+        await resolve_access_group_ids(["team-default"], make_settings())

@@ -1011,13 +1011,17 @@ async def get_key_info(api_key: str, settings: Settings) -> dict:
     }
 
 
-# An EMPTY grant list is not "nothing" in LiteLLM -- for models and agents it
-# means EVERYTHING (F2). Writing "this team may reach nothing" therefore needs
-# values that can never match a real object. mcp_servers is the exception: it
-# fails closed, so [] is genuinely empty there (F4).
+# An EMPTY grant list is not "nothing" in LiteLLM -- for `models` and for
+# `object_permission.agents` it means EVERYTHING. Measured on v1.89.2: a team
+# with agents:[] saw all 7 agents, exactly like the master key. So writing
+# "this team may reach nothing" needs values that cannot match a real object.
+#
+# The other three fields genuinely fail closed on []: mcp_servers:[] with
+# mcp_access_groups:[] yielded 0 tools where the master key saw 964, and
+# agent_access_groups:[] adds nothing back once `agents` carries the sentinel.
 #
 # A personal team keeps these sentinels FOREVER. Capability arrives only via
-# access_group_ids, which ADDS over them (F7) -- nothing here is ever relaxed.
+# the team's access_group_ids, which ADDS over them -- nothing here is relaxed.
 DENY_ALL_MODEL = "__deny_all__"
 DENY_ALL_AGENT = "00000000-0000-0000-0000-000000000000"
 
@@ -1038,15 +1042,22 @@ def access_groups_for_user(email: str, settings: Settings) -> list[str]:
     Order-preserving and deduped so a no-op login produces an identical id list
     and does not churn /team/update.
     """
-    # The LiteLLM user_id IS the email and the AS lower-cases `sub`, so a
-    # lookup that misses on casing would silently under-grant (same reason
-    # config.personal_team_id() case-folds).
-    explicit = settings.user_access_groups.get(email.strip().lower(), [])
+    # Normalise BOTH sides: the config keys come from hand-edited Helm values
+    # and a mixed-case address there would otherwise be silently unreachable.
+    wanted = email.strip().lower()
+    explicit = next(
+        (v for k, v in settings.user_access_groups.items() if k.strip().lower() == wanted),
+        [],
+    )
+    # Group names are stripped and blanks dropped: a stray space in a YAML list
+    # would otherwise become its own dedupe key and an unresolvable name.
     # dict keys are insertion-ordered since 3.7: dedupe without losing order
     # (a set would lose it; an `in list` loop would be quadratic).
     seen: dict[str, None] = {}
     for name in [*settings.default_access_groups, *explicit]:
-        seen.setdefault(name, None)
+        cleaned = name.strip()
+        if cleaned:
+            seen.setdefault(cleaned, None)
     return list(seen)
 
 
@@ -1068,10 +1079,16 @@ async def resolve_access_group_ids(names: list[str], settings: Settings) -> list
         resp = await client.get("/v1/access_group", headers=_admin_headers(settings))
     if not resp.is_success:
         _raise_litellm(resp, "/v1/access_group")
+    # A bare array is what v1.89.2 returns, but this endpoint is young and this
+    # repo has eaten a LiteLLM shape change before (CLAUDE.md H2). Anything that
+    # is not the measured shape degrades into the missing-names path below --
+    # ERROR logged, fail closed -- instead of an AttributeError that escapes the
+    # AS callback's httpx-only except and 500s every device sign-in.
+    rows = resp.json()
     by_name = {
         g["access_group_name"]: g["access_group_id"]
-        for g in resp.json()
-        if g.get("access_group_name") and g.get("access_group_id")
+        for g in (rows if isinstance(rows, list) else [])
+        if isinstance(g, dict) and g.get("access_group_name") and g.get("access_group_id")
     }
     ids, missing = [], []
     for name in names:
