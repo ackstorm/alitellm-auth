@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
@@ -14,11 +16,11 @@ import (
 )
 
 // verifier trusts exactly one issuer — verified against its JWKS, discovered
-// once at startup from its metadata document and refreshed by keyfunc on an
-// unknown kid. One audience. Scopes come back as a slice.
+// from its metadata document and refreshed by keyfunc on an unknown kid. One
+// audience. Scopes come back as a slice.
 type verifier struct {
 	issuer   string
-	keys     keyfunc.Keyfunc
+	keys     atomic.Pointer[jwks]
 	audience string
 	// subjectClaim names the claim carrying the LiteLLM user id. Empty (or
 	// "sub") reads the standard subject; see subject() for why an IdP needs
@@ -26,17 +28,68 @@ type verifier struct {
 	subjectClaim string
 }
 
+// jwks is one keyfunc bound to the jwks_uri it was built from; cancel stops
+// its background refresh once a newer one replaces it.
+type jwks struct {
+	url    string
+	kf     keyfunc.Keyfunc
+	cancel context.CancelFunc
+}
+
+// rediscoverEvery is how often the metadata document is re-read. keyfunc
+// refreshes one URL forever, so without this a jwks_uri that moves (the AS
+// changing hostname, or authz reading the document a beat before the app
+// serves the new issuer) strands authz on a dead URL until a restart.
+var rediscoverEvery = 5 * time.Minute
+
 func NewVerifier(ctx context.Context, issuer, audience, subjectClaim string) (Verifier, error) {
 	issuer = strings.TrimRight(issuer, "/")
-	jwksURL, err := discoverJWKS(ctx, &http.Client{Timeout: 5 * time.Second}, issuer)
-	if err != nil {
-		return nil, fmt.Errorf("issuer %s: %w", issuer, err)
+	v := &verifier{issuer: issuer, audience: audience, subjectClaim: subjectClaim}
+	if err := v.discover(ctx); err != nil {
+		return nil, err
 	}
-	kf, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL})
+	go v.rediscover(ctx, rediscoverEvery)
+	return v, nil
+}
+
+// discover resolves the issuer's jwks_uri and, if it differs from the one in
+// use, swaps in a keyfunc for it. A failure keeps the current key set.
+func (v *verifier) discover(ctx context.Context) error {
+	url, err := discoverJWKS(ctx, &http.Client{Timeout: 5 * time.Second}, v.issuer)
 	if err != nil {
-		return nil, fmt.Errorf("issuer %s jwks %s: %w", issuer, jwksURL, err)
+		return fmt.Errorf("issuer %s: %w", v.issuer, err)
 	}
-	return &verifier{issuer: issuer, keys: kf, audience: audience, subjectClaim: subjectClaim}, nil
+	cur := v.keys.Load()
+	if cur != nil && cur.url == url {
+		return nil
+	}
+	kctx, cancel := context.WithCancel(ctx)
+	kf, err := keyfunc.NewDefaultCtx(kctx, []string{url})
+	if err != nil {
+		cancel()
+		return fmt.Errorf("issuer %s jwks %s: %w", v.issuer, url, err)
+	}
+	v.keys.Store(&jwks{url: url, kf: kf, cancel: cancel})
+	if cur != nil {
+		cur.cancel()
+		log.Printf("issuer %s: jwks_uri moved %s → %s", v.issuer, cur.url, url)
+	}
+	return nil
+}
+
+func (v *verifier) rediscover(ctx context.Context, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := v.discover(ctx); err != nil {
+				log.Printf("rediscovery: %v", err)
+			}
+		}
+	}
 }
 
 // discoveryPaths: the front door publishes RFC 8414 and nothing else; an OIDC
@@ -79,7 +132,7 @@ func fetchJWKSURI(ctx context.Context, c *http.Client, url string) (string, erro
 }
 
 func (v *verifier) Verify(raw string) (string, []string, error) {
-	tok, err := jwt.Parse(raw, v.keys.Keyfunc,
+	tok, err := jwt.Parse(raw, v.keys.Load().kf.Keyfunc,
 		jwt.WithValidMethods([]string{"RS256"}),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuer(v.issuer),

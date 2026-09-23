@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -150,4 +151,46 @@ func TestMultiVerifierRoutesOnIssuerAndRejectsUnknownOnes(t *testing.T) {
 		"iss": "https://nobody.test", "aud": "alitellm", "sub": "u@x.com", "exp": exp()})); err == nil {
 		t.Fatal("expected an untrusted issuer to be rejected")
 	}
+}
+
+// The AS moving hosts changes jwks_uri in its metadata document; keyfunc alone
+// would refresh the old URL forever. Rediscovery must pick up the new one.
+func TestVerifierFollowsAMovedJWKSURI(t *testing.T) {
+	defer func(d time.Duration) { rediscoverEvery = d }(rediscoverEvery)
+	rediscoverEvery = 20 * time.Millisecond
+
+	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	iss := serveIssuer(t, &priv.PublicKey, "k1")
+	// Stale document: points at an old host whose JWKS lacks today's key.
+	old, _ := rsa.GenerateKey(rand.Reader, 2048)
+	oldIss := serveIssuer(t, &old.PublicKey, "k0")
+	var moved atomic.Bool
+	meta := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		uri := oldIss.URL + "/jwks.json"
+		if moved.Load() {
+			uri = iss.URL + "/jwks.json"
+		}
+		json.NewEncoder(w).Encode(map[string]any{"jwks_uri": uri})
+	}))
+	t.Cleanup(meta.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	v, err := NewVerifier(ctx, meta.URL, "alitellm", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok := sign(t, priv, "k1", jwt.MapClaims{"iss": meta.URL, "aud": "alitellm", "sub": "u@x.com", "exp": exp()})
+	if _, _, err := v.Verify(tok); err == nil {
+		t.Fatal("expected the stale key set to reject the token")
+	}
+
+	moved.Store(true)
+	for i := 0; i < 100; i++ {
+		if _, _, err = v.Verify(tok); err == nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("never picked up the moved jwks_uri: %v", err)
 }

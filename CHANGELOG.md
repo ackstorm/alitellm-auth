@@ -2,6 +2,16 @@
 
 ## [unreleased]
 
+### Fixed
+
+- **authz follows a moved `jwks_uri` instead of stranding on it.** Each
+  verifier discovered its issuer's JWKS URL once at startup, and keyfunc then
+  refreshed that one URL forever. When the AS changed hostname (or authz read
+  the metadata a beat before the app served the new issuer), authz kept
+  polling a 404 JWKS until someone restarted the pod, and AS-issued tokens
+  failed once the cached keys aged out. Verifiers now re-read the metadata
+  every 5 minutes and swap in a new key set when `jwks_uri` changes.
+
 ## [0.18.2] - 2026-09-23
 
 ### Fixed
