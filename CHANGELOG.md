@@ -2,6 +2,21 @@
 
 ## [unreleased]
 
+## [0.18.2] - 2026-09-23
+
+### Fixed
+
+- **MCP OAuth works again for returning users.** `ensure_personal_team` calls
+  `/team/member_add` on every login; for anyone already in their personal team
+  LiteLLM answers `400 "User already in team"`, which the idempotency check did
+  not recognise, so `/oauth/as-callback` failed with a 503. A 400 from that
+  call is now the desired state, and `_already_exists` also matches
+  "already in team".
+- **as-callback no longer calls a LiteLLM rejection "unreachable".** A 4xx/5xx
+  answer now renders a 502 with the real status and no "try again"; only
+  connect errors and timeouts keep the 503. The refresh path logs the same
+  distinction (the client still gets `503 temporarily_unavailable`).
+
 ## [0.18.1] - 2026-09-23
 
 ### Fixed
