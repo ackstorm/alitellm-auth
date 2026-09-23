@@ -2038,6 +2038,94 @@ async def test_ensure_personal_team_reasserts_the_deny_all_baseline_on_update():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_ensure_personal_team_refuses_to_stomp_a_foreign_team():
+    """An ADOPTED team without our stamp keeps its own permission block.
+
+    team_id is derived from an email, so an id collision is reachable without
+    anyone acting in bad faith -- and the attach write is destructive now that
+    it carries object_permission. Entitlement still syncs; only the permission
+    half is withheld.
+    """
+    from app.litellm_client import ensure_personal_team
+
+    settings = make_settings(default_access_groups=[])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(400, json={"error": "Team already exists"})
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    # Someone else's team: no alt_managed stamp.
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(200, json={"team_info": {"metadata": {"source": "someone"}}})
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    await ensure_personal_team("alice@example.com", settings, factory={})
+
+    body = _json_body(update)
+    assert "object_permission" not in body
+    # Entitlement sync is NOT skippable -- omitting it would strand a revoked grant.
+    assert body["access_group_ids"] == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_asserts_baseline_on_a_team_it_just_created():
+    """A team we created is ours by construction -- no /team/info read needed."""
+    from app.litellm_client import DENY_ALL_AGENT, ensure_personal_team
+
+    settings = make_settings(default_access_groups=[])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    info = respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(200, json={"team_info": {"metadata": {}}})
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    await ensure_personal_team("alice@example.com", settings, factory={})
+
+    assert _json_body(update)["object_permission"]["agents"] == [DENY_ALL_AGENT]
+    assert not info.called  # the fresh-create path must not pay for a read
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_personal_team_unreadable_team_is_not_treated_as_ours():
+    """A /team/info failure must not be read as ownership.
+
+    Unreadable counts as NOT ours: leaving the permission block alone cannot
+    destroy anything, while stomping a team we could not identify can.
+    """
+    from app.litellm_client import ensure_personal_team
+
+    settings = make_settings(default_access_groups=[])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(400, json={"error": "Team already exists"})
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    respx.get("http://litellm.test/team/info").mock(return_value=httpx.Response(503))
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    await ensure_personal_team("alice@example.com", settings, factory={})
+
+    assert "object_permission" not in _json_body(update)
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_ensure_personal_team_adds_the_user_as_a_member():
     """LiteLLM refuses /key/update into a team the user is not a member of, so
     without this the migration cannot move a single key (403, seen in prod)."""
@@ -2075,6 +2163,11 @@ async def test_ensure_personal_team_tolerates_an_existing_member():
     respx.post("http://litellm.test/team/member_add").mock(
         return_value=httpx.Response(400, json={"error": "User already exists in team"})
     )
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(
+            200, json={"team_info": {"metadata": {"alt_managed": "user-team"}}}
+        )
+    )
     upd = respx.post("http://litellm.test/team/update").mock(
         return_value=httpx.Response(200, json={})
     )
@@ -2102,6 +2195,11 @@ async def test_ensure_personal_team_existing_team_keeps_its_budget():
             200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
         )
     )
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(
+            200, json={"team_info": {"metadata": {"alt_managed": "user-team"}}}
+        )
+    )
     update = respx.post("http://litellm.test/team/update").mock(
         return_value=httpx.Response(200, json={})
     )
@@ -2125,6 +2223,11 @@ async def test_ensure_personal_team_detaches_when_entitlement_is_empty():
     )
     respx.post("http://litellm.test/team/member_add").mock(
         return_value=httpx.Response(200, json={})
+    )
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(
+            200, json={"team_info": {"metadata": {"alt_managed": "user-team"}}}
+        )
     )
     update = respx.post("http://litellm.test/team/update").mock(
         return_value=httpx.Response(200, json={})

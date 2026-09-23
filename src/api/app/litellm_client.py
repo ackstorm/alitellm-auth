@@ -1122,6 +1122,27 @@ def deny_all_object_permission() -> dict:
     }
 
 
+async def _is_own_personal_team(team_id: str, settings: Settings) -> bool:
+    """True only when this team carries the personal-team ownership stamp.
+
+    Guards the destructive half of the attach write. `ach` runs the same check
+    before repairing its own shells (internal/platformapi/auth/mint.go --
+    "refusing to update a team ACH did not create"), for the same reason: the
+    team id is derived from an email, so an id collision is reachable without
+    anyone acting in bad faith.
+
+    Unreadable counts as NOT ours. The caller then leaves the permission block
+    untouched, which is the direction that cannot destroy anything.
+    """
+    team = await _team_info(team_id, settings, "ensure_personal_team")
+    if team is None:
+        return False
+    metadata = team.get("metadata")
+    if not isinstance(metadata, dict):
+        return False
+    return metadata.get("alt_managed") == "user-team"
+
+
 def access_groups_for_user(email: str, settings: Settings) -> list[str]:
     """Access-group NAMES this user is entitled to: baseline plus own grants.
 
@@ -1239,6 +1260,10 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
         # applied -- never assert on it here; /team/info is the only truth.
         if resp.status_code != 200 and not _already_exists(resp):
             _raise_litellm(resp, "/team/new (personal)")
+        # A team WE just created is ours by construction. An "already exists"
+        # is an ADOPTION: the row predates this call and has to prove it is
+        # ours before the attach below overwrites its permissions.
+        we_created_it = resp.status_code == 200
 
         # Membership is NOT implied by creating the team, nor by the User's
         # `teams` list. LiteLLM refuses /key/update into a team the user is not
@@ -1281,15 +1306,24 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
         # Unlike the budget envelope above, there is no legitimate hand-tuned
         # value here to preserve: capability arrives ONLY through access groups,
         # which is the whole point of the deny-all base.
-        upd = await client.post(
-            "/team/update",
-            headers=headers,
-            json={
-                "team_id": team_id,
-                "access_group_ids": group_ids,
-                "object_permission": deny_all_object_permission(),
-            },
-        )
+        # access_group_ids is ALWAYS sent -- it is the authoritative
+        # entitlement sync and skipping it would strand a revoked grant.
+        # object_permission is destructive, so it rides along only on a team we
+        # own: ours by construction, or carrying our ownership stamp.
+        body: dict = {"team_id": team_id, "access_group_ids": group_ids}
+        if we_created_it or await _is_own_personal_team(team_id, settings):
+            body["object_permission"] = deny_all_object_permission()
+        else:
+            # Entitlement still syncs; the permission block is left alone. A
+            # read failure lands here too, which is the safe direction: not
+            # re-asserting leaves the team as it was, while stomping a team we
+            # could not identify would flatten someone else's permissions.
+            logger.warning(
+                "personal team %s is not stamped as ours -- syncing attachments "
+                "but NOT re-asserting the deny-all baseline",
+                team_id,
+            )
+        upd = await client.post("/team/update", headers=headers, json=body)
         if not upd.is_success:
             _raise_litellm(upd, "/team/update (attach)")
 
