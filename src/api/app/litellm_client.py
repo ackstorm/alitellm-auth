@@ -127,10 +127,12 @@ def _already_exists(resp) -> bool:
     Older LiteLLM returns 409; newer returns 400 + "already exists" in the body
     (casing varies, e.g. "Team Already Exists" — WR-04). Centralized so all
     idempotent-create call sites agree (was copy-pasted, and the access-group
-    copy had dropped the `.lower()`).
+    copy had dropped the `.lower()`). /team/member_add says "User already in
+    team" instead (broke every returning user's MCP OAuth, 2026-09-23).
     """
     return resp.status_code == 409 or (
-        resp.status_code == 400 and "already exists" in resp.text.lower()
+        resp.status_code == 400
+        and any(s in resp.text.lower() for s in ("already exists", "already in team"))
     )
 
 
@@ -1282,7 +1284,10 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
             headers=headers,
             json={"team_id": team_id, "member": {"user_id": email, "role": "user"}},
         )
-        if mem.status_code != 200 and not _already_exists(mem):
+        # 400 = already a member, the desired state: the team was ensured just
+        # above, so no other 400 is reachable here. Status only -- never match
+        # the message, its wording has drifted four times.
+        if mem.status_code not in (200, 400):
             _raise_litellm(mem, "/team/member_add (personal)")
 
         # resolve_access_group_ids opens its own client while this one is still

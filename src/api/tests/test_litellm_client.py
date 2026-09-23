@@ -2161,7 +2161,9 @@ async def test_ensure_personal_team_tolerates_an_existing_member():
         return_value=httpx.Response(400, json={"error": "Team already exists"})
     )
     respx.post("http://litellm.test/team/member_add").mock(
-        return_value=httpx.Response(400, json={"error": "User already exists in team"})
+        # The body matches nothing on purpose: the check is status-only and must
+        # survive LiteLLM rewording it again (prod said "User already in team").
+        return_value=httpx.Response(400, json={"error": "some future wording"})
     )
     respx.get("http://litellm.test/team/info").mock(
         return_value=httpx.Response(

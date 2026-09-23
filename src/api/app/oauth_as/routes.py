@@ -340,8 +340,15 @@ async def as_callback(request: Request):
     await _store.put(DEXRT, email, {"rt": dex_refresh}, ttl=_settings.as_refresh_ttl_seconds)
     try:
         await ensure_team_and_user(email, _settings, name=userinfo.get("name"))
-    except httpx.HTTPError as exc:
-        logger.warning("User provisioning failed at as-callback: %s", exc)
+    except httpx.HTTPStatusError as exc:
+        # LiteLLM answered and said no: a provisioning bug, not an outage.
+        # Retrying cannot help, so do not tell the user to.
+        logger.error("User provisioning failed at as-callback: %s", exc)
+        return _html_error(
+            502, f"user provisioning failed: LiteLLM rejected it ({exc.response.status_code})"
+        )
+    except httpx.TransportError as exc:
+        logger.warning("User provisioning failed at as-callback, LiteLLM unreachable: %s", exc)
         return _html_error(503, "user provisioning failed: LiteLLM is unreachable, try again")
     pending["sub"] = email
     if pending.get("device_code"):
@@ -724,7 +731,10 @@ async def token(request: Request) -> JSONResponse:
             )
         try:
             alive = await _user_exists(rec["sub"])
-        except httpx.HTTPError as exc:
+        except httpx.HTTPStatusError as exc:
+            logger.error("Refresh deferred, LiteLLM rejected the user lookup: %s", exc)
+            return _error(503, "temporarily_unavailable")
+        except httpx.TransportError as exc:
             logger.warning("Refresh deferred, LiteLLM unreachable: %s", exc)
             return _error(503, "temporarily_unavailable")
         consumed = await _store.pop("refresh", presented)
