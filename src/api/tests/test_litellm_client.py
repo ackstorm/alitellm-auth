@@ -1996,6 +1996,48 @@ async def test_ensure_personal_team_creates_closed_with_budget():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_ensure_personal_team_reasserts_the_deny_all_baseline_on_update():
+    """The attach write re-sends object_permission, so the closed baseline is
+    ENFORCED on every login rather than only initialised at create.
+
+    object_permission is otherwise written once, at /team/new. Nothing stops an
+    entry set by hand (admin UI, stray API call) living on the team forever, and
+    `_team_granted_servers` unions mcp_servers, mcp_access_groups AND
+    expand_tool_permissions(mcp_tool_permissions) into the allowed set -- so any
+    of them widens the team past its access groups with no error anywhere.
+    """
+    from app.litellm_client import DENY_ALL_AGENT, ensure_personal_team
+
+    settings = make_settings(default_access_groups=["team-default"])
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
+        )
+    )
+    update = respx.post("http://litellm.test/team/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    await ensure_personal_team("alice@example.com", settings, factory={})
+
+    op = _json_body(update)["object_permission"]
+    assert op["mcp_servers"] == []
+    assert op["mcp_access_groups"] == []
+    assert op["agents"] == [DENY_ALL_AGENT]
+    assert op["agent_access_groups"] == []
+    # The budget envelope is deliberately NOT re-asserted: a cap raised by hand
+    # must survive, where a widened permission must not.
+    assert "max_budget" not in _json_body(update)
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_ensure_personal_team_adds_the_user_as_a_member():
     """LiteLLM refuses /key/update into a team the user is not a member of, so
     without this the migration cannot move a single key (403, seen in prod)."""

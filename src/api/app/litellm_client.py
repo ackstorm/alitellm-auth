@@ -1189,10 +1189,12 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
     """Idempotently ensure this user's personal team, and sync its attachments.
 
     Phase 1 -- CREATE CLOSED. models/object_permission are the deny-all
-    sentinels and stay that way for the life of the team. The budget envelope
-    from the Helm factory `user` block is written HERE AND ONLY HERE: budget
-    edits do not propagate to live keys (measured on v1.99.1 -- a key still
-    cited a cap of 1e-06 three minutes after it was raised to 5.0), and
+    sentinels. object_permission is re-asserted in phase 2 on every login, so
+    "stays that way for the life of the team" is enforced, not just intended.
+
+    The budget envelope from the Helm factory `user` block is written HERE AND
+    ONLY HERE: budget edits do not propagate to live keys (measured on v1.99.1
+    -- a key still cited a cap of 1e-06 three minutes after it was raised), and
     re-writing on every login would silently stamp over a cap someone raised
     by hand.
 
@@ -1265,11 +1267,28 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
             access_groups_for_user(email, settings), settings
         )
         # NO budget field here, by design -- see the docstring. This body is
-        # exactly team_id + the authoritative attachment list.
+        # exactly team_id, the authoritative attachment list, and the deny-all
+        # baseline re-asserted.
+        #
+        # object_permission is re-sent on EVERY login so the closed baseline is
+        # enforced rather than merely initialised. It is only written at create
+        # otherwise, and nothing stops a hand-set entry -- from the LiteLLM admin
+        # UI or a stray API call -- persisting for the life of the team.
+        # `_team_granted_servers` UNIONS mcp_servers, mcp_access_groups and
+        # expand_tool_permissions(mcp_tool_permissions) into the allowed set, so
+        # any of them widens the team past its access groups, silently.
+        #
+        # Unlike the budget envelope above, there is no legitimate hand-tuned
+        # value here to preserve: capability arrives ONLY through access groups,
+        # which is the whole point of the deny-all base.
         upd = await client.post(
             "/team/update",
             headers=headers,
-            json={"team_id": team_id, "access_group_ids": group_ids},
+            json={
+                "team_id": team_id,
+                "access_group_ids": group_ids,
+                "object_permission": deny_all_object_permission(),
+            },
         )
         if not upd.is_success:
             _raise_litellm(upd, "/team/update (attach)")
