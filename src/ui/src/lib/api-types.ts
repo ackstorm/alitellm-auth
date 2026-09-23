@@ -334,14 +334,13 @@ export interface LatencyByModel {
 
 /**
  * GET /api/session/latency response. session.py::session_latency.
- * `available` is false (calm degrade, still a 200) when the sso_key_swapper
- * scoping contract is unverified or the /spend/logs fetch failed — the panel
- * shows a "not available" state. When true but the window is empty, the latency
- * figures are null and outcomes/by_model are empty.
+ * `available` is false (calm degrade, still a 200) when the /spend/logs fetch
+ * failed — the panel shows a "not available" state. When true but the window is
+ * empty, the latency figures are null and outcomes/by_model are empty.
  */
 export interface LatencyResponse {
   available: boolean;
-  /** Why it degraded, when available is false ("scoping_unverified" | "fetch_failed"). */
+  /** Why it degraded, when available is false ("fetch_failed"). */
   reason?: string;
   /** True when the row cap truncated the sample (figures are a sample, not exhaustive). */
   sampled: boolean;

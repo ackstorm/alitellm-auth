@@ -498,7 +498,7 @@ async def generate_litellm_key(
     # so LiteLLM already gates it by role (LLM + read/info routes; management
     # routes still require proxy_admin). The per-user Models/MCPs catalog needs
     # info routes like /model_group/info, so pinning allowed_routes=["llm_api_routes"]
-    # broke it (403 once the sso_key_swapper impersonated the user's default key).
+    # broke it (403 when a catalog is read under the user's own key).
     # A security-conscious deployment can re-restrict via factory `key.allowed_routes`.
     factory_key_extra = {k: v for k, v in factory.get("key", {}).items() if k != "metadata"}
 
@@ -1803,47 +1803,3 @@ async def list_litellm_a2a_agents(settings: Settings, api_key: str | None = None
         settings,
         api_key,
     )
-
-
-# ---------------------------------------------------------------------------
-# User-scoping contract probe (sso_key_swapper custom auth)
-# ---------------------------------------------------------------------------
-
-# A deliberately non-existent user id used ONLY to probe the LiteLLM custom-auth
-# contract. It must never match a real LiteLLM user (the `@invalid.local` host and
-# the sentinel affixes make a collision practically impossible).
-CONTRACT_PROBE_USER_ID = "__alitellm-auth-contract-probe__@invalid.local"
-
-
-async def verify_user_scoping_contract(settings: Settings) -> str:
-    """Probe whether LiteLLM enforces the master-key + x-user-id impersonation contract.
-
-    alitellm-auth scopes the per-user Models/MCP catalogs by sending the master key
-    in Authorization PLUS an `x-user-id` header; the deployment's `sso_key_swapper`
-    custom auth (see deploy/litellm/) resolves that to the user's default key. This
-    function verifies that contract is actually installed by hitting `/v1/models`
-    (a master key alone lists the models, or an empty list if none are configured)
-    while impersonating a deliberately NON-EXISTENT user via `x-user-id`:
-
-      * custom auth installed  -> the impersonation is rejected (401/403)  => "enforced"
-      * custom auth absent     -> the master key authenticates as full admin and the
-                                  model list comes back (2xx), x-user-id ignored
-                                                                             => "not_enforced"
-      * backend unreachable / 5xx -> cannot tell                            => "unknown"
-
-    A "not_enforced" result means the per-user catalog silently degrades to the
-    global admin view — the caller logs a prominent warning (we do NOT fail
-    readiness over it). "unknown" is transient (boot ordering / outage).
-    """
-    headers = _admin_headers(settings)
-    headers["x-user-id"] = CONTRACT_PROBE_USER_ID
-    try:
-        async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=10.0) as client:
-            resp = await client.get("/v1/models", headers=headers)
-    except httpx.RequestError:
-        return "unknown"
-    if resp.status_code in (401, 403):
-        return "enforced"
-    if resp.is_success:
-        return "not_enforced"
-    return "unknown"

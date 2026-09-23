@@ -52,11 +52,9 @@ GET /api/users (+ /{email}, DELETE /{email})
 | `src/api/app/auth.py` | OIDC routes + `oauth` module-level instance |
 | `src/api/app/litellm_client.py` | `generate_litellm_key()`, `ensure_litellm_user()`, `get/list/delete_litellm_user()` |
 | `src/api/app/admin.py` | GET/DELETE `/api/users` CRUD, master-key authz |
-| `src/api/app/main.py` | `create_app()` factory + SessionMiddleware + lifespan contract check |
-| `src/api/app/contract.py` | startup verification of the LiteLLM user-scoping contract (non-fatal CRITICAL banner) |
+| `src/api/app/main.py` | `create_app()` factory + SessionMiddleware |
 | `src/api/app/templates/` | `error.html` (dark terminal card; rendered on OIDC/callback failure) |
 | `deploy/helm/` | Helm chart (deployment, service, ingress, configmap, secret) — the only install path |
-| `deploy/litellm/` | **canonical** `sso_key_swapper` custom-auth (runs on the LiteLLM proxy) + install README — the user-scoping contract |
 | `src/api/app/openwork.py` | OpenWork desktop "Den" contract at `/openwork` (SSO handoff, policy, branding). Off unless `OPENWORK_ENABLED`. **MUST read `docs/plans/2026-09-18-openwork-den.md` §3 (protocol traps) before touching** — error shape, CORS reflection, single-use grant, catch-all order |
 
 ---
@@ -365,30 +363,26 @@ httpx encodes `@` → `%40` and `+` → `%2B` correctly. Manual f-string concate
 
 ---
 
-## LiteLLM user-scoping contract (`sso_key_swapper`)
+## Per-user key scoping (v0.18.0)
 
-The console's per-user **Models** (`/api/session/models`) and **MCPs** (`/api/session/mcp`)
-catalogs are scoped to the signed-in user. The browser never holds the master key or an
-`sk-`, so alitellm-auth calls LiteLLM **server-side with the master key PLUS an
-`x-user-id: <session email>` header** (`x-user-id` is the authenticated email — NEVER
-client input; see `list_litellm_models`/`list_litellm_mcp_servers`).
+Every per-user read — **Models** (`/api/session/models`), **MCPs** (`/api/session/mcp`),
+**A2A**, keys and spend — goes to LiteLLM as `x-litellm-api-key: <the caller's own key>`
+with **NO master key**, so LiteLLM's native auth scopes each answer by that key's own
+team and access groups. The key is resolved from the AS store by
+`app/internal.py::resolve_front_key` (the same credential the authz proxy injects) and is
+NEVER taken from client input.
 
-On the LiteLLM side a custom auth (`sso_key_swapper`, **vendored at `deploy/litellm/`**)
-turns `master + x-user-id` into an **impersonation of that user's default key**:
-- master key, no `x-user-id` → admin (native auth);
-- a real `sk-` → native auth;
-- master + `x-user-id` → impersonate the user's default key; **hard-reject (403/503)
-  on any failure, NEVER fall back to admin** (a fallback = privilege escalation). It uses
-  `ProxyException` (a FastAPI `HTTPException` is swallowed as a fallback in `mode: "auto"`).
+This replaced the `sso_key_swapper` impersonation (master key + `x-user-id`), which
+failed **OPEN**: where the custom auth was absent, the master key authenticated as full
+proxy admin and the "per-user" catalog was silently the global one. A virtual key has no
+such mode, so no startup contract probe is needed — and none exists any more.
 
-**Verification (this repo):** `app/contract.py::warn_if_contract_unenforced` runs as a
-non-fatal background task in the FastAPI **lifespan** at startup. It probes via
-`app/litellm_client.py::verify_user_scoping_contract` — `GET /v1/models` with the master
-key and a **non-existent `x-user-id`**: `401/403` ⇒ enforced (INFO); `2xx` ⇒ NOT installed
-(master accepted as admin) ⇒ **CRITICAL banner** (per-user catalog silently degrades to
-the global admin view); `5xx`/unreachable ⇒ WARNING (retried). It **never** fails
-readiness or refuses to serve. Toggle with `LITELLM_USER_SCOPING_CHECK` (default true).
-Install details + the contract table: `deploy/litellm/README.md`.
+**Known gap — MCP.** A team's `object_permission.mcp_servers: []` does NOT deny; the
+`no-mcp-servers` sentinel is honoured at KEY level only (LiteLLM 1.99.1
+`MCPRequestHandler._get_allowed_mcp_servers_for_key`), never on the team path. So a
+personal team's deny-all base holds for models (`no-default-models`) and agents (null
+UUID) but not for MCP servers, which fall through to proxy-wide visibility governed by
+each server's legacy `mcp_access_groups` tag.
 
 ---
 
@@ -440,7 +434,6 @@ Never rely on env vars in tests. All test files have a local `make_test_settings
 | `SESSION_SECRET_KEY` | k8s secret | Cookie signing key — shared across all replicas |
 | `OAUTH_CLIENT_SECRET` | k8s secret | OIDC client secret (`${GENAI_OAUTH_MCP_SECRET}` in Dex) |
 | `LITELLM_MASTER_KEY` | k8s secret | LiteLLM admin key |
-| `LITELLM_USER_SCOPING_CHECK` | deployment env (opt) | Default `true`. Startup probe of the `sso_key_swapper` contract; `false` disables it (OSS forks / no per-user scoping) |
 | `OPENWORK_ENABLED` | deployment env (opt) | Default `false`. Serves the OpenWork Den at `/openwork`; requires `AS_REDIS_URL`. Branding/policy knobs: `OPENWORK_*` in `config.py`; chart block `openwork:` |
 
 ---

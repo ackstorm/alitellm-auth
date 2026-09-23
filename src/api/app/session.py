@@ -890,9 +890,8 @@ async def session_latency(
 
     Sourced from LiteLLM /spend/logs/v2 (the ONLY place per-request latency/status
     live) over the SAME date window as /stats (start_date/end_date, default 30d, max
-    366d), fetched server-side via the sso_key_swapper impersonation (master +
-    x-user-id — the email is the verified session identity, never client input) so it
-    auto-scopes to this user.
+    366d), fetched server-side under the caller's own LiteLLM key, so LiteLLM's
+    native auth scopes the rows to this user.
 
     Read-only GET (no assert_same_origin, mirrors /stats). Returns ONLY computed
     metrics — the raw rows (which carry messages/response/metadata) are dropped at the

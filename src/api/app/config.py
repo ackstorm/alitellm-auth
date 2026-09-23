@@ -46,12 +46,6 @@ class Settings(BaseSettings):
     # team can be renamed without touching the OIDC client. Env var:
     # LITELLM_DEFAULT_TEAM.
     litellm_default_team: str = "default"
-    # Startup verification of the master-key + x-user-id user-scoping contract
-    # (the sso_key_swapper custom auth — see deploy/litellm/). Non-fatal: when the
-    # contract is not enforced we log a CRITICAL banner; we never refuse to serve.
-    # Set false for OSS forks / deployments not using per-user catalog scoping.
-    # Env var: LITELLM_USER_SCOPING_CHECK
-    litellm_user_scoping_check: bool = True
     # Per-user teams (docs/plans/2026-09-22-per-user-teams.md). OFF by default:
     # switching the team a key lives in changes what every client can reach, so
     # it is opted into per deployment and rolled back by clearing the flag.

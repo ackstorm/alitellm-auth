@@ -181,10 +181,10 @@ def test_project_session_key_displays_friendly_alias():
 async def test_generate_litellm_key_is_not_route_restricted_by_default():
     """The generated key carries NO allowed_routes by default (regression).
 
-    Pinning allowed_routes=["llm_api_routes"] broke the per-user catalog: once the
-    sso_key_swapper impersonated the user's default key, /model_group/info 403'd
-    ("Only allowed to call routes: ['llm_api_routes']"). The key must be left
-    un-restricted so LiteLLM's role-based access (LLM + info routes) applies.
+    Pinning allowed_routes=["llm_api_routes"] broke the per-user catalog: reading a
+    catalog under the user's own key 403'd on /model_group/info ("Only allowed to
+    call routes: ['llm_api_routes']"). The key must be left un-restricted so
+    LiteLLM's role-based access (LLM + info routes) applies.
     """
     settings = make_settings()
     respx.post("http://litellm.test/team/new").mock(
@@ -1622,76 +1622,6 @@ async def test_list_mcp_falls_back_to_the_admin_view_without_a_key():
     )
     await list_litellm_mcp_servers(settings)
     assert "x-user-id" not in route.calls.last.request.headers
-
-
-# ---------------------------------------------------------------------------
-# user-scoping contract probe (sso_key_swapper custom auth verification)
-# ---------------------------------------------------------------------------
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_verify_contract_enforced_on_403():
-    from app.litellm_client import CONTRACT_PROBE_USER_ID, verify_user_scoping_contract
-
-    settings = make_settings()
-    route = respx.get(f"{settings.litellm_url}/v1/models").mock(
-        return_value=httpx.Response(403, json={"error": {"message": "access denied"}})
-    )
-    assert await verify_user_scoping_contract(settings) == "enforced"
-    # The probe impersonates a deliberately non-existent user via x-user-id, with
-    # the master key in Authorization.
-    req = route.calls.last.request
-    assert req.headers["x-user-id"] == CONTRACT_PROBE_USER_ID
-    assert req.headers["authorization"].startswith("Bearer ")
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_verify_contract_enforced_on_401():
-    from app.litellm_client import verify_user_scoping_contract
-
-    settings = make_settings()
-    respx.get(f"{settings.litellm_url}/v1/models").mock(return_value=httpx.Response(401, json={}))
-    assert await verify_user_scoping_contract(settings) == "enforced"
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_verify_contract_not_enforced_on_200():
-    from app.litellm_client import verify_user_scoping_contract
-
-    settings = make_settings()
-    # 200 means the master key authenticated as full admin (x-user-id ignored) —
-    # the custom auth is NOT installed/enforcing.
-    respx.get(f"{settings.litellm_url}/v1/models").mock(
-        return_value=httpx.Response(200, json={"data": []})
-    )
-    assert await verify_user_scoping_contract(settings) == "not_enforced"
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_verify_contract_unknown_on_5xx():
-    from app.litellm_client import verify_user_scoping_contract
-
-    settings = make_settings()
-    respx.get(f"{settings.litellm_url}/v1/models").mock(
-        return_value=httpx.Response(503, text="upstream down")
-    )
-    assert await verify_user_scoping_contract(settings) == "unknown"
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_verify_contract_unknown_on_network_error():
-    from app.litellm_client import verify_user_scoping_contract
-
-    settings = make_settings()
-    respx.get(f"{settings.litellm_url}/v1/models").mock(
-        side_effect=httpx.ConnectError("unreachable")
-    )
-    assert await verify_user_scoping_contract(settings) == "unknown"
 
 
 def _resp(status_code: int, text: str = ""):

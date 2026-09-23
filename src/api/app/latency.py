@@ -2,7 +2,7 @@
 """Pure aggregation for GET /api/session/latency — no HTTP, fully unit-testable.
 
 The route (session.py::session_latency) fetches lean /spend/logs/v2 rows for the user
-(via the sso_key_swapper impersonation, bounded by pagination — newest pages first)
+(under the caller's own LiteLLM key, bounded by pagination — newest pages first)
 and hands them here. These functions fold the rows into a small, page-ready contract
 that surfaces ONLY computed metrics — the raw rows (which carry messages/response/
 metadata) are dropped at the fetch boundary and NEVER forwarded to the browser.
