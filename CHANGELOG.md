@@ -2,6 +2,30 @@
 
 ## [unreleased]
 
+## [0.18.1] - 2026-09-23
+
+### Fixed
+
+- **Personal teams re-assert their deny-all baseline on every login.**
+  `object_permission` was written once at `/team/new` and never again, so an
+  entry added by hand (LiteLLM admin UI, a stray API call) widened the team
+  past its access groups for good. The per-login `/team/update` now carries the
+  baseline too. The budget envelope is deliberately not re-asserted: a cap
+  raised by hand survives, a permission widened by hand does not.
+- **The baseline is only re-asserted on a team this service owns** — one it
+  just created, or one tagged `metadata.alt_managed = user-team`. The team id is
+  derived from an email, so a collision with someone else's team is reachable;
+  an unreadable `/team/info` counts as not ours, so nothing is overwritten.
+  `access_group_ids` is still synced on every login.
+
+### Removed
+
+- **The startup user-scoping probe and its CRITICAL boot banner.** Per-user
+  catalogs have been read under the caller's own key since 0.18.0, so there was
+  nothing left to verify. `app/contract.py`, the `LITELLM_USER_SCOPING_CHECK`
+  setting (env-only, never in the chart) and `deploy/litellm/` are gone.
+- **authz no longer strips a legacy header** that nothing sends.
+
 ## [0.18.0] - 2026-09-22
 
 ### Changed
