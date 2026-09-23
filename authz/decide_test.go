@@ -41,11 +41,11 @@ func TestAgentKeyInTheInboundHeaderIsRenamedAndAuthorizationIsLeftAlone(t *testi
 	// Claude Code with an Anthropic subscription: our key in the custom header,
 	// Anthropic's OAuth in Authorization. LiteLLM forwards the latter upstream.
 	for _, in := range []string{"sk-abc", "Bearer sk-abc"} {
-		d := decide(map[string]string{"x-genai-api-key": in, "authorization": "Bearer sk-ant-oat01-xyz", "x-user-id": "spoof"}, fakeVerifier{}, &fakeResolver{})
+		d := decide(map[string]string{"x-genai-api-key": in, "authorization": "Bearer sk-ant-oat01-xyz"}, fakeVerifier{}, &fakeResolver{})
 		if !d.Allow || d.Set["x-litellm-api-key"] != "Bearer sk-abc" {
 			t.Fatalf("%q: %+v", in, d)
 		}
-		if !contains(d.Remove, "x-genai-api-key") || !contains(d.Remove, "x-user-id") || contains(d.Remove, "authorization") {
+		if !contains(d.Remove, "x-genai-api-key") || contains(d.Remove, "authorization") {
 			t.Fatalf("%q: remove=%v", in, d.Remove)
 		}
 	}
@@ -88,9 +88,9 @@ func TestUserJWTInAuthorizationIsConsumed(t *testing.T) {
 
 func TestOutboundHeaderPassesThroughUntouched(t *testing.T) {
 	// A LiteLLM key already in LiteLLM's own header: LiteLLM authenticates it.
-	h := map[string]string{"x-litellm-api-key": "Bearer sk-old", "x-user-id": "spoof"}
+	h := map[string]string{"x-litellm-api-key": "Bearer sk-old"}
 	d := decide(h, fakeVerifier{}, &fakeResolver{})
-	if !d.Allow || len(d.Set) != 0 || !contains(d.Remove, "x-user-id") || contains(d.Remove, "x-litellm-api-key") {
+	if !d.Allow || len(d.Set) != 0 || contains(d.Remove, "x-litellm-api-key") {
 		t.Fatalf("outbound header: %+v", d)
 	}
 }
@@ -101,8 +101,8 @@ func TestAForeignAuthorizationIsForwardedUntouchedOnEveryPath(t *testing.T) {
 	for _, path := range []string{v1, "/v1/agents", "/key/info", "/health/license", "/mcp/mcp-aws-eks-ro"} {
 		for _, auth := range []string{"Bearer sk-abc", "Bearer sk-ant-oat01-xyz", "Bearer opaque-session-token", "Basic dXNlcjpwdw=="} {
 			r := &fakeResolver{}
-			d := Decide(context.Background(), cfg, path, map[string]string{"authorization": auth, "x-user-id": "spoof"}, fakeVerifier{err: errors.New("never called")}, r)
-			if !d.Allow || len(d.Set) != 0 || contains(d.Remove, "authorization") || !contains(d.Remove, "x-user-id") {
+			d := Decide(context.Background(), cfg, path, map[string]string{"authorization": auth}, fakeVerifier{err: errors.New("never called")}, r)
+			if !d.Allow || len(d.Set) != 0 || contains(d.Remove, "authorization") {
 				t.Fatalf("%s %q: %+v", path, auth, d)
 			}
 			if r.calls != 0 {
@@ -116,8 +116,8 @@ func TestAnonymousOnTheCatchAllIsForwardedUntouched(t *testing.T) {
 	// LiteLLM's UI, its health and admin surfaces: nothing presented is not our
 	// business outside the protected families.
 	for _, path := range []string{"/", "/ui", "/ui/", "/health/license", "/key/info", "/sso/callback", "/v2/models", "/v1beta"} {
-		d := Decide(context.Background(), cfg, path, map[string]string{"x-user-id": "spoof"}, fakeVerifier{}, &fakeResolver{})
-		if !d.Allow || len(d.Set) != 0 || !contains(d.Remove, "x-user-id") {
+		d := Decide(context.Background(), cfg, path, map[string]string{}, fakeVerifier{}, &fakeResolver{})
+		if !d.Allow || len(d.Set) != 0 {
 			t.Fatalf("%s: %+v", path, d)
 		}
 	}

@@ -60,7 +60,7 @@ def front_key():
     Autouse because every per-user read (models, MCP, A2A, latency) now goes out
     under the caller's key, so a route that used to need no setup would otherwise
     502 on an unreachable AS store. The fake key carries the email so a test can
-    assert WHOSE key was used, which is the property that replaced x-user-id.
+    assert WHOSE key was used.
     """
     with patch(
         "app.session.resolve_front_key",

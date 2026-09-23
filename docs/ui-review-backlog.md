@@ -180,8 +180,8 @@ split, no logs** in the daily aggregate.
        with a plain user `sk-` **auto-scopes to the caller**: all 138 rows had
        `user=<key owner>`, and the daily-aggregate `users` block listed only that user. The
        original leak was the *master-key* path (`user_id` param ignored); server-side we must
-       call it via the `sso_key_swapper` impersonation (master + `x-user-id`, same as
-       models/mcp) so it auto-scopes, NEVER master alone with a `user_id` filter.
+       call it under the user's own key (same as models/mcp) so it auto-scopes, NEVER
+       master with a `user_id` filter.
      - **Latency fields ARE present per request:** `request_duration_ms` (138/138 rows),
        `startTime`, `endTime`, `completionStartTime`, `status`, tokens. Probe percentiles for
        one day: p50 3251 ms, p95 7226 ms, p99 9231 ms. TTFT = `completionStartTime − startTime`.
@@ -192,7 +192,7 @@ split, no logs** in the daily aggregate.
        `metadata` (6 KB), `response` (3 KB) per row. The **lean latency subset is 375 B/row**
        (72× smaller). A wide window on a heavy user still risks the old OOM (30 d ≈ 100 MB+).
      - **Follow-up plan (build):** alitellm-auth backend fetches `/spend/logs?summarize=false`
-       server-side via `sso_key_swapper` impersonation (auto-scoped), **capped by a short date
+       server-side under the user's own key (auto-scoped), **capped by a short date
        window (≤7 d) + a hard row cap** (stop after N rows, label "sampled" — since pagination
        is a no-op), computes p50/p95/p99 + TTFT + tok/s server-side, and returns ONLY the
        computed metrics (or the 375 B lean subset) — **never** forwarding

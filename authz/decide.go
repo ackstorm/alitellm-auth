@@ -61,10 +61,7 @@ func protected(path string) bool {
 // Scopes are not gated here: a user token proves who, and LiteLLM decides what
 // that user's key may reach (models, MCP servers and their upstream auth).
 func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v Verifier, r KeyResolver) Decision {
-	// x-user-id is LiteLLM's impersonation contract with the console; nothing
-	// from the internet may carry it. Also stripped at the route.
-	strip := []string{"x-user-id"}
-	untouched := Decision{Allow: true, Set: map[string]string{}, Remove: strip}
+	untouched := Decision{Allow: true, Set: map[string]string{}}
 
 	// The declared slots, in precedence order. x-api-key is where the Anthropic
 	// SDK puts an API key (Claude Code with ANTHROPIC_API_KEY or an apiKeyHelper
@@ -76,7 +73,7 @@ func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v
 			continue
 		}
 		tok := bareKey(raw)
-		remove := append(strip, name)
+		remove := []string{name}
 		if !looksLikeJWS(tok) {
 			return allowWithKey(cfg, tok, remove)
 		}
@@ -84,7 +81,7 @@ func Decide(ctx context.Context, cfg Config, path string, h map[string]string, v
 	}
 	if auth := h["authorization"]; auth != "" {
 		if tok := bareKey(auth); strings.HasPrefix(auth, "Bearer ") && looksLikeJWS(tok) {
-			return userPath(ctx, cfg, path, tok, append(strip, "authorization"), v, r)
+			return userPath(ctx, cfg, path, tok, []string{"authorization"}, v, r)
 		}
 		return untouched // not ours; LiteLLM authenticates it
 	}

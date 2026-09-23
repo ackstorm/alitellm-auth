@@ -861,9 +861,7 @@ async def fetch_user_spend_logs(
     ``_LEAN_SPEND_FIELDS``.
 
     SECURITY: scoping is the key itself, so there is no configuration under which
-    this can widen. The impersonation path this replaced failed OPEN — where the
-    gateway custom auth was absent, master+x-user-id authenticated as full admin and
-    v2 returned EVERY user's rows. A virtual key has no such mode. We still never
+    this can widen (the master key here would return EVERY user's rows). We never
     pass a ``user_id`` param: it would imply a scoping the key already enforces.
 
     MEMORY: v2 HONORS page_size (unlike the legacy /spend/logs, whose pagination was a
@@ -1591,9 +1589,7 @@ def _as_user_headers(api_key: str | None, settings: Settings) -> dict:
 
     The key goes in ``x-litellm-api-key`` and the master key is NOT sent: this is
     LiteLLM's own native auth for a virtual key, so the answer is scoped by the
-    key's own team and access groups with no impersonation in the middle. That
-    matters beyond tidiness -- the impersonation path it replaces failed OPEN,
-    authenticating as full admin wherever the custom auth was absent.
+    key's own team and access groups.
 
     ``api_key`` of None falls back to the master key, i.e. the ADMIN view. Only
     pass None where an admin answer is what the caller wants.

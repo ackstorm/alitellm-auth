@@ -935,10 +935,10 @@ async def session_models(
 ) -> JSONResponse:
     """Return the public model-group catalog for the session user (read-only).
 
-    Server-side master-key call to LiteLLM /model_group/info — the safe public
-    view (no upstream model / api_base / api_key). Scoped to the session user via
-    an x-user-id header (resolved by the gateway's custom auth); the value is the
-    authenticated email, NEVER client input. Read-only GET (no assert_same_origin,
+    Server-side call to LiteLLM /model_group/info — the safe public view (no
+    upstream model / api_base / api_key). Made under the session user's own front
+    key (_user_key), so LiteLLM scopes it by that key's team; the key is resolved
+    from the authenticated email, NEVER client input. Read-only GET (no assert_same_origin,
     mirrors /stats). A backend failure 502s (the SPA renders its error+retry
     branch); an empty catalog is a valid 200 with models: [].
     """
@@ -979,10 +979,10 @@ async def session_mcp(
 ) -> JSONResponse:
     """Return the configured MCP servers for the session user (read-only).
 
-    Server-side master-key call to LiteLLM /v1/mcp/server, projected to a PUBLIC
-    subset (no credentials — see _project_mcp_server). Scoped to the session user
-    via an x-user-id header (resolved by the gateway's custom auth); the value is
-    the authenticated email, NEVER client input. Read-only GET.
+    Server-side call to LiteLLM /v1/mcp/server, projected to a PUBLIC subset (no
+    credentials — see _project_mcp_server). Made under the session user's own
+    front key (_user_key); the key is resolved from the authenticated email, NEVER
+    client input. Read-only GET.
 
     A 404 means the deployment's LiteLLM has no MCP gateway -> a calm
     {servers: [], available: false} 200 (the page shows a "not enabled" state).
@@ -1005,10 +1005,10 @@ async def session_a2a(
 ) -> JSONResponse:
     """Return the configured A2A agents for the session user (read-only).
 
-    Server-side master-key call to LiteLLM /v1/agents, projected to a PUBLIC subset
-    (no headers/params — see _project_a2a_agent). Scoped to the session user via an
-    x-user-id header (resolved by the gateway's custom auth, the same swap as MCP);
-    the value is the authenticated email, NEVER client input. Read-only GET.
+    Server-side call to LiteLLM /v1/agents, projected to a PUBLIC subset (no
+    headers/params — see _project_a2a_agent). Made under the session user's own
+    front key (_user_key), same as MCP; the key is resolved from the authenticated
+    email, NEVER client input. Read-only GET.
 
     A 404 means the deployment's LiteLLM has no A2A gateway -> a calm
     {agents: [], available: false} 200 (the page shows a "not enabled" state).

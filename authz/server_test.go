@@ -26,7 +26,7 @@ func check(t *testing.T, s *Server, path string, headers map[string]string) *aut
 func TestCheckAllowMapsHeaderMutations(t *testing.T) {
 	s := &Server{cfg: cfg, verifier: fakeVerifier{sub: "u"}, resolver: &fakeResolver{key: "sk-front"}}
 	resp := check(t, s, "/v1/chat/completions?x=1", map[string]string{
-		"authorization": "Bearer a.b.c", "x-user-id": "spoof",
+		"authorization": "Bearer a.b.c",
 	})
 	ok := resp.GetOkResponse()
 	if ok == nil {
@@ -38,9 +38,6 @@ func TestCheckAllowMapsHeaderMutations(t *testing.T) {
 	}
 	if set["x-litellm-api-key"] != "Bearer sk-front" {
 		t.Fatalf("headers: %v", set)
-	}
-	if !contains(ok.HeadersToRemove, "x-user-id") {
-		t.Fatalf("remove: %v", ok.HeadersToRemove)
 	}
 }
 

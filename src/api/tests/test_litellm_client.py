@@ -1561,7 +1561,7 @@ async def test_update_litellm_key_team_raises_on_5xx():
 
 
 # ---------------------------------------------------------------------------
-# C1: per-user scoping header (x-user-id) on the catalog calls
+# C1: per-user scoping (caller's own key) on the catalog calls
 # ---------------------------------------------------------------------------
 
 
@@ -1569,7 +1569,7 @@ async def test_update_litellm_key_team_raises_on_5xx():
 @respx.mock
 async def test_list_models_calls_as_the_key_owner_without_the_master_key():
     """The user's key alone. Sending the master key too would let LiteLLM answer
-    as admin, which is the failure the impersonation header used to have."""
+    as admin."""
     from app.litellm_client import list_litellm_models
 
     settings = make_settings()
@@ -1580,7 +1580,6 @@ async def test_list_models_calls_as_the_key_owner_without_the_master_key():
     sent = route.calls.last.request.headers
     assert sent["x-litellm-api-key"] == "sk-alice"
     assert "authorization" not in sent
-    assert "x-user-id" not in sent
 
 
 @pytest.mark.asyncio
@@ -1593,7 +1592,9 @@ async def test_list_models_falls_back_to_the_admin_view_without_a_key():
         return_value=httpx.Response(200, json={"data": []})
     )
     await list_litellm_models(settings)
-    assert "x-user-id" not in route.calls.last.request.headers
+    sent = route.calls.last.request.headers
+    assert sent["authorization"] == f"Bearer {settings.litellm_master_key}"
+    assert "x-litellm-api-key" not in sent
 
 
 @pytest.mark.asyncio
@@ -1621,7 +1622,9 @@ async def test_list_mcp_falls_back_to_the_admin_view_without_a_key():
         return_value=httpx.Response(200, json=[])
     )
     await list_litellm_mcp_servers(settings)
-    assert "x-user-id" not in route.calls.last.request.headers
+    sent = route.calls.last.request.headers
+    assert sent["authorization"] == f"Bearer {settings.litellm_master_key}"
+    assert "x-litellm-api-key" not in sent
 
 
 def _resp(status_code: int, text: str = ""):

@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Header, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s mock-litellm %(message)s")
@@ -550,13 +550,8 @@ async def spend_logs(
     start_date: str | None = None,
     end_date: str | None = None,
     summarize: str | None = None,
-    x_user_id: str | None = Header(default=None),
 ):
-    # The real backend scopes via x-user-id impersonation (sso_key_swapper); log it
-    # to prove the header path is exercised. The mock ignores user_id (as real
-    # LiteLLM does) — scoping is the deployment's custom auth, not this stub.
-    if x_user_id:
-        log.info("spend/logs scoped to x-user-id=%s", x_user_id)
+    # The mock ignores user_id (as real LiteLLM does) — scoping is the caller's key.
     return _synth_spend_logs(start_date, end_date)
 
 
@@ -568,13 +563,10 @@ async def spend_logs_v2(
     page_size: int = 50,
     sort_by: str | None = None,
     sort_order: str = "desc",
-    x_user_id: str | None = Header(default=None),
 ):
     # v2 HONORS pagination + sorting (unlike v1). The backend fetch_user_spend_logs
     # pages this newest-first (sort_by=startTime, sort_order=desc). page_size caps at
     # 100 on real LiteLLM (422 above); mirror that so a mistake surfaces locally.
-    if x_user_id:
-        log.info("spend/logs/v2 scoped to x-user-id=%s page=%s", x_user_id, page)
     if page_size > 100:
         return JSONResponse(
             {"detail": [{"type": "less_than_equal", "loc": ["query", "page_size"],
@@ -815,27 +807,14 @@ _A2A_AGENTS = [
 
 
 @app.get("/v1/models")
-async def v1_models(x_user_id: str | None = Header(default=None)):
-    # Emulate the sso_key_swapper contract that verify_user_scoping_contract probes:
-    # master + x-user-id impersonates THAT user's default key, so an UNKNOWN user (the
-    # contract-probe sentinel) is REJECTED (401/403). This is what makes the startup
-    # check — and the latency route's security gate — read the contract as "enforced"
-    # locally; without it the mock would 200 every request and read as NOT enforced,
-    # degrading the Latency/Errors panels. The real mock user (alice) passes through.
-    if x_user_id and x_user_id != MOCK_EMAIL:
-        return JSONResponse({"error": {"message": "invalid user"}}, status_code=401)
+async def v1_models():
     return {"object": "list", "data": [{"id": m["model_group"]} for m in _MODEL_GROUPS]}
 
 
 @app.get("/model_group/info")
 async def model_group_info(
     model_group: str | None = None,
-    x_user_id: str | None = Header(default=None),
 ):
-    # Real per-user scoping is the deployment's custom auth; the mock just logs
-    # the header to prove the x-user-id path is exercised (and must not 500 on it).
-    if x_user_id:
-        log.info("model_group/info scoped to x-user-id=%s", x_user_id)
     data = [copy.deepcopy(m) for m in _MODEL_GROUPS]
     if model_group:
         data = [m for m in data if m["model_group"] == model_group]
@@ -845,10 +824,7 @@ async def model_group_info(
 @app.get("/v1/mcp/server")
 async def mcp_server_list(
     team_id: str | None = None,
-    x_user_id: str | None = Header(default=None),
 ):
-    if x_user_id:
-        log.info("v1/mcp/server scoped to x-user-id=%s", x_user_id)
     # Bare JSON array (matches LiteLLM's response_model=List[LiteLLM_MCPServerTable]).
     return [copy.deepcopy(s) for s in _MCP_SERVERS]
 
@@ -856,10 +832,7 @@ async def mcp_server_list(
 @app.get("/v1/agents")
 async def a2a_agent_list(
     health_check: bool = False,
-    x_user_id: str | None = Header(default=None),
 ):
-    if x_user_id:
-        log.info("v1/agents scoped to x-user-id=%s", x_user_id)
     # Bare JSON array (matches LiteLLM's response_model=List[AgentResponse]).
     return [copy.deepcopy(a) for a in _A2A_AGENTS]
 

@@ -372,10 +372,8 @@ team and access groups. The key is resolved from the AS store by
 `app/internal.py::resolve_front_key` (the same credential the authz proxy injects) and is
 NEVER taken from client input.
 
-This replaced the `sso_key_swapper` impersonation (master key + `x-user-id`), which
-failed **OPEN**: where the custom auth was absent, the master key authenticated as full
-proxy admin and the "per-user" catalog was silently the global one. A virtual key has no
-such mode, so no startup contract probe is needed — and none exists any more.
+Never add the master key to these calls: LiteLLM would answer as full proxy admin and
+the "per-user" catalog would silently be the global one.
 
 **Known gap — MCP.** A team's `object_permission.mcp_servers: []` does NOT deny; the
 `no-mcp-servers` sentinel is honoured at KEY level only (LiteLLM 1.99.1
