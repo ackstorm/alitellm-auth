@@ -2,6 +2,15 @@
 
 ## [unreleased]
 
+## [0.18.4] - 2026-09-24
+
+### Fixed
+
+- **Agents no longer show up as models on the Models page.** LiteLLM's
+  `/model_group/info` appends `a2a/<agent>` for every agent the key can reach,
+  and the operator publishes agents as `agent.<name>` models; both rows are now
+  hidden there, since agents are listed on the A2A page.
+
 ## [0.18.3] - 2026-09-23
 
 ### Fixed
