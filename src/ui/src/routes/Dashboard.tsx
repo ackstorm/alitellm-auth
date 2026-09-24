@@ -95,12 +95,6 @@ function EndpointChip({ endpoint }: { endpoint: string }) {
 // lives in their own personal team, which grants nothing by itself: the capability
 // arrives through the access groups attached to it. Listing the personal team back
 // to its owner says only "these are yours", which they know.
-// Access groups are named `team-<something>` by the operator that creates them.
-// That prefix is our bookkeeping, not part of the name a user recognises.
-function displayGroup(name: string): string {
-  return name.startsWith('team-') ? name.slice('team-'.length) : name;
-}
-
 function KeysGroupsTile({
   keyRows,
   accessGroups,
@@ -145,7 +139,7 @@ function KeysGroupsTile({
                 style={{ background: teamColorVar(i) }}
                 aria-hidden="true"
               />
-              {displayGroup(name)}
+              {name}
             </span>
           ))}
         </div>

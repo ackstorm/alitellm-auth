@@ -338,21 +338,15 @@ describe('Dashboard — keys section + modals', () => {
 });
 
 describe('Dashboard — access groups tile', () => {
-  it('shows a pill per access group, without our `team-` bookkeeping prefix', () => {
+  it('shows a pill per access group, by its name', () => {
     setKeysSuccess([makeRow({ id: 'key-1' })]);
     const { container } = render(
-      <Dashboard me={makeMe({ access_groups: ['team-default', 'team-dream'] })} />
+      <Dashboard me={makeMe({ access_groups: ['default', 'dream'] })} />
     );
     const pills = [...container.querySelectorAll('[data-slot="team-pill"]')].map(
       (el) => el.textContent
     );
     expect(pills).toEqual(['default', 'dream']);
-  });
-
-  it('keeps a group name that carries no prefix as-is', () => {
-    setKeysSuccess([makeRow({ id: 'key-1' })]);
-    const { container } = render(<Dashboard me={makeMe({ access_groups: ['research'] })} />);
-    expect(container.querySelector('[data-slot="team-pill"]')?.textContent).toBe('research');
   });
 
   it('says so when the user has no access groups at all', () => {
@@ -366,7 +360,7 @@ describe('Dashboard — access groups tile', () => {
     setKeysSuccess([makeRow({ id: 'key-1', team_id: 'user-alice@example.com' })]);
     render(
       <Dashboard
-        me={makeMe({ team_id: 'user-alice@example.com', access_groups: ['team-default'] })}
+        me={makeMe({ team_id: 'user-alice@example.com', access_groups: ['default'] })}
       />
     );
     expect(screen.queryByText('user-alice@example.com')).not.toBeInTheDocument();
