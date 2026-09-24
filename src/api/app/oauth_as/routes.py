@@ -339,7 +339,7 @@ async def as_callback(request: Request):
     # outage here must not leave the old one on file.
     await _store.put(DEXRT, email, {"rt": dex_refresh}, ttl=_settings.as_refresh_ttl_seconds)
     try:
-        await ensure_team_and_user(email, _settings, name=userinfo.get("name"))
+        await ensure_team_and_user(email, _settings, name=userinfo.get("name"), sso_groups=groups)
     except httpx.HTTPStatusError as exc:
         # LiteLLM answered and said no: a provisioning bug, not an outage.
         # Retrying cannot help, so do not tell the user to.

@@ -219,12 +219,16 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 async def _auth_callback_ui(
-    email: str, name: str | None, settings: Settings, openwork_handoff: bool = False
+    email: str,
+    name: str | None,
+    settings: Settings,
+    openwork_handoff: bool = False,
+    groups: list[str] | None = None,
 ) -> RedirectResponse:
     # Eager-create the LiteLLM user on sign-in (no key minted). Dashboard entry
     # makes the user exist immediately so /me is coherent.
     try:
-        await ensure_team_and_user(email, settings, name=name)
+        await ensure_team_and_user(email, settings, name=name, sso_groups=groups)
     except Exception as exc:
         # D-09 graceful degrade — still redirect; /me handles the transient no-user case.
         logger.error("ui: ensure_team_and_user failed for %s: %s", email, exc)
@@ -286,4 +290,6 @@ async def auth_callback(request: Request) -> HTMLResponse | RedirectResponse:
 
     # 3. Sign-in is UI-only — eager-create the user and redirect to /ui.
     openwork_handoff = bool(request.session.pop("openwork_handoff", False))
-    return await _auth_callback_ui(email, name, settings, openwork_handoff=openwork_handoff)
+    return await _auth_callback_ui(
+        email, name, settings, openwork_handoff=openwork_handoff, groups=groups
+    )

@@ -319,7 +319,11 @@ def test_login_redirects_to_oidc(client):
 def test_callback_eager_creates_without_minting(client):
     """The callback eager-creates the user via ensure_team_and_user and mints no key (D-13)."""
     mock_token = {
-        "userinfo": {"email": "alice@example.com", "name": "Alice Example"},
+        "userinfo": {
+            "email": "alice@example.com",
+            "name": "Alice Example",
+            "groups": ["aws@example.com"],
+        },
     }
 
     with (
@@ -334,6 +338,8 @@ def test_callback_eager_creates_without_minting(client):
     assert response.status_code == 302
     assert response.headers["location"].endswith("/ui")
     mock_ensure.assert_awaited_once()
+    # The SSO groups reach provisioning, where ssoAccessGroups maps them.
+    assert mock_ensure.await_args.kwargs["sso_groups"] == ["aws@example.com"]
 
 
 def test_callback_returns_to_the_openwork_handoff_when_that_was_the_intent(client):

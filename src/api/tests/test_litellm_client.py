@@ -1843,6 +1843,33 @@ def test_access_groups_for_user_is_defaults_plus_explicit_grant():
     assert access_groups_for_user("nobody@example.com", settings) == ["team-default"]
 
 
+def test_access_groups_for_user_adds_sso_group_grants():
+    """Each SSO group maps to extra access groups; keys and the claim are
+    case-folded; an unmapped group grants nothing."""
+    from app.litellm_client import access_groups_for_user
+
+    settings = make_settings(
+        default_access_groups=["team-default"],
+        user_access_groups={"alice@example.com": ["team-dream"]},
+        sso_access_groups={"AWS@Example.com": ["team-aws", "team-dream"]},
+    )
+
+    assert access_groups_for_user(
+        "alice@example.com", settings, ["aws@example.com", "unmapped@example.com"]
+    ) == ["team-default", "team-dream", "team-aws"]
+    assert access_groups_for_user("bob@example.com", settings, [" Aws@Example.COM"]) == [
+        "team-default",
+        "team-aws",
+        "team-dream",
+    ]
+    assert access_groups_for_user("bob@example.com", settings) == ["team-default"]
+
+
+def test_sso_access_groups_rejects_keys_that_fold_together():
+    with pytest.raises(ValueError, match="SSO_ACCESS_GROUPS has two keys"):
+        make_settings(sso_access_groups={"aws@example.com": ["a"], "AWS@example.com": ["b"]})
+
+
 def test_access_groups_for_user_dedupes_and_preserves_order():
     from app.litellm_client import access_groups_for_user
 

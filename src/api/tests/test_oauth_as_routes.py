@@ -491,6 +491,26 @@ def _login_with(c: TestClient, client_id: str, scope: str):
     return r
 
 
+def test_as_callback_passes_the_sso_groups_to_provisioning():
+    c = make_client()
+    client_id = _register(c)
+    with patch("app.oauth_as.routes.oauth") as mock_oauth:
+        mock_oauth.oidc.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("http://dex.test/auth", status_code=302)
+        )
+        c.get("/oauth/authorize", params=_authorize_params(client_id), follow_redirects=False)
+        pending_id = mock_oauth.oidc.authorize_redirect.call_args.kwargs["state"]
+        mock_oauth.oidc.authorize_access_token = AsyncMock(
+            return_value={
+                "userinfo": {"email": "u@x.com", "groups": ["aws@x.com"]},
+                "refresh_token": "dex-rt-1",
+            }
+        )
+        with patch("app.oauth_as.routes.ensure_team_and_user", AsyncMock()) as ensure:
+            c.get(f"/oauth/as-callback?code=dexcode&state={pending_id}", follow_redirects=False)
+    assert ensure.await_args.kwargs["sso_groups"] == ["aws@x.com"]
+
+
 def test_code_carries_the_mcp_scopes_the_user_holds_a_grant_for():
     c = make_client(
         make_settings(as_services=json.dumps(SERVICES)), Grants(FakeRedis(dict(GRANTED)), SERVICES)

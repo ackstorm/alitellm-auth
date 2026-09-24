@@ -74,6 +74,11 @@ config:
   # it as a plain Settings field; see the note on factoryConfig below.
   userAccessGroups: {}
   #  alice@example.com: ["team-research"]
+  # SSO group (OIDC `groups` claim, needs `groups` in oauthScopes) -> EXTRA
+  # access-group names. Keys case-folded at load; same JSON rule as above.
+  # Applied at login and ADDITIVELY: removing a mapping does not detach.
+  ssoAccessGroups: {}
+  #  aws@example.com: ["team-aws"]
   apiPublicUrl: "https://api.ackstorm.ai"
   # Hosted chat UI URL (CHAT nav button + How-to card). Leave empty to derive
   # chat.<domain> from apiPublicUrl's host; set it when chat lives elsewhere.

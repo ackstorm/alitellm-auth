@@ -328,6 +328,7 @@ async def ensure_team_and_user(
     name: str | None = None,
     factory: dict | None = None,
     team_id: str | None = None,
+    sso_groups: list[str] | None = None,
 ) -> str:
     """Idempotently ensure the user's team and LiteLLM user exist.
 
@@ -382,7 +383,7 @@ async def ensure_team_and_user(
         if settings.personal_teams_enabled and team_id is None:
             # Opens its own client (nested, harmless) because the two-phase
             # create-closed-then-attach sequence is its own invariant.
-            team_id = await ensure_personal_team(email, settings, factory)
+            team_id = await ensure_personal_team(email, settings, factory, sso_groups)
             skip_member_budget = True
         else:
             team_id = team_id or settings.team_id
@@ -1145,14 +1146,19 @@ def _stamped_as_ours(team: dict | None) -> bool:
     return metadata.get("alt_managed") == "user-team"
 
 
-def access_groups_for_user(email: str, settings: Settings) -> list[str]:
-    """Access-group NAMES this user is entitled to: baseline plus own grants.
+def access_groups_for_user(
+    email: str, settings: Settings, sso_groups: list[str] | None = None
+) -> list[str]:
+    """Access-group NAMES this user is entitled to: baseline, own grants, and
+    the grants of each SSO group they belong to (sso_access_groups).
 
     Order-preserving and deduped so a no-op login produces an identical id list
     and does not churn /team/update.
     """
     # Settings folds the config keys at load time, so this is a plain dict hit.
     explicit = settings.user_access_groups.get(email.strip().lower(), [])
+    for group in sso_groups or []:
+        explicit = [*explicit, *settings.sso_access_groups.get(group.strip().lower(), [])]
     # Group names are stripped and blanks dropped: a stray space in a YAML list
     # would otherwise become its own dedupe key and an unresolvable name.
     # dict keys are insertion-ordered since 3.7: dedupe without losing order
@@ -1208,7 +1214,9 @@ async def resolve_access_group_ids(names: list[str], settings: Settings) -> list
     return ids
 
 
-async def ensure_personal_team(email: str, settings: Settings, factory: dict) -> str:
+async def ensure_personal_team(
+    email: str, settings: Settings, factory: dict, sso_groups: list[str] | None = None
+) -> str:
     """Idempotently ensure this user's personal team, and sync its attachments.
 
     Phase 1 -- CREATE CLOSED. models/object_permission are the deny-all
@@ -1294,7 +1302,9 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
         # resolve_access_group_ids opens its own client while this one is still
         # open. Harmless, and resolving earlier would put a network call ahead
         # of the team's existence for no benefit.
-        wanted = await resolve_access_group_ids(access_groups_for_user(email, settings), settings)
+        wanted = await resolve_access_group_ids(
+            access_groups_for_user(email, settings, sso_groups), settings
+        )
         # Additive: keep whatever the team already has (e.g. a group attached
         # by hand in the LiteLLM UI) and only add the configured ones. A team
         # we just created has nothing yet, so it needs no read.

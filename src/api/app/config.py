@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # Phase 1 entitlement source; Dex `groups` will feed this later without
     # changing the call site.
     user_access_groups: dict[str, list[str]] = {}
+    # SSO group (the OIDC `groups` claim Dex normalizes from any connector) ->
+    # extra access-group names. Applied at login, additively, like the above.
+    sso_access_groups: dict[str, list[str]] = {}
     # OAuth 2.1 authorization server — the front door (docs/plans/2026-09-17-oauth-front-door.md).
     # Always on: the console resolves each user's LiteLLM key through the AS store
     # (app/internal.py::resolve_front_key), so there is no deployment that works
@@ -165,6 +168,15 @@ class Settings(BaseSettings):
                 raise ValueError("USER_ACCESS_GROUPS has two keys for %r; merge them" % email)
             folded[email] = value
         self.user_access_groups = folded
+        # SSO group names are often addresses too (Google Workspace), folded
+        # for the same reason; the login-side lookup folds the claim to match.
+        sso: dict[str, list[str]] = {}
+        for key, value in self.sso_access_groups.items():
+            group = key.strip().lower()
+            if group in sso:
+                raise ValueError("SSO_ACCESS_GROUPS has two keys for %r; merge them" % group)
+            sso[group] = value
+        self.sso_access_groups = sso
         return self
 
     @model_validator(mode="after")

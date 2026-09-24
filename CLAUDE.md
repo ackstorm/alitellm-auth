@@ -434,6 +434,17 @@ Never list agents with the master key. The Models page hides `agent.*` (`isAgent
 Team id (and display alias) = `LITELLM_DEFAULT_TEAM` (default `"default"`), exposed as `settings.team_id`. There is one team per deployment, not one per user. Decoupled from `OAUTH_CLIENT_ID` (was `"team-{OAUTH_CLIENT_ID}"` before v0.5.20) so the team can be renamed without touching the OIDC client. Changing it points the service at a different team — existing keys/budgets stay on the old team (migrate via kubectl, not in code).
 **WHERE**: `src/api/app/config.py` — `team_id` property; `litellm_client.py` — `ensure_team_and_user()` (`team_alias`).
 
+**Personal-team access groups: set at login, ADDITIVE, three sources**
+On every login-type event (console callback, AS callback, key create, front-key mint)
+`ensure_personal_team` writes `access_group_ids = current ∪ configured`, where configured =
+`DEFAULT_ACCESS_GROUPS` + `USER_ACCESS_GROUPS[email]` + `SSO_ACCESS_GROUPS[g]` for each Dex
+`groups` claim entry `g` (keys and claim case-folded). It never removes a group: one attached
+by hand in the LiteLLM UI survives, and dropping a mapping from config does NOT revoke —
+detach in LiteLLM. An unreadable team is skipped (writing without the current list would
+drop groups). Only the console and AS callbacks carry the claim; key create / front-key mint
+pass no groups, which is harmless because the sync is additive.
+**WHERE**: `litellm_client.py::access_groups_for_user`, `ensure_personal_team`; Helm `config.ssoAccessGroups`.
+
 **LiteLLM User model — one User per login email**
 `ensure_litellm_user(email, settings, name, team_id)` is called on every login before key generation. `user_id = email` (deterministic, debuggable). Keys are scoped to `user_id` via the `user_id` field on `/key/generate`. The user is created idempotently — `400`/`409` "already exists" is treated as success (mirrors team creation).
 **WHERE**: `src/api/app/litellm_client.py` — `ensure_litellm_user()`
