@@ -1125,7 +1125,7 @@ def deny_all_object_permission() -> dict:
     }
 
 
-async def _is_own_personal_team(team_id: str, settings: Settings) -> bool:
+def _stamped_as_ours(team: dict | None) -> bool:
     """True only when this team carries the personal-team ownership stamp.
 
     Guards the destructive half of the attach write. `ach` runs the same check
@@ -1137,7 +1137,6 @@ async def _is_own_personal_team(team_id: str, settings: Settings) -> bool:
     Unreadable counts as NOT ours. The caller then leaves the permission block
     untouched, which is the direction that cannot destroy anything.
     """
-    team = await _team_info(team_id, settings, "ensure_personal_team")
     if team is None:
         return False
     metadata = team.get("metadata")
@@ -1231,9 +1230,10 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
     invert it. It is also why a failed create must not fall through -- LiteLLM
     silently accepts a nonexistent team_id and mints a FAIL-OPEN key.
 
-    access_group_ids is sent on EVERY login, including as an empty list. It is
-    authoritative -- `[]` detaches (measured) and an omitted field would keep a
-    revoked grant forever.
+    access_group_ids is ADDITIVE: every login writes the team's current groups
+    plus the configured ones, and never removes a group. A group attached by
+    hand (LiteLLM admin UI) survives the next login; the flip side is that
+    dropping a group from the config does NOT revoke it -- detach it in LiteLLM.
     """
     team_id = settings.personal_team_id(email)
     headers = _admin_headers(settings)
@@ -1294,9 +1294,24 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
         # resolve_access_group_ids opens its own client while this one is still
         # open. Harmless, and resolving earlier would put a network call ahead
         # of the team's existence for no benefit.
-        group_ids = await resolve_access_group_ids(
-            access_groups_for_user(email, settings), settings
-        )
+        wanted = await resolve_access_group_ids(access_groups_for_user(email, settings), settings)
+        # Additive: keep whatever the team already has (e.g. a group attached
+        # by hand in the LiteLLM UI) and only add the configured ones. A team
+        # we just created has nothing yet, so it needs no read.
+        team = None
+        current: list[str] = []
+        if not we_created_it:
+            team = await _team_info(team_id, settings, "ensure_personal_team")
+            if team is None:
+                # Without the current list the write would DROP groups. Skip
+                # the attach; the next login retries.
+                logger.warning(
+                    "personal team %s unreadable -- skipping the access-group attach",
+                    team_id,
+                )
+                return team_id
+            current = [g for g in team.get("access_group_ids") or [] if isinstance(g, str)]
+        group_ids = list(dict.fromkeys([*current, *wanted]))
         # NO budget field here, by design -- see the docstring. This body is
         # exactly team_id, the authoritative attachment list, and the deny-all
         # baseline re-asserted.
@@ -1312,12 +1327,11 @@ async def ensure_personal_team(email: str, settings: Settings, factory: dict) ->
         # Unlike the budget envelope above, there is no legitimate hand-tuned
         # value here to preserve: capability arrives ONLY through access groups,
         # which is the whole point of the deny-all base.
-        # access_group_ids is ALWAYS sent -- it is the authoritative
-        # entitlement sync and skipping it would strand a revoked grant.
+        # access_group_ids is current ∪ configured -- see the docstring.
         # object_permission is destructive, so it rides along only on a team we
         # own: ours by construction, or carrying our ownership stamp.
         body: dict = {"team_id": team_id, "access_group_ids": group_ids}
-        if we_created_it or await _is_own_personal_team(team_id, settings):
+        if we_created_it or _stamped_as_ours(team):
             body["object_permission"] = deny_all_object_permission()
         else:
             # Entitlement still syncs; the permission block is left alone. A

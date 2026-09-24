@@ -2067,7 +2067,7 @@ async def test_ensure_personal_team_refuses_to_stomp_a_foreign_team():
 
     body = _json_body(update)
     assert "object_permission" not in body
-    # Entitlement sync is NOT skippable -- omitting it would strand a revoked grant.
+    # Entitlement still syncs (additively) on a team that is not ours.
     assert body["access_group_ids"] == []
 
 
@@ -2100,10 +2100,11 @@ async def test_ensure_personal_team_asserts_baseline_on_a_team_it_just_created()
 @pytest.mark.asyncio
 @respx.mock
 async def test_ensure_personal_team_unreadable_team_is_not_treated_as_ours():
-    """A /team/info failure must not be read as ownership.
+    """A /team/info failure writes NOTHING.
 
-    Unreadable counts as NOT ours: leaving the permission block alone cannot
-    destroy anything, while stomping a team we could not identify can.
+    Unreadable counts as NOT ours, so the permission block is left alone; and
+    without the current access_group_ids the additive attach would drop
+    groups, so it is skipped too. The next login retries.
     """
     from app.litellm_client import ensure_personal_team
 
@@ -2119,9 +2120,10 @@ async def test_ensure_personal_team_unreadable_team_is_not_treated_as_ours():
         return_value=httpx.Response(200, json={})
     )
 
-    await ensure_personal_team("alice@example.com", settings, factory={})
-
-    assert "object_permission" not in _json_body(update)
+    assert await ensure_personal_team("alice@example.com", settings, factory={}) == (
+        "user-alice@example.com"
+    )
+    assert not update.called
 
 
 @pytest.mark.asyncio
@@ -2215,11 +2217,12 @@ async def test_ensure_personal_team_existing_team_keeps_its_budget():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_personal_team_detaches_when_entitlement_is_empty():
-    """Entitlement is re-asserted every login, so a revoked group detaches."""
+async def test_ensure_personal_team_keeps_groups_it_did_not_configure():
+    """Additive sync: a group attached by hand survives a login, configured ones
+    are appended, nothing is removed -- not even with an empty entitlement."""
     from app.litellm_client import ensure_personal_team
 
-    settings = make_settings(default_access_groups=[])
+    settings = make_settings(default_access_groups=["team-default"])
     respx.post("http://litellm.test/team/new").mock(
         return_value=httpx.Response(400, json={"error": "Team already exists"})
     )
@@ -2228,7 +2231,18 @@ async def test_ensure_personal_team_detaches_when_entitlement_is_empty():
     )
     respx.get("http://litellm.test/team/info").mock(
         return_value=httpx.Response(
-            200, json={"team_info": {"metadata": {"alt_managed": "user-team"}}}
+            200,
+            json={
+                "team_info": {
+                    "metadata": {"alt_managed": "user-team"},
+                    "access_group_ids": ["id-hand", "id-default"],
+                }
+            },
+        )
+    )
+    respx.get("http://litellm.test/v1/access_group").mock(
+        return_value=httpx.Response(
+            200, json=[{"access_group_id": "id-default", "access_group_name": "team-default"}]
         )
     )
     update = respx.post("http://litellm.test/team/update").mock(
@@ -2237,9 +2251,7 @@ async def test_ensure_personal_team_detaches_when_entitlement_is_empty():
 
     await ensure_personal_team("alice@example.com", settings, factory={})
 
-    # Empty list is an explicit DETACH, not a skip -- omitting the field would
-    # keep a stale grant forever.
-    assert _json_body(update)["access_group_ids"] == []
+    assert _json_body(update)["access_group_ids"] == ["id-hand", "id-default"]
 
 
 @pytest.mark.asyncio
