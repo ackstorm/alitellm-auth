@@ -237,9 +237,27 @@ describe('KeysTable — delete action', () => {
 });
 
 describe('KeysTable — keys minted elsewhere', () => {
+  it('hides external keys by default behind a count toggle', () => {
+    setRows([makeRow({ id: 'key-own', key_alias: 'mine' }), makeRow({ id: 'ekid_01', key_alias: 'ach-bot', managed: false })]);
+    render(<KeysTable onDelete={vi.fn()} />);
+    expect(screen.getByText('mine')).toBeInTheDocument();
+    expect(screen.queryByText('ach-bot')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show external keys (1)' }));
+    expect(screen.getByText('ach-bot')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide external keys' }));
+    expect(screen.queryByText('ach-bot')).not.toBeInTheDocument();
+  });
+
+  it('shows no external toggle when the user has no external keys', () => {
+    setRows([makeRow({ id: 'key-own' })]);
+    const { container } = render(<KeysTable onDelete={vi.fn()} />);
+    expect(container.querySelector('[data-slot="keys-external-toggle"]')).toBeNull();
+  });
+
   it('an unmanaged (foreign) key locks its kebab to Disable only', async () => {
     setRows([makeRow({ id: 'ekid_01', managed: false })]);
     render(<KeysTable onDelete={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Show external keys/ }));
     fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
       key: 'Enter',
     });
@@ -252,6 +270,7 @@ describe('KeysTable — keys minted elsewhere', () => {
   it('marks a foreign key EXTERNAL so its missing actions are explained', () => {
     setRows([makeRow({ id: 'ekid_01', managed: false })]);
     const { container } = render(<KeysTable onDelete={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Show external keys/ }));
     expect(container.querySelector('[data-slot="key-external-badge"]')).toBeInTheDocument();
   });
 

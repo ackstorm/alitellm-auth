@@ -34,7 +34,7 @@ import type {
   SessionSpend,
 } from '@/lib/api-types';
 import { BudgetMeter } from '@/components/ui/budget-meter';
-import { formatCurrency, formatInt } from '@/lib/format';
+import { formatCurrency, formatDate, formatInt } from '@/lib/format';
 import { budgetPctLabel, isMonthlyDuration, projectMonthEnd } from '@/lib/spend-projection';
 import { isRevoked, selectKeyRows } from '@/lib/keys';
 import { presetToRange } from '@/lib/stats-presets';
@@ -255,20 +255,29 @@ export function Dashboard({ me }: DashboardProps) {
 
       {/* DASH-06: metric header — the STATS KPI cards (requests/tokens/spend,
           with deltas) over MTD, with a combined keys+groups tile in the 4th slot
-          in place of AVG COST. */}
-      <KpiRow
-        totals={stats.isSuccess ? stats.data?.totals : undefined}
-        series={stats.isSuccess ? stats.data?.series : undefined}
-        fourthCard={
-          <KeysGroupsTile
-            keyRows={
-              query.isSuccess && query.data ? selectKeyRows(query.data) : null
-            }
-            accessGroups={me.access_groups ?? []}
-            fallback="No access groups — ask an admin for access"
-          />
-        }
-      />
+          in place of AVG COST. The caption names the window so "vs prev" is
+          readable: prev = the equal-length window just before (session.py). */}
+      <div className="flex flex-col gap-2">
+        <p data-slot="kpi-period-label" className="font-mono text-xs text-text-tertiary">
+          Month to date
+          {stats.isSuccess && stats.data?.range
+            ? ` (${formatDate(stats.data.range.start)} – ${formatDate(stats.data.range.end)}) · vs previous ${stats.data.range.days} days`
+            : null}
+        </p>
+        <KpiRow
+          totals={stats.isSuccess ? stats.data?.totals : undefined}
+          series={stats.isSuccess ? stats.data?.series : undefined}
+          fourthCard={
+            <KeysGroupsTile
+              keyRows={
+                query.isSuccess && query.data ? selectKeyRows(query.data) : null
+              }
+              accessGroups={me.access_groups ?? []}
+              fallback="No access groups — ask an admin for access"
+            />
+          }
+        />
+      </div>
 
       {/* DASH-06: account budget bar */}
       <BudgetBar limits={me.limits} spend={me.spend} />

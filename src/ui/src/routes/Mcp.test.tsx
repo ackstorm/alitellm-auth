@@ -102,6 +102,25 @@ describe('Mcp — populated', () => {
     expect(screen.getByText('platform')).toBeInTheDocument();
   });
 
+  it('splits vmcp-* virtual groups from the servers they aggregate', () => {
+    setSuccess({
+      servers: [
+        makeServer({ id: '1', name: 'mcp-gitlab' }),
+        makeServer({ id: '2', name: 'vmcp-dev' }),
+        makeServer({ id: '3', name: 'mcp-drive' }),
+      ],
+      available: true,
+    });
+    const { container } = render(<Mcp />);
+    const sections = [...container.querySelectorAll('[data-slot="mcp-section"]')];
+    expect(sections.map((el) => el.querySelector('h2')?.textContent)).toEqual([
+      'Virtual groups (1)',
+      'Servers (2)',
+    ]);
+    expect(sections[0]).toHaveTextContent('vmcp-dev');
+    expect(sections[1]).not.toHaveTextContent('vmcp-dev');
+  });
+
   it('caps the visible tool chips at six with a "+N more" marker', () => {
     const tools = Array.from({ length: 9 }, (_, i) => `tool_${i}`);
     setSuccess({

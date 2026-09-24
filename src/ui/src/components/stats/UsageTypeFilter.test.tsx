@@ -26,8 +26,11 @@ const ROWS = [row('anthropic/claude-opus-5'), row('MCP: list_tools'), row('gemin
 afterEach(cleanup);
 
 describe('applyUsageTypeFilter', () => {
-  it('passes every row through on "all"', () => {
-    expect(applyUsageTypeFilter(ROWS, 'all')).toHaveLength(3);
+  it('passes every row through on "all" except MCP protocol noise (list_tools)', () => {
+    expect(applyUsageTypeFilter(ROWS, 'all').map((r) => r.model)).toEqual([
+      'anthropic/claude-opus-5',
+      'gemini-flash-latest',
+    ]);
   });
 
   it('keeps only non-MCP rows on "model"', () => {

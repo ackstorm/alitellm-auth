@@ -21,7 +21,10 @@ export function mergeTopKeys(
   }
 
   // Append the user's keys that have no activity row yet, with zeroed usage.
+  // A key with neither id nor alias has nothing to show — it would render as a
+  // blank-named 0-usage row — so it is never padded in.
   const padded: StatsKeyRow[] = userKeys
+    .filter((k) => k.id || k.key_alias)
     .filter(
       (k) => !(k.id && seen.has(k.id)) && !(k.key_alias && seen.has(k.key_alias))
     )
@@ -31,6 +34,8 @@ export function mergeTopKeys(
       requests: 0,
       spend: 0,
       spend_pct: 0,
+      managed: k.managed,
+      deleted: false,
     }));
 
   // Spend desc (the activity rows arrive pre-sorted; the zero-spend padded rows

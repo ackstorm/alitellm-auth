@@ -51,6 +51,22 @@ describe('TopKeys', () => {
     expect(getByText('key-…y888')).toBeInTheDocument();
   });
 
+  it('labels a deleted key instead of showing its bare opaque id', () => {
+    const rows: StatsKeyRow[] = [
+      { id: 'h1', key_alias: 'pkid_01m2sj3pabcd', requests: 5, spend: 1, spend_pct: 1, deleted: true },
+    ];
+    const { getByText } = render(<TopKeys keys={rows} capabilities={CAPS} />);
+    expect(getByText('deleted key · pkid…abcd')).toBeInTheDocument();
+  });
+
+  it('marks external (pkid_/ekid_) keys like the Keys page', () => {
+    const rows: StatsKeyRow[] = [
+      { id: 'h2', key_alias: 'ach-bot', requests: 5, spend: 1, spend_pct: 1, managed: false, deleted: false },
+    ];
+    const { container } = render(<TopKeys keys={rows} capabilities={CAPS} />);
+    expect(container.querySelector('[data-slot="top-keys-external-badge"]')).not.toBeNull();
+  });
+
   it('renders the empty copy for no rows', () => {
     const { getByText } = render(<TopKeys keys={[]} capabilities={CAPS} />);
     expect(getByText('No usage in this range')).toBeInTheDocument();

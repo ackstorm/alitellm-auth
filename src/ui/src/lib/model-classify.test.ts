@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAgentModelRow, isRouterModel, isMcpModelRow, mcpToolLabel } from './model-classify';
+import { isAgentModelRow, isRouterModel, isMcpModelRow, isMcpProtocolRow, mcpToolLabel } from './model-classify';
 
 describe('isRouterModel', () => {
   it('detects the auto-router provider', () => {
@@ -23,5 +23,13 @@ describe('isAgentModelRow', () => {
     expect(isAgentModelRow('a2a/finops-advisor')).toBe(true);
     expect(isAgentModelRow('ackstorm.smart')).toBe(false);
     expect(isAgentModelRow(null)).toBe(false);
+  });
+});
+
+describe('isMcpProtocolRow', () => {
+  it('flags only the tool-less list_tools row', () => {
+    expect(isMcpProtocolRow('MCP: list_tools')).toBe(true);
+    expect(isMcpProtocolRow('MCP: mcp-drive/list_files')).toBe(false);
+    expect(isMcpProtocolRow('list_tools')).toBe(false);
   });
 });

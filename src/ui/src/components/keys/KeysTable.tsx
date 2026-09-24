@@ -40,7 +40,7 @@ import {
   useToggleKeyBlock,
 } from '@/hooks/use-keys';
 import { formatDate, formatInt } from '@/lib/format';
-import { isBlocked, isExpired, selectKeyRows } from '@/lib/keys';
+import { isBlocked, isExpired, isExternal, selectKeyRows } from '@/lib/keys';
 import { isStale, relativeTime } from '@/lib/relative-time';
 import { cn } from '@/lib/utils';
 import type { KeyRow } from '@/lib/api-types';
@@ -91,7 +91,12 @@ const STATUS_RANK: Record<ReturnType<typeof statusFor>['label'], number> = {
 export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
   const query = useKeys();
   const toggleBlock = useToggleKeyBlock();
-  const rows = selectKeyRows(query.data);
+  const allRows = selectKeyRows(query.data);
+  // External (pkid_/ekid_) keys are noise next to the user's own keys, so they
+  // are hidden by default behind an explicit count toggle (not persisted).
+  const [showExternal, setShowExternal] = React.useState(false);
+  const externalCount = allRows.filter(isExternal).length;
+  const rows = showExternal ? allRows : allRows.filter((k) => !isExternal(k));
 
   // ── State branches (exact copy lifted from keys-table.js) ───────────────────
   if (query.isPending) {
@@ -308,7 +313,23 @@ export function KeysTable({ onDelete }: KeysTableProps): React.ReactElement {
           </div>
         )}
       />
-
+      {externalCount > 0 ? (
+        <button
+          type="button"
+          data-slot="keys-external-toggle"
+          aria-pressed={showExternal}
+          onClick={() => setShowExternal((v) => !v)}
+          className="flex cursor-pointer items-center gap-1 self-start font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary transition-colors hover:text-text-primary"
+        >
+          <span
+            aria-hidden="true"
+            className={`inline-block size-0 border-y-[4px] border-l-[6px] border-y-transparent border-l-current transition-transform ${showExternal ? 'rotate-90' : ''}`}
+          />
+          <span>
+            {showExternal ? 'Hide external keys' : `Show external keys (${externalCount})`}
+          </span>
+        </button>
+      ) : null}
     </div>
   );
 }

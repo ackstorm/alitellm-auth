@@ -90,8 +90,10 @@ def test_aggregate_window_models_summed_across_days():
     agg = aggregate_window(two_day)
     models = {m["model"]: m for m in agg["models"]}
 
-    # flash-lite was 1 request / 68 tokens / spend 8e-06 on one day → doubled.
-    lite = models["gemini/gemini-flash-lite-latest"]
+    # Keyed by the public model_group alias, not the provider-prefixed deployment.
+    assert "gemini/gemini-flash-lite-latest" not in models
+    # ackstorm.lite was 1 request / 68 tokens / spend 8e-06 on one day → doubled.
+    lite = models["ackstorm.lite"]
     assert lite["requests"] == 2
     assert lite["total_tokens"] == 136
     assert lite["input_tokens"] == 128  # prompt_tokens 64 * 2
@@ -340,16 +342,16 @@ def test_build_stats_contract_last_used_null_flips_capability():
 
 def test_build_stats_contract_last_used_present_keeps_capability():
     cur = aggregate_window(_load("daily_activity_current.json"))
-    last_used = {"gemini/gemini-flash-latest": "2026-04-01T09:49:44.420000Z"}
+    last_used = {"ackstorm.fast": "2026-04-01T09:49:44.420000Z"}
     contract = build_stats_contract(
         cur, cur, {"current": 0, "max_budget": None}, last_used, dict(_CAPABILITIES), _RANGE
     )
 
     assert contract["capabilities"]["per_model_last_used"] is True
     by_model = {m["model"]: m for m in contract["models"]}
-    assert by_model["gemini/gemini-flash-latest"]["last_used"] == "2026-04-01T09:49:44.420000Z"
+    assert by_model["ackstorm.fast"]["last_used"] == "2026-04-01T09:49:44.420000Z"
     # A model without a last_used entry stays null.
-    assert by_model["gemini/gemini-3-pro-preview"]["last_used"] is None
+    assert by_model["ackstorm.smart"]["last_used"] is None
 
 
 def test_last_used_from_window_picks_latest_day_per_model():
@@ -365,12 +367,12 @@ def test_last_used_from_window_picks_latest_day_per_model():
     day2 = copy.deepcopy(day1)
     day2["date"] = "2026-04-03"
     # day2 drops one model so it keeps its earlier (day1) date.
-    day2["breakdown"]["models"].pop("gemini/gemini-3-pro-preview", None)
+    day2["breakdown"]["model_groups"].pop("ackstorm.smart", None)
 
     out = last_used_from_window({"results": [day2, day1]})  # unordered input
 
-    assert out["gemini/gemini-flash-latest"] == "2026-04-03"  # present both days → later
-    assert out["gemini/gemini-3-pro-preview"] == "2026-04-01"  # only on day1
+    assert out["ackstorm.fast"] == "2026-04-03"  # present both days → later
+    assert out["ackstorm.smart"] == "2026-04-01"  # only on day1
 
 
 def test_last_used_from_window_empty_window_returns_empty():
@@ -473,16 +475,35 @@ def test_resolve_key_display_unmatched_row_passes_through():
 
     assert out[0]["key_alias"] == "lk-deadbeef"
     assert out[0]["id"] == "spendhash_x"
+    assert out[0]["deleted"] is True
+
+
+def test_resolve_key_display_flags_external_and_live_keys():
+    """Matched rows carry the key's managed flag (False = external pkid_/ekid_)."""
+    stats_keys = [{"id": "h", "key_alias": "pkid_01m2", "requests": 1, "spend": 0.0}]
+    key_list = [
+        {"id": _alias_id("pkid_01m2"), "token": "t", "key_alias": "pkid_01m2", "managed": False}
+    ]
+
+    out = resolve_key_display(stats_keys, key_list)
+
+    assert out[0]["deleted"] is False
+    assert out[0]["managed"] is False
+
+
+def test_resolve_key_display_no_keys_left_marks_all_deleted():
+    """An EMPTY key list is a real answer (user has no keys): every row is deleted."""
+    out = resolve_key_display([{"id": "h", "key_alias": "lk-1", "requests": 2, "spend": 0.0}], [])
+    assert out[0]["deleted"] is True
 
 
 def test_resolve_key_display_empty_key_list_is_noop_copy():
-    """Key-list unavailable → rows pass through unchanged (degraded), as a copy."""
+    """Key-list unavailable (None) → rows pass through unchanged (degraded), as a copy."""
     stats_keys = [{"id": "h", "key_alias": "lk-1", "requests": 2, "spend": 0.0}]
 
-    for kl in (None, []):
-        out = resolve_key_display(stats_keys, kl)
-        assert out == stats_keys
-        assert out[0] is not stats_keys[0]  # never mutates / aliases the input
+    out = resolve_key_display(stats_keys, None)
+    assert out == stats_keys
+    assert out[0] is not stats_keys[0]  # never mutates / aliases the input
 
 
 def test_model_cache_read_tokens_aggregated():
@@ -495,3 +516,67 @@ def test_model_cache_read_tokens_aggregated():
 
     _accumulate_day_models(acc, breakdown)
     assert acc["m"]["cache_read_tokens"] == 42
+
+
+def _metrics(requests: int, spend: float = 0.0) -> dict:
+    return {"metrics": {"api_requests": requests, "spend": spend}}
+
+
+def test_aggregate_window_one_alias_one_row_across_deployments():
+    """Two deployments of one alias are ONE row: the latency table already keys on
+    model_group, so the spend breakdown must too (item: model split across names)."""
+    day = {
+        "date": "2026-04-01",
+        "breakdown": {
+            "models": {
+                "anthropic/claude-opus-5": _metrics(2, 1.0),
+                "vertex_ai/claude-opus-5": _metrics(1, 0.5),
+            },
+            "model_groups": {"claude-opus-5": _metrics(3, 1.5)},
+        },
+    }
+    agg = aggregate_window({"results": [day]})
+    assert [(m["model"], m["requests"], m["spend"]) for m in agg["models"]] == [
+        ("claude-opus-5", 3, 1.5)
+    ]
+
+
+def test_aggregate_window_mcp_rows_attributed_from_mcp_servers():
+    """MCP tool calls come from mcp_servers (server/tool); the duplicate
+    'MCP: <tool>' model_groups rows are dropped except protocol list_tools, and a
+    call with no resolved server lands in the explicit unknown-server bucket."""
+    day = {
+        "date": "2026-04-01",
+        "breakdown": {
+            "model_groups": {
+                "ackstorm.fast": _metrics(1),
+                "MCP: list_tools": _metrics(5),
+                "MCP: list_files": _metrics(2),
+                "MCP: auth_status": _metrics(1),
+            },
+            "mcp_servers": {"mcp-drive/list_files": _metrics(2), "auth_status": _metrics(1)},
+        },
+    }
+    rows = {m["model"]: m["requests"] for m in aggregate_window({"results": [day]})["models"]}
+    assert rows == {
+        "ackstorm.fast": 1,
+        "MCP: list_tools": 5,
+        "MCP: mcp-drive/list_files": 2,
+        "MCP: unknown server/auth_status": 1,
+    }
+
+
+def test_aggregate_window_mcp_without_mcp_servers_uses_unknown_bucket():
+    """Older payloads without mcp_servers: bare tool names go to the unknown bucket,
+    names that already carry a server are kept."""
+    day = {
+        "date": "2026-04-01",
+        "breakdown": {
+            "model_groups": {
+                "MCP: gmail_get_message": _metrics(1),
+                "MCP: mcp-gitlab.gitlab_api": _metrics(1),
+            },
+        },
+    }
+    rows = {m["model"] for m in aggregate_window({"results": [day]})["models"]}
+    assert rows == {"MCP: unknown server/gmail_get_message", "MCP: mcp-gitlab.gitlab_api"}

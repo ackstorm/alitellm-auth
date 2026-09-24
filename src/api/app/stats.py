@@ -18,7 +18,8 @@ Contract shape produced by ``build_stats_contract`` (RESEARCH §4):
       "series":  [{date, spend, requests, tokens, input_tokens, output_tokens, failed}, ...],
       "models":  [{model, requests, input_tokens, output_tokens, total_tokens,
                    spend, spend_pct, last_used}, ...],
-      "keys":    [{id, key_alias, requests, spend, spend_pct}, ...],  # spend desc
+      "keys":    [{id, key_alias, requests, spend, spend_pct,
+                   managed, deleted}, ...],  # spend desc; flags via resolve_key_display
       "budget":  {current, max_budget, source, pct, has_budget},
       "capabilities": {token_split, per_model_last_used, deltas, per_key_spend},
     }
@@ -192,13 +193,67 @@ def _accumulate_day_series(day_acc: dict[Any, dict[str, Any]], day: dict[str, An
     acc["failed"] += entry["failed"]
 
 
-def _accumulate_day_models(model_acc: dict[str, dict[str, Any]], breakdown: dict[str, Any]) -> None:
-    models = breakdown.get("models") or {}
-    if not isinstance(models, dict):
-        return
-    for model_name, mblock in models.items():
-        if not isinstance(mblock, dict):
+_MCP_PREFIX = "MCP:"
+# Tool-less MCP protocol traffic (LiteLLM logs every tools/list as "MCP: list_tools").
+# It belongs to no server, so it keeps its own row instead of the unknown bucket.
+_MCP_PROTOCOL_TOOLS = frozenset({"list_tools"})
+MCP_UNKNOWN_SERVER = "unknown server"
+
+
+def _mcp_row_name(tool: str) -> str:
+    """``MCP: server/tool`` when the name carries a server, else the unknown bucket."""
+    if tool in _MCP_PROTOCOL_TOOLS or "/" in tool or "." in tool:
+        return f"{_MCP_PREFIX} {tool}"
+    return f"{_MCP_PREFIX} {MCP_UNKNOWN_SERVER}/{tool}"
+
+
+def _day_model_blocks(breakdown: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """One day's usage rows as ``(canonical name, block)`` pairs.
+
+    Canonical name source (item: one model, one row):
+    - LLM rows are keyed by ``breakdown.model_groups`` -- the PUBLIC alias the
+      client called (LiteLLM keys it ``model_group or model``). ``breakdown.models``
+      is the provider-prefixed deployment (``gemini/...``), which splits one alias
+      across its deployments and never matches the latency table (``model_group``).
+      ``models`` is only a fallback for payloads without ``model_groups``.
+    - MCP tool calls come from ``breakdown.mcp_servers`` when present, keyed by
+      LiteLLM's ``namespaced_tool_name`` (``server/tool``, bare ``tool`` when the
+      server was not resolved). Those calls ALSO appear as ``MCP: <tool>`` in
+      ``model_groups``, so there only the protocol rows (``list_tools``) are kept.
+      Without ``mcp_servers`` the ``model_groups`` MCP rows are used as-is.
+    - An MCP row with no server in its name lands in ``MCP: unknown server/<tool>``.
+    Several source keys can map to one name; the caller sums them.
+    """
+    groups = breakdown.get("model_groups") or breakdown.get("models") or {}
+    mcp = breakdown.get("mcp_servers") or {}
+    if not isinstance(groups, dict):
+        groups = {}
+    if not isinstance(mcp, dict):
+        mcp = {}
+    out: list[tuple[str, dict[str, Any]]] = []
+    for name, block in groups.items():
+        if not isinstance(block, dict):
             continue
+        if isinstance(name, str) and name.strip().startswith(_MCP_PREFIX):
+            tool = name.strip()[len(_MCP_PREFIX) :].strip()
+            # Counted from mcp_servers below. Safe to drop wholesale, not per tool:
+            # LiteLLM sets mcp_tool_call_metadata (-> namespaced name) and
+            # model="MCP: <name>" together on every call_tool, while list_tools
+            # carries no tool-call metadata. A per-name match would miss aggregated
+            # calls, whose called name (srv-tool) differs from the namespaced srv/tool.
+            if mcp and tool not in _MCP_PROTOCOL_TOOLS:
+                continue
+            out.append((_mcp_row_name(tool), block))
+        else:
+            out.append((name, block))
+    for ns_tool, block in mcp.items():
+        if isinstance(block, dict):
+            out.append((_mcp_row_name(ns_tool), block))
+    return out
+
+
+def _accumulate_day_models(model_acc: dict[str, dict[str, Any]], breakdown: dict[str, Any]) -> None:
+    for model_name, mblock in _day_model_blocks(breakdown):
         m = mblock.get("metrics") or {}
         acc = model_acc.setdefault(
             model_name,
@@ -255,7 +310,7 @@ def aggregate_window(data: dict[str, Any]) -> WindowAggregate:
     sharing that date (LiteLLM's pagination can split a single busy day across
     multiple pages, each with its own row for the same date). Per-model and
     per-key metrics are
-    summed ACROSS days from each ``results[].breakdown.models`` /
+    summed ACROSS days from each ``results[].breakdown.model_groups`` (see ``_day_model_blocks``) /
     ``results[].breakdown.api_keys`` (the breakdowns are per-day; the window total
     is the sum). Models/keys absent in-window are simply absent (no fabricated
     0-rows, RESEARCH §4 / D-08). Real ``0`` token splits stay ``0``.
@@ -319,7 +374,7 @@ def last_used_from_window(data: dict[str, Any]) -> dict[str, str]:
     """Per-model last-used DATE from one daily-activity window (no extra HTTP).
 
     LiteLLM's ``/user/daily/activity`` ``results[]`` are per-DAY rows, each carrying
-    a ``breakdown.models`` map. The latest in-window day on which a model appears IS
+    a ``breakdown.model_groups`` map (see ``_day_model_blocks``). The latest in-window day on which a model appears IS
     its last-used date (day granularity). This is derived from the SAME current
     window already fetched for the headline totals, so it costs nothing.
 
@@ -341,10 +396,7 @@ def last_used_from_window(data: dict[str, Any]) -> dict[str, str]:
         day_date = day.get("date")
         if not isinstance(day_date, str) or not day_date:
             continue
-        models = (day.get("breakdown") or {}).get("models") or {}
-        if not isinstance(models, dict):
-            continue
-        for model_name in models:
+        for model_name, _ in _day_model_blocks(day.get("breakdown") or {}):
             existing = last_used.get(model_name)
             if existing is None or day_date > existing:
                 last_used[model_name] = day_date
@@ -519,11 +571,16 @@ def resolve_key_display(
     key-list ``id``. Aligning the id lets the UI ``mergeTopKeys`` dedup collapse the
     idle-key padding row instead of rendering a second 0-usage row for the same key.
 
+    Each row also gets ``managed`` (the matched key's flag: False = external
+    pkid_/ekid_ key, as on the Keys page) and ``deleted``: a row with no key-list
+    match belongs to a key the user no longer has (revoked/deleted), so the UI
+    labels it instead of showing a bare opaque id.
+
     Pure + side-effect-free: returns NEW row dicts, never mutates the inputs. An
-    unmatched row (key deleted, or ``key_list`` unavailable) passes through unchanged
-    — it still shows the opaque alias, the prior behaviour, never worse (D-09).
+    unmatched row keeps its opaque alias/id. ``key_list`` None (fetch failed) is a
+    plain copy with no flags — deletion is unknowable then, never guessed (D-09).
     """
-    if not key_list:
+    if key_list is None:
         return [dict(k) for k in keys]
 
     by_id: dict[str, dict[str, Any]] = {}
@@ -553,8 +610,11 @@ def resolve_key_display(
             if isinstance(sid, str) and sid:
                 match = by_token.get(sid)
 
+        row["deleted"] = match is None
+        row["managed"] = None
         if match is not None:
             row["id"] = match.get("id") or row.get("id")
+            row["managed"] = match.get("managed")
             friendly = match.get("key_alias")
             if friendly:
                 row["key_alias"] = friendly

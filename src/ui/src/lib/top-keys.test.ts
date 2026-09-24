@@ -44,6 +44,16 @@ describe('mergeTopKeys', () => {
     expect(merged.filter((k) => k.spend === 0)).toHaveLength(2);
   });
 
+  it('never pads a key with neither id nor alias (no blank-named row)', () => {
+    const merged = mergeTopKeys([], [userKey({ id: null, key_alias: null })]);
+    expect(merged).toHaveLength(0);
+  });
+
+  it('carries the external flag onto padded rows', () => {
+    const merged = mergeTopKeys([], [userKey({ id: 'x', key_alias: 'pkid_1', managed: false })]);
+    expect(merged[0]).toMatchObject({ managed: false, deleted: false });
+  });
+
   it('does NOT duplicate a key present in both (matched by id or alias)', () => {
     const active = [statsKey({ id: 'a', key_alias: 'active', requests: 3, spend: 2 })];
     // Same alias, different/absent id — must still dedup.

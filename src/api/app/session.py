@@ -822,7 +822,7 @@ async def session_stats(
     # KEY-LIST failure → skip friendly-name resolution; per-key rows keep the opaque
     # lk- alias (prior behaviour), never 502. The key list also carries the server-
     # side `token` hash, so it MUST stay server-side (resolve before serializing).
-    key_list: list[dict[str, Any]] = []
+    key_list: list[dict[str, Any]] | None = None
     if isinstance(keys_res, BaseException):
         logger.warning("session_stats: key-list fetch failed for %s: %s", email, keys_res)
     elif isinstance(keys_res, list):

@@ -102,16 +102,30 @@ function SortHeader({
 function KeyRowItem({ item: k }: { item: StatsKeyRow }): React.ReactElement {
   // Public key id is shown masked when there is no alias (maskKey preserves the
   // real `key-` prefix; the full sk- is never client-side here — T-13-10).
-  const label = k.key_alias || maskKey(k.id);
+  // A deleted key keeps only its opaque alias/id, so it is labelled as such
+  // (muted) instead of rendering a bare pkid_/lk- token.
+  const label = k.deleted
+    ? `deleted key · ${maskKey(k.key_alias || k.id)}`
+    : k.key_alias || maskKey(k.id) || EM_DASH;
   const width = barWidthPct(k.spend_pct);
 
   return (
     <div data-slot="top-keys-row" className={`${GRID_COLS} py-1`}>
-      <div
-        className="truncate font-mono text-xs text-text-primary"
-        title={label}
-      >
-        {label == null ? EM_DASH : label}
+      <div className="flex min-w-0 items-center gap-1.5" title={label}>
+        <span
+          className={`truncate font-mono text-xs ${k.deleted ? 'text-text-tertiary italic' : 'text-text-primary'}`}
+        >
+          {label}
+        </span>
+        {k.managed === false && !k.deleted ? (
+          // Same muted EXTERNAL marker as the Keys table (pkid_/ekid_ keys).
+          <span
+            data-slot="top-keys-external-badge"
+            className="text-muted-foreground inline-flex shrink-0 items-center rounded-md border px-1 font-mono text-[9px] font-semibold uppercase tracking-wide"
+          >
+            EXTERNAL
+          </span>
+        ) : null}
       </div>
       <div className="w-full">
         <div className="h-2.5 w-full overflow-hidden rounded-full bg-primary/10">

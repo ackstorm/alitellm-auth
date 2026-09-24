@@ -22,6 +22,12 @@ export function isBlocked(key: KeyRow | null | undefined): boolean {
   return Boolean(key && key.blocked);
 }
 
+// A key minted outside this console (ach's pkid_/ekid_ keys): the server sets
+// `managed: false`. Hidden from the Keys table by default.
+export function isExternal(key: KeyRow | null | undefined): boolean {
+  return Boolean(key && key.managed === false);
+}
+
 // Parse a LiteLLM `expires` value to an epoch-ms instant, or null when it
 // carries no usable expiry. LiteLLM has shipped this field in several shapes
 // across versions: an offset-bearing ISO string ("…+00:00" / "…Z"), a NAIVE ISO

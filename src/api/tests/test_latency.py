@@ -21,12 +21,14 @@ def _row(*, dur_ms, status="success", model="gemini/flash", out_tokens=100, ttft
         "model_group": model,
         "completion_tokens": out_tokens,
         "startTime": "2026-07-08T09:00:00Z",
+        # 09:00:00 + secs — keep it simple: only sub-minute durations/ttfts in tests.
+        "endTime": f"2026-07-08T09:00:{(dur_ms or 0) / 1000.0:06.3f}Z",
     }
+    # LiteLLM defaults completionStartTime to endTime when nothing streamed.
+    row["completionStartTime"] = row["endTime"]
     if ttft_ms is not None:
         # completionStartTime = startTime + ttft_ms
-        secs = ttft_ms / 1000.0
-        # 09:00:00 + secs — keep it simple: only sub-minute ttfts in tests.
-        row["completionStartTime"] = f"2026-07-08T09:00:{secs:06.3f}Z"
+        row["completionStartTime"] = f"2026-07-08T09:00:{ttft_ms / 1000.0:06.3f}Z"
     return row
 
 
@@ -106,6 +108,16 @@ def test_contract_no_ttft_when_non_streaming():
     rows = [_row(dur_ms=1000, ttft_ms=None)]
     c = compute_latency_contract(rows, _WINDOW)
     assert c["latency"]["ttft_p50_ms"] is None  # D-08: absent, not 0
+
+
+def test_contract_ttft_ignores_mcp_and_non_streamed_rows():
+    """Prod bug: TTFT 2 ms next to 3.55 s avg. MCP rows (~0 ms) and non-streamed
+    rows (completionStartTime == endTime) must not enter the TTFT pool."""
+    rows = [_row(dur_ms=5, model="MCP: list_tools", ttft_ms=2) for _ in range(5)]
+    rows.append(_row(dur_ms=3000))  # non-streamed: would read as 3000 ms TTFT
+    rows.append(_row(dur_ms=2000, ttft_ms=800))  # the only real TTFT
+    c = compute_latency_contract(rows, _WINDOW)
+    assert c["latency"]["ttft_p50_ms"] == 800.0
 
 
 # ---------------------------------------------------------------------------

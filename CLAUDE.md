@@ -343,6 +343,21 @@ oauth.oidc.authorize_redirect(...)
 ```
 **WHERE**: `src/api/app/auth.py` — `configure_auth()` and all route handlers.
 
+### 9. "Unknown MCP server still starts an OAuth ceremony" / "OAuth loops forever"
+
+**By design — do NOT "fix" with a 404.** `/.well-known/oauth-protected-resource/mcp/<x>`
+returns 200 for ANY `<x>`, and authz's 401 challenge points at it. Before
+authentication a real and a made-up server must answer identically; a 404 (or any
+different header/body) turns the anonymous path into an oracle for which MCP servers
+exist. Cost accepted (2026-09-23): a typo'd server name runs a wasted ceremony, then
+fails post-auth at LiteLLM.
+
+"OAuth loops forever" on a real server = LiteLLM entitlement `403 The key is not
+allowed to access the requested MCP servers` (no `WWW-Authenticate`, correct per
+RFC 9728). Some clients retry the ceremony on any 403; the token resolves to the same
+key, so it never converges. Fix the access group, not auth.
+**WHERE**: `src/api/app/oauth_as/routes.py::protected_resource`, `authz/decide.go::challengeDoc`
+
 ---
 
 ## LiteLLM v1.83 Quirks (hardening notes from ../ach)
@@ -381,6 +396,35 @@ the "per-user" catalog would silently be the global one.
 personal team's deny-all base holds for models (`no-default-models`) and agents (null
 UUID) but not for MCP servers, which fall through to proxy-wide visibility governed by
 each server's legacy `mcp_access_groups` tag.
+
+**A2A tab empty while `agent.*` models work = missing AGENT grant, not a code bug.**
+Model access and agent access are separate. `GET /v1/agents` under a non-admin key
+returns key grants ∩ team grants (`AgentRequestHandler.resolve_agent_access`); the
+personal team's `agents: [DENY_ALL_AGENT]` makes it restricted, so only the team's
+access groups' `access_agent_ids` add agents. A group that grants the `agent.*` models
+(model tag `a2a`, published by the `type: a2a` ModelDiscovery) but no agents →
+callable models, empty A2A tab. Fix it in the access-group CRs (gitops): tag agents
+`params.access_groups: [agents]` and grant `agentGroups: [agents]` (operator ≥ v0.8.11;
+LiteLLM needs the gitops `patch_agent_access_groups.py` until BerriAI/litellm#42766).
+Never list agents with the master key. The Models page hides `agent.*` (`isAgentModelRow`).
+
+---
+
+## Stats canonical names
+
+- **Model rows are keyed by `model_group`** (the public alias the client called), from
+  daily-activity `breakdown.model_groups`, not `breakdown.models` (the provider-prefixed
+  deployment, which splits one alias into `anthropic/x` + `x`). The latency table
+  already keys on `model_group`, so the two now agree. **WHERE**: `stats.py::_day_model_blocks`.
+- **MCP rows** come from `breakdown.mcp_servers`, keyed by LiteLLM `namespaced_tool_name`
+  (`server/tool`); the duplicate `MCP: <tool>` rows in `model_groups` are dropped except the
+  protocol row `MCP: list_tools`. A tool with no resolvable server → `MCP: unknown server/<tool>`.
+  The UI hides `list_tools` unless TYPE = MCP Tool.
+- **TTFT** counts only non-MCP rows with `completionStartTime < endTime`: LiteLLM sets
+  `completionStartTime = endTime` when nothing streamed, and MCP rows log ~0 ms.
+  **WHERE**: `latency.py::_ttft_ms`.
+- **Top keys**: `resolve_key_display` flags `deleted` (the key is gone from the user's key list)
+  and `managed` (False = external pkid_/ekid_). A failed key-list fetch → `None` → no flags.
 
 ---
 

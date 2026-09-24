@@ -80,14 +80,22 @@ def _parse_iso(value: Any) -> datetime | None:
 
 
 def _ttft_ms(row: dict[str, Any]) -> float | None:
-    """Time-to-first-token = completionStartTime − startTime, in ms. None if absent.
+    """Time-to-first-token = completionStartTime − startTime, in ms, STREAMED LLM rows only.
 
-    Only streaming responses carry completionStartTime; a null/absent field or an
-    inverted delta (clock skew) yields None so it drops out of the percentile.
+    LiteLLM writes completionStartTime on EVERY row, defaulting it to endTime when
+    nothing streamed (spend_tracking_utils: ``kwargs.get("completion_start_time",
+    end_time)``) — so a non-streaming row's "TTFT" is its full duration. MCP rows
+    (``MCP: ...``) have no first token and log ~0 ms; with list_tools dominating a
+    sample they pinned the median at 2 ms. A row counts only when it is not MCP and
+    completionStartTime is strictly before endTime. Anything else (absent fields,
+    clock skew) is None and drops out of the percentile.
     """
+    if _row_model(row).startswith("MCP:"):
+        return None
     start = _parse_iso(row.get("startTime"))
     first = _parse_iso(row.get("completionStartTime"))
-    if start is None or first is None:
+    end = _parse_iso(row.get("endTime"))
+    if start is None or first is None or end is None or first >= end:
         return None
     delta_ms = (first - start).total_seconds() * 1000.0
     return delta_ms if delta_ms >= 0 else None

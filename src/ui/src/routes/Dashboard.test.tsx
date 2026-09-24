@@ -184,6 +184,22 @@ describe('Dashboard — top row + tiles', () => {
     expect(screen.queryByText(formatCurrency(1249.5))).not.toBeInTheDocument();
   });
 
+  it('labels the KPI window and the "vs prev" comparison period', () => {
+    setKeysSuccess([]);
+    useStatsMock.mockReturnValue({
+      data: {
+        totals: { requests: 1, tokens: 1, spend: 1 },
+        range: { start: '2026-09-01', end: '2026-09-23', days: 23, compare: { start: '2026-08-09', end: '2026-08-31' } },
+      },
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useStats>);
+    render(<Dashboard me={makeMe()} />);
+    const label = document.querySelector('[data-slot="kpi-period-label"]');
+    expect(label?.textContent).toMatch(/^Month to date \(.+ – .+\) · vs previous 23 days$/);
+  });
+
   it('Spend (MTD) tile shows the em-dash while stats are unavailable', () => {
     setKeysSuccess([]);
     // useStats defaults (beforeEach) to non-success -> EM_DASH.

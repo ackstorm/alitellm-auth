@@ -12,7 +12,7 @@ import * as React from 'react';
 
 import type { StatsModelRow } from '@/lib/api-types';
 import { chipClass } from '@/lib/chip';
-import { isMcpModelRow } from '@/lib/model-classify';
+import { isMcpModelRow, isMcpProtocolRow } from '@/lib/model-classify';
 
 export type UsageType = 'all' | 'model' | 'mcp';
 
@@ -22,12 +22,13 @@ const OPTIONS: { key: UsageType; label: string }[] = [
   { key: 'mcp', label: 'MCP Tool' },
 ];
 
-/** Narrow the breakdown rows to one type; `all` passes them through untouched. */
+/** Narrow the breakdown rows to one type; `all` drops only MCP protocol noise
+ * (`MCP: list_tools`), which stays visible under MCP Tool. */
 export function applyUsageTypeFilter(
   rows: StatsModelRow[],
   type: UsageType,
 ): StatsModelRow[] {
-  if (type === 'all') return rows;
+  if (type === 'all') return rows.filter((r) => !isMcpProtocolRow(r.model));
   return rows.filter((r) => isMcpModelRow(r.model) === (type === 'mcp'));
 }
 

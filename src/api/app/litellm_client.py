@@ -822,6 +822,7 @@ _LEAN_SPEND_FIELDS = (
     "completion_tokens",
     "startTime",
     "completionStartTime",
+    "endTime",
 )
 
 # /spend/logs/v2 pagination. page_size maxes at 100 (server-enforced, 422 above it).

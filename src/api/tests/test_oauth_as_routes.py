@@ -116,6 +116,9 @@ def test_protected_resource_document_exists_for_every_mcp_path():
     assert document["scopes_supported"] == ["alitellm", "mcp-aws-eks-ro"]
     assert document["bearer_methods_supported"] == ["header"]
     # A path segment that is not a registered service advertises no scope for it.
+    # It still gets a 200 document ON PURPOSE: before authentication a real and
+    # an unknown MCP server must look identical, or this route becomes an
+    # anonymous oracle for which servers exist (accepted 2026-09-23).
     unknown = c.get("/.well-known/oauth-protected-resource/mcp/mcp-nope").json()
     assert unknown["scopes_supported"] == ["alitellm"]
 

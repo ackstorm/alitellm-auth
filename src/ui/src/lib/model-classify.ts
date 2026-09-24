@@ -26,3 +26,9 @@ export function mcpToolLabel(name: string | null | undefined): string {
   if (!isMcpModelRow(name)) return name ?? '';
   return (name as string).slice((name as string).indexOf(MCP_PREFIX) + MCP_PREFIX.length).trim();
 }
+
+// Tool-less MCP protocol traffic (every tools/list is logged as "MCP: list_tools").
+// It is noise in the ALL view, so it only shows when TYPE = MCP Tool.
+export function isMcpProtocolRow(name: string | null | undefined): boolean {
+  return isMcpModelRow(name) && mcpToolLabel(name) === 'list_tools';
+}

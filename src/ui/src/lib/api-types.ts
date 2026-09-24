@@ -251,6 +251,10 @@ export interface StatsKeyRow {
   requests: number;
   spend: number;
   spend_pct: number | null;
+  /** False = external (pkid_/ekid_) key, as on Keys. Absent when unknown. */
+  managed?: boolean | null;
+  /** True = the key is gone from the user's key list (revoked/deleted). */
+  deleted?: boolean | null;
 }
 
 /**

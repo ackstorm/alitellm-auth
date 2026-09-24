@@ -67,6 +67,12 @@ function StatusPill({ status }: { status: string | null }) {
   );
 }
 
+// `vmcp-*` entries are virtual groups aggregating the `mcp-*` servers; the API
+// has no field for it, so the naming convention is the only signal.
+function isVirtualGroup(name: string | null | undefined): boolean {
+  return typeof name === 'string' && name.startsWith('vmcp-');
+}
+
 // A neutral meta chip (transport / auth type).
 function MetaChip({ label, value }: { label: string; value: string }) {
   return (
@@ -245,11 +251,23 @@ export function Mcp() {
           <div className="flex flex-wrap items-center gap-3">
             <TableSearch value={search} onChange={setSearch} placeholder="Search servers…" />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {visible.map((s, i) => (
-              <ServerCard key={s.id ?? i} server={s} />
-            ))}
-          </div>
+          {[
+            { title: 'Virtual groups', rows: visible.filter((s) => isVirtualGroup(s.name)) },
+            { title: 'Servers', rows: visible.filter((s) => !isVirtualGroup(s.name)) },
+          ].map((section) =>
+            section.rows.length === 0 ? null : (
+              <section key={section.title} data-slot="mcp-section" className="flex flex-col gap-3">
+                <h2 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+                  {section.title} ({section.rows.length})
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {section.rows.map((s, i) => (
+                    <ServerCard key={s.id ?? i} server={s} />
+                  ))}
+                </div>
+              </section>
+            ),
+          )}
         </div>
       )}
     </div>

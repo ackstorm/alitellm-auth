@@ -154,16 +154,11 @@ describe('Models — populated', () => {
     expect(screen.queryByText('claude/opus')).not.toBeInTheDocument();
   });
 
-  it('hides agent rows (agent.* and a2a/*): they belong on A2A', () => {
-    setSuccess([
-      makeModel({ name: 'agent.finops-advisor' }),
-      makeModel({ name: 'a2a/finops-advisor' }),
-      makeModel({ name: 'ackstorm.smart' }),
-    ]);
+  it('hides operator-exposed agent.* models (they belong on A2A)', () => {
+    setSuccess([makeModel({ name: 'agent.finops-advisor' }), makeModel({ name: 'ackstorm.smart' })]);
     render(<Models />);
     expect(screen.getByText('ackstorm.smart')).toBeInTheDocument();
     expect(screen.queryByText('agent.finops-advisor')).not.toBeInTheDocument();
-    expect(screen.queryByText('a2a/finops-advisor')).not.toBeInTheDocument();
   });
 
   it('filters rows by capability when a toggle is active', () => {
