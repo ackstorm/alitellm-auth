@@ -7,6 +7,14 @@ export function isRouterModel(row: Pick<ModelRow, 'providers'>): boolean {
   return (row.providers ?? []).some((p) => String(p).toLowerCase() === 'auto_router');
 }
 
+// Agents shown as model rows: the operator's `agent.<name>` (→ a2a1/<name>) and
+// LiteLLM's own `a2a/<name>`, which /model_group/info appends for every agent the
+// key can reach (append_agents_to_model_group). They are listed on the A2A page,
+// not in the Models catalog.
+export function isAgentModelRow(name: string | null | undefined): boolean {
+  return typeof name === 'string' && (name.startsWith('agent.') || name.startsWith('a2a/'));
+}
+
 const MCP_PREFIX = 'MCP:';
 
 export function isMcpModelRow(name: string | null | undefined): boolean {

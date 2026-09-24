@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isRouterModel, isMcpModelRow, mcpToolLabel } from './model-classify';
+import { isAgentModelRow, isRouterModel, isMcpModelRow, mcpToolLabel } from './model-classify';
 
 describe('isRouterModel', () => {
   it('detects the auto-router provider', () => {
@@ -14,5 +14,14 @@ describe('mcp rows', () => {
     expect(isMcpModelRow('MCP: mcp-gitlab.gitlab_api')).toBe(true);
     expect(isMcpModelRow('gemini/flash')).toBe(false);
     expect(mcpToolLabel('MCP: mcp-gitlab.gitlab_api')).toBe('mcp-gitlab.gitlab_api');
+  });
+});
+
+describe('isAgentModelRow', () => {
+  it('detects operator-exposed agent models', () => {
+    expect(isAgentModelRow('agent.finops-advisor')).toBe(true);
+    expect(isAgentModelRow('a2a/finops-advisor')).toBe(true);
+    expect(isAgentModelRow('ackstorm.smart')).toBe(false);
+    expect(isAgentModelRow(null)).toBe(false);
   });
 });

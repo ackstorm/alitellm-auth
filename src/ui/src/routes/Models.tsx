@@ -47,7 +47,7 @@ import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { useModels } from '@/hooks/use-models';
 import type { ModelRow } from '@/lib/api-types';
 import { abbreviate, formatPricePerMillion } from '@/lib/format';
-import { isRouterModel } from '@/lib/model-classify';
+import { isAgentModelRow, isRouterModel } from '@/lib/model-classify';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/stores/session';
 
@@ -367,7 +367,7 @@ export function Models() {
     );
   }
 
-  const models = query.data?.models ?? [];
+  const models = (query.data?.models ?? []).filter((m) => !isAgentModelRow(m.name));
   const modeOptions = modelModeOptions(models);
 
   return (
