@@ -2,6 +2,23 @@
 
 ## [unreleased]
 
+## [0.18.5] - 2026-09-24
+
+### Added
+
+- **SSO groups map to access groups.** `ssoAccessGroups` (env
+  `SSO_ACCESS_GROUPS`) maps each entry of the Dex `groups` claim to extra
+  access groups, attached at login alongside `defaultAccessGroups` and
+  `userAccessGroups`. Keys and the claim are case-folded.
+
+### Changed
+
+- **Personal-team access groups are attached additively.** A login used to
+  rewrite the team's `access_group_ids` from config, stripping a group
+  attached by hand in the LiteLLM UI within seconds. It now writes current
+  plus configured groups and never removes one, so revoking a group means
+  detaching it in LiteLLM; dropping it from config no longer does.
+
 ## [0.18.4] - 2026-09-24
 
 ### Fixed
