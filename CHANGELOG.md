@@ -2,6 +2,14 @@
 
 ## [unreleased]
 
+## [0.18.6] - 2026-09-24
+
+### Changed
+
+- **Access-group pills show the group name as-is.** The dashboard no longer
+  strips a `team-` prefix: alitellm-operator 0.9.0 names unified access groups
+  without it (`default`, `dream`, `run`, `plan`).
+
 ## [0.18.5] - 2026-09-24
 
 ### Added

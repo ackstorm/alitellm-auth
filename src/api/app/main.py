@@ -24,7 +24,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = get_settings()
 
-    app = FastAPI(title="alitellm-auth", version="0.18.5")
+    app = FastAPI(title="alitellm-auth", version="0.18.6")
 
     # SessionMiddleware is REQUIRED by authlib to persist OAuth state/nonce
     # between /auth/login and /auth/callback. Without it: MismatchingStateError.
