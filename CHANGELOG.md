@@ -2,6 +2,17 @@
 
 ## [unreleased]
 
+### Added
+
+- **OpenCode plugin 0.3.0: backend bootstrap and per-user config.** The plugin
+  finds its backend from `platform.json` in the tarball (or plugin options)
+  instead of the `ackstorm` provider in config, so a fresh install signs in
+  without `OPENCODE_MODELS_URL`. At every OpenCode start it fetches
+  `/clients/opencode/config` and fills in what the user's config lacks
+  (models, disabled MCP servers, skills under `ackstorm-skills/`); cached 30 d
+  for the same user when the backend is down. Users re-run
+  `opencode plugin <url> -g -f` once.
+
 ## [0.18.6] - 2026-09-24
 
 ### Changed
