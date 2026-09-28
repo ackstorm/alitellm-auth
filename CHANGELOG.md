@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.20.1] - 2026-09-28
+
 ### Removed
 
 - **`/public` static mount** and the chart's `publicArtifacts` block. The
