@@ -325,6 +325,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#status-after-v0190-2026-09-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status after v0.19.0 (2026-09-28)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#0-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -987,6 +998,24 @@
 <li><strong>R4-9 PROVIDER_NAME</strong> (2026-09-28): the provider id is not "ackstorm" by contract; it is each
   deployment's PROVIDER_NAME (default "ai-platform"), carried to the plugin as
   platform.json.provider. The skill is "genai-api". The schema string is unchanged.</li>
+</ul>
+<h2 id="status-after-v0190-2026-09-28">Status after v0.19.0 (2026-09-28)</h2>
+<ul>
+<li><strong>Released v0.19.0</strong>: <code>/clients/opencode/config</code>, <code>/clients/opencode/plugin</code> (+ permanent alias
+  <code>/public/opencode-auth</code>), plugin 0.3.0 with the config hook, <code>PROVIDER_NAME</code>, <code>genai-api</code> skill.
+  gitops routes <code>PathPrefix /clients/</code> on <code>api.*</code> to alitellm-auth and exempts <code>/clients/*</code> from ext_authz.</li>
+<li><strong>T6 verified</strong> against a real <code>opencode</code> 1.18.31 (isolated HOME, fake backend): the <code>config</code> hook runs
+  before providers, MCP and skills are built (§4.1 "Not verified" is closed); the user's config wins;
+  MCP servers arrive disabled; the skill is listed; OpenCode auto-generates <code>low/medium/high</code> variants
+  for <code>reasoning: true</code> models and sends them as <code>reasoning_effort</code>; a startup refresh saves through
+  <code>client.auth.set</code> (Q-5 closed); backend down → cache; <code>auth login -p &lt;provider&gt;</code> works with no
+  provider in config. Q-4 closed: <code>instructions</code> takes only paths/globs/URLs, so the §4.3.4 notice is dropped.</li>
+<li><strong>Den stays minimal (owner decision, replaces §7 items 7.1–7.4)</strong>: desktop sign-in, empty Connect
+  catalog (only for OpenWork's health check), current branding, no enforced policy (<code>allowZenModel</code>
+  stays true). T11, T12 and T13 are dropped. Models, MCP servers and skills come from the plugin.</li>
+<li><strong>Open</strong>: OpenWork v1 loading the global plugin (§4.4) is verified in the pilot (T7). The operator's
+  public <code>api.json</code> (<code>publicArtifacts</code>) is no longer read by the plugin or the endpoint; retire it after
+  the pilot with the How-To update (T8).</li>
 </ul>
 <h2 id="0-summary">0. Summary</h2>
 <ol>
