@@ -3,7 +3,7 @@
 
 Each skill is a SKILL.md template next to this module. Templates are rendered
 per request from Settings; nothing here reads user data. Delivered by
-`GET /api/opencode/config` (docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md
+`GET /clients/opencode/config` (docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md
 §4.2.2), not by the OpenWork Den.
 """
 
