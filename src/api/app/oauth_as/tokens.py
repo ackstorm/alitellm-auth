@@ -11,7 +11,11 @@ from __future__ import annotations
 import secrets
 import time
 
-from authlib.jose import JsonWebKey, jwt
+from authlib.jose import JsonWebKey, JsonWebToken, jwt
+
+# RS256 only: the default JsonWebToken also accepts HS256, which would let a
+# token HMAC'd with our PUBLIC key pass as signed.
+_RS256 = JsonWebToken(["RS256"])
 
 
 class Signer:
@@ -45,6 +49,26 @@ class Signer:
             "token_use": "user",
         }
         return jwt.encode(header, claims, self._key).decode()
+
+    def verify(self, token: str, *, issuer: str, audience: str) -> dict:
+        """Claims of a token this signer issued. Raises JoseError otherwise.
+
+        Checks the RS256 signature, `iss`, `aud`, `exp`, and that `sub` exists.
+        Stateless: a token stays valid until `exp` even after its refresh token
+        is revoked (the access-token TTL bounds that window).
+        """
+        claims = _RS256.decode(
+            token,
+            self._key,
+            claims_options={
+                "iss": {"essential": True, "value": issuer},
+                "aud": {"essential": True, "value": audience},
+                "exp": {"essential": True},
+                "sub": {"essential": True},
+            },
+        )
+        claims.validate()
+        return dict(claims)
 
     def jwks(self) -> dict:
         public = self._key.as_dict(is_private=False)

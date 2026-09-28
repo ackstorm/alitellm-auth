@@ -290,3 +290,7 @@ istio:
   exemptPaths:
     - "/health"
     - "/.well-known/*"
+    # OpenCode client endpoints: the tarball is anonymous and the config route
+    # verifies the front-door JWT itself (ext_authz would strip it). Anything
+    # under /clients/ MUST authenticate its own requests.
+    - "/clients/*"

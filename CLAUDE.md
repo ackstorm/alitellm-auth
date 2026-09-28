@@ -56,6 +56,7 @@ GET /api/users (+ /{email}, DELETE /{email})
 | `src/api/app/templates/` | `error.html` (dark terminal card; rendered on OIDC/callback failure) |
 | `deploy/helm/` | Helm chart (deployment, service, ingress, configmap, secret) — the only install path |
 | `src/api/app/openwork.py` | OpenWork desktop "Den" contract at `/openwork` (SSO handoff, policy, branding). Off unless `OPENWORK_ENABLED`. **MUST read `docs/plans/2026-09-18-openwork-den.md` §3 (protocol traps) before touching** — error shape, CORS reflection, single-use grant, catch-all order |
+| `src/api/app/opencode_config.py` | GET /clients/opencode/config — per-user OpenCode config (ackstorm.opencode-config/1, shared with ACH). Bearer = front-door JWT (Signer.verify). Always 200 for a Bearer; never 5xx. Spec Rev 4 |
 
 ---
 
@@ -160,6 +161,8 @@ subPath mount is resolved once at container start and never sees a ConfigMap
 update, so the file would freeze at boot forever with no error surfaced.
 
 **WHERE**: `src/api/app/main.py` (mount), `deploy/helm/alitellm-auth/templates/deployment.yaml` (volume)
+
+`/clients/*` on the API host is exempt from ext_authz; every route there authenticates itself.
 
 ---
 
@@ -389,6 +392,10 @@ NEVER taken from client input.
 
 Never add the master key to these calls: LiteLLM would answer as full proxy admin and
 the "per-user" catalog would silently be the global one.
+
+**Exception by design — `/clients/opencode/config`**: visibility still comes from the
+user's own key; the master key only DESCRIBES those names (`/v2/model/info`, alias map).
+Never let the admin view add a model.
 
 **Known gap — MCP.** A team's `object_permission.mcp_servers: []` does NOT deny; the
 `no-mcp-servers` sentinel is honoured at KEY level only (LiteLLM 1.99.1

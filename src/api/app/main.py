@@ -61,6 +61,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(as_router)
     app.include_router(internal_router)
 
+    # OpenCode client config for the auth plugin (verifies front-door tokens,
+    # so it needs configure_as above).
+    from app.opencode_config import router as opencode_config_router
+
+    app.include_router(opencode_config_router)
+
     # OpenWork organization server (docs/plans/2026-09-18-openwork-den.md).
     # Off unless OPENWORK_ENABLED. Registered BEFORE the /ui and /public static
     # mounts for the same reason the other API routers are (T-09-06).

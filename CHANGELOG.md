@@ -2,6 +2,22 @@
 
 ## [unreleased]
 
+### Added
+
+- **OpenCode client endpoints under `/clients/opencode/`** (spec Rev 4, shared
+  with ACH). `GET /clients/opencode/config` (`ackstorm.opencode-config/1`):
+  per-user config for the auth plugin, authenticated by the front-door access
+  token (`Signer.verify`). Models = the chat model groups the user's own key
+  sees, described from LiteLLM (`/v2/model/info` + the alias map, master key,
+  cached 1 h, refreshed in the background): aliases take their target's context, costs incl. cache read,
+  and image/pdf/audio input. Every `AS_SERVICES` MCP server as a disabled
+  remote entry, plus the `mcp-setup` skill. Always 200 for a Bearer (invalid
+  token → empty baseline); upstream failure serves the last good body
+  (`stale: true`, 30 d). `GET /clients/opencode/plugin`: the plugin tarball
+  with a per-deployment `package/platform.json`; `/public/opencode-auth` is a
+  permanent alias. Chart: `/clients/*` added to `istio.exemptPaths`; the API
+  host's HTTPRoute needs `PathPrefix /clients/` → alitellm-auth (gitops).
+
 ## [0.18.6] - 2026-09-24
 
 ### Changed

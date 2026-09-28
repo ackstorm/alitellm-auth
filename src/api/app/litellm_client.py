@@ -1763,6 +1763,81 @@ async def list_litellm_models(settings: Settings, api_key: str | None = None) ->
     )
 
 
+# Capability fields kept from a deployment's model_info (GET /v2/model/info).
+# EXPLICIT allow-list: nothing else of the row is kept (litellm_params carries
+# upstream URLs and, for an admin, credentials).
+DEPLOYMENT_CAPABILITY_KEYS = (
+    "mode",
+    "max_input_tokens",
+    "max_output_tokens",
+    "input_cost_per_token",
+    "output_cost_per_token",
+    "cache_read_input_token_cost",
+    "supports_vision",
+    "supports_pdf_input",
+    "supports_audio_input",
+    "supports_video_input",
+    "supports_function_calling",
+    "supports_reasoning",
+)
+_MAX_MODEL_INFO_PAGES = (
+    50  # ponytail: 100 rows/page → 5000 deployments; raise if a proxy outgrows it
+)
+
+
+async def list_deployment_capabilities(settings: Settings) -> dict[str, dict]:
+    """Capabilities per deployment ``model_name`` from GET /v2/model/info, as ADMIN.
+
+    Master key on purpose: this only DESCRIBES models. Which models a user may
+    use is decided under the user's own key (list_litellm_models); callers must
+    only look up names that list returned. First deployment of a name wins.
+    """
+    out: dict[str, dict] = {}
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
+        page, pages = 1, 1
+        while page <= min(pages, _MAX_MODEL_INFO_PAGES):
+            resp = await client.get(
+                "/v2/model/info",
+                params={"page": page, "size": 100},
+                headers=_admin_headers(settings),
+            )
+            if not resp.is_success:
+                _raise_litellm(resp, "/v2/model/info")
+            body = resp.json()
+            pages = int(body.get("total_pages") or 1)
+            for row in body.get("data") or []:
+                name = row.get("model_name")
+                info = row.get("model_info") or {}
+                if name and name not in out:
+                    out[name] = {
+                        k: info[k] for k in DEPLOYMENT_CAPABILITY_KEYS if info.get(k) is not None
+                    }
+            page += 1
+    return out
+
+
+async def get_model_group_aliases(settings: Settings) -> dict[str, str]:
+    """``router_settings.model_group_alias`` (alias → target model group), as ADMIN.
+
+    Read from GET /get/config/callbacks, the same source alitellm-operator writes
+    through. That payload also carries callback configuration: ONLY the alias map
+    is kept, and nothing of it is logged. LiteLLM accepts a target as a string or
+    as ``{"model": target, ...}``.
+    """
+    async with httpx.AsyncClient(base_url=settings.litellm_url, timeout=15.0) as client:
+        resp = await client.get("/get/config/callbacks", headers=_admin_headers(settings))
+    if not resp.is_success:
+        _raise_litellm(resp, "/get/config/callbacks")
+    raw = ((resp.json() or {}).get("router_settings") or {}).get("model_group_alias") or {}
+    out: dict[str, str] = {}
+    for alias, target in raw.items():
+        if isinstance(target, dict):
+            target = target.get("model")
+        if isinstance(target, str):
+            out[alias] = target
+    return out
+
+
 def _project_mcp_server(s: dict) -> dict:
     """Allow-listed PUBLIC projection of one MCP server row (LiteLLM_MCPServerTable).
 

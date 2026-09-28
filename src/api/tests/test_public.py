@@ -6,8 +6,15 @@ providers/public_host) sourced from pydantic Settings at request time. It NEVER
 returns a key, user data, or any secret-bearing field (threat T-09-18).
 """
 
+import io
+import json
+import tarfile
+
+import pytest
 from fastapi.testclient import TestClient
 from tests.as_defaults import AS_TEST_DEFAULTS
+
+from app import public
 
 
 def make_test_settings(**overrides):
@@ -140,9 +147,14 @@ def test_public_mount_does_not_shadow_api_routes():
 def test_opencode_plugin_is_served_from_the_image_not_the_mount(tmp_path, monkeypatch):
     """The tarball lives outside /public (a projected volume at runtime) and is
     served by a route registered before the mount, so a /public/opencode-auth
-    file in the mount could not shadow it either."""
+    file in the mount could not shadow it either.
+
+    api_public_url="" here: this test is about route precedence, not the
+    platform.json repack (covered separately), so raw non-tarball bytes must
+    pass through unmodified.
+    """
     monkeypatch.chdir(tmp_path)
-    client = _client()
+    client = _client(api_public_url="")
     assert client.get("/public/opencode-auth").status_code == 404
 
     (tmp_path / "clients").mkdir()
@@ -151,3 +163,53 @@ def test_opencode_plugin_is_served_from_the_image_not_the_mount(tmp_path, monkey
     assert r.status_code == 200
     assert r.headers["content-type"] == "application/gzip"
     assert r.content == b"\x1f\x8b"
+
+
+def _bake(tmp_path):
+    src = io.BytesIO()
+    with tarfile.open(fileobj=src, mode="w:gz") as tar:
+        data = b"export const x = 1\n"
+        info = tarfile.TarInfo("package/index.mjs")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+    (tmp_path / "clients").mkdir()
+    (tmp_path / "clients" / "opencode-auth.tgz").write_bytes(src.getvalue())
+    public._plugin_tgz.cache_clear()
+
+
+def _members(raw):
+    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar:
+        return {m.name: tar.extractfile(m).read() for m in tar.getmembers() if m.isfile()}
+
+
+@pytest.mark.parametrize("path", ["/clients/opencode/plugin", "/public/opencode-auth"])
+def test_plugin_tgz_carries_platform_json(tmp_path, monkeypatch, path):
+    from app.main import create_app
+
+    monkeypatch.chdir(tmp_path)
+    _bake(tmp_path)
+    client = TestClient(
+        create_app(settings=make_test_settings(api_public_url="https://api.example.com/"))
+    )
+    resp = client.get(path)
+    assert resp.status_code == 200
+    files = _members(resp.content)
+    assert files["package/index.mjs"] == b"export const x = 1\n"
+    assert json.loads(files["package/platform.json"]) == {
+        "api": "https://api.example.com/v1",
+        "platform": "https://api.example.com",
+    }
+
+
+def test_plugin_tgz_bytes_are_deterministic(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _bake(tmp_path)
+    first = public._plugin_tgz("https://api.example.com")
+    public._plugin_tgz.cache_clear()
+    assert public._plugin_tgz("https://api.example.com") == first
+
+
+def test_plugin_tgz_without_api_public_url_is_the_baked_file(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _bake(tmp_path)
+    assert public._plugin_tgz("") == (tmp_path / "clients" / "opencode-auth.tgz").read_bytes()

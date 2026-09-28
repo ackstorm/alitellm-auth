@@ -2571,3 +2571,104 @@ async def test_get_team_access_groups_empty_when_unreadable():
     from app.litellm_client import get_team_access_groups
 
     assert await get_team_access_groups("user-ghost@example.com", settings) == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_deployment_capabilities_pages_and_allow_lists():
+    from app.litellm_client import list_deployment_capabilities
+
+    settings = make_settings()
+    route = respx.get("http://litellm.test/v2/model/info")
+    route.side_effect = [
+        httpx.Response(
+            200,
+            json={
+                "total_pages": 2,
+                "data": [
+                    {
+                        "model_name": "gemini.flash",
+                        "litellm_params": {"api_base": "https://up.test", "api_key": "sk-up"},
+                        "model_info": {
+                            "mode": "chat",
+                            "max_input_tokens": 1048576,
+                            "supports_pdf_input": True,
+                            "cache_read_input_token_cost": 7.5e-08,
+                            "supports_audio_input": None,
+                            "id": "dep-1",
+                            "db_model": True,
+                        },
+                    },
+                ],
+            },
+        ),
+        httpx.Response(
+            200,
+            json={
+                "total_pages": 2,
+                "data": [
+                    {
+                        "model_name": "gemini.flash",
+                        "model_info": {"mode": "chat", "max_input_tokens": 1},
+                    },
+                    {
+                        "model_name": "openai.gpt",
+                        "model_info": {"mode": "chat", "supports_vision": True},
+                    },
+                ],
+            },
+        ),
+    ]
+    caps = await list_deployment_capabilities(settings)
+    assert caps == {
+        "gemini.flash": {
+            "mode": "chat",
+            "max_input_tokens": 1048576,
+            "supports_pdf_input": True,
+            "cache_read_input_token_cost": 7.5e-08,
+        },
+        "openai.gpt": {"mode": "chat", "supports_vision": True},
+    }
+    assert (
+        route.calls[0].request.headers["authorization"] == f"Bearer {settings.litellm_master_key}"
+    )
+    assert [c.request.url.params["page"] for c in route.calls] == ["1", "2"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_model_group_aliases_keeps_only_the_alias_map():
+    from app.litellm_client import get_model_group_aliases
+
+    settings = make_settings()
+    respx.get("http://litellm.test/get/config/callbacks").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "callbacks": [{"name": "langfuse", "variables": {"LANGFUSE_SECRET_KEY": "x"}}],
+                "router_settings": {
+                    "routing_strategy": "simple-shuffle",
+                    "model_group_alias": {
+                        "ackstorm.smart": "gemini.flash",
+                        "ackstorm.hidden": {"model": "openai.gpt", "hidden": True},
+                        "bad": 3,
+                    },
+                },
+            },
+        )
+    )
+    assert await get_model_group_aliases(settings) == {
+        "ackstorm.smart": "gemini.flash",
+        "ackstorm.hidden": "openai.gpt",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_model_group_aliases_without_router_settings():
+    from app.litellm_client import get_model_group_aliases
+
+    respx.get("http://litellm.test/get/config/callbacks").mock(
+        return_value=httpx.Response(200, json={"callbacks": []})
+    )
+    assert await get_model_group_aliases(make_settings()) == {}
