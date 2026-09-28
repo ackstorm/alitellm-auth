@@ -753,9 +753,9 @@ header + "per 1M tokens" subtitle).</p>
 </ol>
 <h3 id="open-jc-to-decide">Open (JC to decide)</h3>
 <ul>
-<li><strong>Alias taglines</strong> (<code>ackstorm.fast</code> = low-latency, etc.) — real value, but <strong>needs a
+<li><strong>Alias taglines</strong> (<code>acme.fast</code> = low-latency, etc.) — real value, but <strong>needs a
   backend <code>description</code> field</strong> surfaced from LiteLLM <code>model_info</code> (can't hardcode:
-  aliases are deployment-configured, not always <code>ackstorm.*</code>). Biggest value / biggest cost.</li>
+  aliases are deployment-configured, not a fixed prefix). Biggest value / biggest cost.</li>
 <li><strong>Computed badges</strong> (Cheapest / Largest context) — derivable frontend, but <strong>redundant</strong>
   with the already-sortable price/context columns. Skip unless wanted.</li>
 </ul>
@@ -824,7 +824,7 @@ split, no logs</strong> in the daily aggregate.</p>
      version. If honored now → a bounded per-request fetch + server-side percentile
      aggregation becomes feasible (heavier query, no leak/OOM). Else: upstream PR to add
      latency to the daily aggregate, or a Prometheus/otel metrics path (new infra).</li>
-<li><strong>RECHECK 2026-07-09 (live probe, <code>api.ackstorm.ai</code>, a real user <code>sk-</code>) → GO (bounded).</strong><ul>
+<li><strong>RECHECK 2026-07-09 (live probe, <code>api.example.com</code>, a real user <code>sk-</code>) → GO (bounded).</strong><ul>
 <li><strong>No cross-user leak on the user-key path.</strong> <code>GET /spend/logs?summarize=false</code> called
    with a plain user <code>sk-</code> <strong>auto-scopes to the caller</strong>: all 138 rows had
    <code>user=&lt;key owner&gt;</code>, and the daily-aggregate <code>users</code> block listed only that user. The
@@ -920,12 +920,12 @@ first triaged). Latency remains the only genuinely-absent metric.</p>
 is injected into every snippet (endpoint personalization done); the Editors &amp; CLIs section
 has full tabbed setup (OpenCode Gemini/OpenAI, Claude Code, Gemini CLI, codex, each with
 config + notes + guide + caveats); MCP already has <code>MCP Access</code> / <code>MCP Group access</code> /
-<code>Try with curl</code> tabs; the No-terminal section has ACKstorm Chat (ready) + openwork (<code>Soon</code>).</p>
+<code>Try with curl</code> tabs; the No-terminal section has the hosted Chat card (ready) + openwork (<code>Soon</code>).</p>
 <p><strong>Two factual corrections (reviewer wrong):</strong>
 - MCP auth <code>x-litellm-api-key: Bearer sk-...</code> <strong>is</strong> the gateway's required format (not a
   mistake); don't switch to <code>Authorization: Bearer</code>.
 - <code>LITELLM_API_KEY</code> is read verbatim by the tool configs (<code>{env:LITELLM_API_KEY}</code> in
-  opencode/codex); renaming to <code>ACKSTORM_API_KEY</code> breaks them. <code>brand_short</code> already brands display.</p>
+  opencode/codex); renaming to <code>GENAI_API_KEY</code> breaks them. <code>brand_short</code> already brands display.</p>
 <h3 id="worth-implementing_4">Worth implementing</h3>
 <ol>
 <li><strong>Quickstart SDK tabs + expected-response block</strong> — <em>frontend only; reviewer's #1</em></li>
@@ -963,7 +963,7 @@ config + notes + guide + caveats); MCP already has <code>MCP Access</code> / <co
 <h3 id="rejected-reason_4">Rejected (reason)</h3>
 <ul>
 <li><strong>Standardize MCP auth header</strong> — current format is the gateway's requirement (correction above).</li>
-<li><strong>Rename env var to <code>ACKSTORM_API_KEY</code></strong> — breaks tool config references (correction above).</li>
+<li><strong>Rename env var to <code>GENAI_API_KEY</code></strong> — breaks tool config references (correction above).</li>
 <li><strong>Personalize with the real key</strong> — <code>sk-</code> shown once, never on this page (hard security
   constraint, already enforced with <code>KEY_PLACEHOLDER</code>).</li>
 <li><strong>Onboarding checklist with completion states</strong> — "first request sent / editor connected /

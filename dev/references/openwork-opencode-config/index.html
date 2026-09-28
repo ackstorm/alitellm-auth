@@ -510,7 +510,7 @@
 <tbody>
 <tr>
 <td>Status</td>
-<td>Reference. Applies to any ACKstorm backend (platform / alitellm-auth, or ACH)</td>
+<td>Reference. Applies to any product backend (platform / alitellm-auth, or ACH)</td>
 </tr>
 <tr>
 <td>Date</td>
@@ -531,8 +531,8 @@
 </tbody>
 </table>
 <p>Placeholders: <code>&lt;backend&gt;</code> is the product's public origin (e.g.
-<code>https://platform.ackstorm.ai</code>), <code>&lt;api&gt;</code> its model/MCP gateway origin (e.g.
-<code>https://api.ackstorm.ai</code>). The Den is served by the backend itself on
+<code>https://platform.example.com</code>), <code>&lt;api&gt;</code> its model/MCP gateway origin (e.g.
+<code>https://api.example.com</code>). The Den is served by the backend itself on
 <code>&lt;backend&gt;</code> (platform: inside alitellm-auth; ACH: inside ACH), so the
 organization server URL users enter is <code>&lt;backend&gt;</code>.</p>
 <h2 id="1-the-pieces">1. The pieces</h2>
@@ -590,7 +590,7 @@ organization server URL users enter is <code>&lt;backend&gt;</code>.</p>
 <tbody>
 <tr>
 <td>Model sign-in</td>
-<td>Plugin OAuth (<code>opencode auth login -p ackstorm</code>)</td>
+<td>Plugin OAuth (<code>opencode auth login -p ai-platform</code>)</td>
 <td>Yes (gateway)</td>
 <td>Tokens refresh per request</td>
 </tr>
@@ -655,7 +655,7 @@ organization server URL users enter is <code>&lt;backend&gt;</code>.</p>
 <h2 id="3-user-onboarding">3. User onboarding</h2>
 <h3 id="31-opencode-cli">3.1 OpenCode CLI</h3>
 <p><div class="highlight"><pre><span></span><code>opencode<span class="w"> </span>plugin<span class="w"> </span>&lt;backend&gt;/public/opencode-auth<span class="w"> </span>-g
-opencode<span class="w"> </span>auth<span class="w"> </span>login<span class="w"> </span>-p<span class="w"> </span>ackstorm<span class="w">        </span><span class="c1"># browser SSO; "device code" for headless hosts</span>
+opencode<span class="w"> </span>auth<span class="w"> </span>login<span class="w"> </span>-p<span class="w"> </span>ai-platform<span class="w">      </span><span class="c1"># browser SSO; "device code" for headless hosts</span>
 opencode<span class="w">                               </span><span class="c1"># models, MCPs and skills are there</span>
 </code></pre></div>
 Then, per MCP server wanted: enable it (set <code>"enabled": true</code> in the global or
@@ -740,7 +740,7 @@ until the user joins the org.</p>
 <tr>
 <td><code>allowCustomProviders</code></td>
 <td><code>true</code></td>
-<td>The <code>ackstorm</code> provider comes from OpenCode config (the plugin), not from Den; <code>false</code> restricts providers to Den-delivered ones and hides it</td>
+<td>The <code>ai-platform</code> provider comes from OpenCode config (the plugin), not from Den; <code>false</code> restricts providers to Den-delivered ones and hides it</td>
 </tr>
 <tr>
 <td><code>allowManageExtensions</code></td>
@@ -812,13 +812,13 @@ until the user joins the org.</p>
   good copy (same user, &lt; 30 days). OpenCode always starts.</li>
 <li><strong>Signed out / revoked</strong>: the backend answers with the baseline; the plugin
   clears its cache and delivers nothing; models stop working until
-  <code>opencode auth login -p ackstorm</code>.</li>
+  <code>opencode auth login -p ai-platform</code>.</li>
 <li><strong>User overrides</strong>: a user or project entry for the same model or MCP server
   wins, field by field. A server the user enabled stays enabled.</li>
 <li><strong>Removed on the backend</strong>: disappears at the next start, unless the user
   defined it themselves.</li>
-<li><strong>One backend per OpenCode profile</strong>: the provider id is <code>ackstorm</code> in every
-  product. Someone using two backends needs separate OpenCode profiles.</li>
+<li><strong>One backend per OpenCode profile</strong>: the provider id is <code>ai-platform</code> in
+  every product. Someone using two backends needs separate OpenCode profiles.</li>
 </ul>
 <h2 id="7-limitations">7. Limitations</h2>
 <ul>
@@ -847,14 +847,14 @@ until the user joins the org.</p>
 </thead>
 <tbody>
 <tr>
-<td>No <code>ackstorm</code> models after install</td>
+<td>No <code>ai-platform</code> models after install</td>
 <td>Not signed in, or OpenCode not restarted</td>
-<td><code>opencode auth login -p ackstorm</code>, restart</td>
+<td><code>opencode auth login -p ai-platform</code>, restart</td>
 </tr>
 <tr>
 <td>Models present but requests 401</td>
 <td>Refresh token expired or revoked</td>
-<td><code>opencode auth login -p ackstorm</code></td>
+<td><code>opencode auth login -p ai-platform</code></td>
 </tr>
 <tr>
 <td>Old model list after a backend change</td>
