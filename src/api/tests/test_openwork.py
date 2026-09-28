@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the OpenWork organization server (Den) contract.
 
-See docs/plans/2026-09-18-openwork-den.md. The desktop client is strict about
+Background: docs/references/openwork-*.md. The desktop client is strict about
 error shape and CORS; those are pinned here, not left to convention.
 """
 

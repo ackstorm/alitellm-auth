@@ -55,7 +55,7 @@ GET /api/users (+ /{email}, DELETE /{email})
 | `src/api/app/main.py` | `create_app()` factory + SessionMiddleware |
 | `src/api/app/templates/` | `error.html` (dark terminal card; rendered on OIDC/callback failure) |
 | `deploy/helm/` | Helm chart (deployment, service, ingress, configmap, secret) — the only install path |
-| `src/api/app/openwork.py` | OpenWork desktop "Den" contract at `/openwork` (SSO handoff, policy, branding). Off unless `OPENWORK_ENABLED`. **MUST read `docs/plans/2026-09-18-openwork-den.md` §3 (protocol traps) before touching** — error shape, CORS reflection, single-use grant, catch-all order |
+| `src/api/app/openwork.py` | OpenWork desktop "Den" contract at `/openwork` (SSO handoff, policy, branding). Off unless `OPENWORK_ENABLED`. **MUST read `tests/test_openwork.py` (executable contract) + `docs/references/openwork-*.md` before touching** — error shape, CORS reflection, single-use grant, catch-all order. (`docs/plans/` is gitignored/internal; don't cite it) |
 | `src/api/app/opencode_config.py` | GET /clients/opencode/config — per-user OpenCode config (ackstorm.opencode-config/1, shared with ACH). Bearer = front-door JWT (Signer.verify). Always 200 for a Bearer; never 5xx. Spec Rev 4 |
 
 ---
@@ -500,6 +500,7 @@ Never rely on env vars in tests. All test files have a local `make_test_settings
 
 ## External References
 
+- **OpenCode client config + OpenWork Den (design, in progress)**: spec `docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md` (decisions D-1..D-13, task list T1..T14); operator view `docs/references/openwork-opencode-config.md` (what comes from where, policy defaults, troubleshooting)
 - **Authlib (OIDC client)**: use Context7 or WebSearch — API changes frequently between minor versions
 - **LiteLLM Admin API** (`/team/new`, `/key/generate`): use WebSearch for latest endpoint signatures
 - **FastAPI / Starlette**: `TemplateResponse` signature changed in Starlette 0.36 — verify with Context7

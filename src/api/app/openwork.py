@@ -3,8 +3,8 @@
 
 The OpenWork desktop app, pointed at this deployment, signs in with the Dex
 session the user already holds and then receives enforced desktop policy and
-the deployment's branding. See docs/plans/2026-09-18-openwork-den.md for the full
-contract and the verified protocol traps.
+the deployment's branding. tests/test_openwork.py is the executable contract and
+pins the protocol traps; background in docs/references/openwork-*.md.
 
 The Den API is served at BOTH /api/den and /openwork/api/den. OpenWork's
 Settings input keeps only the origin of the organization server URL
