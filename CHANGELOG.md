@@ -12,6 +12,11 @@
   (models, disabled MCP servers, skills under `ackstorm-skills/`); cached 30 d
   for the same user when the backend is down. Users re-run
   `opencode plugin <url> -g -f` once.
+- **`mcp-setup` skill template for OpenCode clients.** `app/skills/mcp-setup.md`
+  plus `app.skills.mcp_setup_body(settings)`, which fills in the gateway's OAuth
+  MCP servers from `AS_SERVICES` and `API_PUBLIC_URL`. Not served yet: it is
+  delivered by `GET /clients/opencode/config` (spec
+  `docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md`).
 
 ## [0.18.6] - 2026-09-24
 
