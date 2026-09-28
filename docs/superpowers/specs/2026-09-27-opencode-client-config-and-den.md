@@ -54,6 +54,24 @@ Confirmed by both products. Where this section and the text below disagree, this
   deployment's PROVIDER_NAME (default "ai-platform"), carried to the plugin as
   platform.json.provider. The skill is "genai-api". The schema string is unchanged.
 
+## Status after v0.19.0 (2026-09-28)
+
+- **Released v0.19.0**: `/clients/opencode/config`, `/clients/opencode/plugin` (+ permanent alias
+  `/public/opencode-auth`), plugin 0.3.0 with the config hook, `PROVIDER_NAME`, `genai-api` skill.
+  gitops routes `PathPrefix /clients/` on `api.*` to alitellm-auth and exempts `/clients/*` from ext_authz.
+- **T6 verified** against a real `opencode` 1.18.31 (isolated HOME, fake backend): the `config` hook runs
+  before providers, MCP and skills are built (§4.1 "Not verified" is closed); the user's config wins;
+  MCP servers arrive disabled; the skill is listed; OpenCode auto-generates `low/medium/high` variants
+  for `reasoning: true` models and sends them as `reasoning_effort`; a startup refresh saves through
+  `client.auth.set` (Q-5 closed); backend down → cache; `auth login -p <provider>` works with no
+  provider in config. Q-4 closed: `instructions` takes only paths/globs/URLs, so the §4.3.4 notice is dropped.
+- **Den stays minimal (owner decision, replaces §7 items 7.1–7.4)**: desktop sign-in, empty Connect
+  catalog (only for OpenWork's health check), current branding, no enforced policy (`allowZenModel`
+  stays true). T11, T12 and T13 are dropped. Models, MCP servers and skills come from the plugin.
+- **Open**: OpenWork v1 loading the global plugin (§4.4) is verified in the pilot (T7). The operator's
+  public `api.json` (`publicArtifacts`) is no longer read by the plugin or the endpoint; retire it after
+  the pilot with the How-To update (T8).
+
 ## 0. Summary
 
 1. **Every OpenCode client (CLI and the OpenWork desktop on engine v1) gets its
