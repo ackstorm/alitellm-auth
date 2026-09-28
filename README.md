@@ -78,9 +78,6 @@ prints a `XXXX-XXXX` code and a URL; open the URL in any browser, confirm the co
 sign in — the session completes on its own. A new plugin release is picked up with
 `opencode plugin <url> -g -f`.
 
-An exported `LITELLM_API_KEY` still works (the served `api.json` lists it), but an OAuth
-credential wins when both are present.
-
 ### Claude Code and Codex
 
 Both take "a command that prints a credential". [clients/genai-token](clients/genai-token)

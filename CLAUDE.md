@@ -139,27 +139,10 @@ Authorization uses `hmac.compare_digest` (constant-time, defends against timing 
 
 **WHERE**: `src/api/app/admin.py`
 
-### Public Static Artifacts
+### Public routes
 
-`GET /public/<path>` — a `StaticFiles` mount serving files placed in `/app/public`
-by a volume, with no authentication at all. Nothing is served through it by
-default; a deployment opts a static artifact in by projecting it into the
-volume (e.g. a generated catalog consumed via a client's own `*_URL` override).
-
-**This mount is world-readable.** The app has no global auth middleware (only
-`SessionMiddleware`), and a `StaticFiles` sub-app carries no
-`Depends(require_session_user)`. Mount ONLY non-secret artifacts. It is
-registered AFTER every `/api/*` router so it cannot shadow them (T-09-06), and
-uses `check_dir=False` because the directory is populated by a projected volume
-at runtime, not at image build time.
-
-Enabled by the chart's `publicArtifacts` values. The volume is `projected`, not
-a plain `configMap` volume — a configMap volume owns the whole directory, which
-would make a second artifact impossible to add — and carries NO `subPath`: a
-subPath mount is resolved once at container start and never sees a ConfigMap
-update, so the file would freeze at boot forever with no error surfaced.
-
-**WHERE**: `src/api/app/main.py` (mount), `deploy/helm/alitellm-auth/templates/deployment.yaml` (volume)
+`/public/*` has no static mount (removed in 0.20.1 with the operator catalog);
+only the `/public/opencode-auth` alias route remains, everything else is 404.
 
 `/clients/*` on the API host is exempt from ext_authz; every route there authenticates itself.
 

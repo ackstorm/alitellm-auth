@@ -70,8 +70,7 @@ async def public_config(request: Request) -> JSONResponse:
     return JSONResponse(payload)
 
 
-# Baked by the Dockerfile from clients/opencode. A route rather than a file under
-# /public: that directory is a projected volume at runtime and hides image files.
+# Baked by the Dockerfile from clients/opencode.
 _OPENCODE_PLUGIN = Path("clients/opencode-auth.tgz")
 
 

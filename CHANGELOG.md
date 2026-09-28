@@ -2,6 +2,15 @@
 
 ## [unreleased]
 
+### Removed
+
+- **`/public` static mount** and the chart's `publicArtifacts` block. The
+  operator's OpenCode catalog (`/public/opencode/api.json`) is retired since
+  0.19.0 (`/clients/opencode/config` reads LiteLLM directly); with the volume
+  gone, the `check_dir=False` mount answered 500 on every `/public/*` path.
+  Those paths are now 404; `/public/opencode-auth` (plugin alias) is unchanged.
+  Unset `OPENCODE_MODELS_URL` if you still export it.
+
 ## [0.20.0] - 2026-09-28
 
 ### Changed

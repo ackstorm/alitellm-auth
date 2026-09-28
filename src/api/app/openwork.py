@@ -45,8 +45,7 @@ GRANT_KIND = "openwork_grant"
 TOKEN_KIND = "openwork_token"
 
 _templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
-# src/api/brand/ in the tree, /app/brand in the image (Dockerfile COPY). Not
-# under /public: that is a projected volume at runtime and would hide files.
+# src/api/brand/ in the tree, /app/brand in the image (Dockerfile COPY).
 _BRAND_DIR = Path(__file__).parent.parent / "brand"
 _BRAND_ASSETS = {"logo.svg": "openwork-logo.svg", "icon.svg": "openwork-icon.svg"}
 

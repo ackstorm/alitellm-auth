@@ -28,9 +28,7 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
   `opencode plugin https://platform.example.com/public/opencode-auth -g`, then
   `opencode auth login -p ai-platform`. Verified incl. refresh (2026-09-17).
   Measured: opencode fetches the tarball at install and once on the first launch, then
-  never — a new release needs `opencode plugin <url> -g -f`. The served `api.json` still
-  lists `env: ["LITELLM_API_KEY"]`; an exported key masks a logout (OAuth wins when both
-  exist). Drop `env` from `/public/opencode` when everyone is on the plugin.
+  never — a new release needs `opencode plugin <url> -g -f`.
 - [ ] **Upstream the opencode method**: no client does OAuth (8414 + DCR + PKCE) for a
   *model* provider; opencode's OpenAI/Anthropic/Copilot logins are vendor-specific
   plugins. Propose a generic `oauth` auth method keyed on `provider.<id>.options.oauth.issuer`

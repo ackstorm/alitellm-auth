@@ -178,26 +178,6 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
-# publicArtifacts: mount externally-generated static files and serve them
-# unauthenticated at /public/<path>. Today: the OpenCode model catalog that
-# alitellm-operator renders from LiteLLMModelAlias CRs, reachable at
-# /public/opencode/api.json.
-#
-# Anything mounted here is world-readable — the /public StaticFiles mount
-# carries no auth dependency. Mount ONLY non-secret artifacts.
-#
-# Updates arrive without a pod restart: the kubelet syncs a mounted ConfigMap
-# in place (~60s) and StaticFiles opens the file per request. No reloader
-# needed. Do not add subPath to the mount or that stops being true.
-publicArtifacts:
-  enabled: false
-  # Must match the StaticFiles directory in app.main, relative to WORKDIR /app.
-  mountPath: /app/public
-  sources:
-    - name: opencode-catalog
-      key: api.json
-      path: opencode/api.json
-
 # ── OAuth front door (docs/plans/2026-09-17-oauth-front-door.md) ─────────────
 # The API's authorization server. ALWAYS ON — the console resolves each user's
 # LiteLLM key out of its store, so the pod will not start without

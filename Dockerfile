@@ -51,8 +51,7 @@ COPY src/api/app ./app
 # alone produces a serving image — no host `make build-ui` precondition. Placed
 # before the USER switch so root owns the copy; FastAPI serves it at /ui.
 COPY --from=ui-builder /src/ui/dist /app/ui/dist
-# Not under /app/public: that directory is a projected volume at runtime, which
-# would hide anything the image put there. Served by an explicit route instead.
+# Served by an explicit route (/clients/opencode/plugin).
 COPY --from=builder /app/opencode-auth.tgz /app/clients/opencode-auth.tgz
 # OpenWork brand marks, served at /openwork/brand/{logo,icon}.svg (same reason).
 COPY src/api/brand ./brand

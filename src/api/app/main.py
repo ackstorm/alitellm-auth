@@ -68,8 +68,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(opencode_config_router)
 
     # OpenWork organization server (docs/plans/2026-09-18-openwork-den.md).
-    # Off unless OPENWORK_ENABLED. Registered BEFORE the /ui and /public static
-    # mounts for the same reason the other API routers are (T-09-06).
+    # Off unless OPENWORK_ENABLED. Registered BEFORE the /ui static
+    # mount for the same reason the other API routers are (T-09-06).
     if settings.openwork_enabled:
         from app.oauth_as.store import create_store
         from app.openwork import DenCorsMiddleware, den_router, router as openwork_router
@@ -93,20 +93,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # build time. /ui returns 200 text/html even unauthenticated; auth is gated
     # client-side by the SPA (Plan 02).
     app.mount("/ui", StaticFiles(directory="ui/dist", html=True, check_dir=False), name="ui")
-
-    # Serve operator-generated static artifacts at /public — same D-03 pattern
-    # as /ui above, mounted AFTER all API routers so it never shadows /api/*
-    # (T-09-06). check_dir=False because the directory is populated by a
-    # projected volume at runtime, not at image build time, so create_app()
-    # must not crash when it is absent (local dev, tests, catalog disabled).
-    #
-    # PUBLIC BY CONSTRUCTION: this app has no global auth middleware (only
-    # SessionMiddleware), and a StaticFiles sub-app carries no
-    # Depends(require_session_user). Anything mounted here is world-readable.
-    # Mount ONLY non-secret artifacts. Today: the OpenCode model catalog the
-    # operator renders from LiteLLMModelAlias CRs, at
-    # /public/opencode/api.json.
-    app.mount("/public", StaticFiles(directory="public", check_dir=False), name="public")
 
     return app
 

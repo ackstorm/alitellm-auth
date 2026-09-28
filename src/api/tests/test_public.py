@@ -133,33 +133,15 @@ def test_config_provider_name_passthrough_when_set():
     assert body["provider_name"] == "acme"
 
 
-def test_public_mount_serves_artifact_unauthenticated(tmp_path, monkeypatch):
-    """/public is a StaticFiles mount: 200 with no session, same as /ui.
-
-    StaticFiles resolves "public" against the process cwd, so chdir into a
-    tmp dir holding the file (same approach as test_session.py's /ui test).
-    """
-    d = tmp_path / "public" / "opencode"
-    d.mkdir(parents=True)
-    (d / "api.json").write_text('{"acme": {"models": {}}}')
+def test_public_has_no_static_mount(tmp_path, monkeypatch):
+    """/public/* is 404 except the opencode-auth alias route. 0.20.0 still had a
+    check_dir=False StaticFiles mount over an absent directory: every path 500."""
     monkeypatch.chdir(tmp_path)
-
-    client = _client()
-    r = client.get("/public/opencode/api.json")
-    assert r.status_code == 200
-    assert r.json()["acme"]["models"] == {}
-
-
-def test_public_mount_does_not_shadow_api_routes():
-    """The mount is registered AFTER every /api/* router (T-09-06)."""
-    client = _client()
-    assert client.get("/api/config").status_code == 200
+    assert _client().get("/public/opencode/api.json").status_code == 404
 
 
 def test_opencode_plugin_is_served_from_the_image_not_the_mount(tmp_path, monkeypatch):
-    """The tarball lives outside /public (a projected volume at runtime) and is
-    served by a route registered before the mount, so a /public/opencode-auth
-    file in the mount could not shadow it either.
+    """/public/opencode-auth is a permanent alias route for the baked tarball.
 
     api_public_url="" here: this test is about route precedence, not the
     platform.json repack (covered separately), so raw non-tarball bytes must
