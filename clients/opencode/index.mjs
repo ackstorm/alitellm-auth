@@ -130,7 +130,14 @@ async function fresh(cur, { client, options, getAuth }) {
     const d = await discover(client, options)
     const client_id = await savedClientId(d.issuer)
     if (!client_id) throw new Error(`SSO client identity lost, run \`opencode auth login -p ${PROVIDER}\``)
-    const t = { type: "oauth", ...(await token(d, { grant_type: "refresh_token", refresh_token: again.refresh, client_id })) }
+    const t = {
+      type: "oauth",
+      // Only the token endpoint's 4xx means "signed out"; a 4xx from discovery
+      // (a misrouted .well-known) is an outage, not a revoked session.
+      ...(await token(d, { grant_type: "refresh_token", refresh_token: again.refresh, client_id }).catch((e) => {
+        throw Object.assign(e, { signedOut: e.status >= 400 && e.status < 500 })
+      })),
+    }
     t.refresh ||= again.refresh
     try {
       await client.auth.set({ path: { id: PROVIDER }, body: t })
@@ -229,7 +236,7 @@ async function applyConfig(cfg, { client, options }) {
   try {
     auth = await fresh(stored, { client, options, getAuth })
   } catch (e) {
-    if (e.status >= 400 && e.status < 500) return forget() // refresh token rejected: signed out
+    if (e.signedOut) return forget() // refresh token rejected
     // AS unreachable: an expired access token would read as "invalid", so use the cache.
   }
   let body = auth ? await fetchConfig((await backend(options)).platform, auth.access) : null

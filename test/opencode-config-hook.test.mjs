@@ -21,6 +21,7 @@ let configCalls, tokenCalls
 globalThis.fetch = async (input, init) => {
   const url = typeof input === "string" ? input : input.url
   if (url.startsWith("https://api.test/.well-known/oauth-protected-resource")) {
+    if (server.prm) return server.prm()
     return Response.json({ authorization_servers: [ISSUER], scopes_supported: ["alitellm"] })
   }
   if (url === `${ISSUER}/.well-known/oauth-authorization-server`) {
@@ -220,4 +221,17 @@ test("skills are rewritten on a version change and removed when dropped", async 
   await (await hook())(cfg)
   assert.equal(existsSync(`${SKILLS}/mcp-setup`), false)
   assert.equal(cfg.skills, undefined)
+})
+
+test("a 4xx from discovery is an outage, not a sign-out: the cache is kept and used", async () => {
+  // Fresh module: discovery is memoised per process.
+  const { SsoAuth: Fresh } = await import("../clients/opencode/index.mjs?discovery404")
+  signIn("alice@example.com", 0)
+  writeFileSync(CACHE, JSON.stringify({ user: "alice@example.com", fetchedAt: Date.now(), body: BODY() }))
+  server.prm = () => new Response("not found", { status: 404 })
+  const cfg = {}
+  await (await Fresh({ client: { auth: { set: async () => {} } } }, OPTIONS)).config(cfg)
+  assert.ok(existsSync(CACHE))
+  assert.ok(cfg.provider)
+  assert.equal(configCalls, 0)
 })
