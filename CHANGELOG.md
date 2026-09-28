@@ -25,11 +25,17 @@
   (models, disabled MCP servers, skills under `ackstorm-skills/`); cached 30 d
   for the same user when the backend is down. Users re-run
   `opencode plugin <url> -g -f` once.
-- **`mcp-setup` skill template for OpenCode clients.** `app/skills/mcp-setup.md`
-  plus `app.skills.mcp_setup_body(settings)`, which fills in the gateway's OAuth
-  MCP servers from `AS_SERVICES` and `API_PUBLIC_URL`, delivered by
-  `GET /clients/opencode/config` (spec
-  `docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md`).
+- **`PROVIDER_NAME`** (chart `config.providerName`, default `ai-platform`): the
+  user-visible platform name, used as the OpenCode provider id
+  (`opencode auth login -p <name>`), the provider shown in OpenCode, the
+  plugin's data folder (`~/.local/share/opencode/<name>/`) and in the skill.
+  **Set it to the id your users already use** (the ACKstorm cluster: `ackstorm`)
+  or every OpenCode user must sign in again.
+- **`genai-api` skill** (replaces `mcp-setup`): a brand-neutral guide to the
+  platform delivered to OpenCode: console, API keys, models, MCP servers
+  (per-server OAuth URLs and the key-based `/mcp` endpoint), OpenCode setup
+  and troubleshooting. Filled from `PROVIDER_NAME`, `APP_BASE_URL`,
+  `API_PUBLIC_URL` and `AS_SERVICES`.
 
 ## [0.18.6] - 2026-09-24
 

@@ -50,6 +50,9 @@ Confirmed by both products. Where this section and the text below disagree, this
   drops one); add them only if a model rejects an auto effort.
 - **R4-8 MCP source may differ per product**: platform lists `AS_SERVICES` (§4.2.2 step 2);
   ACH lists `/v1/mcp/server` under the user's key. Same output shape.
+- **R4-9 PROVIDER_NAME** (2026-09-28): the provider id is not "ackstorm" by contract; it is each
+  deployment's PROVIDER_NAME (default "ai-platform"), carried to the plugin as
+  platform.json.provider. The skill is "genai-api". The schema string is unchanged.
 
 ## 0. Summary
 

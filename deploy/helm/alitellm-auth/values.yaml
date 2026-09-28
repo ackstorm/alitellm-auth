@@ -42,6 +42,11 @@ config:
   # Ignored once personalTeamsEnabled is true — keys then land in the caller's
   # own team instead of this one.
   litellmDefaultTeam: "default"
+  # User-visible name of this platform in OpenCode and the genai-api skill:
+  # `opencode auth login -p <providerName>`. Lowercase, digits, '-'. Neutral
+  # default; the ACKstorm cluster sets "ackstorm" in gitops. Changing it on a
+  # live deployment signs every OpenCode user out.
+  providerName: "ai-platform"
   # ── Personal teams ────────────────────────────────────────────────────────
   # One LiteLLM team per user (id "<personalTeamPrefix><email>") instead of the
   # single shared team. A personal team has exactly one member, so the team

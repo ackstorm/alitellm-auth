@@ -7,12 +7,13 @@ import { tmpdir } from "node:os"
 
 process.env.XDG_DATA_HOME = mkdtempSync(`${tmpdir()}/opencode-hook-`)
 const DATA = `${process.env.XDG_DATA_HOME}/opencode`
-const CACHE = `${DATA}/ackstorm-config.json`
-const SKILLS = `${DATA}/ackstorm-skills`
+const HOME = `${DATA}/acme`
+const CACHE = `${HOME}/config.json`
+const SKILLS = `${HOME}/skills`
 const { SsoAuth, fillMissing } = await import("../clients/opencode/index.mjs")
 
 const ISSUER = "https://as.test"
-const OPTIONS = { api: "https://api.test/v1", platform: "https://api.test" }
+const OPTIONS = { api: "https://api.test/v1", platform: "https://api.test", provider: "acme" }
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url")
 const jwt = (sub) => `h.${b64({ sub })}.s`
 
@@ -58,9 +59,9 @@ const BODY = (over = {}) => ({
 })
 
 function signIn(sub = "alice@example.com", expires = Date.now() + 3_600_000) {
-  mkdirSync(DATA, { recursive: true })
-  writeFileSync(`${DATA}/auth.json`, JSON.stringify({ ackstorm: { type: "oauth", access: jwt(sub), refresh: "r1", expires } }))
-  writeFileSync(`${DATA}/ackstorm-client.json`, JSON.stringify({ issuer: ISSUER, client_id: "c1" }))
+  mkdirSync(HOME, { recursive: true })
+  writeFileSync(`${DATA}/auth.json`, JSON.stringify({ acme: { type: "oauth", access: jwt(sub), refresh: "r1", expires } }))
+  writeFileSync(`${HOME}/client.json`, JSON.stringify({ issuer: ISSUER, client_id: "c1" }))
 }
 
 let saved
@@ -170,12 +171,24 @@ test("an unknown schema is treated as backend down", async () => {
 
 // T-P3
 test("no stored credential: no fetch, no cache", async () => {
-  mkdirSync(DATA, { recursive: true })
+  mkdirSync(HOME, { recursive: true })
   writeFileSync(CACHE, JSON.stringify({ user: "alice@example.com", fetchedAt: Date.now(), body: BODY() }))
   const cfg = {}
   await (await hook())(cfg)
   assert.deepEqual(cfg, {})
   assert.equal(configCalls, 0)
+})
+
+test("the provider id comes from the backend, and the legacy client file still works", async () => {
+  mkdirSync(DATA, { recursive: true })
+  writeFileSync(`${DATA}/auth.json`, JSON.stringify({ acme: { type: "oauth", access: jwt("alice@example.com"), refresh: "r1", expires: 0 } }))
+  writeFileSync(`${DATA}/acme-client.json`, JSON.stringify({ issuer: ISSUER, client_id: "c1" })) // pre-folder layout
+  const client = { auth: { set: async ({ path, body }) => { saved.push({ id: path.id, body }) } } }
+  saved = []
+  const hooks = await SsoAuth({ client }, OPTIONS)
+  assert.equal(hooks.auth.provider, "acme")
+  await hooks.config({})
+  assert.equal(saved[0].id, "acme")
 })
 
 // T-P4

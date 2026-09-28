@@ -41,13 +41,12 @@ from app.litellm_client import (
     list_litellm_models,
 )
 from app.oauth_as import routes as as_routes
-from app.skills import MCP_SETUP, mcp_setup_body
+from app.skills import GENAI_API, genai_api_body
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 SCHEMA = "ackstorm.opencode-config/1"
-OPENCODE_PROVIDER_ID = "ackstorm"  # must equal PROVIDER in clients/opencode/index.mjs
 CACHE_KIND = "opencode_config"
 CACHE_TTL = 30 * 24 * 3600
 CAPS_TTL = 3600  # model_info and aliases rarely change
@@ -150,8 +149,8 @@ def _provider(settings: Settings, models: dict) -> dict:
     if not base or not models:
         return {}
     return {
-        OPENCODE_PROVIDER_ID: {
-            "name": "ACKstorm",
+        settings.provider_name: {
+            "name": settings.provider_name,
             "npm": "@ai-sdk/openai-compatible",
             "options": {"baseURL": f"{base}/v1"},
             "models": models,
@@ -162,7 +161,7 @@ def _provider(settings: Settings, models: dict) -> dict:
 def _mcp(settings: Settings) -> dict:
     # ponytail: every AS_SERVICES key until spec Q-3 maps them to LiteLLM MCP
     # names; a user without access gets LiteLLM's 403 after sign-in, which the
-    # mcp-setup skill explains.
+    # genai-api skill explains.
     base = settings.api_public_url.rstrip("/")
     if not base:
         return {}
@@ -182,8 +181,8 @@ def _sha(value: Any) -> str:
 
 
 def _skills(settings: Settings) -> list[dict]:
-    body = mcp_setup_body(settings)
-    return [{"name": MCP_SETUP, "version": _sha(body), "files": {"SKILL.md": body}}]
+    body = genai_api_body(settings)
+    return [{"name": GENAI_API, "version": _sha(body), "files": {"SKILL.md": body}}]
 
 
 def _body(

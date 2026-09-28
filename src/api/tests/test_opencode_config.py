@@ -149,8 +149,18 @@ def _get(client, token):
     return client.get(URL, headers={"Authorization": f"Bearer {token}"})
 
 
-def _models(body):
-    return body["config"]["provider"]["ackstorm"]["models"]
+def _models(body, provider="ai-platform"):
+    return body["config"]["provider"][provider]["models"]
+
+
+def test_provider_id_and_name_follow_provider_name(groups, admin):
+    settings = _settings(provider_name="acme")
+    client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+    provider = _get(client, _token(settings)).json()["config"]["provider"]
+    assert list(provider) == ["acme"]
+    assert provider["acme"]["name"] == "acme"
+    body = _get(client, _token(settings)).json()
+    assert [s["name"] for s in body["skills"]] == ["genai-api"]
 
 
 # T-S1
@@ -163,7 +173,7 @@ def test_valid_token_gets_the_users_chat_models(client, settings, groups, admin)
     assert body["auth"] == "ok" and body["stale"] is False
     assert body["user"] == "alice@example.com" and body["environment"] is None
     assert set(body["config"]) <= ALLOWED_TOP
-    provider = body["config"]["provider"]["ackstorm"]
+    provider = body["config"]["provider"]["ai-platform"]
     assert provider["npm"] == "@ai-sdk/openai-compatible"
     assert provider["options"] == {"baseURL": "https://api.example.com/v1"}
     assert "env" not in provider
@@ -178,8 +188,8 @@ def test_valid_token_gets_the_users_chat_models(client, settings, groups, admin)
             "enabled": False,
         }
     }
-    assert [s["name"] for s in body["skills"]] == ["mcp-setup"]
-    assert body["skills"][0]["files"]["SKILL.md"].startswith("---\nname: mcp-setup\n")
+    assert [s["name"] for s in body["skills"]] == ["genai-api"]
+    assert body["skills"][0]["files"]["SKILL.md"].startswith("---\nname: genai-api\n")
 
 
 def test_alias_takes_the_target_deployments_capabilities(client, settings, groups, admin):
@@ -294,7 +304,7 @@ def test_litellm_down_without_cache_serves_skills_only(client, settings, groups,
     body = resp.json()
     assert body["stale"] is True and body["auth"] == "ok"
     assert body["config"] == {}
-    assert [s["name"] for s in body["skills"]] == ["mcp-setup"]
+    assert [s["name"] for s in body["skills"]] == ["genai-api"]
 
 
 def test_slow_user_list_hits_the_deadline(client, settings, groups, admin, monkeypatch):

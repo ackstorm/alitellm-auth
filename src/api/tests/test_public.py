@@ -198,18 +198,38 @@ def test_plugin_tgz_carries_platform_json(tmp_path, monkeypatch, path):
     assert json.loads(files["package/platform.json"]) == {
         "api": "https://api.example.com/v1",
         "platform": "https://api.example.com",
+        "provider": "ai-platform",
     }
+
+
+def test_plugin_tgz_carries_the_configured_provider_name(tmp_path, monkeypatch):
+    from app.main import create_app
+
+    monkeypatch.chdir(tmp_path)
+    _bake(tmp_path)
+    client = TestClient(
+        create_app(
+            settings=make_test_settings(
+                api_public_url="https://api.example.com/", provider_name="acme"
+            )
+        )
+    )
+    resp = client.get("/clients/opencode/plugin")
+    assert json.loads(_members(resp.content)["package/platform.json"])["provider"] == "acme"
 
 
 def test_plugin_tgz_bytes_are_deterministic(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _bake(tmp_path)
-    first = public._plugin_tgz("https://api.example.com")
+    first = public._plugin_tgz("https://api.example.com", "ai-platform")
     public._plugin_tgz.cache_clear()
-    assert public._plugin_tgz("https://api.example.com") == first
+    assert public._plugin_tgz("https://api.example.com", "ai-platform") == first
 
 
 def test_plugin_tgz_without_api_public_url_is_the_baked_file(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _bake(tmp_path)
-    assert public._plugin_tgz("") == (tmp_path / "clients" / "opencode-auth.tgz").read_bytes()
+    assert (
+        public._plugin_tgz("", "ai-platform")
+        == (tmp_path / "clients" / "opencode-auth.tgz").read_bytes()
+    )

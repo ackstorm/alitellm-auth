@@ -255,3 +255,19 @@ def test_user_access_groups_duplicate_keys_fail_at_boot():
 
     with pytest.raises(ValueError, match="two keys"):
         Settings(**_base(user_access_groups={"a@x.com": ["g1"], "A@X.com": ["g2"]}))
+
+
+def test_provider_name_defaults_to_a_neutral_id():
+    from app.config import Settings
+
+    assert Settings(**_base()).provider_name == "ai-platform"
+
+
+@pytest.mark.parametrize("bad", ["ACKstorm", "a b", "-x", "", "x" * 65, "a/b"])
+def test_provider_name_must_be_an_opencode_provider_id(bad):
+    from pydantic import ValidationError
+
+    from app.config import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(**_base(provider_name=bad))

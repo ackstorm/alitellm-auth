@@ -13,22 +13,31 @@ from pathlib import Path
 
 from app.config import Settings
 
-MCP_SETUP = "mcp-setup"
-_TEMPLATE = (Path(__file__).parent / f"{MCP_SETUP}.md").read_text()
+GENAI_API = "genai-api"
+_TEMPLATE = (Path(__file__).parent / f"{GENAI_API}.md").read_text()
 
 
-def mcp_setup_body(settings: Settings) -> str:
-    """SKILL.md for mcp-setup with the gateway's OAuth MCP servers filled in.
+def genai_api_body(settings: Settings) -> str:
+    """SKILL.md describing this platform, filled from Settings.
 
-    The list is AS_SERVICES: exactly the services a front-door token can carry as
-    a scope, so every entry is one OpenCode can sign in to. No per-user filtering
-    here; a server the user may not use answers 403 insufficient_scope, which the
-    skill explains.
+    Brand-neutral by construction: every name comes from PROVIDER_NAME and the
+    deployment's URLs. The per-server OAuth MCP list is AS_SERVICES (the services
+    a front-door token can carry as a scope); no per-user filtering here, a server
+    the user may not use answers 403, which the skill explains.
     """
-    base = settings.api_public_url.rstrip("/")
+    api = settings.api_public_url.rstrip("/")
     names = sorted(settings.services)
-    if names and base:
-        servers = "\n".join(f"- `{name}`: `{base}/mcp/{name}`" for name in names)
+    if names and api:
+        servers = "\n".join(f"- `{name}`: `{api}/mcp/{name}`" for name in names)
     else:
-        servers = "None are configured on this gateway yet."
-    return _TEMPLATE.replace("{{servers}}", servers)
+        servers = "No per-server OAuth endpoints are configured on this platform."
+    values = {
+        "provider": settings.provider_name,
+        "console_url": f"{settings.app_base_url.rstrip('/')}/ui/",
+        "api_url": api,
+        "mcp_servers": servers,
+    }
+    text = _TEMPLATE
+    for key, value in values.items():
+        text = text.replace(f"{{{{{key}}}}}", value)
+    return text

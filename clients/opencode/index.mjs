@@ -1,12 +1,12 @@
-// opencode plugin: SSO (OAuth) sign-in to an ACKstorm backend's model gateway,
-// and that backend's per-user OpenCode config at every start.
+// opencode plugin: SSO (OAuth) sign-in to a GenAI platform backend's model
+// gateway, and that backend's per-user OpenCode config at every start.
 //
 //   opencode plugin https://<origin>/clients/opencode/plugin -g
-//   opencode auth login -p ackstorm
+//   opencode auth login -p <provider>
 //
 // Product-neutral: the backend that served the tarball wrote platform.json next
-// to this file ({"api": "<gateway>/v1", "platform": "<origin serving /clients/*>"});
-// plugin options in opencode.json override it. See README.md.
+// to this file ({"api": "<gateway>/v1", "platform": "<origin serving /clients/*>",
+// "provider": "<id>"}); plugin options in opencode.json override it. See README.md.
 //
 // Sign-in: `api` -> RFC 9728 protected-resource document -> RFC 8414 AS metadata;
 // browser (loopback + PKCE) or RFC 8628 device grant. opencode stores the tokens
@@ -15,17 +15,25 @@
 //
 // Config: the `config` hook fetches <platform>/clients/opencode/config
 // (ackstorm.opencode-config/1) and fills in what the user's own config lacks.
-// The user's config always wins. PROVIDER is that config's provider id.
+// The user's config always wins. The provider id comes from platform.json
+// (`provider`).
 import { createServer } from "node:http"
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { randomBytes, createHash } from "node:crypto"
 
-const PROVIDER = "ackstorm"
+// The provider id and data folder come from the backend (platform.json
+// `provider`, or plugin options). ponytail: one backend per opencode process, so
+// module-level; set once in SsoAuth before anything reads it.
+let PROVIDER = "ai-platform"
+const PROVIDER_ID = /^[a-z0-9][a-z0-9-]{0,63}$/
 const DATA = `${process.env.XDG_DATA_HOME ?? `${process.env.HOME}/.local/share`}/opencode`
-const CLIENT_FILE = `${DATA}/ackstorm-client.json` // DCR result; opencode has no plugin KV
 const AUTH_FILE = `${DATA}/auth.json` // opencode's own credential store: read only, never written here
-const CONFIG_CACHE = `${DATA}/ackstorm-config.json`
-const SKILLS_DIR = `${DATA}/ackstorm-skills`
+const paths = () => ({
+  client: `${DATA}/${PROVIDER}/client.json`, // DCR result; opencode has no plugin KV
+  legacyClient: `${DATA}/${PROVIDER}-client.json`, // layout before the per-provider folder
+  cache: `${DATA}/${PROVIDER}/config.json`,
+  skills: `${DATA}/${PROVIDER}/skills`,
+})
 const CONFIG_SCHEMA = "ackstorm.opencode-config/1"
 const CONFIG_KEYS = ["provider", "mcp", "instructions"] // anything else the server sends is ignored
 const CACHE_MAX_AGE = 30 * 86_400_000
@@ -77,10 +85,12 @@ function discover(client, options) {
 // The saved DCR identity, or null. A refresh token belongs to the client that
 // obtained it, so a refresh must never register a new one (login does).
 async function savedClientId(issuer) {
-  try {
-    const saved = JSON.parse(await readFile(CLIENT_FILE, "utf8"))
-    if (saved.issuer === issuer) return saved.client_id
-  } catch {}
+  for (const file of [paths().client, paths().legacyClient]) {
+    try {
+      const saved = JSON.parse(await readFile(file, "utf8"))
+      if (saved.issuer === issuer) return saved.client_id
+    } catch {}
+  }
   return null
 }
 
@@ -100,8 +110,8 @@ async function clientId({ issuer, as }) {
       token_endpoint_auth_method: "none",
     }),
   })
-  await mkdir(DATA, { recursive: true })
-  await writeFile(CLIENT_FILE, JSON.stringify({ issuer, client_id }), { mode: 0o600 })
+  await mkdir(`${DATA}/${PROVIDER}`, { recursive: true, mode: 0o700 })
+  await writeFile(paths().client, JSON.stringify({ issuer, client_id }), { mode: 0o600 })
   return client_id
 }
 
@@ -183,29 +193,30 @@ const readJson = (path) => readFile(path, "utf8").then(JSON.parse).catch(() => n
 const sub = (access) => { try { return JSON.parse(Buffer.from(access.split(".")[1], "base64url")).sub } catch { return null } }
 
 async function writePrivate(path, text) {
-  await mkdir(DATA, { recursive: true, mode: 0o700 })
+  await mkdir(`${DATA}/${PROVIDER}`, { recursive: true, mode: 0o700 })
   await writeFile(path, text, { mode: 0o600 })
 }
 
 // Skills as native opencode skills: one dir per skill, rewritten only when its
 // version changes, removed when the backend stops listing it. Names are
-// kebab-case, so a name can never leave SKILLS_DIR.
+// kebab-case, so a name can never leave the skills dir.
 async function writeSkills(skills) {
+  const dir = paths().skills
   const keep = new Set()
-  await mkdir(SKILLS_DIR, { recursive: true, mode: 0o700 })
+  await mkdir(dir, { recursive: true, mode: 0o700 })
   for (const s of (Array.isArray(skills) ? skills : []).slice(0, 50)) {
     const md = s?.files?.["SKILL.md"]
     if (typeof s?.name !== "string" || s.name.length > 64 || !SKILL_NAME.test(s.name)) continue
     if (typeof md !== "string" || md.length > 256 * 1024) continue
     keep.add(s.name)
-    const dir = `${SKILLS_DIR}/${s.name}`
-    if ((await readFile(`${dir}/.version`, "utf8").catch(() => null)) === String(s.version)) continue
-    await mkdir(dir, { recursive: true, mode: 0o700 })
-    await writeFile(`${dir}/SKILL.md`, md, { mode: 0o600 })
-    await writeFile(`${dir}/.version`, String(s.version), { mode: 0o600 })
+    const skillDir = `${dir}/${s.name}`
+    if ((await readFile(`${skillDir}/.version`, "utf8").catch(() => null)) === String(s.version)) continue
+    await mkdir(skillDir, { recursive: true, mode: 0o700 })
+    await writeFile(`${skillDir}/SKILL.md`, md, { mode: 0o600 })
+    await writeFile(`${skillDir}/.version`, String(s.version), { mode: 0o600 })
   }
-  for (const name of await readdir(SKILLS_DIR)) {
-    if (!keep.has(name)) await rm(`${SKILLS_DIR}/${name}`, { recursive: true, force: true })
+  for (const name of await readdir(dir)) {
+    if (!keep.has(name)) await rm(`${dir}/${name}`, { recursive: true, force: true })
   }
   return keep.size > 0
 }
@@ -231,7 +242,7 @@ async function applyConfig(cfg, { client, options }) {
   const getAuth = async () => (await readJson(AUTH_FILE))?.[PROVIDER]
   const stored = await getAuth()
   if (stored?.type !== "oauth") return
-  const forget = () => rm(CONFIG_CACHE, { force: true })
+  const forget = () => rm(paths().cache, { force: true })
   let auth = null
   try {
     auth = await fresh(stored, { client, options, getAuth })
@@ -242,9 +253,9 @@ async function applyConfig(cfg, { client, options }) {
   let body = auth ? await fetchConfig((await backend(options)).platform, auth.access) : null
   if (body?.auth === "invalid") return forget()
   if (body) {
-    await writePrivate(CONFIG_CACHE, JSON.stringify({ user: body.user, fetchedAt: Date.now(), body }))
+    await writePrivate(paths().cache, JSON.stringify({ user: body.user, fetchedAt: Date.now(), body }))
   } else {
-    const cache = await readJson(CONFIG_CACHE)
+    const cache = await readJson(paths().cache)
     if (!cache || cache.user !== sub(stored.access) || Date.now() - cache.fetchedAt > CACHE_MAX_AGE) return
     body = cache.body
   }
@@ -252,7 +263,7 @@ async function applyConfig(cfg, { client, options }) {
   if (await writeSkills(body.skills)) {
     cfg.skills = isObject(cfg.skills) ? cfg.skills : {}
     cfg.skills.paths = Array.isArray(cfg.skills.paths) ? cfg.skills.paths : []
-    if (!cfg.skills.paths.includes(SKILLS_DIR)) cfg.skills.paths.push(SKILLS_DIR)
+    if (!cfg.skills.paths.includes(paths().skills)) cfg.skills.paths.push(paths().skills)
   }
 }
 
@@ -303,6 +314,8 @@ function listen(state) {
 }
 
 export async function SsoAuth({ client }, options = {}) {
+  const { provider } = await backend(options)
+  if (PROVIDER_ID.test(provider ?? "")) PROVIDER = provider
   return {
     auth: {
       provider: PROVIDER,

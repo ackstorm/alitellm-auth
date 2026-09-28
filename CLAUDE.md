@@ -491,6 +491,7 @@ Never rely on env vars in tests. All test files have a local `make_test_settings
 | `OAUTH_SCOPES` | deployment env (opt) | Default `openid email profile`. Scopes for BOTH the console login and the AS leg; must include `openid`. Add `groups` to surface Workspace groups (Dex Google connector needs domain-wide delegation, else login FAILS). Helm value: `config.oauthScopes` |
 | `LITELLM_URL` | deployment env | LiteLLM base URL |
 | `LITELLM_DEFAULT_TEAM` | deployment env (opt) | Default `default`. Shared team id + display alias (one team per deployment). Decoupled from `OAUTH_CLIENT_ID`. Helm value: `config.litellmDefaultTeam` |
+| `PROVIDER_NAME` | deployment env (opt) | Default `ai-platform`. User-visible platform name: OpenCode provider id, plugin data folder, genai-api skill. Changing it on a live deployment signs every OpenCode user out. Helm: `config.providerName` |
 | `SESSION_SECRET_KEY` | k8s secret | Cookie signing key — shared across all replicas |
 | `OAUTH_CLIENT_SECRET` | k8s secret | OIDC client secret (`${GENAI_OAUTH_MCP_SECRET}` in Dex) |
 | `LITELLM_MASTER_KEY` | k8s secret | LiteLLM admin key |

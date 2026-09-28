@@ -45,7 +45,7 @@ globalThis.fetch = async (input, init) => {
   throw new Error(`unexpected ${url}`)
 }
 
-const OPTIONS = { api: "https://api.test/v1", platform: "https://api.test" }
+const OPTIONS = { api: "https://api.test/v1", platform: "https://api.test", provider: "acme" }
 
 function fakeClient() {
   let auth = { type: "oauth", access: "stale", refresh: "r-current", expires: 0 }
@@ -61,6 +61,7 @@ function fakeClient() {
 test("a login registers once and a refresh reuses that identity", async () => {
   const f = fakeClient()
   const plugin = await SsoAuth({ client: f.client }, OPTIONS)
+  assert.equal(plugin.auth.provider, "acme")
   const { url, callback } = await plugin.auth.methods[0].authorize()
   assert.match(url, /client_id=c1/)
   // Deliver the callback ourselves on the listener the plugin opened.
@@ -134,8 +135,9 @@ test("the device method opens the verification URL and polls until the user has 
 test("the legacy install (no platform.json, no options) still discovers from the configured provider", async () => {
   const { SsoAuth: Legacy } = await import("../clients/opencode/index.mjs?legacy")
   const { client } = fakeClient()
-  client.config = { providers: async () => ({ data: { providers: [{ id: "ackstorm", options: { baseURL: "https://api.test/v1" } }] } }) }
+  client.config = { providers: async () => ({ data: { providers: [{ id: "ai-platform", options: { baseURL: "https://api.test/v1" } }] } }) }
   const hooks = await Legacy({ client })
+  assert.equal(hooks.auth.provider, "ai-platform")
   const { url } = await hooks.auth.methods[1].authorize()
   assert.match(url, /^https:\/\/as\.test\/device/)
 })

@@ -75,14 +75,15 @@ _OPENCODE_PLUGIN = Path("clients/opencode-auth.tgz")
 
 
 @functools.cache
-def _plugin_tgz(api_public_url: str) -> bytes:
+def _plugin_tgz(api_public_url: str, provider_name: str) -> bytes:
     """The baked plugin tarball plus package/platform.json for this deployment.
 
     platform.json tells the product-neutral plugin where its backend is:
     `api` for OAuth discovery and the fallback provider, `platform` (the origin
-    serving /clients/*) for its config. Deterministic: baked members keep their
-    metadata, platform.json gets mtime 0 and gzip mtime 0, so every replica and
-    restart serves the same bytes. No API_PUBLIC_URL → the baked file as is.
+    serving /clients/*) for its config, `provider`: the OpenCode provider id
+    (PROVIDER_NAME). Deterministic: baked members keep their metadata,
+    platform.json gets mtime 0 and gzip mtime 0, so every replica and restart
+    serves the same bytes. No API_PUBLIC_URL → the baked file as is.
     """
     baked = _OPENCODE_PLUGIN.read_bytes()
     base = api_public_url.rstrip("/")
@@ -90,7 +91,12 @@ def _plugin_tgz(api_public_url: str) -> bytes:
         return baked
     parts = urlsplit(base)
     doc = json.dumps(
-        {"api": f"{base}/v1", "platform": f"{parts.scheme}://{parts.netloc}"}, sort_keys=True
+        {
+            "api": f"{base}/v1",
+            "platform": f"{parts.scheme}://{parts.netloc}",
+            "provider": provider_name,
+        },
+        sort_keys=True,
     ).encode()
     out = io.BytesIO()
     with (
@@ -115,7 +121,8 @@ async def opencode_plugin(request: Request) -> Response:
     """The OpenCode auth plugin as an npm tarball: `opencode plugin <this URL> -g`."""
     if not _OPENCODE_PLUGIN.is_file():
         raise HTTPException(status_code=404)
-    body = _plugin_tgz(request.app.state.settings.api_public_url)
+    settings: Settings = request.app.state.settings
+    body = _plugin_tgz(settings.api_public_url, settings.provider_name)
     return Response(
         body,
         media_type="application/gzip",

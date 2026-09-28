@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Literal
 
 from cryptography.fernet import Fernet
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -234,6 +235,20 @@ class Settings(BaseSettings):
     brand_short: str = "LiteLLM"
     tagline: str = ""
     accent_segment: str = "-auth"  # wordmark segment rendered in --accent2; empty → no accent span
+
+    # The OpenCode provider id AND every user-visible name derived from it:
+    # `opencode auth login -p <provider_name>`, the provider shown in OpenCode,
+    # the plugin's data folder, the genai-api skill. Neutral by default so a
+    # resold deployment names itself. Changing it on a live deployment signs
+    # every OpenCode user out (their stored credential is keyed by it).
+    provider_name: str = "ai-platform"
+
+    @field_validator("provider_name")
+    @classmethod
+    def _provider_name_is_an_opencode_id(cls, v: str) -> str:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", v):
+            raise ValueError("PROVIDER_NAME must be lowercase letters, digits and '-' (max 64)")
+        return v
 
     # Real-links-only targets (D-02/D-03) — None/empty means the link is OMITTED from
     # the SPA (no dead anchor). NEVER add a secret-bearing field to this set.
