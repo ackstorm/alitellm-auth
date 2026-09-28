@@ -86,7 +86,7 @@ def test_brand_link_fields_load_from_env():
         "OAUTH_CLIENT_SECRET": "test-secret",
         "LITELLM_URL": "http://litellm.test",
         "LITELLM_MASTER_KEY": "sk-test",
-        "BRAND": "ACKStorm AI Gateway",
+        "BRAND": "Acme AI Gateway",
         "ACCENT_SEGMENT": "",
         "TAGLINE": "Self-service portal for LiteLLM API keys",
         "LINK_DOCS": "https://docs.example",
@@ -98,7 +98,7 @@ def test_brand_link_fields_load_from_env():
 
         settings = get_settings()
 
-    assert settings.brand == "ACKStorm AI Gateway"
+    assert settings.brand == "Acme AI Gateway"
     assert settings.accent_segment == ""
     assert settings.tagline == "Self-service portal for LiteLLM API keys"
     assert settings.link_docs == "https://docs.example"
@@ -244,8 +244,8 @@ def test_user_access_groups_keys_are_folded_at_load():
     """Helm values carry whatever casing a directory export produced."""
     from app.config import Settings
 
-    s = Settings(**_base(user_access_groups={" J.Smith@Ackstorm.com ": ["team-dream"]}))
-    assert s.user_access_groups == {"j.smith@ackstorm.com": ["team-dream"]}
+    s = Settings(**_base(user_access_groups={" J.Smith@Example.com ": ["team-dream"]}))
+    assert s.user_access_groups == {"j.smith@example.com": ["team-dream"]}
 
 
 def test_user_access_groups_duplicate_keys_fail_at_boot():
@@ -263,7 +263,7 @@ def test_provider_name_defaults_to_a_neutral_id():
     assert Settings(**_base()).provider_name == "ai-platform"
 
 
-@pytest.mark.parametrize("bad", ["ACKstorm", "a b", "-x", "", "x" * 65, "a/b"])
+@pytest.mark.parametrize("bad", ["Acme", "a b", "-x", "", "x" * 65, "a/b"])
 def test_provider_name_must_be_an_opencode_provider_id(bad):
     from pydantic import ValidationError
 

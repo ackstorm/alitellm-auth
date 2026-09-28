@@ -110,9 +110,9 @@ header + "per 1M tokens" subtitle).
 
 ### Open (JC to decide)
 
-- **Alias taglines** (`ackstorm.fast` = low-latency, etc.) — real value, but **needs a
+- **Alias taglines** (`acme.fast` = low-latency, etc.) — real value, but **needs a
   backend `description` field** surfaced from LiteLLM `model_info` (can't hardcode:
-  aliases are deployment-configured, not always `ackstorm.*`). Biggest value / biggest cost.
+  aliases are deployment-configured, not a fixed prefix). Biggest value / biggest cost.
 - **Computed badges** (Cheapest / Largest context) — derivable frontend, but **redundant**
   with the already-sortable price/context columns. Skip unless wanted.
 
@@ -175,7 +175,7 @@ split, no logs** in the daily aggregate.
      version. If honored now → a bounded per-request fetch + server-side percentile
      aggregation becomes feasible (heavier query, no leak/OOM). Else: upstream PR to add
      latency to the daily aggregate, or a Prometheus/otel metrics path (new infra).
-   - **RECHECK 2026-07-09 (live probe, `api.ackstorm.ai`, a real user `sk-`) → GO (bounded).**
+   - **RECHECK 2026-07-09 (live probe, `api.example.com`, a real user `sk-`) → GO (bounded).**
      - **No cross-user leak on the user-key path.** `GET /spend/logs?summarize=false` called
        with a plain user `sk-` **auto-scopes to the caller**: all 138 rows had
        `user=<key owner>`, and the daily-aggregate `users` block listed only that user. The
@@ -269,13 +269,13 @@ The most mature screen. Much of the review is **already built**: `apiBase = me.e
 is injected into every snippet (endpoint personalization done); the Editors & CLIs section
 has full tabbed setup (OpenCode Gemini/OpenAI, Claude Code, Gemini CLI, codex, each with
 config + notes + guide + caveats); MCP already has `MCP Access` / `MCP Group access` /
-`Try with curl` tabs; the No-terminal section has ACKstorm Chat (ready) + openwork (`Soon`).
+`Try with curl` tabs; the No-terminal section has the hosted Chat card (ready) + openwork (`Soon`).
 
 **Two factual corrections (reviewer wrong):**
 - MCP auth `x-litellm-api-key: Bearer sk-...` **is** the gateway's required format (not a
   mistake); don't switch to `Authorization: Bearer`.
 - `LITELLM_API_KEY` is read verbatim by the tool configs (`{env:LITELLM_API_KEY}` in
-  opencode/codex); renaming to `ACKSTORM_API_KEY` breaks them. `brand_short` already brands display.
+  opencode/codex); renaming to `GENAI_API_KEY` breaks them. `brand_short` already brands display.
 
 ### Worth implementing
 
@@ -303,7 +303,7 @@ config + notes + guide + caveats); MCP already has `MCP Access` / `MCP Group acc
 ### Rejected (reason)
 
 - **Standardize MCP auth header** — current format is the gateway's requirement (correction above).
-- **Rename env var to `ACKSTORM_API_KEY`** — breaks tool config references (correction above).
+- **Rename env var to `GENAI_API_KEY`** — breaks tool config references (correction above).
 - **Personalize with the real key** — `sk-` shown once, never on this page (hard security
   constraint, already enforced with `KEY_PLACEHOLDER`).
 - **Onboarding checklist with completion states** — "first request sent / editor connected /

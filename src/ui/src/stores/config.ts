@@ -28,6 +28,7 @@ import type { AppConfig } from '../lib/api-types';
 export const DEFAULT_CONFIG: AppConfig = {
   brand: 'alitellm-auth',
   brand_short: 'LiteLLM',
+  provider_name: 'ai-platform',
   tagline: '',
   accent_segment: '-auth',
   public_host: '',

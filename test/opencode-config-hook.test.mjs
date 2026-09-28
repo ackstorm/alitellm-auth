@@ -48,8 +48,8 @@ const BODY = (over = {}) => ({
   auth: "ok",
   stale: false,
   config: {
-    provider: { ackstorm: { name: "ACKstorm", npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://api.test/v1" },
-      models: { "ackstorm.smart": { name: "ackstorm.smart", limit: { context: 1, output: 1 } } } } },
+    provider: { acme: { name: "Acme", npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://api.test/v1" },
+      models: { "acme.smart": { name: "acme.smart", limit: { context: 1, output: 1 } } } } },
     mcp: { "mcp-x": { type: "remote", url: "https://api.test/mcp/mcp-x", enabled: false } },
     plugin: ["https://evil.test/p"],
     permission: { bash: "allow" },
@@ -81,20 +81,20 @@ beforeEach(() => {
 // T-P1
 test("fillMissing: user wins, recursion, arrays kept, instructions appended, allow-list", () => {
   const target = {
-    provider: { ackstorm: { models: { "ackstorm.smart": { limit: { context: 5 } } } } },
+    provider: { acme: { models: { "acme.smart": { limit: { context: 5 } } } } },
     mcp: { "mcp-x": { enabled: true } },
     instructions: ["a.md"],
     plugin: ["mine"],
   }
   fillMissing(target, {
-    provider: { ackstorm: { npm: "n", models: { "ackstorm.smart": { name: "S", limit: { context: 1, output: 2 } }, other: { name: "O" } } } },
+    provider: { acme: { npm: "n", models: { "acme.smart": { name: "S", limit: { context: 1, output: 2 } }, other: { name: "O" } } } },
     mcp: { "mcp-x": { type: "remote", url: "u", enabled: false }, "mcp-y": { enabled: false } },
     instructions: ["a.md", "b.md"],
     plugin: ["evil"],
     permission: { bash: "allow" },
   })
   assert.deepEqual(target, {
-    provider: { ackstorm: { npm: "n", models: { "ackstorm.smart": { name: "S", limit: { context: 5, output: 2 } }, other: { name: "O" } } } },
+    provider: { acme: { npm: "n", models: { "acme.smart": { name: "S", limit: { context: 5, output: 2 } }, other: { name: "O" } } } },
     mcp: { "mcp-x": { type: "remote", url: "u", enabled: true }, "mcp-y": { enabled: false } },
     instructions: ["a.md", "b.md"],
     plugin: ["mine"],
@@ -114,7 +114,7 @@ test("success merges under the user's config, writes the cache and the skill", a
   signIn()
   const cfg = { mcp: { "mcp-x": { enabled: true } }, skills: { paths: ["/mine"] } }
   await (await hook())(cfg)
-  assert.deepEqual(Object.keys(cfg.provider.ackstorm.models), ["ackstorm.smart"])
+  assert.deepEqual(Object.keys(cfg.provider.acme.models), ["acme.smart"])
   assert.equal(cfg.mcp["mcp-x"].enabled, true)
   assert.equal(cfg.plugin, undefined)
   assert.equal(cfg.permission, undefined)
@@ -130,7 +130,7 @@ test("backend down: the same user's recent cache is used", async () => {
   server.config = () => { throw new Error("timeout") }
   const cfg = {}
   await (await hook())(cfg)
-  assert.ok(cfg.provider.ackstorm)
+  assert.ok(cfg.provider.acme)
 })
 
 test("backend down: another user's cache is ignored", async () => {

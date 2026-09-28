@@ -150,7 +150,7 @@
           }
         },
         "model_groups": {
-          "ackstorm.lite": {
+          "acme.lite": {
             "metrics": {
               "spend": 8e-06,
               "prompt_tokens": 64,
@@ -183,7 +183,7 @@
               }
             }
           },
-          "ackstorm.fast": {
+          "acme.fast": {
             "metrics": {
               "spend": 0.0005575,
               "prompt_tokens": 800,
@@ -216,7 +216,7 @@
               }
             }
           },
-          "ackstorm.smart": {
+          "acme.smart": {
             "metrics": {
               "spend": 0.01128,
               "prompt_tokens": 30,

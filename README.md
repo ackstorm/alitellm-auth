@@ -64,8 +64,8 @@ caller's LiteLLM key. Coding agents get that JWT three ways.
 The plugin is served by this API as an npm tarball, so install it from the platform:
 
 ```bash
-opencode plugin https://platform.ackstorm.ai/public/opencode-auth -g
-opencode auth login -p ackstorm      # browser SSO; tokens land in opencode's auth store
+opencode plugin https://platform.example.com/public/opencode-auth -g
+opencode auth login -p ai-platform   # browser SSO; tokens land in opencode's auth store
 ```
 
 Nothing to configure: the plugin takes the provider's API URL from opencode, finds the
@@ -83,34 +83,34 @@ credential wins when both are present.
 
 ### Claude Code and Codex
 
-Both take "a command that prints a credential". [clients/ackstorm-token](clients/ackstorm-token)
-is that command (stdlib Python, DCR + PKCE, refresh token in `~/.config/ackstorm-ai/token.json`).
-It finds the authorization server from the API host (`ACKSTORM_API`, default
-`https://api.ackstorm.ai`) the same way the OpenCode plugin does:
+Both take "a command that prints a credential". [clients/genai-token](clients/genai-token)
+is that command (stdlib Python, DCR + PKCE, refresh token in `~/.config/genai-token/token.json`).
+It finds the authorization server from the API host (`GENAI_API`, default
+`https://api.example.com`) the same way the OpenCode plugin does:
 
 ```json
 // ~/.claude/settings.json
-{ "apiKeyHelper": "/path/to/ackstorm-token" }
+{ "apiKeyHelper": "/path/to/genai-token" }
 ```
 
 ```toml
 # ~/.codex/config.toml
-model_provider = "ackstorm"
-[model_providers.ackstorm]
-name = "ACKstorm"
-base_url = "https://api.ackstorm.ai/v1"
+model_provider = "litellm"
+[model_providers.litellm]
+name = "the platform"
+base_url = "https://api.example.com/v1"
 wire_api = "responses"
-[model_providers.ackstorm.auth]
-command = "/path/to/ackstorm-token"
+[model_providers.litellm.auth]
+command = "/path/to/genai-token"
 refresh_interval_ms = 300000
 ```
 
-With `ANTHROPIC_BASE_URL=https://api.ackstorm.ai` for Claude Code. Codex ignores
+With `ANTHROPIC_BASE_URL=https://api.example.com` for Claude Code. Codex ignores
 `OPENAI_BASE_URL`; the custom provider is required. Both cache the printed token
 (Claude Code: `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`; Codex: `refresh_interval_ms`), so
 the helper refreshes 10 minutes before expiry — keep the cache interval below that.
 
-On a host with no usable browser run `ackstorm-token login --no-browser` once: it prints
+On a host with no usable browser run `genai-token login --no-browser` once: it prints
 a `XXXX-XXXX` code and a URL; open the URL in any browser, confirm the code and sign in.
 Later runs refresh silently as usual.
 
@@ -140,7 +140,7 @@ cd src/api && uvicorn app.main:app --reload --port 8080
 | `LITELLM_URL` | yes | Internal LiteLLM base URL (server-side admin calls) |
 | `LITELLM_MASTER_KEY` | yes | LiteLLM admin key; also the credential for admin endpoints |
 | `APP_BASE_URL` | no | Public URL of this service (default `http://localhost:8080`) |
-| `API_PUBLIC_URL` | no | Public LiteLLM API URL shown to users (default `https://api.ackstorm.ai` — override per deployment) |
+| `API_PUBLIC_URL` | no | Public LiteLLM API URL shown to users (default `https://api.example.com` — override per deployment) |
 | `SESSION_HTTPS_ONLY` | no | Mark the session cookie `Secure` (default `false`). Set `true` in production behind HTTPS. |
 | `FACTORY_CONFIG_PATH` | no | Path to a mounted ConfigMap JSON (`{"team": {...}, "user": {...}}`) with default LiteLLM team/user params |
 

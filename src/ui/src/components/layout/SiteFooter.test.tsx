@@ -14,8 +14,9 @@ import { SiteFooter } from './SiteFooter';
 // A minimal valid AppConfig with overridable links.
 function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   return {
-    brand: 'ACKStorm Platform',
+    brand: 'Acme Platform',
     brand_short: 'LiteLLM',
+    provider_name: 'ai-platform',
     tagline: '',
     accent_segment: '-auth',
     public_host: '',
@@ -33,9 +34,9 @@ afterEach(() => {
 describe('SiteFooter — copyright line', () => {
   it('renders "© {year} {brand}. All rights reserved." with the config brand', () => {
     const year = new Date().getFullYear();
-    render(<SiteFooter config={makeConfig({ brand: 'ACKStorm Platform' })} />);
+    render(<SiteFooter config={makeConfig({ brand: 'Acme Platform' })} />);
     expect(
-      screen.getByText(`© ${year} ACKStorm Platform. All rights reserved.`),
+      screen.getByText(`© ${year} Acme Platform. All rights reserved.`),
     ).toBeInTheDocument();
   });
 

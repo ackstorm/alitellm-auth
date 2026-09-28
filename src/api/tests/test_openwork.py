@@ -41,7 +41,7 @@ def _client(**overrides):
 def _put_token(client: TestClient, token: str = "test-den-token") -> str:
     asyncio.run(
         client.app.state.openwork_store.put(
-            TOKEN_KIND, token, {"email": "dev@ackstorm.com", "name": "Dev"}, ttl=3600
+            TOKEN_KIND, token, {"email": "dev@example.com", "name": "Dev"}, ttl=3600
         )
     )
     return token
@@ -49,7 +49,7 @@ def _put_token(client: TestClient, token: str = "test-den-token") -> str:
 
 @pytest.fixture
 def den_token_client():
-    """A TestClient plus a valid Den session token for dev@ackstorm.com."""
+    """A TestClient plus a valid Den session token for dev@example.com."""
     client = _client()
     return client, _put_token(client)
 
@@ -82,7 +82,7 @@ def test_me_returns_the_token_owner(den_token_client):
     response = client.get("/openwork/api/den/v1/me", headers={"authorization": f"Bearer {token}"})
     assert response.status_code == 200
     user = response.json()["user"]
-    assert user["email"] == "dev@ackstorm.com"
+    assert user["email"] == "dev@example.com"
     assert user["name"] == "Dev"
     assert user["id"].startswith("user_")
 
@@ -127,7 +127,7 @@ def test_grant_exchange_returns_a_session_and_is_single_use():
     client = _client()
     asyncio.run(
         client.app.state.openwork_store.put(
-            GRANT_KIND, "test-grant-value", {"email": "dev@ackstorm.com", "name": "Dev"}, ttl=300
+            GRANT_KIND, "test-grant-value", {"email": "dev@example.com", "name": "Dev"}, ttl=300
         )
     )
 
@@ -137,14 +137,14 @@ def test_grant_exchange_returns_a_session_and_is_single_use():
     assert first.status_code == 200
     body = first.json()
     assert body["token"]
-    assert body["user"]["email"] == "dev@ackstorm.com"
+    assert body["user"]["email"] == "dev@example.com"
     assert body["organization"]["slug"] == "alitellm-auth"
     assert body["connectEnabled"] is True
 
     # The token works.
     me = client.get("/openwork/api/den/v1/me", headers={"authorization": f"Bearer {body['token']}"})
     assert me.status_code == 200
-    assert me.json()["user"]["email"] == "dev@ackstorm.com"
+    assert me.json()["user"]["email"] == "dev@example.com"
 
     # Replaying the grant does not.
     replay = client.post(
@@ -206,12 +206,12 @@ def test_handoff_page_mints_a_deep_link_for_a_signed_in_user():
         "session",
         _make_session_cookie(
             client.app.state.settings.session_secret_key,
-            {"email": "dev@ackstorm.com", "name": "Dev", "openwork_handoff": True},
+            {"email": "dev@example.com", "name": "Dev", "openwork_handoff": True},
         ),
     )
     response = client.get(HANDOFF_URL, follow_redirects=False)
     assert response.status_code == 200
-    assert "dev@ackstorm.com" in response.text
+    assert "dev@example.com" in response.text
     assert "openwork://den-auth?grant=" in response.text
     assert "denBaseUrl=http%3A%2F%2Flocalhost%3A8080%2Fopenwork%2Fapi%2Fden" in response.text
 
@@ -223,7 +223,7 @@ def test_handoff_page_mints_a_deep_link_for_a_signed_in_user():
         "/openwork/api/den/v1/auth/desktop-handoff/exchange", json={"grant": grant}
     )
     assert exchanged.status_code == 200
-    assert exchanged.json()["user"]["email"] == "dev@ackstorm.com"
+    assert exchanged.json()["user"]["email"] == "dev@example.com"
     assert asyncio.run(client.app.state.openwork_store.get(GRANT_KIND, grant)) is None
 
 
@@ -400,7 +400,7 @@ def test_den_api_is_also_served_at_the_root(den_token_client):
     client, token = den_token_client
     headers = {"authorization": f"Bearer {token}"}
     assert client.get("/api/den/v1/me", headers=headers).json()["user"]["email"] == (
-        "dev@ackstorm.com"
+        "dev@example.com"
     )
     assert client.get("/api/den/v1/llm-providers", headers=headers).json() == {"llmProviders": []}
     assert client.get("/api/den/v1/me").json()["error"] == "unauthorized"
@@ -441,7 +441,7 @@ def test_handoff_page_shows_the_configured_brand_and_logo():
     client.cookies.set(
         "session",
         _make_session_cookie(
-            client.app.state.settings.session_secret_key, {"email": "dev@ackstorm.com"}
+            client.app.state.settings.session_secret_key, {"email": "dev@example.com"}
         ),
     )
     response = client.get(HANDOFF_URL, follow_redirects=False)

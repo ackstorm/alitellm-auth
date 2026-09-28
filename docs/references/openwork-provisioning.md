@@ -26,11 +26,11 @@ Den session reaches the server via `PUT /den-session {baseUrl, token, orgId}` (`
 {"llmProviders":[{
   "id":"lpr_<26 lowercase alnum>",        // /^lpr_/ on list (:296); ownership restore needs /^lpr_[a-z0-9]{26}$/ (:1522)
   "providerId":"openai-compatible",        // becomes inner `id`
-  "name":"ACKstorm",
+  "name":"Acme",
   "source":"custom",                       // "openwork" => runtime key "openwork" (:574-576); else key = lpr_ id
   "updatedAt":"ISO",
-  "providerConfig":{"env":["ACKSTORM_API_KEY"],"npm":"@ai-sdk/openai-compatible",
-                    "api":"https://api.ackstorm.ai/v1","options":{"baseURL":"https://api.ackstorm.ai/v1"},
+  "providerConfig":{"env":["GENAI_API_KEY"],"npm":"@ai-sdk/openai-compatible",
+                    "api":"https://api.example.com/v1","options":{"baseURL":"https://api.example.com/v1"},
                     "whitelist":[],"blacklist":[]},
   "models":[{"id":"gpt-x","name":"GPT X","config":{ ...per-model metadata... }}]
 }]}
@@ -41,7 +41,7 @@ Den session reaches the server via `PUT /den-session {baseUrl, token, orgId}` (`
 `provider["lpr_xxx"] = { id: providerId, name, env: [...], models: {<id>: {id, name, + passthrough}}, npm, api, options (verbatim), whitelist, blacklist }`.
 Per-model passthrough keys (`:223-239`): `family, release_date, attachment, reasoning, temperature, tool_call, interleaved, cost, limit, modalities, status, options, headers, provider, variants` → **yes**, modalities (image/audio/pdf), cost, limit, reasoning, tool_call, attachment all survive. Written to the ENGINE_GLOBAL runtime row (`:1273-1276`) → rendered into `OPENCODE_CONFIG` file (`S/openwork-runtime-config.ts:65, 113`); engine reload deferred while sessions are busy (`:1322-1358`).
 
-Note: the OpenCode provider key is the Den id `lpr_…` (model ids become `lpr_…/model`), not `"ackstorm"` — only `source:"openwork"` maps to a fixed key.
+Note: the OpenCode provider key is the Den id `lpr_…` (model ids become `lpr_…/model`), not `"ai-platform"` — only `source:"openwork"` maps to a fixed key.
 
 ### API key: long-lived secret on disk, twice
 1. `providerConfig.env[0]` ← `apiKey` (or every `apiKeys` entry) upserted into `~/.config/openwork/env.json` (0600) via `EnvService` (`:603-623, 1278-1281`; path `packages/paths/index.mjs:123-130`).
@@ -78,7 +78,7 @@ Workaround for a non-reserved var (e.g. `ACH_MEMORY_API_KEY`): declare it in a D
 
 ## 3. Plugins via Den
 
-- "Cloud plugin" = Den `plugin` resource with `memberships[].configObject` of `objectType ∈ {skill, agent, command, tool, mcp, hook, context, custom}` (+ `workflow`/`script` app-side) (`A/app/lib/den.ts:2252-2258`; server `S/cloud-plugins.ts:13, 109-123`). **There is no `plugin` objectType** — OpenCode `plugin: [...]` entries (JS/URL plugins like `https://platform.ackstorm.ai/public/opencode-auth`) cannot be expressed.
+- "Cloud plugin" = Den `plugin` resource with `memberships[].configObject` of `objectType ∈ {skill, agent, command, tool, mcp, hook, context, custom}` (+ `workflow`/`script` app-side) (`A/app/lib/den.ts:2252-2258`; server `S/cloud-plugins.ts:13, 109-123`). **There is no `plugin` objectType** — OpenCode `plugin: [...]` entries (JS/URL plugins like `https://platform.example.com/public/opencode-auth`) cannot be expressed.
 - Resolved payload (`GET /v1/plugins/:id/resolved` → `{items:[{id, pluginId, configObjectId, configObject:{id, objectType, title, description, currentFileName, currentFileExtension, currentRelativePath, status:"active", updatedAt, latestVersion:{id, rawSourceText, normalizedPayloadJson, sourceRevisionRef, createdAt}}}]}` (`den.ts:2261-2287, 2637-2648, 2671-2679`). Marketplace: `GET /v1/marketplaces?status=active&limit=100` → `{items:[{id,name,description,status,pluginCount,updatedAt}]}` and `/v1/marketplaces/:id/resolved` → `{item:{marketplace, plugins:[{id,name,description,status,memberCount,updatedAt,componentCounts,extension?,cloudReadiness?}]}}` (`:2603-2669`). `/v1/me/library` → `{items:[{type:"plugin",id,name,description}]}` (`:2703-2715`).
 - Install = `POST /workspace/:id/cloud-plugins {marketplaceId, marketplace, resolved}` (`S/server.ts:2610`) → `installCloudPlugin` (`S/cloud-plugins.ts:536-647`): skill → `.opencode/skills/<ns>/<name>/SKILL.md`, agent → `.opencode/agents/<ns>/<name>.md`, command → `.opencode/commands/<ns>/<name>.md`, tool → `.opencode/tools/<ns>/<name>.ts`, hook/context/custom → files (`:226-258`); mcp → `addMcp()` into the **workspace** runtime row (`:559-575`), i.e. workspace-scoped, not global. Record kept in KV store `cloud_plugin_install_configs` (`:479-498`).
 - **Manual, not pushed**: `importCloudOrgPlugin` is a user action gated by `allowManageExtensions` (`A/react-app/domains/settings/state/extensions-store.ts:1230-1268, 1218-1223`). Marketplace polling only raises "New extension available" / "update available" notifications (`:1185-1210, 561-604`); no auto-install (`grep orgWide|autoInstall` → none). `GET /v1/resources` + `POST /workspace/:id/desktop-cloud-sync` only diff timestamps (`S/desktop-cloud-sync.ts:1-25, 210-260`).
@@ -118,8 +118,8 @@ Confirmed both paths from the prior doc: (1) `skill://index.json` + `skill://<na
 
 | Manual step today | Den-driven equivalent | Payload / endpoint | Gaps |
 |---|---|---|---|
-| `enabled_providers:["ackstorm"]` | `allowCustomProviders:false` (+`allowZenModel:false`) | `GET /v1/me/desktop-config` → `enabled_providers` computed from lpr_/ipr_/openwork keys (`openwork-runtime-config.ts:68-71`) | key is `lpr_…`, not `ackstorm`; hides everything else incl. user's own opencode.json providers |
-| `OPENCODE_MODELS_URL` catalog (provider `ackstorm`, models with modalities/cost/limit/…) | llmProvider with inline models | `GET /v1/llm-providers` + `/v1/llm-providers/:id/connect` (§1 shape); per-model `config` passthrough keys `:223-239` | **no Den field for a catalog URL**; default engine catalog is `models.openworklabs.com`; env var only via launcher env (env.json rejects `OPENCODE_*`) |
+| `enabled_providers:["ai-platform"]` | `allowCustomProviders:false` (+`allowZenModel:false`) | `GET /v1/me/desktop-config` → `enabled_providers` computed from lpr_/ipr_/openwork keys (`openwork-runtime-config.ts:68-71`) | key is `lpr_…`, not `ai-platform`; hides everything else incl. user's own opencode.json providers |
+| `OPENCODE_MODELS_URL` catalog (provider `ai-platform`, models with modalities/cost/limit/…) | llmProvider with inline models | `GET /v1/llm-providers` + `/v1/llm-providers/:id/connect` (§1 shape); per-model `config` passthrough keys `:223-239` | **no Den field for a catalog URL**; default engine catalog is `models.openworklabs.com`; env var only via launcher env (env.json rejects `OPENCODE_*`) |
 | Per-request JWT via `opencode-auth` plugin | none | — | Den only delivers a static `apiKey` → env.json + `PUT /auth/lpr_…`. Closest: mint a long-ish per-member key Den-side (`memberCredential.state:"active"`, rotate on each 5-min sync — rotation triggers auth re-delivery `:1301-1312`) |
 | `plugin:["…/opencode-auth", "./plugins/ach-memory.js"]` | none | only local `POST /workspace/:id/plugins` (`server.ts:3405`) | **cannot push OpenCode plugins**; cloud plugin objectTypes exclude `plugin`. Closest: `tool` objectType (`.opencode/tools/*.ts`) or a Den-hosted skill instructing the user |
 | `mcp["ach-memory"]` local stdio + `environment` | cloud plugin MCP component | `/v1/plugins/:id/resolved` configObject `{objectType:"mcp", latestVersion.normalizedPayloadJson:{mcp:{"ach-memory":{command:[…],environment:{…},enabled:true}}}}` (`cloud-plugins.ts:353-407`) | user must click Install per workspace (`extensions-store.ts:1230`), blocked if `allowManageExtensions:false`; name becomes `<plugin>-plugin-ach-memory`; secrets shared unless `{env:}` + env.json |

@@ -1196,12 +1196,12 @@ def test_origin_guard(client):
 
 
 def _https_app() -> TestClient:
-    """Dedicated app whose app_base_url is https://platform.ackstorm.ai (D-06 needs
+    """Dedicated app whose app_base_url is https://platform.example.com (D-06 needs
     session_https_only=True alongside the https URL)."""
     settings_https = Settings(
         **{
             **make_test_settings().model_dump(),
-            "app_base_url": "https://platform.ackstorm.ai",
+            "app_base_url": "https://platform.example.com",
             "session_https_only": True,
         }
     )
@@ -1211,9 +1211,9 @@ def _https_app() -> TestClient:
 
 def test_origin_prefix_attack_403():
     """CR-01: an origin whose host begins with but != app_base_url host is rejected
-    (POST and DELETE) — platform.ackstorm.ai.evil.com → 403 (D-02)."""
+    (POST and DELETE) — platform.example.com.evil.com → 403 (D-02)."""
     client = _https_app()
-    attack_origin = "https://platform.ackstorm.ai.evil.com"
+    attack_origin = "https://platform.example.com.evil.com"
 
     # POST variant — must 403 before reaching the handler (no LiteLLM mock needed)
     response = client.post(
@@ -1247,7 +1247,7 @@ def test_origin_same_host_passes_guard():
             "/api/session/keys",
             headers={
                 "content-type": "application/json",
-                "origin": "https://platform.ackstorm.ai",
+                "origin": "https://platform.example.com",
             },
             cookies=_authed_cookie(),
             content="{}",
@@ -1439,7 +1439,7 @@ def test_https_requires_secure_cookie():
         Settings(
             **{
                 **base,
-                "app_base_url": "https://platform.ackstorm.ai",
+                "app_base_url": "https://platform.example.com",
                 "session_https_only": False,
             }
         )
@@ -1452,11 +1452,11 @@ def test_https_with_secure_cookie_ok():
     settings = Settings(
         **{
             **base,
-            "app_base_url": "https://platform.ackstorm.ai",
+            "app_base_url": "https://platform.example.com",
             "session_https_only": True,
         }
     )
-    assert settings.app_base_url == "https://platform.ackstorm.ai"
+    assert settings.app_base_url == "https://platform.example.com"
     assert settings.session_https_only is True
 
 
@@ -1476,7 +1476,7 @@ def test_session_models_ok(client):
     """200 with the projected model list from list_litellm_models."""
     sample = [
         {
-            "name": "ackstorm.fast",
+            "name": "acme.fast",
             "providers": ["openai"],
             "mode": "chat",
             "max_input_tokens": 128000.0,
@@ -1684,7 +1684,7 @@ def test_me_carries_sso_groups(client):
             {
                 "email": "alice@example.com",
                 "name": "Alice",
-                "groups": ["platform-eng@ackstorm.com", "ai-team@ackstorm.com"],
+                "groups": ["platform-eng@example.com", "ai-team@example.com"],
             },
         )
     }
@@ -1693,8 +1693,8 @@ def test_me_carries_sso_groups(client):
         response = client.get("/api/session/me", cookies=cookie)
     assert response.status_code == 200
     assert response.json()["groups"] == [
-        "platform-eng@ackstorm.com",
-        "ai-team@ackstorm.com",
+        "platform-eng@example.com",
+        "ai-team@example.com",
     ]
 
 

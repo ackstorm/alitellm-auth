@@ -57,6 +57,7 @@ async def public_config(request: Request) -> JSONResponse:
     payload = {
         "brand": settings.brand,
         "brand_short": settings.brand_short,
+        "provider_name": settings.provider_name,
         "tagline": settings.tagline,
         "accent_segment": settings.accent_segment,
         "public_host": public_host,

@@ -5,7 +5,7 @@
 // non-empty AND brand ends with it, the wordmark renders base + a green accent
 // span (e.g. "alitellm" + green "-auth"). When accent_segment is empty (or brand
 // does not end with it), the WHOLE brand renders in the bright color with no
-// accent span (parity with app.js, e.g. ACKStorm).
+// accent span (parity with app.js, e.g. Acme).
 //
 // All strings render as React text children only — never dangerouslySetInnerHTML
 // (T-10-14 XSS). The shield-check SVG is the same icon used by app.js's topbar

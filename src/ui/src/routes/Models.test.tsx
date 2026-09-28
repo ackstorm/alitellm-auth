@@ -20,7 +20,7 @@ const useModelsMock = vi.mocked(useModels);
 
 function makeModel(over: Partial<ModelRow> = {}): ModelRow {
   return {
-    name: 'ackstorm.fast',
+    name: 'acme.fast',
     providers: ['openai'],
     mode: 'chat',
     max_input_tokens: 128000,
@@ -103,7 +103,7 @@ describe('Models — populated', () => {
   it('renders the alias, provider, per-1M pricing, and capability badges', () => {
     setSuccess([makeModel()]);
     render(<Models />);
-    expect(screen.getByText('ackstorm.fast')).toBeInTheDocument();
+    expect(screen.getByText('acme.fast')).toBeInTheDocument();
     expect(screen.getByText('openai')).toBeInTheDocument();
     // Combined price cell: 1.5e-7*1e6=$0.15 (in) / 6e-7*1e6=$0.60 (out).
     expect(screen.getByText(/\$0\.15/)).toBeInTheDocument();
@@ -131,13 +131,13 @@ describe('Models — populated', () => {
 
   it('exposes a copyable curl snippet per model', () => {
     setSuccess([
-      makeModel({ name: 'ackstorm.fast' }),
-      makeModel({ name: 'ackstorm.smart' }),
+      makeModel({ name: 'acme.fast' }),
+      makeModel({ name: 'acme.smart' }),
     ]);
     render(<Models />);
     expect(screen.getAllByRole('button', { name: /copy curl/i })).toHaveLength(2);
     expect(
-      screen.getByRole('button', { name: 'Copy curl for ackstorm.fast' }),
+      screen.getByRole('button', { name: 'Copy curl for acme.fast' }),
     ).toBeInTheDocument();
   });
 
@@ -155,9 +155,9 @@ describe('Models — populated', () => {
   });
 
   it('hides operator-exposed agent.* models (they belong on A2A)', () => {
-    setSuccess([makeModel({ name: 'agent.finops-advisor' }), makeModel({ name: 'ackstorm.smart' })]);
+    setSuccess([makeModel({ name: 'agent.finops-advisor' }), makeModel({ name: 'acme.smart' })]);
     render(<Models />);
-    expect(screen.getByText('ackstorm.smart')).toBeInTheDocument();
+    expect(screen.getByText('acme.smart')).toBeInTheDocument();
     expect(screen.queryByText('agent.finops-advisor')).not.toBeInTheDocument();
   });
 
@@ -177,7 +177,7 @@ describe('Models — populated', () => {
   it('shows "Dynamic" for auto-router price and context', () => {
     setSuccess([
       makeModel({
-        name: 'ackstorm.auto',
+        name: 'acme.auto',
         providers: ['auto_router'],
         max_input_tokens: null,
         max_output_tokens: null,

@@ -21,7 +21,7 @@ describe('isAgentModelRow', () => {
   it('detects operator-exposed agent models', () => {
     expect(isAgentModelRow('agent.finops-advisor')).toBe(true);
     expect(isAgentModelRow('a2a/finops-advisor')).toBe(true);
-    expect(isAgentModelRow('ackstorm.smart')).toBe(false);
+    expect(isAgentModelRow('acme.smart')).toBe(false);
     expect(isAgentModelRow(null)).toBe(false);
   });
 });

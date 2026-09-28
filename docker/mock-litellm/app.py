@@ -589,7 +589,7 @@ async def spend_logs_v2(
 # per-token floats, token counts are floats, as real LiteLLM emits).
 _MODEL_GROUPS = [
     {
-        "model_group": "ackstorm.fast",
+        "model_group": "acme.fast",
         "providers": ["openai"],
         "mode": "chat",
         "max_input_tokens": 128000.0,
@@ -603,7 +603,7 @@ _MODEL_GROUPS = [
         "supported_openai_params": ["temperature", "max_tokens", "stream", "tools"],
     },
     {
-        "model_group": "ackstorm.smart",
+        "model_group": "acme.smart",
         "providers": ["anthropic"],
         "mode": "chat",
         "max_input_tokens": 200000.0,
@@ -617,7 +617,7 @@ _MODEL_GROUPS = [
         "supported_openai_params": ["temperature", "max_tokens", "stream", "tools"],
     },
     {
-        "model_group": "ackstorm.cheap",
+        "model_group": "acme.cheap",
         "providers": ["openai"],
         "mode": "chat",
         "max_input_tokens": 128000.0,
@@ -631,7 +631,7 @@ _MODEL_GROUPS = [
         "supported_openai_params": ["temperature", "max_tokens", "stream"],
     },
     {
-        "model_group": "ackstorm.reason",
+        "model_group": "acme.reason",
         "providers": ["openai"],
         "mode": "chat",
         "max_input_tokens": 200000.0,
@@ -645,7 +645,7 @@ _MODEL_GROUPS = [
         "supported_openai_params": ["max_tokens", "stream", "tools", "reasoning_effort"],
     },
     {
-        "model_group": "ackstorm.vision",
+        "model_group": "acme.vision",
         "providers": ["google"],
         "mode": "chat",
         "max_input_tokens": 1048576.0,
@@ -659,7 +659,7 @@ _MODEL_GROUPS = [
         "supported_openai_params": ["temperature", "max_tokens", "stream", "tools"],
     },
     {
-        "model_group": "ackstorm.embed",
+        "model_group": "acme.embed",
         "providers": ["openai"],
         "mode": "embedding",
         "max_input_tokens": 8192.0,
@@ -683,7 +683,7 @@ _MCP_SERVERS = [
         "server_name": "github",
         "alias": "GitHub",
         "description": "Repositories, issues, and pull requests.",
-        "url": "https://mcp.internal.ackstorm.ai/github",
+        "url": "https://mcp.internal.example.com/github",
         "transport": "http",
         "auth_type": "oauth2",
         "status": "healthy",
@@ -715,7 +715,7 @@ _MCP_SERVERS = [
         "server_name": "web-search",
         "alias": "Web Search",
         "description": "Live web search and page fetch.",
-        "url": "https://mcp.internal.ackstorm.ai/search",
+        "url": "https://mcp.internal.example.com/search",
         "transport": "http",
         "auth_type": "api_key",
         "status": "healthy",
@@ -728,7 +728,7 @@ _MCP_SERVERS = [
         "server_name": "postgres",
         "alias": "Postgres",
         "description": "Read-only SQL over the analytics warehouse.",
-        "url": "https://mcp.internal.ackstorm.ai/postgres",
+        "url": "https://mcp.internal.example.com/postgres",
         "transport": "sse",
         "auth_type": "bearer_token",
         "status": "unhealthy",
@@ -752,7 +752,7 @@ _A2A_AGENTS = [
         "agent_card_params": {
             "name": "Research Agent",
             "description": "Multi-step web research with inline citations.",
-            "url": "https://a2a.internal.ackstorm.ai/research",
+            "url": "https://a2a.internal.example.com/research",
             "version": "1.2.0",
             "preferredTransport": "JSONRPC",
             "capabilities": {"streaming": True, "pushNotifications": False},
@@ -775,7 +775,7 @@ _A2A_AGENTS = [
         "agent_card_params": {
             "name": "Coder Agent",
             "description": "Writes and reviews code changes across a repository.",
-            "url": "https://a2a.internal.ackstorm.ai/coder",
+            "url": "https://a2a.internal.example.com/coder",
             "version": "0.9.1",
             "preferredTransport": "GRPC",
             "capabilities": {"streaming": False},
@@ -792,7 +792,7 @@ _A2A_AGENTS = [
         "agent_card_params": {
             "name": "Ops Agent",
             "description": "Runbook automation and incident triage.",
-            "url": "https://a2a.internal.ackstorm.ai/ops",
+            "url": "https://a2a.internal.example.com/ops",
             "version": "2.0.0",
             "preferredTransport": "JSONRPC",
             "capabilities": {"streaming": True},

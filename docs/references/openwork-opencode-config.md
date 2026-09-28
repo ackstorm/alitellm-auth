@@ -2,15 +2,15 @@
 
 | | |
 |---|---|
-| Status | Reference. Applies to any ACKstorm backend (platform / alitellm-auth, or ACH) |
+| Status | Reference. Applies to any product backend (platform / alitellm-auth, or ACH) |
 | Date | 2026-09-28 (rev 3: Den is served by each backend on its own origin) |
 | Owner | Juan Carlos Moreno (DREAM) |
 | Scope | OpenWork desktop on **engine v1** and the OpenCode CLI |
 | Evidence base | `different-ai/openwork` @ `917f672`, `anomalyco/opencode` @ `b471c2b` (both 2026-09-26) |
 
 Placeholders: `<backend>` is the product's public origin (e.g.
-`https://platform.ackstorm.ai`), `<api>` its model/MCP gateway origin (e.g.
-`https://api.ackstorm.ai`). The Den is served by the backend itself on
+`https://platform.example.com`), `<api>` its model/MCP gateway origin (e.g.
+`https://api.example.com`). The Den is served by the backend itself on
 `<backend>` (platform: inside alitellm-auth; ACH: inside ACH), so the
 organization server URL users enter is `<backend>`.
 
@@ -29,7 +29,7 @@ organization server URL users enter is `<backend>`.
 
 | Need | Source | Enforced? | When it changes on the client |
 |---|---|---|---|
-| Model sign-in | Plugin OAuth (`opencode auth login -p ackstorm`) | Yes (gateway) | Tokens refresh per request |
+| Model sign-in | Plugin OAuth (`opencode auth login -p ai-platform`) | Yes (gateway) | Tokens refresh per request |
 | Model list + capabilities (image input, context, cost) | Backend config endpoint → plugin | No: defaults the user can override | Next OpenCode/OpenWork start |
 | MCP servers (disabled by default) | Backend config endpoint → plugin | No | Next start |
 | MCP sign-in | OpenCode's own MCP OAuth (on first 401, or `opencode mcp auth <name>`) | Yes (mcp-oauth / gateway) | Per server |
@@ -53,7 +53,7 @@ Rules that follow:
 ### 3.1 OpenCode CLI
 ```bash
 opencode plugin <backend>/public/opencode-auth -g
-opencode auth login -p ackstorm        # browser SSO; "device code" for headless hosts
+opencode auth login -p ai-platform      # browser SSO; "device code" for headless hosts
 opencode                               # models, MCPs and skills are there
 ```
 Then, per MCP server wanted: enable it (set `"enabled": true` in the global or
@@ -126,7 +126,7 @@ until the user joins the org.
 | Field | Default | Why |
 |---|---|---|
 | `allowZenModel` | `false` once the plugin-delivered models are live, `true` before | Zen is OpenCode's built-in hosted provider: data leaves the organization's gateway. Before the plugin works it is the only model, so switching it off early leaves users with nothing |
-| `allowCustomProviders` | `true` | The `ackstorm` provider comes from OpenCode config (the plugin), not from Den; `false` restricts providers to Den-delivered ones and hides it |
+| `allowCustomProviders` | `true` | The `ai-platform` provider comes from OpenCode config (the plugin), not from Den; `false` restricts providers to Den-delivered ones and hides it |
 | `allowManageExtensions` | `true` | Users must be able to install the auth plugin |
 | `allowBuiltInExtensions` | `true` | No reason to block |
 | `allowControlSettings` | `true` | Users need Settings to join the org and see providers |
@@ -148,13 +148,13 @@ until the user joins the org.
   good copy (same user, < 30 days). OpenCode always starts.
 - **Signed out / revoked**: the backend answers with the baseline; the plugin
   clears its cache and delivers nothing; models stop working until
-  `opencode auth login -p ackstorm`.
+  `opencode auth login -p ai-platform`.
 - **User overrides**: a user or project entry for the same model or MCP server
   wins, field by field. A server the user enabled stays enabled.
 - **Removed on the backend**: disappears at the next start, unless the user
   defined it themselves.
-- **One backend per OpenCode profile**: the provider id is `ackstorm` in every
-  product. Someone using two backends needs separate OpenCode profiles.
+- **One backend per OpenCode profile**: the provider id is `ai-platform` in
+  every product. Someone using two backends needs separate OpenCode profiles.
 
 ## 7. Limitations
 
@@ -176,8 +176,8 @@ until the user joins the org.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| No `ackstorm` models after install | Not signed in, or OpenCode not restarted | `opencode auth login -p ackstorm`, restart |
-| Models present but requests 401 | Refresh token expired or revoked | `opencode auth login -p ackstorm` |
+| No `ai-platform` models after install | Not signed in, or OpenCode not restarted | `opencode auth login -p ai-platform`, restart |
+| Models present but requests 401 | Refresh token expired or revoked | `opencode auth login -p ai-platform` |
 | Old model list after a backend change | Config applies at start | Restart OpenCode/OpenWork |
 | Image input not offered for a model | Capability missing in the backend catalog | Fix the model's `modalities` in the backend |
 | MCP server listed but unusable | Disabled by default, or not signed in | Enable it, restart, `opencode mcp auth <name>` |

@@ -35,7 +35,7 @@ describe('config store', () => {
   it('loadConfig 200 with partial server config -> shallow-merged over defaults; links REPLACED', async () => {
     // Partial server payload: overrides `brand` and supplies a `links` object.
     const server: Partial<AppConfig> = {
-      brand: 'ACKStorm',
+      brand: 'Acme',
       links: { status: 'https://x' },
     };
     getJsonMock.mockResolvedValue({ status: 200, data: server as AppConfig });
@@ -44,7 +44,7 @@ describe('config store', () => {
 
     const { config } = useConfigStore.getState();
     // Server field overrides the default.
-    expect(config.brand).toBe('ACKStorm');
+    expect(config.brand).toBe('Acme');
     // Unspecified fields fall back to the defaults.
     expect(config.brand_short).toBe(DEFAULT_CONFIG.brand_short);
     expect(config.tagline).toBe(DEFAULT_CONFIG.tagline);

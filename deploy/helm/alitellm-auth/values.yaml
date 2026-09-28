@@ -25,8 +25,8 @@ serviceAccount:
 # Non-secret application config -> plain env vars on the container.
 # These map 1:1 to src/api/app/config.py Settings fields.
 config:
-  appBaseUrl: "https://platform.ackstorm.ai"
-  oauthIssuerUrl: "https://dex.ackstorm.ai/dex"
+  appBaseUrl: "https://platform.example.com"
+  oauthIssuerUrl: "https://dex.example.com/dex"
   oauthClientId: "platform"
   # Scopes requested from the OIDC provider. Leave empty to use the app default
   # ("openid email profile"). Set "openid email profile groups" to have Dex
@@ -36,7 +36,7 @@ config:
   # the only sign-in path, so enable it on a deployment you can watch and roll
   # back by clearing this value (env-only, no image rebuild).
   oauthScopes: ""
-  litellmUrl: "https://litellm.ackstorm.ai"
+  litellmUrl: "https://litellm.example.com"
   # Shared LiteLLM team id + display name (one team per deployment). Decoupled
   # from oauthClientId so the team can be renamed independently.
   # Ignored once personalTeamsEnabled is true — keys then land in the caller's
@@ -44,8 +44,8 @@ config:
   litellmDefaultTeam: "default"
   # User-visible name of this platform in OpenCode and the genai-api skill:
   # `opencode auth login -p <providerName>`. Lowercase, digits, '-'. Neutral
-  # default; the ACKstorm cluster sets "ackstorm" in gitops. Changing it on a
-  # live deployment signs every OpenCode user out.
+  # default; the deployment sets it from its platform config (e.g. Terraform →
+  # Flux). Changing it on a live deployment signs every OpenCode user out.
   providerName: "ai-platform"
   # ── Personal teams ────────────────────────────────────────────────────────
   # One LiteLLM team per user (id "<personalTeamPrefix><email>") instead of the
@@ -84,10 +84,10 @@ config:
   # Applied at login and ADDITIVELY: removing a mapping does not detach.
   ssoAccessGroups: {}
   #  aws@example.com: ["team-aws"]
-  apiPublicUrl: "https://api.ackstorm.ai"
+  apiPublicUrl: "https://api.example.com"
   # Hosted chat UI URL (CHAT nav button + How-to card). Leave empty to derive
   # chat.<domain> from apiPublicUrl's host; set it when chat lives elsewhere.
-  chatPublicUrl: "https://chat.ackstorm.ai"
+  chatPublicUrl: "https://chat.example.com"
   # D-18: Secure cookie flag. True in prod (HTTPS), False for local HTTP dev.
   sessionHttpsOnly: "true"
 
@@ -146,7 +146,7 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
     # Remove if cert-manager is not installed.
     cert-manager.io/cluster-issuer: letsencrypt-prod
-  host: platform.ackstorm.ai
+  host: platform.example.com
   tls:
     enabled: true
     secretName: platform-tls
@@ -210,8 +210,8 @@ authServer:
   refreshTtlSeconds: 604800   # 7 d; a refresh re-checks the user in LiteLLM
   # MCP services a user token may carry as scopes; scope = the /mcp/ path segment.
   services: {}
-  #  mcp-aws-eks-ro: { store: aws-eks-ro, broker: https://api.ackstorm.ai/aws-eks-ro-callback }
-  #  mcp-google-drive: { store: google-drive, broker: https://api.ackstorm.ai/google-drive-callback }
+  #  mcp-aws-eks-ro: { store: aws-eks-ro, broker: https://api.example.com/aws-eks-ro-callback }
+  #  mcp-google-drive: { store: google-drive, broker: https://api.example.com/google-drive-callback }
   mcpRedisUrl: ""   # the pods' Redis (grant projection); empty → AS_REDIS_URL
 
 # ── OpenWork organization server (docs/plans/2026-09-18-openwork-den.md) ────
@@ -289,7 +289,7 @@ istio:
   gateway:
     name: ""
     namespace: ""
-  host: "api.ackstorm.ai"
+  host: "api.example.com"
   # Paths that must stay anonymous; RFC 9728 documents are fetched before a
   # client holds a token. MCP callbacks use separate HTTPRoutes.
   exemptPaths:

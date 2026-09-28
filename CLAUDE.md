@@ -70,11 +70,11 @@ Validates a LiteLLM virtual key and returns the associated user metadata as JSON
 
 ```bash
 # plain key
-curl -s https://platform.ackstorm.ai/api/oauth/whoami \
+curl -s https://platform.example.com/api/oauth/whoami \
   -H "x-alitellm-auth-api-key: sk-XXXXXXXXXXXXXXXXXXXX" | jq .
 
 # Bearer prefix also accepted
-curl -s https://platform.ackstorm.ai/api/oauth/whoami \
+curl -s https://platform.example.com/api/oauth/whoami \
   -H "x-alitellm-auth-api-key: Bearer sk-XXXXXXXXXXXXXXXXXXXX" | jq .
 ```
 
@@ -142,10 +142,9 @@ Authorization uses `hmac.compare_digest` (constant-time, defends against timing 
 ### Public Static Artifacts
 
 `GET /public/<path>` — a `StaticFiles` mount serving files placed in `/app/public`
-by a volume, with no authentication at all. Today that is the OpenCode model
-catalog alitellm-operator renders from `LiteLLMModelAlias` CRs, at
-`/public/opencode/api.json`, consumed via
-`OPENCODE_MODELS_URL=https://<host>/public/opencode`.
+by a volume, with no authentication at all. Nothing is served through it by
+default; a deployment opts a static artifact in by projecting it into the
+volume (e.g. a generated catalog consumed via a client's own `*_URL` override).
 
 **This mount is world-readable.** The app has no global auth middleware (only
 `SessionMiddleware`), and a `StaticFiles` sub-app carries no
@@ -286,7 +285,7 @@ except Exception:
 
 ❌ **WRONG** — scheme comes from internal pod request (HTTP)
 ```python
-callback_url = request.url_for("auth_callback")  # → http://platform.ackstorm.ai/...
+callback_url = request.url_for("auth_callback")  # → http://platform.example.com/...
 ```
 ✅ **CORRECT** — build from `APP_BASE_URL` which is always `https://`
 ```python
@@ -485,8 +484,8 @@ Never rely on env vars in tests. All test files have a local `make_test_settings
 
 | Variable | Source | Description |
 |----------|--------|-------------|
-| `APP_BASE_URL` | deployment env | Public URL, e.g. `https://platform.ackstorm.ai` |
-| `OAUTH_ISSUER_URL` | deployment env | OIDC issuer, e.g. `https://dex.ackstorm.ai/dex` |
+| `APP_BASE_URL` | deployment env | Public URL, e.g. `https://platform.example.com` |
+| `OAUTH_ISSUER_URL` | deployment env | OIDC issuer, e.g. `https://dex.example.com/dex` |
 | `OAUTH_CLIENT_ID` | deployment env | OIDC client ID, e.g. `platform` |
 | `OAUTH_SCOPES` | deployment env (opt) | Default `openid email profile`. Scopes for BOTH the console login and the AS leg; must include `openid`. Add `groups` to surface Workspace groups (Dex Google connector needs domain-wide delegation, else login FAILS). Helm value: `config.oauthScopes` |
 | `LITELLM_URL` | deployment env | LiteLLM base URL |

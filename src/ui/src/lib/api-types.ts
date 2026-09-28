@@ -467,6 +467,7 @@ export interface ConfigProvider {
 export interface AppConfig {
   brand: string;
   brand_short: string;
+  provider_name: string;
   tagline: string;
   accent_segment: string;
   public_host: string;

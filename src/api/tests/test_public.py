@@ -121,6 +121,18 @@ def test_config_defaults_are_neutral():
     ]
 
 
+def test_config_exposes_provider_name():
+    """provider_name lets the SPA print `opencode auth login -p <provider>`."""
+    body = _client().get("/api/config").json()
+    assert body["provider_name"] == "ai-platform"
+
+
+def test_config_provider_name_passthrough_when_set():
+    client = _client(provider_name="acme")
+    body = client.get("/api/config").json()
+    assert body["provider_name"] == "acme"
+
+
 def test_public_mount_serves_artifact_unauthenticated(tmp_path, monkeypatch):
     """/public is a StaticFiles mount: 200 with no session, same as /ui.
 
@@ -129,13 +141,13 @@ def test_public_mount_serves_artifact_unauthenticated(tmp_path, monkeypatch):
     """
     d = tmp_path / "public" / "opencode"
     d.mkdir(parents=True)
-    (d / "api.json").write_text('{"ackstorm": {"models": {}}}')
+    (d / "api.json").write_text('{"acme": {"models": {}}}')
     monkeypatch.chdir(tmp_path)
 
     client = _client()
     r = client.get("/public/opencode/api.json")
     assert r.status_code == 200
-    assert r.json()["ackstorm"]["models"] == {}
+    assert r.json()["acme"]["models"] == {}
 
 
 def test_public_mount_does_not_shadow_api_routes():

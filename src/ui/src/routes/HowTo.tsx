@@ -4,13 +4,13 @@
 // corporate user. Three sections, all STATIC (no backend, no fetch):
 //
 //   §1 Quickstart  — mint a key (link to the Keys tab) + a copy-paste `curl` to
-//                    the `ackstorm.fast` model alias against the user's gateway.
+//                    a `<model>` placeholder alias against the user's gateway.
 //   §2 Editors/CLI — tabbed setup for Claude Code / Gemini / opencode / codex /
 //                    GitHub Copilot / Qwen Code (env exports, except the JSON-config
 //                    tools); each links the authoritative LiteLLM guide where one exists.
 //   §3 MCP servers — connect MCP clients to the gateway's /mcp endpoint (same key);
 //                    optional x-mcp-servers header / group URL to scope the tools.
-//   §4 No terminal — chat-UI cards (ACKstorm Chat, hosted; openwork, coming soon).
+//   §4 No terminal — chat-UI cards ({brand_short} Chat, hosted; OpenWork, desktop).
 //
 // PERSONALIZATION (no rebuild): the gateway base URL is read live from the
 // session (`me.endpoint` === settings.api_public_url, e.g. https://api.<domain>);
@@ -50,8 +50,9 @@ import { useSessionStore } from '@/stores/session';
 // key is shown ONCE, at creation, on the Keys tab — never on this page.
 const KEY_PLACEHOLDER = 'sk-...';
 
-// Featured model alias for the quickstart (locked copy — the standard alias).
-const MODEL_ALIAS = 'ackstorm.fast';
+// Featured model alias for the quickstart — a neutral placeholder until the
+// user picks a real model from the catalog.
+const MODEL_PLACEHOLDER = '<model>';
 
 // LiteLLM auth header (the deployment's standard: a Bearer value under the
 // custom header name, not the bare Authorization header).
@@ -166,13 +167,13 @@ export function HowTo() {
   const navigate = useNavigate();
 
   // Model picker: personalize the quickstart snippets with a real alias from the
-  // catalog. Defaults to the standard MODEL_ALIAS; the picked value is always
+  // catalog. Defaults to the neutral MODEL_PLACEHOLDER; the picked value is always
   // kept as a valid option.
   const modelsQuery = useModels();
   const catalogAliases = (modelsQuery.data?.models ?? [])
     .map((m) => m.name)
     .filter((n): n is string => typeof n === 'string' && n.length > 0);
-  const [pickedModel, setPickedModel] = useState<string>(MODEL_ALIAS);
+  const [pickedModel, setPickedModel] = useState<string>(MODEL_PLACEHOLDER);
   const modelOptions = Array.from(new Set([pickedModel, ...catalogAliases]));
 
   // Live gateway base (api_public_url). Falls back to a neutral placeholder so
@@ -298,6 +299,17 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
       label: 'OpenCode',
       variants: [
         {
+          id: 'opencode-plugin',
+          subLabel: 'SSO plugin',
+          ready: true,
+          caption: 'terminal (once)',
+          // The platform's OpenCode plugin: SSO sign-in, and at every start the
+          // user's models, MCP servers (disabled) and skills. No key, no env var.
+          code: `opencode plugin ${apiBase}/clients/opencode/plugin -g
+opencode auth login -p ${config.provider_name}`,
+          note: 'Restart OpenCode afterwards. Models appear under the provider shown above; MCP servers appear disabled (enable one in opencode.json, then `opencode mcp auth <name>`). Unset OPENCODE_MODELS_URL and any exported key for this provider.',
+        },
+        {
           id: 'opencode-gemini',
           subLabel: 'Gemini',
           ready: true,
@@ -329,7 +341,7 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
         },
         {
           id: 'opencode-openai',
-          subLabel: 'OpenAI',
+          subLabel: 'API key',
           ready: true,
           caption: '~/.config/opencode/opencode.json',
           // opencode is configured by a JSON file: an OpenAI-compatible provider pointed
@@ -346,13 +358,12 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
         "apiKey": "{env:LITELLM_API_KEY}"
       },
       "models": {
-        "ackstorm.fast": { "name": "ACKstorm Fast" },
-        "ackstorm.smart": { "name": "ACKstorm Smart" }
+        "${MODEL_PLACEHOLDER}": { "name": "${MODEL_PLACEHOLDER}" }
       }
     }
   }
 }`,
-          note: 'Export the key referenced by `{env:LITELLM_API_KEY}` first: `export LITELLM_API_KEY="sk-..."`, then run `opencode` and pick a LiteLLM model with `/models`.',
+          note: 'Export the key referenced by `{env:LITELLM_API_KEY}` first: `export LITELLM_API_KEY="sk-..."`, then run `opencode` and pick a LiteLLM model with `/models`. Replace <model> with a model from the Models tab.',
           guide: {
             url: 'https://docs.litellm.ai/docs/tutorials/opencode_integration',
             label: 'OpenCode + LiteLLM guide',
@@ -384,14 +395,8 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
       "apiKey": "$LITELLM_API_KEY",
       "models": [
         {
-          "id": "ackstorm.fast",
-          "name": "ACKstorm Fast",
-          "reasoning": false,
-          "input": ["text", "image"]
-        },
-        {
-          "id": "ackstorm.smart",
-          "name": "ACKstorm Smart",
+          "id": "${MODEL_PLACEHOLDER}",
+          "name": "${MODEL_PLACEHOLDER}",
           "reasoning": true,
           "input": ["text", "image"]
         },
@@ -415,10 +420,9 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
             caption: '~/.pi/agent/settings.json',
             code: `{
   "defaultProvider": "litellm",
-  "defaultModel": "ackstorm.fast",
+  "defaultModel": "${MODEL_PLACEHOLDER}",
   "enabledModels": [
-    "litellm/ackstorm.fast",
-    "litellm/ackstorm.smart",
+    "litellm/${MODEL_PLACEHOLDER}",
     "litellm/gemini-flash-latest",
     "google/gemini-flash-latest"
   ]
@@ -438,11 +442,11 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
           code: `# Claude Code → LiteLLM
 export ANTHROPIC_BASE_URL="${apiBase}"
 export ANTHROPIC_AUTH_TOKEN=${KEY_PLACEHOLDER}
-export ANTHROPIC_MODEL="ackstorm.smart"
-export ANTHROPIC_DEFAULT_OPUS_MODEL="ackstorm.smart"
-export ANTHROPIC_DEFAULT_SONNET_MODEL="ackstorm.fast"
-export ANTHROPIC_DEFAULT_HAIKU_MODEL="ackstorm.lite"
-export CLAUDE_CODE_SUBAGENT_MODEL="ackstorm.fast"
+export ANTHROPIC_MODEL="${MODEL_PLACEHOLDER}"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="${MODEL_PLACEHOLDER}"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="${MODEL_PLACEHOLDER}"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="${MODEL_PLACEHOLDER}"
+export CLAUDE_CODE_SUBAGENT_MODEL="${MODEL_PLACEHOLDER}"
 
 claude`,
           note: 'Bills against your gateway key — no Claude subscription required. Models are LiteLLM aliases.',
@@ -494,12 +498,12 @@ claude`,
           // Codex is configured by a TOML provider (NOT endpoint env vars): a named
           // OpenAI-compatible provider pointed at the gateway. The key is read from the
           // env var named by `env_key`, so export it before running `codex`.
-          code: `model = "ackstorm.router"
-model_provider = "ackstorm"
+          code: `model = "${MODEL_PLACEHOLDER}"
+model_provider = "litellm"
 model_reasoning_effort = "medium"
 
-[model_providers.ackstorm]
-name = "ACKstorm"
+[model_providers.litellm]
+name = "${config.brand_short}"
 base_url = "${apiBase}/v1"
 env_key = "LITELLM_API_KEY"
 wire_api = "responses"
@@ -522,7 +526,7 @@ supports_websockets = false`,
           code: `# Qwen Code CLI → LiteLLM (OpenAI-compatible)
 export OPENAI_BASE_URL="${apiBase}/v1"
 export OPENAI_API_KEY="${KEY_PLACEHOLDER}"
-export OPENAI_MODEL="${MODEL_ALIAS}"
+export OPENAI_MODEL="${MODEL_PLACEHOLDER}"
 
 qwen`,
           guide: {
@@ -908,7 +912,7 @@ gemini`,
             sub="Prefer a chat window over a shell? Use a browser UI — paste your key once and start chatting."
           >
             <div className="grid gap-4 sm:grid-cols-2">
-              {/* ACKstorm Chat — hosted */}
+              {/* {brandShort} Chat — hosted */}
               <a
                 href={chatUrl}
                 target="_blank"
@@ -917,10 +921,8 @@ gemini`,
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-sans text-sm font-semibold text-text-primary">
-                    ACKstorm Chat
+                    {brandShort} Chat
                   </span>
-                  {/* Hosted + ready -> the open-in-new icon is accent green
-                      (openwork's stays muted since it is not wired yet). */}
                   <ExternalLink
                     className="size-4 text-primary"
                     aria-hidden="true"
@@ -929,7 +931,7 @@ gemini`,
                 <p className="font-sans text-sm leading-relaxed text-text-secondary">
                   Hosted chat UI, ready to use — sign in and pick{' '}
                   <span className="font-mono text-text-primary">
-                    {MODEL_ALIAS}
+                    {MODEL_PLACEHOLDER}
                   </span>
                   . Nothing to install.
                 </p>
@@ -938,7 +940,7 @@ gemini`,
                 </span>
               </a>
 
-              {/* openwork — coming soon (not yet wired to the gateway) */}
+              {/* OpenWork — desktop, joins via the organization server */}
               <a
                 href="https://github.com/different-ai/openwork"
                 target="_blank"
@@ -946,13 +948,8 @@ gemini`,
                 className="group flex flex-col gap-2 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-primary"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2">
-                    <span className="font-sans text-sm font-semibold text-text-primary">
-                      openwork
-                    </span>
-                    <span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                      Coming soon
-                    </span>
+                  <span className="font-sans text-sm font-semibold text-text-primary">
+                    OpenWork (desktop)
                   </span>
                   <ExternalLink
                     className="size-4 text-text-tertiary transition-colors group-hover:text-primary"
@@ -960,8 +957,12 @@ gemini`,
                   />
                 </div>
                 <p className="font-sans text-sm leading-relaxed text-text-secondary">
-                  Open-source AI workspace. Gateway support is on the way — not
-                  available yet. Star the repo to follow along.
+                  Settings → organization server:{' '}
+                  <span className="font-mono text-text-primary">
+                    {window.location.origin}
+                  </span>
+                  , then sign in. Install the OpenCode plugin (above) for
+                  models and MCP servers.
                 </p>
                 <span className="mt-1 break-all font-mono text-[11px] text-text-tertiary">
                   github.com/different-ai/openwork

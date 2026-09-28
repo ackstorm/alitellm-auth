@@ -198,11 +198,11 @@ describe('App driver — brand lockup (empty accent_segment)', () => {
   it('empty accent_segment renders the whole brand with no accent span', () => {
     useSessionStore.setState({ status: 200, hasLoaded: true, me: ME });
     useConfigStore.setState({
-      config: { ...DEFAULT_CONFIG, brand: 'ACKStorm', accent_segment: '' },
+      config: { ...DEFAULT_CONFIG, brand: 'Acme', accent_segment: '' },
     });
     renderApp();
     // Whole brand renders as one string; no "-auth" accent span.
-    expect(screen.getByText('ACKStorm')).toBeInTheDocument();
+    expect(screen.getByText('Acme')).toBeInTheDocument();
     expect(screen.queryByText('-auth')).toBeNull();
   });
 });

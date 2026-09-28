@@ -198,12 +198,12 @@
 }
 
 /* Red theme — applied when <html> carries the `red` class (explicit choice from
- * the toggle cycle; the OS preference never resolves to it). The Izertis
- * corporate skin: white surfaces, deep navy (#011C4A) ink, coral-red (#FF5361)
- * primary, cool-gray (#cfd1df) borders. Light-family (dark ink on near-white),
- * so shadcn `dark:` utilities stay OFF (no `.dark` ancestor) exactly like
- * light/pastel. The green identity is swapped for the Izertis red; navy carries
- * the text and structural lines. Hex→oklch conversions from www.izertis.com. */
+ * the toggle cycle; the OS preference never resolves to it). The red corporate
+ * skin: white surfaces, deep navy (#011C4A) ink, coral-red (#FF5361) primary,
+ * cool-gray (#cfd1df) borders. Light-family (dark ink on near-white), so
+ * shadcn `dark:` utilities stay OFF (no `.dark` ancestor) exactly like
+ * light/pastel. The green identity is swapped for the red; navy carries the
+ * text and structural lines. */
 :root.red {
   /* App-specific colors */
   --surface: oklch(1 0 0);
@@ -217,8 +217,8 @@
   --surface-inset: oklch(0.965 0.006 277); /* gray #f1f2f7 */
   --surface-hover: oklch(0.955 0.008 277);
   --accent-bright: oklch(0.6 0.21 22);
-  --success: oklch(0.62 0.11 188); /* Izertis teal #23b4aa */
-  --warning: oklch(0.73 0.17 65); /* Izertis gold #ffbc11, brightened toward orange (low-L hue-80 read brown) */
+  --success: oklch(0.62 0.11 188); /* teal #23b4aa */
+  --warning: oklch(0.73 0.17 65); /* gold #ffbc11, brightened toward orange (low-L hue-80 read brown) */
   --error: oklch(0.564 0.223 28); /* deep red #da1414 */
 
   /* shadcn variables mapped to the red theme */
@@ -254,7 +254,7 @@
   --sidebar-border: oklch(0.863 0.019 279);
   --sidebar-ring: oklch(0.682 0.207 20);
 
-  /* Izertis glow blobs: a soft top→bottom coral·sky·coral wash on the white
+  /* Red-theme glow blobs: a soft top→bottom coral·sky·coral wash on the white
      surface (lighter + higher-alpha than dark/light so the gradient actually
      reads on near-white, mirroring how pastel makes its blobs visible). */
   --glow-1: oklch(0.78 0.13 22 / 0.55);

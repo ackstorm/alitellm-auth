@@ -25,8 +25,8 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
 - [x] **OpenCode model-path OAuth** — `clients/opencode` (DCR + PKCE + loopback, refresh
   in a custom `fetch`), zero config: provider API URL from opencode → RFC 9728 → RFC 8414.
   Served by the API as an npm tarball, `GET /public/opencode-auth`:
-  `opencode plugin https://platform.ackstorm.ai/public/opencode-auth -g`, then
-  `opencode auth login -p ackstorm`. Verified incl. refresh (2026-09-17).
+  `opencode plugin https://platform.example.com/public/opencode-auth -g`, then
+  `opencode auth login -p ai-platform`. Verified incl. refresh (2026-09-17).
   Measured: opencode fetches the tarball at install and once on the first launch, then
   never — a new release needs `opencode plugin <url> -g -f`. The served `api.json` still
   lists `env: ["LITELLM_API_KEY"]`; an exported key masks a logout (OAuth wins when both
@@ -35,13 +35,13 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
   *model* provider; opencode's OpenAI/Anthropic/Copilot logins are vendor-specific
   plugins. Propose a generic `oauth` auth method keyed on `provider.<id>.options.oauth.issuer`
   to anomalyco/opencode; the plugin is the reference implementation.
-- [x] **Claude Code / Codex model path** — `clients/ackstorm-token` (Python 3, stdlib):
+- [x] **Claude Code / Codex model path** — `clients/genai-token` (Python 3, stdlib):
   logs in once (DCR + PKCE + loopback), keeps the refresh token in
-  `~/.config/ackstorm-ai/token.json` (0600, flock against concurrent refreshes) and
+  `~/.config/genai-token/token.json` (0600, flock against concurrent refreshes) and
   prints a fresh access token. Verified 2026-09-17: Claude Code `apiKeyHelper` and
   Codex `[model_providers.<id>.auth] command = "…"` (a string, not an array) both
   answer through the front door.
-- [ ] Distribute `ackstorm-token` (package/installer; hydrate writes the two settings)
+- [ ] Distribute `genai-token` (package/installer; hydrate writes the two settings)
   and decide keyring vs file for the refresh token.
 - [ ] authz hardening: when the custom header / `x-api-key` carries OUR JWT and
   `Authorization` carries the same JWT (Claude Code may send the helper's value in
@@ -63,7 +63,7 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
   JWT), 7d (revoke the grant → next refresh drops the scope → 403 again).
 - [x] Remote / headless host login: RFC 8628 device grant on the AS
   (`/oauth/device_authorization`, `/oauth/device`), `opencode` method 2 and
-  `ackstorm-token login --no-browser` (2026-09-21).
+  `genai-token login --no-browser` (2026-09-21).
 
 ## Code
 
@@ -84,4 +84,4 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
 ## Security hygiene (Juan Carlos)
 
 - [ ] Rotate the glab token an implementation agent displayed on 2026-09-17.
-- [ ] Rotate `LITELLM_API_KEY` leaked in a transcript the same day; `chmod 600 ~/.config/ackstorm-ai.env`.
+- [ ] Rotate `LITELLM_API_KEY` leaked in a transcript the same day; `chmod 600 ~/.config/genai.env`.

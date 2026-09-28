@@ -404,12 +404,12 @@ def test_normalize_groups_coerces_provider_shapes() -> None:
     from app.auth import normalize_groups
 
     # Dex returns a list of strings; whitespace and empties are dropped.
-    assert normalize_groups(["platform-eng@ackstorm.com", " ai-team@ackstorm.com "]) == [
-        "platform-eng@ackstorm.com",
-        "ai-team@ackstorm.com",
+    assert normalize_groups(["platform-eng@example.com", " ai-team@example.com "]) == [
+        "platform-eng@example.com",
+        "ai-team@example.com",
     ]
     # A provider that sends a single string still yields a list.
-    assert normalize_groups("solo@ackstorm.com") == ["solo@ackstorm.com"]
+    assert normalize_groups("solo@example.com") == ["solo@example.com"]
     # Scope not granted / claim absent / junk types degrade to [], never raise.
     assert normalize_groups(None) == []
     assert normalize_groups({"not": "a list"}) == []
@@ -420,9 +420,9 @@ def test_normalize_groups_caps_the_list() -> None:
     """A huge groups claim must not overflow the signed session cookie."""
     from app.auth import MAX_GROUPS, normalize_groups
 
-    groups = normalize_groups([f"g{i}@ackstorm.com" for i in range(MAX_GROUPS + 40)])
+    groups = normalize_groups([f"g{i}@example.com" for i in range(MAX_GROUPS + 40)])
     assert len(groups) == MAX_GROUPS
-    assert groups[0] == "g0@ackstorm.com"
+    assert groups[0] == "g0@example.com"
 
 
 def test_oauth_scopes_must_include_openid() -> None:

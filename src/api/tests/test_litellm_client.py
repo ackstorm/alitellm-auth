@@ -1886,9 +1886,9 @@ def test_access_groups_for_user_matches_config_keys_case_insensitively():
 
     settings = make_settings(
         default_access_groups=["team-default"],
-        user_access_groups={"J.Smith@Ackstorm.com": ["team-dream"]},
+        user_access_groups={"J.Smith@Example.com": ["team-dream"]},
     )
-    assert access_groups_for_user("j.smith@ackstorm.com", settings) == [
+    assert access_groups_for_user("j.smith@example.com", settings) == [
         "team-default",
         "team-dream",
     ]
@@ -2649,8 +2649,8 @@ async def test_get_model_group_aliases_keeps_only_the_alias_map():
                 "router_settings": {
                     "routing_strategy": "simple-shuffle",
                     "model_group_alias": {
-                        "ackstorm.smart": "gemini.flash",
-                        "ackstorm.hidden": {"model": "openai.gpt", "hidden": True},
+                        "acme.smart": "gemini.flash",
+                        "acme.hidden": {"model": "openai.gpt", "hidden": True},
                         "bad": 3,
                     },
                 },
@@ -2658,8 +2658,8 @@ async def test_get_model_group_aliases_keeps_only_the_alias_map():
         )
     )
     assert await get_model_group_aliases(settings) == {
-        "ackstorm.smart": "gemini.flash",
-        "ackstorm.hidden": "openai.gpt",
+        "acme.smart": "gemini.flash",
+        "acme.hidden": "openai.gpt",
     }
 
 

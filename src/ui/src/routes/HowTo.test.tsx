@@ -13,10 +13,11 @@ import type { ModelsResponse, ModelRow } from '@/lib/api-types';
 vi.mock('react-router', () => ({ useNavigate: () => () => {} }));
 vi.mock('@/stores/session', () => ({
   useSessionStore: (sel: (s: unknown) => unknown) =>
-    sel({ me: { endpoint: 'https://api.ackstorm.ai' } }),
+    sel({ me: { endpoint: 'https://api.example.com' } }),
 }));
 vi.mock('@/stores/config', () => ({
-  useConfigStore: (sel: (s: unknown) => unknown) => sel({ config: {} }),
+  useConfigStore: (sel: (s: unknown) => unknown) =>
+    sel({ config: { brand_short: 'LiteLLM', provider_name: 'acme' } }),
 }));
 vi.mock('@/hooks/use-keys', () => ({ useHasDefaultKey: vi.fn(() => true) }));
 vi.mock('@/hooks/use-models', () => ({ useModels: vi.fn() }));
@@ -78,10 +79,20 @@ describe('HowTo — model picker', () => {
     setModels(['zeta.model', 'omega.model']);
     render(<HowTo />);
     const select = screen.getByRole('combobox', { name: 'Model' });
-    // The default curl tab shows the standard alias before any pick.
-    expect(screen.getByText(/"model": "ackstorm.fast"/)).toBeInTheDocument();
+    // The default curl tab shows the neutral placeholder before any pick.
+    expect(screen.getByText(/"model": "<model>"/)).toBeInTheDocument();
     fireEvent.change(select, { target: { value: 'zeta.model' } });
     // The visible curl snippet now carries the picked alias.
     expect(screen.getByText(/"model": "zeta.model"/)).toBeInTheDocument();
+  });
+});
+
+describe('HowTo — OpenCode SSO plugin', () => {
+  it('shows the plugin install as the default OpenCode variant, using provider_name', () => {
+    setModels([]);
+    render(<HowTo />);
+    expect(
+      screen.getByText(/opencode auth login -p acme/),
+    ).toBeInTheDocument();
   });
 });

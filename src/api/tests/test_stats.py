@@ -92,8 +92,8 @@ def test_aggregate_window_models_summed_across_days():
 
     # Keyed by the public model_group alias, not the provider-prefixed deployment.
     assert "gemini/gemini-flash-lite-latest" not in models
-    # ackstorm.lite was 1 request / 68 tokens / spend 8e-06 on one day → doubled.
-    lite = models["ackstorm.lite"]
+    # acme.lite was 1 request / 68 tokens / spend 8e-06 on one day → doubled.
+    lite = models["acme.lite"]
     assert lite["requests"] == 2
     assert lite["total_tokens"] == 136
     assert lite["input_tokens"] == 128  # prompt_tokens 64 * 2
@@ -342,16 +342,16 @@ def test_build_stats_contract_last_used_null_flips_capability():
 
 def test_build_stats_contract_last_used_present_keeps_capability():
     cur = aggregate_window(_load("daily_activity_current.json"))
-    last_used = {"ackstorm.fast": "2026-04-01T09:49:44.420000Z"}
+    last_used = {"acme.fast": "2026-04-01T09:49:44.420000Z"}
     contract = build_stats_contract(
         cur, cur, {"current": 0, "max_budget": None}, last_used, dict(_CAPABILITIES), _RANGE
     )
 
     assert contract["capabilities"]["per_model_last_used"] is True
     by_model = {m["model"]: m for m in contract["models"]}
-    assert by_model["ackstorm.fast"]["last_used"] == "2026-04-01T09:49:44.420000Z"
+    assert by_model["acme.fast"]["last_used"] == "2026-04-01T09:49:44.420000Z"
     # A model without a last_used entry stays null.
-    assert by_model["ackstorm.smart"]["last_used"] is None
+    assert by_model["acme.smart"]["last_used"] is None
 
 
 def test_last_used_from_window_picks_latest_day_per_model():
@@ -367,12 +367,12 @@ def test_last_used_from_window_picks_latest_day_per_model():
     day2 = copy.deepcopy(day1)
     day2["date"] = "2026-04-03"
     # day2 drops one model so it keeps its earlier (day1) date.
-    day2["breakdown"]["model_groups"].pop("ackstorm.smart", None)
+    day2["breakdown"]["model_groups"].pop("acme.smart", None)
 
     out = last_used_from_window({"results": [day2, day1]})  # unordered input
 
-    assert out["ackstorm.fast"] == "2026-04-03"  # present both days → later
-    assert out["ackstorm.smart"] == "2026-04-01"  # only on day1
+    assert out["acme.fast"] == "2026-04-03"  # present both days → later
+    assert out["acme.smart"] == "2026-04-01"  # only on day1
 
 
 def test_last_used_from_window_empty_window_returns_empty():
@@ -549,7 +549,7 @@ def test_aggregate_window_mcp_rows_attributed_from_mcp_servers():
         "date": "2026-04-01",
         "breakdown": {
             "model_groups": {
-                "ackstorm.fast": _metrics(1),
+                "acme.fast": _metrics(1),
                 "MCP: list_tools": _metrics(5),
                 "MCP: list_files": _metrics(2),
                 "MCP: auth_status": _metrics(1),
@@ -559,7 +559,7 @@ def test_aggregate_window_mcp_rows_attributed_from_mcp_servers():
     }
     rows = {m["model"]: m["requests"] for m in aggregate_window({"results": [day]})["models"]}
     assert rows == {
-        "ackstorm.fast": 1,
+        "acme.fast": 1,
         "MCP: list_tools": 5,
         "MCP: mcp-drive/list_files": 2,
         "MCP: unknown server/auth_status": 1,

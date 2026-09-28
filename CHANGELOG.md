@@ -2,6 +2,19 @@
 
 ## [unreleased]
 
+### Changed
+
+- **Brand-neutral product.** Nothing user-facing names a specific company:
+  the How-To reads the platform name from `/api/config` (`provider_name`,
+  `brand_short`) and uses a `<model>` placeholder; its OpenCode section now
+  shows the SSO plugin install (`opencode plugin <api>/clients/opencode/plugin -g`
+  + `opencode auth login -p <provider>`), and the OpenWork card explains how to
+  join the organization. Chart defaults use `example.com` hosts (deployments
+  that set these values, like any GitOps install, are unaffected).
+  `clients/ackstorm-token` is renamed `clients/genai-token` (not distributed
+  yet: no migration). Ownership/provenance (repository, registry, NOTICE)
+  is unchanged.
+
 ## [0.19.0] - 2026-09-28
 
 ### Added

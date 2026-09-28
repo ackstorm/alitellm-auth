@@ -122,7 +122,7 @@ def assert_same_origin(request: Request, settings: Settings) -> None:
     """
     # D-02 (CR-01 fix): exact-origin compare, fail-closed when both headers absent.
     # Compare (scheme, hostname, port) tuples — hostname/port (NOT netloc) defeats
-    # userinfo-spoof (...ai@evil) and the platform.ackstorm.ai.evil.com prefix attack.
+    # userinfo-spoof (...ai@evil) and the platform.example.com.evil.com prefix attack.
     raw = request.headers.get("origin") or request.headers.get("referer")
     if not raw:
         raise HTTPException(status_code=403, detail="Missing Origin/Referer")

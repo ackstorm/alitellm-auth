@@ -87,7 +87,7 @@ class Settings(BaseSettings):
     # MCP services a user token may carry as scopes. JSON: scope name (the path
     # segment under /mcp/) → {"store": the pods' service name in Redis,
     # "broker": that service's authorization server}. Empty → no MCP scopes.
-    #   {"mcp-aws-eks-ro": {"store": "aws-eks-ro", "broker": "https://api.ackstorm.ai/aws-eks-ro-callback"}}
+    #   {"mcp-aws-eks-ro": {"store": "aws-eks-ro", "broker": "https://api.example.com/aws-eks-ro-callback"}}
     as_services: str = ""
     # Where the MCP pods keep their cleartext grant projection
     # (oauth:{store}:state:{email}). Empty → same Redis as AS_REDIS_URL.

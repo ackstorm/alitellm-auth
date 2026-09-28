@@ -21,7 +21,7 @@ ALLOWED_TOP = {"provider", "mcp", "instructions"}
 # What the user's key sees (list_litellm_models projection).
 GROUPS = [
     {
-        "name": "ackstorm.smart",
+        "name": "acme.smart",
         "mode": "chat",
         "max_input_tokens": 1048576.0,
         "max_output_tokens": 65536.0,
@@ -33,7 +33,7 @@ GROUPS = [
     },
     {"name": "openai.gpt", "mode": "chat", "max_input_tokens": 1.0, "supports_vision": False},
     {
-        "name": "ackstorm.router",
+        "name": "acme.router",
         "mode": "chat",
         "max_input_tokens": 200000.0,
         "max_output_tokens": 32000.0,
@@ -63,10 +63,10 @@ DEPLOYMENTS = {
         "supports_vision": True,
         "supports_function_calling": True,
     },
-    "ackstorm.router": {"mode": "chat"},
+    "acme.router": {"mode": "chat"},
     "secret.model": {"mode": "chat", "max_input_tokens": 1},
 }
-ALIASES = {"ackstorm.smart": "gemini.flash", "ackstorm.hidden": "secret.model"}
+ALIASES = {"acme.smart": "gemini.flash", "acme.hidden": "secret.model"}
 
 
 def _settings(**overrides):
@@ -178,8 +178,8 @@ def test_valid_token_gets_the_users_chat_models(client, settings, groups, admin)
     assert provider["options"] == {"baseURL": "https://api.example.com/v1"}
     assert "env" not in provider
     # Visibility comes ONLY from the user's list: no embedding, no alias/deployment
-    # the user cannot see (ackstorm.hidden, secret.model, gemini.flash).
-    assert sorted(_models(body)) == ["ackstorm.router", "ackstorm.smart", "openai.gpt"]
+    # the user cannot see (acme.hidden, secret.model, gemini.flash).
+    assert sorted(_models(body)) == ["acme.router", "acme.smart", "openai.gpt"]
     assert groups.await_args.args[1] == "sk-front-alice@example.com"
     assert body["config"]["mcp"] == {
         "mcp-aws-eks-ro": {
@@ -193,9 +193,9 @@ def test_valid_token_gets_the_users_chat_models(client, settings, groups, admin)
 
 
 def test_alias_takes_the_target_deployments_capabilities(client, settings, groups, admin):
-    smart = _models(_get(client, _token(settings)).json())["ackstorm.smart"]
+    smart = _models(_get(client, _token(settings)).json())["acme.smart"]
     assert smart == {
-        "name": "ackstorm.smart",
+        "name": "acme.smart",
         "attachment": True,
         "reasoning": True,
         "tool_call": True,
@@ -212,7 +212,7 @@ def test_real_model_uses_its_deployment_and_router_falls_back_to_the_group_row(
     models = _models(_get(client, _token(settings)).json())
     assert models["openai.gpt"]["limit"] == {"context": 400000, "output": 128000}
     assert models["openai.gpt"]["attachment"] is True
-    router = models["ackstorm.router"]
+    router = models["acme.router"]
     assert router["limit"] == {"context": 200000, "output": 32000}
     assert router["tool_call"] is True and router["attachment"] is False
     assert router["cost"] == {"input": 0.0, "output": 0.0, "cache_read": 0.0}
@@ -222,7 +222,7 @@ def test_admin_read_failure_degrades_to_group_rows(client, settings, groups, adm
     admin[0].side_effect = httpx.ConnectError("down")
     body = _get(client, _token(settings)).json()
     assert body["stale"] is False
-    smart = _models(body)["ackstorm.smart"]
+    smart = _models(body)["acme.smart"]
     assert smart["modalities"]["input"] == ["text", "image"]  # no pdf/audio without model_info
     assert smart["cost"]["cache_read"] == 0.0
 
@@ -248,7 +248,7 @@ def test_stale_capabilities_are_served_without_waiting(
     admin[0].side_effect = slow
     body = _get(client, _token(settings)).json()
     assert body["stale"] is False
-    assert "pdf" in _models(body)["ackstorm.smart"]["modalities"]["input"]
+    assert "pdf" in _models(body)["acme.smart"]["modalities"]["input"]
 
 
 # T-S2
@@ -275,7 +275,7 @@ def test_invalid_token_gets_the_empty_baseline(client, settings, groups, admin, 
     body = resp.json()
     assert body["auth"] == "invalid"
     assert body["user"] is None and body["config"] == {} and body["skills"] == []
-    assert "ackstorm.smart" not in resp.text and "mcp-aws-eks-ro" not in resp.text
+    assert "acme.smart" not in resp.text and "mcp-aws-eks-ro" not in resp.text
     groups.assert_not_awaited()
 
 
