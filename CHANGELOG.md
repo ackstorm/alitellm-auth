@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.19.0] - 2026-09-28
+
 ### Added
 
 - **OpenCode client endpoints under `/clients/opencode/`** (spec Rev 4, shared
@@ -11,7 +13,7 @@
   sees, described from LiteLLM (`/v2/model/info` + the alias map, master key,
   cached 1 h, refreshed in the background): aliases take their target's context, costs incl. cache read,
   and image/pdf/audio input. Every `AS_SERVICES` MCP server as a disabled
-  remote entry, plus the `mcp-setup` skill. Always 200 for a Bearer (invalid
+  remote entry, plus the `genai-api` skill. Always 200 for a Bearer (invalid
   token → empty baseline); upstream failure serves the last good body
   (`stale: true`, 30 d). `GET /clients/opencode/plugin`: the plugin tarball
   with a per-deployment `package/platform.json`; `/public/opencode-auth` is a
@@ -22,9 +24,11 @@
   instead of the `ackstorm` provider in config, so a fresh install signs in
   without `OPENCODE_MODELS_URL`. At every OpenCode start it fetches
   `/clients/opencode/config` and fills in what the user's config lacks
-  (models, disabled MCP servers, skills under `ackstorm-skills/`); cached 30 d
-  for the same user when the backend is down. Users re-run
-  `opencode plugin <url> -g -f` once.
+  (models, disabled MCP servers, skills), all under
+  `~/.local/share/opencode/<provider>/`; cached 30 d for the same user when the
+  backend is down. Only a token-endpoint 4xx counts as signed out: a
+  discovery failure keeps the cache. Users re-run `opencode plugin <url> -g -f`
+  once.
 - **`PROVIDER_NAME`** (chart `config.providerName`, default `ai-platform`): the
   user-visible platform name, used as the OpenCode provider id
   (`opencode auth login -p <name>`), the provider shown in OpenCode, the
