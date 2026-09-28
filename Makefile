@@ -92,7 +92,7 @@ _build-ui:
 .PHONY: test-ui _test-ui
 .PHONY: test-plugin
 test-plugin: ## OpenCode auth plugin self-check (host node, no deps)
-	node --test test/opencode-auth.test.mjs
+	node --test test/opencode-auth.test.mjs test/opencode-config-hook.test.mjs
 
 test-ui: ## Run the UI vitest suite (containerized)
 	$(call container_target,_test-ui)

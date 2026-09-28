@@ -45,11 +45,12 @@ globalThis.fetch = async (input, init) => {
   throw new Error(`unexpected ${url}`)
 }
 
+const OPTIONS = { api: "https://api.test/v1", platform: "https://api.test" }
+
 function fakeClient() {
   let auth = { type: "oauth", access: "stale", refresh: "r-current", expires: 0 }
   return {
     client: {
-      config: { providers: async () => ({ data: { providers: [{ id: "ackstorm", options: { baseURL: "https://api.test/v1" } }] } }) },
       auth: { set: async ({ body }) => { auth = body } },
     },
     getAuth: async () => auth,
@@ -59,7 +60,7 @@ function fakeClient() {
 
 test("a login registers once and a refresh reuses that identity", async () => {
   const f = fakeClient()
-  const plugin = await SsoAuth({ client: f.client })
+  const plugin = await SsoAuth({ client: f.client }, OPTIONS)
   const { url, callback } = await plugin.auth.methods[0].authorize()
   assert.match(url, /client_id=c1/)
   // Deliver the callback ourselves on the listener the plugin opened.
@@ -96,7 +97,7 @@ test("a failed discovery is retried on the next call", async () => {
   // Discovery is cached per module instance; take a fresh one.
   const { SsoAuth: Fresh } = await import("../clients/opencode/index.mjs?fresh")
   const f = fakeClient()
-  const plugin = await Fresh({ client: f.client })
+  const plugin = await Fresh({ client: f.client }, OPTIONS)
   const loader = await plugin.auth.loader(f.getAuth)
   discoveryFails = true
   await assert.rejects(loader.fetch("https://model.test/x"), /network down/)
@@ -128,4 +129,13 @@ test("the device method opens the verification URL and polls until the user has 
   assert.equal(devicePolls, 2, "one authorization_pending, then the token")
   // Loopback stays the default method (OpenWork and the CLI take methods[0]).
   assert.equal(plugin.auth.methods[0].label, "SSO (browser)")
+})
+
+test("the legacy install (no platform.json, no options) still discovers from the configured provider", async () => {
+  const { SsoAuth: Legacy } = await import("../clients/opencode/index.mjs?legacy")
+  const { client } = fakeClient()
+  client.config = { providers: async () => ({ data: { providers: [{ id: "ackstorm", options: { baseURL: "https://api.test/v1" } }] } }) }
+  const hooks = await Legacy({ client })
+  const { url } = await hooks.auth.methods[1].authorize()
+  assert.match(url, /^https:\/\/as\.test\/device/)
 })
