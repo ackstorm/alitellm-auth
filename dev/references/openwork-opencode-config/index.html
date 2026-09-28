@@ -1,0 +1,977 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="OIDC identity + LiteLLM User/VirtualKey provisioning">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>OpenWork and OpenCode — how we configure them - alitellm-auth</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#openwork-and-opencode-how-we-configure-them" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="alitellm-auth" class="md-header__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            alitellm-auth
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              OpenWork and OpenCode — how we configure them
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="alitellm-auth" class="md-nav__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    alitellm-auth
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dex-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dex / OIDC integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-the-pieces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The pieces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-what-comes-from-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. What comes from where
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-user-onboarding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. User onboarding
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. User onboarding">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-opencode-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 OpenCode CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-openwork-desktop-engine-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 OpenWork desktop (engine v1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-admin-setup-per-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Admin setup per deployment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Admin setup per deployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-den" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Den
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-mdm-bootstrap-file-managed-fleets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 MDM bootstrap file (managed fleets)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-desktop-policy-defaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Desktop policy defaults
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-how-it-behaves" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. How it behaves
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Limitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-verification-checklist-new-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Verification checklist (new deployment)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="openwork-and-opencode-how-we-configure-them">OpenWork and OpenCode — how we configure them</h1>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Status</td>
+<td>Reference. Applies to any ACKstorm backend (platform / alitellm-auth, or ACH)</td>
+</tr>
+<tr>
+<td>Date</td>
+<td>2026-09-28 (rev 3: Den is served by each backend on its own origin)</td>
+</tr>
+<tr>
+<td>Owner</td>
+<td>Juan Carlos Moreno (DREAM)</td>
+</tr>
+<tr>
+<td>Scope</td>
+<td>OpenWork desktop on <strong>engine v1</strong> and the OpenCode CLI</td>
+</tr>
+<tr>
+<td>Evidence base</td>
+<td><code>different-ai/openwork</code> @ <code>917f672</code>, <code>anomalyco/opencode</code> @ <code>b471c2b</code> (both 2026-09-26)</td>
+</tr>
+</tbody>
+</table>
+<p>Placeholders: <code>&lt;backend&gt;</code> is the product's public origin (e.g.
+<code>https://platform.ackstorm.ai</code>), <code>&lt;api&gt;</code> its model/MCP gateway origin (e.g.
+<code>https://api.ackstorm.ai</code>). The Den is served by the backend itself on
+<code>&lt;backend&gt;</code> (platform: inside alitellm-auth; ACH: inside ACH), so the
+organization server URL users enter is <code>&lt;backend&gt;</code>.</p>
+<h2 id="1-the-pieces">1. The pieces</h2>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>What it is</th>
+<th>Who runs it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenWork desktop</td>
+<td>Electron app; runs a local OpenWork server and an OpenCode engine</td>
+<td>User's machine</td>
+</tr>
+<tr>
+<td>OpenCode engine v1</td>
+<td>The <code>opencode</code> binary OpenWork spawns (same one as the CLI)</td>
+<td>User's machine</td>
+</tr>
+<tr>
+<td>Auth plugin</td>
+<td>OpenCode plugin: OAuth sign-in to the backend's gateway (browser or device code), token refresh on every model call, and at start fetches the user's config</td>
+<td>Installed once per user, globally</td>
+</tr>
+<tr>
+<td>Backend config endpoint</td>
+<td><code>GET &lt;backend&gt;/api/opencode/config</code>: models, capabilities, MCP servers, skills for <strong>this</strong> user, schema <code>ackstorm.opencode-config/1</code></td>
+<td>Each product</td>
+</tr>
+<tr>
+<td>Den</td>
+<td>OpenWork organization server: org sign-in, <strong>enforced</strong> desktop policy, branding, onboarding</td>
+<td>Each product, on its own origin (<code>&lt;backend&gt;/api/den</code>)</td>
+</tr>
+<tr>
+<td>Gateway</td>
+<td>LiteLLM behind the OAuth front door; MCP servers behind mcp-oauth</td>
+<td>Each product</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-what-comes-from-where">2. What comes from where</h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Source</th>
+<th>Enforced?</th>
+<th>When it changes on the client</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Model sign-in</td>
+<td>Plugin OAuth (<code>opencode auth login -p ackstorm</code>)</td>
+<td>Yes (gateway)</td>
+<td>Tokens refresh per request</td>
+</tr>
+<tr>
+<td>Model list + capabilities (image input, context, cost)</td>
+<td>Backend config endpoint → plugin</td>
+<td>No: defaults the user can override</td>
+<td>Next OpenCode/OpenWork start</td>
+</tr>
+<tr>
+<td>MCP servers (disabled by default)</td>
+<td>Backend config endpoint → plugin</td>
+<td>No</td>
+<td>Next start</td>
+</tr>
+<tr>
+<td>MCP sign-in</td>
+<td>OpenCode's own MCP OAuth (on first 401, or <code>opencode mcp auth &lt;name&gt;</code>)</td>
+<td>Yes (mcp-oauth / gateway)</td>
+<td>Per server</td>
+</tr>
+<tr>
+<td>Skills</td>
+<td>Backend config endpoint → plugin writes them as native skills</td>
+<td>No</td>
+<td>Next start</td>
+</tr>
+<tr>
+<td>Org identity in the desktop</td>
+<td>Den</td>
+<td>—</td>
+<td>Sign-in</td>
+</tr>
+<tr>
+<td>Desktop policy (Zen model, extensions, commands, uploads…)</td>
+<td>Den <code>desktop-config</code></td>
+<td><strong>Yes</strong>: OpenWork's local server returns 403 <code>organization_policy_denied</code></td>
+<td>On config refresh</td>
+</tr>
+<tr>
+<td>Branding (name, logo, icon, accent)</td>
+<td>Den <code>desktop-config</code></td>
+<td>—</td>
+<td>On config refresh</td>
+</tr>
+<tr>
+<td>Onboarding (which org server)</td>
+<td>Den install link, or MDM bootstrap file</td>
+<td>—</td>
+<td>Once</td>
+</tr>
+</tbody>
+</table>
+<p>Rules that follow:
+- Anything that must be a <strong>limit</strong> lives in the gateway (who can call which
+  model or MCP) or in Den policy (what the desktop may do). The plugin's config
+  is a convenience layer.
+- The user's own <code>~/.config/opencode/opencode.json</code> and a project's
+  <code>opencode.json</code> <strong>always win</strong> over what the backend delivers.
+- Nothing needs an environment variable. <code>OPENCODE_MODELS_URL</code> and
+  <code>LITELLM_API_KEY</code> are no longer used.</p>
+<h2 id="3-user-onboarding">3. User onboarding</h2>
+<h3 id="31-opencode-cli">3.1 OpenCode CLI</h3>
+<p><div class="highlight"><pre><span></span><code>opencode<span class="w"> </span>plugin<span class="w"> </span>&lt;backend&gt;/public/opencode-auth<span class="w"> </span>-g
+opencode<span class="w"> </span>auth<span class="w"> </span>login<span class="w"> </span>-p<span class="w"> </span>ackstorm<span class="w">        </span><span class="c1"># browser SSO; "device code" for headless hosts</span>
+opencode<span class="w">                               </span><span class="c1"># models, MCPs and skills are there</span>
+</code></pre></div>
+Then, per MCP server wanted: enable it (set <code>"enabled": true</code> in the global or
+project config, or ask the agent to) and run <code>opencode mcp auth &lt;name&gt;</code>.</p>
+<h3 id="32-openwork-desktop-engine-v1">3.2 OpenWork desktop (engine v1)</h3>
+<ol>
+<li>Install OpenWork.</li>
+<li>Join the organization: paste the install link
+   (<code>&lt;backend&gt;/install?token=&lt;token&gt;</code>) in Welcome → "Join organization", <strong>or</strong> set
+   Settings → organization server URL to <code>&lt;backend&gt;</code>, <strong>or</strong> have MDM drop the
+   bootstrap file (§4.3). Sign in (browser opens, SSO, back to the app).</li>
+<li>In a terminal, run the two plugin commands of §3.1. This cannot be done by
+   the agent: before the plugin is signed in there is no model to run it.</li>
+<li>Restart OpenWork. Models, MCP servers (disabled) and skills appear.</li>
+</ol>
+<h2 id="4-admin-setup-per-deployment">4. Admin setup per deployment</h2>
+<h3 id="41-backend">4.1 Backend</h3>
+<ul>
+<li>[ ] <code>GET &lt;backend&gt;/public/opencode-auth</code> serves the plugin tarball with
+      <code>platform.json</code> = <code>{"api": "&lt;api&gt;", "platform": "&lt;backend&gt;"}</code>.</li>
+<li>[ ] <code>&lt;api&gt;</code> publishes RFC 9728 protected-resource metadata and its
+      authorization server publishes RFC 8414 metadata with DCR, PKCE S256,
+      refresh tokens (and optionally the RFC 8628 device grant).</li>
+<li>[ ] <code>GET &lt;backend&gt;/api/opencode/config</code> implements
+      <code>ackstorm.opencode-config/1</code>: always 200 for a well-formed Bearer
+      (baseline with <code>auth: "invalid"</code> when the token is not valid), never 5xx,
+      last-good cache per user; never emits <code>plugin</code>, <code>permission</code>, <code>agent</code>,
+      <code>command</code>, secrets or <code>{env:}</code>/<code>{file:}</code> templates.</li>
+<li>[ ] MCP servers exposed as remote OAuth servers (<code>&lt;api&gt;/mcp/&lt;name&gt;</code>).</li>
+</ul>
+<h3 id="42-den">4.2 Den</h3>
+<ul>
+<li>[ ] Den answers at the root of <code>&lt;backend&gt;</code>: <code>/api/den/*</code>, and the sign-in
+      entry <code>/?desktopAuth=1</code> must reach the handoff page (OpenWork keeps only
+      the origin of the org server URL). If <code>/</code> redirects elsewhere (e.g. to a
+      console), that redirect must not apply when <code>desktopAuth=1</code> is present.</li>
+<li>[ ] <code>/api/den/*</code> is not behind the gateway's front-door authz; Den
+      authenticates every request itself.</li>
+<li>[ ] Sign-in uses the backend's existing web login (Dex).</li>
+<li>[ ] Org name and <strong>slug</strong> (the slug fixes the org id; do not change it after
+      users joined).</li>
+<li>[ ] Branding: app name, logo/icon URLs (or files), accent from OpenWork's 22
+      Radix families.</li>
+<li>[ ] Policy: §5.</li>
+<li>[ ] Install link tokens (static, one per org or audience). Contract:
+      <code>GET /api/den/v1/install-config?token=&lt;token&gt;</code> →
+      <code>{appName, clientName, webUrl: "&lt;backend&gt;", apiUrl, requireSignin,
+      logoUrl|null, iconUrl|null}</code>; unknown token → 404 (shown as "expired");
+      token matches <code>^[A-Za-z0-9_-]{8,}$</code>. Accepted link forms:
+      <code>&lt;backend&gt;/install?token=X</code> (preferred) and <code>&lt;backend&gt; X</code>. The desktop maps
+      <code>/install</code> to <code>/api/den/v1/install-config</code> itself.</li>
+</ul>
+<h3 id="43-mdm-bootstrap-file-managed-fleets">4.3 MDM bootstrap file (managed fleets)</h3>
+<p><code>~/.config/openwork/desktop-bootstrap.json</code> (path override
+<code>OPENWORK_DESKTOP_BOOTSTRAP_PATH</code>):
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://platform.example.com"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"requireSignin"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"brandAppName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Example AI"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"brandLogoUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://platform.example.com/openwork/brand/logo.svg"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"brandIconUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://platform.example.com/openwork/brand/icon.svg"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"writtenAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-09-27T10:00:00Z"</span>
+<span class="p">}</span>
+</code></pre></div>
+The newest <code>writtenAt</code> wins. <code>requireSignin: true</code> keeps the app at sign-in
+until the user joins the org.</p>
+<h2 id="5-desktop-policy-defaults">5. Desktop policy defaults</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Default</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>allowZenModel</code></td>
+<td><code>false</code> once the plugin-delivered models are live, <code>true</code> before</td>
+<td>Zen is OpenCode's built-in hosted provider: data leaves the organization's gateway. Before the plugin works it is the only model, so switching it off early leaves users with nothing</td>
+</tr>
+<tr>
+<td><code>allowCustomProviders</code></td>
+<td><code>true</code></td>
+<td>The <code>ackstorm</code> provider comes from OpenCode config (the plugin), not from Den; <code>false</code> restricts providers to Den-delivered ones and hides it</td>
+</tr>
+<tr>
+<td><code>allowManageExtensions</code></td>
+<td><code>true</code></td>
+<td>Users must be able to install the auth plugin</td>
+</tr>
+<tr>
+<td><code>allowBuiltInExtensions</code></td>
+<td><code>true</code></td>
+<td>No reason to block</td>
+</tr>
+<tr>
+<td><code>allowControlSettings</code></td>
+<td><code>true</code></td>
+<td>Users need Settings to join the org and see providers</td>
+</tr>
+<tr>
+<td><code>allowMultipleWorkspaces</code></td>
+<td><code>true</code></td>
+<td>No reason to block</td>
+</tr>
+<tr>
+<td><code>allowAlphaUpdates</code></td>
+<td><code>false</code></td>
+<td>Stable channel only</td>
+</tr>
+<tr>
+<td><code>showWelcomePage</code></td>
+<td><code>false</code></td>
+<td>Onboarding is the install link</td>
+</tr>
+<tr>
+<td><code>execution.commands</code></td>
+<td><code>"allow"</code></td>
+<td>Agents need a shell</td>
+</tr>
+<tr>
+<td><code>execution.blockedCommands</code></td>
+<td><code>[]</code></td>
+<td><strong>Any non-empty list disables interactive terminals and saved commands entirely</strong>; use only when that is intended</td>
+</tr>
+<tr>
+<td><code>execution.blockBrowserUploads</code></td>
+<td>per client (<code>true</code> for regulated clients)</td>
+<td>Stops file uploads through the in-app browser</td>
+</tr>
+<tr>
+<td><code>automationsEnabled</code></td>
+<td><code>false</code></td>
+<td>Not offered</td>
+</tr>
+<tr>
+<td><code>dashboardEnabled</code></td>
+<td><code>false</code></td>
+<td>Not offered</td>
+</tr>
+<tr>
+<td><code>connectEnabled</code></td>
+<td><code>true</code></td>
+<td>Keeps OpenWork's Connect health green; the Connect catalog is empty</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-how-it-behaves">6. How it behaves</h2>
+<ul>
+<li><strong>Refresh</strong>: the plugin rebuilds config at every OpenCode/OpenWork start.
+  Nothing changes inside a running session; restart to pick up changes.</li>
+<li><strong>Backend down or slow</strong>: the plugin waits at most 2 s, then uses its last
+  good copy (same user, &lt; 30 days). OpenCode always starts.</li>
+<li><strong>Signed out / revoked</strong>: the backend answers with the baseline; the plugin
+  clears its cache and delivers nothing; models stop working until
+  <code>opencode auth login -p ackstorm</code>.</li>
+<li><strong>User overrides</strong>: a user or project entry for the same model or MCP server
+  wins, field by field. A server the user enabled stays enabled.</li>
+<li><strong>Removed on the backend</strong>: disappears at the next start, unless the user
+  defined it themselves.</li>
+<li><strong>One backend per OpenCode profile</strong>: the provider id is <code>ackstorm</code> in every
+  product. Someone using two backends needs separate OpenCode profiles.</li>
+</ul>
+<h2 id="7-limitations">7. Limitations</h2>
+<ul>
+<li><strong>Engine v1 only.</strong> OpenWork's engine v2 (<code>opencode2</code>, preview) uses a
+  different config loader and its own config directory; whether it loads the
+  user's global plugins is unverified. If it does not, neither model OAuth nor
+  config delivery works there. Re-evaluate before OpenWork makes v2 the default.</li>
+<li><strong>Not policy.</strong> Anything delivered by the plugin can be overridden locally.</li>
+<li><strong>No server-pushed code.</strong> OpenCode plugins cannot be pushed by Den or by the
+  backend; the user installs the auth plugin.</li>
+<li><strong>Den skills: none.</strong> A skill needs an authenticated model; Den cannot help
+  before the plugin is signed in.</li>
+<li><strong>Rejected on purpose:</strong> OpenCode's <code>.well-known/opencode</code> remote config
+  (unauthenticated fetch, static <code>{env:}</code> token, v1-only, aborts startup on
+  failure) and Den <code>llmProviders</code> (provider keyed <code>lpr_…</code>, breaks the plugin's
+  auth binding).</li>
+</ul>
+<h2 id="8-troubleshooting">8. Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No <code>ackstorm</code> models after install</td>
+<td>Not signed in, or OpenCode not restarted</td>
+<td><code>opencode auth login -p ackstorm</code>, restart</td>
+</tr>
+<tr>
+<td>Models present but requests 401</td>
+<td>Refresh token expired or revoked</td>
+<td><code>opencode auth login -p ackstorm</code></td>
+</tr>
+<tr>
+<td>Old model list after a backend change</td>
+<td>Config applies at start</td>
+<td>Restart OpenCode/OpenWork</td>
+</tr>
+<tr>
+<td>Image input not offered for a model</td>
+<td>Capability missing in the backend catalog</td>
+<td>Fix the model's <code>modalities</code> in the backend</td>
+</tr>
+<tr>
+<td>MCP server listed but unusable</td>
+<td>Disabled by default, or not signed in</td>
+<td>Enable it, restart, <code>opencode mcp auth &lt;name&gt;</code></td>
+</tr>
+<tr>
+<td>MCP 403 <code>insufficient_scope</code></td>
+<td>Sign-in did not grant that server</td>
+<td><code>opencode mcp logout &lt;name&gt;</code> then <code>auth</code> again</td>
+</tr>
+<tr>
+<td>MCP 403 from the gateway after sign-in</td>
+<td>User lacks access to that server</td>
+<td>Admin grants access (access group)</td>
+</tr>
+<tr>
+<td>MCP OAuth loops</td>
+<td>Same as above: entitlement 403 retried by the client</td>
+<td>Fix the access group, not auth</td>
+</tr>
+<tr>
+<td>OpenWork refuses an action with <code>organization_policy_denied</code></td>
+<td>Den policy</td>
+<td>Expected; change policy in Den if wrong</td>
+</tr>
+<tr>
+<td>Terminal disabled in OpenWork</td>
+<td><code>blockedCommands</code> is non-empty</td>
+<td>Empty it unless intended</td>
+</tr>
+<tr>
+<td>Zen models still visible</td>
+<td><code>allowZenModel</code> true, or desktop has not refreshed config</td>
+<td>Set to false; re-sign-in or wait for refresh</td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-verification-checklist-new-deployment">9. Verification checklist (new deployment)</h2>
+<ul>
+<li>[ ] CLI: two commands, restart, <code>opencode models</code> shows the user's models;
+      an image-capable model accepts an image.</li>
+<li>[ ] CLI: <code>opencode mcp list</code> shows the servers disabled; enabling one and
+      <code>opencode mcp auth &lt;name&gt;</code> works.</li>
+<li>[ ] CLI: skills from the backend are listed.</li>
+<li>[ ] CLI: with <code>&lt;backend&gt;</code> unreachable, OpenCode starts with the cached config.</li>
+<li>[ ] OpenWork v1: join via install link, branding shown, policy enforced
+      (try a blocked action), Connect healthy.</li>
+<li>[ ] OpenWork v1: after the plugin commands and a restart, same models, MCPs
+      and skills as the CLI.</li>
+<li>[ ] Revoking the user's session makes models fail and the next start deliver
+      nothing.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

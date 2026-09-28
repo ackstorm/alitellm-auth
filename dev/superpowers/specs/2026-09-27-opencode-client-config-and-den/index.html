@@ -1,0 +1,2092 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="OIDC identity + LiteLLM User/VirtualKey provisioning">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>alitellm-auth (platform) — takeover: per-user OpenCode client config and OpenWork Den - alitellm-auth</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#alitellm-auth-platform-takeover-per-user-opencode-client-config-and-openwork-den" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="alitellm-auth" class="md-header__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            alitellm-auth
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              alitellm-auth (platform) — takeover: per-user OpenCode client config and OpenWork Den
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="alitellm-auth" class="md-nav__button md-logo" aria-label="alitellm-auth" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    alitellm-auth
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ackstorm/alitellm-auth" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../dex-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dex / OIDC integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#rev-4-aligned-with-ach-2026-09-28-supersedes-the-sections-it-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rev 4 — aligned with ACH (2026-09-28). SUPERSEDES the sections it names
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-goals-and-non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Goals and non-goals
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Goals and non-goals">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-goals
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-current-state-in-code-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Current state (in code today)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Current state (in code today)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-model-catalog-and-env-var" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Model catalog and env var
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-opencode-auth-plugin-clientsopencodeindexmjs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 OpenCode auth plugin — clients/opencode/index.mjs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-openwork-den-contract-srcapiappopenworkpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 OpenWork Den contract — src/api/app/openwork.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-already-written-not-in-the-repo-appendix-b" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Already written, not in the repo (Appendix B)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-decision-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Decision log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-design-per-user-client-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Design: per-user client config
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Design: per-user client config">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-server-get-apiopencodeconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Server: GET /api/opencode/config
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.2 Server: GET /api/opencode/config">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#421-response-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2.1 Response schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#422-building-the-config-per-request-cached-per-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2.2 Building the config (per request, cached per user)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#423-server-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2.3 Server limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-plugin-changes-clientsopencodeindexmjs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Plugin changes — clients/opencode/index.mjs
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.3 Plugin changes — clients/opencode/index.mjs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#431-platform-bootstrap-remove-the-dependency-on-apijson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.1 Platform bootstrap (remove the dependency on api.json)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#432-token-in-the-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.2 Token in the hook
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#433-merge-rule-fillmissingtarget-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.3 Merge rule fillMissing(target, source)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#434-cache-and-failure-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.4 Cache and failure handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#435-skills-materialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.5 Skills materialization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#436-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.6 Release
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-openwork-engine-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 OpenWork (engine v1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-skill-text-update-after-4-ships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Skill text update (after §4 ships)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-rollout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6 Rollout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#47-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-openwork-den-contract-facts-gathered-for-future-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. OpenWork Den — contract facts gathered (for future work)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. OpenWork Den — contract facts gathered (for future work)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-install-link-v1install-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 Install link (/v1/install-config)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-bootstrap-file-mdm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 Bootstrap file (MDM)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-connect-skills-reference-only-not-used-d-11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 Connect skills (reference only — not used, D-11)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54-connect-direct-mcp-exposure-deferred-d-9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4 Connect direct MCP exposure (deferred, D-9)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55-things-den-cannot-do-checked" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5 Things Den cannot do (checked)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-constraints-and-risks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Constraints and risks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-den-roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Den roadmap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Open questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-den-inside-alitellm-auth-what-stays-what-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Den inside alitellm-auth — what stays, what changes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. Den inside alitellm-auth — what stays, what changes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#91-stays-as-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.1 Stays as is
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#92-configurable-policy-task-71" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.2 Configurable policy (task 7.1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#93-install-link-task-73" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.3 Install link (task 7.3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-work-plan-execution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Work plan (execution order)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appendix-a-evidence-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix A — evidence index
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appendix-b-code-produced-in-the-design-session-verbatim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix B — code produced in the design session (verbatim)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Appendix B — code produced in the design session (verbatim)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#b1-srcapiappskillsmcp-setupmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B.1 src/api/app/skills/mcp-setup.md
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b2-srcapiappskills__init__py" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B.2 src/api/app/skills/__init__.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b3-srcapiteststest_skillspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B.3 src/api/tests/test_skills.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b4-changelog-add-under-unreleased" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B.4 CHANGELOG — add under ## [unreleased]
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="alitellm-auth-platform-takeover-per-user-opencode-client-config-and-openwork-den">alitellm-auth (platform) — takeover: per-user OpenCode client config and OpenWork Den</h1>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Status</td>
+<td>Takeover document, self-contained. Nothing from the design session was pushed: every line of code produced is in Appendix B. Decisions are settled unless listed in §8. Companion: <code>takeover-ach.md</code> (ACH side)</td>
+</tr>
+<tr>
+<td>Date</td>
+<td>2026-09-28 (rev 3: Den stays inside alitellm-auth)</td>
+</tr>
+<tr>
+<td>Owner</td>
+<td>Juan Carlos Moreno (DREAM)</td>
+</tr>
+<tr>
+<td>Repo</td>
+<td><code>ackstorm/alitellm-auth</code> ("platform", the lite product). ACH is a separate product that also implements §4.2 and needs its own Den (<code>takeover-ach.md</code> §7)</td>
+</tr>
+<tr>
+<td>Evidence base</td>
+<td><code>anomalyco/opencode</code> @ <code>b471c2b</code> (2026-09-26), <code>different-ai/openwork</code> @ <code>917f672</code> (2026-09-26), this repo @ <code>7605a9c</code> (v0.18.6)</td>
+</tr>
+<tr>
+<td>Audience</td>
+<td>An implementer who was not in the design conversation. Everything needed is here</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rev-4-aligned-with-ach-2026-09-28-supersedes-the-sections-it-names">Rev 4 — aligned with ACH (2026-09-28). SUPERSEDES the sections it names</h2>
+<p>Confirmed by both products. Where this section and the text below disagree, this section wins.</p>
+<ul>
+<li><strong>R4-1 Paths</strong> (both products, on the product's <strong>API origin</strong>: platform <code>api.ackstorm.ai</code>, ACH <code>ach.ackstorm.ai</code>):
+  <code>GET /clients/opencode/plugin</code> (npm tgz, anonymous) and <code>GET /clients/opencode/config</code>
+  (schema <code>ackstorm.opencode-config/1</code>, Bearer = AS access token). Replaces <code>/public/opencode-auth</code>
+  and <code>/api/opencode/config</code> everywhere below (§0, §2.2, §4.2, §4.3.1, §4.6, §10).
+  <code>platform.ackstorm.ai/public/opencode-auth</code> stays a <strong>permanent</strong> alias (saved in users'
+  <code>opencode.json</code>); ACH keeps <code>/platform/opencode-auth</code> the same way. Future: <code>/clients/&lt;tool&gt;/…</code>.</li>
+<li><strong>R4-2 Install story</strong> (identical docs): <code>opencode plugin https://&lt;origin&gt;/clients/opencode/plugin -g</code>
+  then <code>opencode auth login -p ackstorm</code> (verified on opencode 1.18.31: <code>plugin &lt;module&gt;</code>, <code>-g</code>, <code>-f</code>).</li>
+<li><strong>R4-3 Gateway (platform, gitops)</strong>: HTTPRoute <code>PathPrefix /clients/</code> → alitellm-auth, and
+  <code>/clients/*</code> in ext_authz <code>exemptPaths</code>. Required: authz strips <code>Authorization</code> and 401s expired
+  tokens, which would break "always 200". Rule: every endpoint under <code>/clients/</code> authenticates itself.
+  Never route <code>/config/*</code> on API hosts (LiteLLM admin endpoints).</li>
+<li><strong>R4-4 Plugin ownership</strong>: alitellm-auth owns <code>clients/opencode/</code>, product-neutral (no hardcoded
+  URLs or product names). ACH vendors a tag of this repo with a drift test; changes go upstream.
+  ACH needs the <strong>first tag carrying the config hook + <code>platform.json</code> support</strong> — announce it.</li>
+<li><strong>R4-5 <code>platform.json</code></strong> in the tgz: <code>{"api": "&lt;gateway&gt;/v1", "platform": "&lt;origin serving /clients/*&gt;"}</code>,
+  generated by each backend from its own settings (platform: repacked by the API from
+  <code>API_PUBLIC_URL</code>, deterministic bytes). Plugin: <code>api</code> → RFC 9728/8414 discovery and a minimal
+  <code>ackstorm</code> provider when it has no valid config (fresh install); <code>platform</code> + <code>/clients/opencode/config</code>
+  → config. Document <code>platform</code> in the plugin README as "the origin serving /clients/*".</li>
+<li><strong>R4-6 Contract</strong> unchanged from §4.2 (200 for any Bearer, baseline on invalid, 401 only for a
+  missing/malformed header, never 5xx, <code>no-store</code>, allow-listed keys).</li>
+<li><strong>R4-7 Model catalog — replaces §4.2.2 step 1</strong> (no operator <code>api.json</code>):
+  visibility = <code>/model_group/info</code> under the <strong>user's own key</strong>; everything it shows with
+  <code>mode == "chat"</code> is delivered. Capabilities, read with the <strong>master key</strong>, cached process-wide:
+  real model (a deployment in <code>/v2/model/info</code>) → its <code>model_info</code>; alias
+  (<code>router_settings.model_group_alias</code> via <code>/get/config/callbacks</code>) → the target's <code>model_info</code>;
+  router / unresolved → the <code>/model_group/info</code> row. The master key only enriches models the user's
+  key already allows; it never decides visibility. Verified on <code>api.ackstorm.ai</code> with an
+  <code>internal_user</code> key: <code>/model_group/info</code> lacks <code>cache_read</code> and pdf/audio/video; <code>/v2/model/info</code>
+  has them per deployment; the alias map is admin-only. Consequences: §6.6 (operator coupling) and
+  T9 are void; the operator's <code>api.json</code> is no longer read by clients or this endpoint (retire it
+  after the pilot). <code>variants</code>: not sent. OpenCode (1.18.31, v1 loader) auto-generates <code>low/medium/high</code>
+  for <code>reasoning: true</code> openai-compatible models and merges config variants on top (<code>disabled: true</code>
+  drops one); add them only if a model rejects an auto effort.</li>
+<li><strong>R4-8 MCP source may differ per product</strong>: platform lists <code>AS_SERVICES</code> (§4.2.2 step 2);
+  ACH lists <code>/v1/mcp/server</code> under the user's key. Same output shape.</li>
+<li><strong>R4-9 PROVIDER_NAME</strong> (2026-09-28): the provider id is not "ackstorm" by contract; it is each
+  deployment's PROVIDER_NAME (default "ai-platform"), carried to the plugin as
+  platform.json.provider. The skill is "genai-api". The schema string is unchanged.</li>
+</ul>
+<h2 id="0-summary">0. Summary</h2>
+<ol>
+<li><strong>Every OpenCode client (CLI and the OpenWork desktop on engine v1) gets its
+   configuration from its backend, per user, through the existing auth plugin.</strong>
+   The plugin already works against both platform and ACH (it discovers the
+   authorization server by RFC 9728/8414 from one URL). Its <code>config</code> hook calls
+   <code>GET /api/opencode/config</code> on the backend and merges the response <em>under</em> the
+   user's own config (user always wins), like OpenCode's remote-config layer.
+   The response schema <code>ackstorm.opencode-config/1</code> (§4.2.1) is the shared
+   contract: platform and ACH each implement it. This replaces
+   <code>OPENCODE_MODELS_URL</code>, manual provider setup and manual MCP setup.</li>
+<li><strong>No new user steps.</strong> Users keep doing exactly what they do today:
+   <code>opencode plugin https://&lt;backend&gt;/public/opencode-auth -g</code> then
+   <code>opencode auth login -p ackstorm</code>. Config is rebuilt on every start.</li>
+<li><strong>No new long-lived credential.</strong> The hook uses the OAuth token the plugin
+   already holds and refreshes.</li>
+<li><strong>OpenWork Den shrinks to what only it can do</strong>: desktop sign-in, <strong>enforced</strong>
+   desktop policy (the plugin only sets overridable defaults), branding, and
+   onboarding (install link, MDM bootstrap). It serves no models and no skills:
+   a skill needs an authenticated model to run, and before the plugin is signed
+   in there is none. <strong>Den stays inside alitellm-auth</strong> (<code>app/openwork.py</code>);
+   it is not extracted into a separate service (D-12).</li>
+<li>Platform and ACH remain <strong>separate products</strong>.</li>
+</ol>
+<hr />
+<h2 id="1-goals-and-non-goals">1. Goals and non-goals</h2>
+<h3 id="goals">Goals</h3>
+<ul>
+<li>G-1 A user's model list, model capabilities (image input, context, cost), MCP
+  servers and skills are defined server-side, per user, and reach both the
+  OpenCode CLI and OpenWork without editing files or setting env vars.</li>
+<li>G-2 Nothing sensitive is served unauthenticated. No static token is written to
+  disk beyond what OAuth already stores.</li>
+<li>G-3 Platform being down must not stop OpenCode from starting.</li>
+<li>G-4 User config (global <code>~/.config/opencode/opencode.json</code>, project
+  <code>opencode.json</code>) always overrides what platform delivers.</li>
+</ul>
+<h3 id="non-goals">Non-goals</h3>
+<ul>
+<li>Enforcement. Platform delivers defaults; it does not lock anything. Hard
+  enforcement is MDM / OpenCode managed config, out of scope.</li>
+<li>Hot reload inside a running session. Config applies at the next start.</li>
+<li>OpenWork engine v2 (<code>opencode2</code>). Not supported by this design; see §6.3.</li>
+<li>Pushing OpenCode plugins from the server. The auth plugin is installed by
+  the user with two terminal commands (§4.4 onboarding order).</li>
+</ul>
+<hr />
+<h2 id="2-current-state-in-code-today">2. Current state (in code today)</h2>
+<h3 id="21-model-catalog-and-env-var">2.1 Model catalog and env var</h3>
+<ul>
+<li>alitellm-operator renders <code>api.json</code> (models.dev format) from <code>LiteLLMModelAlias</code>
+  CRs into a ConfigMap, projected at <code>/app/public/opencode/api.json</code> and served
+  unauthenticated by the <code>/public</code> <code>StaticFiles</code> mount (<code>app/main.py:91-103</code>,
+  chart <code>values.yaml:177-194</code>).</li>
+<li>Users set <code>OPENCODE_MODELS_URL=https://&lt;platform&gt;/public/opencode</code> (base URL,
+  without <code>/api.json</code>; OpenCode appends it) before starting OpenCode. OpenWork
+  also honours it, but only from the launcher's environment: OpenWork's
+  <code>env.json</code> rejects <code>OPENCODE_*</code> keys, and when unset OpenWork forces
+  <code>https://models.openworklabs.com/</code> (<code>openwork apps/server/src/opencode-models-url.ts</code>).</li>
+<li>The served <code>api.json</code> still lists <code>env: ["LITELLM_API_KEY"]</code>; an exported key
+  masks an OAuth logout (TODO.md).</li>
+</ul>
+<h3 id="22-opencode-auth-plugin-clientsopencodeindexmjs">2.2 OpenCode auth plugin — <code>clients/opencode/index.mjs</code></h3>
+<ul>
+<li>Served as an npm tarball at <code>GET /public/opencode-auth</code> (<code>app/public.py</code>),
+  baked by the Dockerfile.</li>
+<li>Provider id <code>ackstorm</code> (constant <code>PROVIDER</code>). Two OAuth methods: browser
+  (DCR + PKCE + loopback) and RFC 8628 device grant.</li>
+<li><code>auth.loader</code> returns a <code>fetch</code> that refreshes the access token when it has
+  less than 60 s left, and persists it with <code>client.auth.set</code>.</li>
+<li>Discovery: provider API URL <strong>read from OpenCode's config</strong>
+  (<code>client.config.providers()</code> → provider <code>ackstorm</code> → first model <code>api.url</code> or
+  <code>options.baseURL</code>) → RFC 9728 → RFC 8414. <strong>This depends on the provider
+  already being in config, which today comes from <code>api.json</code>.</strong> §4.3.1 removes
+  that dependency.</li>
+<li>DCR result stored at <code>$XDG_DATA_HOME/opencode/ackstorm-client.json</code>.</li>
+</ul>
+<h3 id="23-openwork-den-contract-srcapiappopenworkpy">2.3 OpenWork Den contract — <code>src/api/app/openwork.py</code></h3>
+<p>Enabled by <code>OPENWORK_ENABLED</code>. Served at both <code>/api/den</code> and <code>/openwork/api/den</code>.
+Protocol traps are documented in <code>docs/plans/2026-09-18-openwork-den.md</code> §3 and
+<code>docs/references/openwork-connect.md</code>; read them before changing anything.</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Purpose</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /openwork</code></td>
+<td>Handoff page: requires platform (Dex) session, mints a single-use grant, deep-links the desktop</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>POST /api/den/v1/auth/desktop-handoff/exchange</code></td>
+<td>Grant → Den session token (30 d)</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>GET /api/den/v1/me</code>, <code>/me/orgs</code>, <code>POST /me/active-organization</code></td>
+<td>Identity, single org</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>GET /api/den/v1/resources</code></td>
+<td>Change-detection snapshot; <code>llmProviders: {}</code>, <code>marketplaces: []</code></td>
+<td>done (empty by design)</td>
+</tr>
+<tr>
+<td><code>GET /api/den/v1/me/desktop-config</code></td>
+<td>Branding + enforced policy. All <code>allow*</code> true; <code>allowZenModel: true</code></td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>GET /openwork/brand/{name}</code></td>
+<td>Logo/icon</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>POST /api/den/api/auth/sign-out</code>, <code>POST /api/den/v1/telemetry/ingest</code></td>
+<td>Required stubs</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>POST /api/den/v1/mcp/token</code></td>
+<td>Mints the desktop's Connect MCP bearer (opaque, 7 d, Redis)</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>POST /api/den/mcp/agent</code></td>
+<td>Connect MCP (Streamable HTTP): <code>search_capabilities</code>, <code>execute_capability</code>, resources <code>skill://index.json</code>, <code>automation://index.json</code></td>
+<td>done; catalog empty on <code>main</code></td>
+</tr>
+</tbody>
+</table>
+<p>Settings: <code>openwork_enabled</code>, <code>openwork_token_ttl_seconds</code>,
+<code>openwork_grant_ttl_seconds</code>, <code>openwork_brand_*</code>, <code>openwork_accent_color</code>,
+<code>openwork_blocked_commands</code>, <code>openwork_block_browser_uploads</code>,
+<code>openwork_org_name</code>, <code>openwork_org_slug</code>.</p>
+<h3 id="24-already-written-not-in-the-repo-appendix-b">2.4 Already written, not in the repo (Appendix B)</h3>
+<p>Produced during the design session and verified against <code>7605a9c</code> (full suite
+441 passed, <code>ruff@0.8.4</code> clean), but <strong>not pushed</strong>. Recreate from Appendix B:
+- <code>src/api/app/skills/mcp-setup.md</code> (B.1): SKILL.md (frontmatter
+  <code>name: mcp-setup</code>) that tells the agent how to add the gateway's OAuth MCP
+  servers to OpenCode (global or project), never write keys, restart,
+  <code>opencode mcp auth &lt;name&gt;</code>, check with <code>opencode mcp list</code> / <code>debug</code>,
+  troubleshoot 401/403, remove with <code>logout</code>.
+- <code>src/api/app/skills/__init__.py</code> (B.2): <code>mcp_setup_body(settings)</code> renders the
+  template, replacing <code>{{servers}}</code> with one line per <code>AS_SERVICES</code> key,
+  <code>- `&lt;svc&gt;`: `&lt;API_PUBLIC_URL&gt;/mcp/&lt;svc&gt;`</code>, sorted; fallback text when
+  empty. Not wired to any route; task T3 (§10) consumes it.
+- <code>src/api/tests/test_skills.py</code> (B.3), CHANGELOG entry (B.4), and this
+  document as <code>docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md</code>.
+- Nothing else changes: <code>openwork.py</code> and its tests stay as on <code>main</code>. (An
+  earlier iteration served the skill through the Den's Connect catalog; it was
+  dropped, D-11.)</p>
+<p>After §4 ships, update the skill text: servers will already be present
+(disabled) in the user's config, so the skill becomes "enable and sign in"
+rather than "add" (§4.5).</p>
+<hr />
+<h2 id="3-decision-log">3. Decision log</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Decision</th>
+<th>Rejected alternatives and why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D-1</td>
+<td>Per-user config is delivered by the auth plugin's <code>config</code> hook from <code>GET /api/opencode/config</code></td>
+<td>See D-2..D-5</td>
+</tr>
+<tr>
+<td>D-2</td>
+<td>Do <strong>not</strong> use OpenCode's <code>.well-known/opencode</code> remote config</td>
+<td>(a) Loaded only by the v1 config loader (<code>packages/opencode/src/config/config.ts:371-410</code>); the v2 loader (<code>packages/core/src/config.ts</code>) has neither remote config nor <code>{env:}</code> substitution, and OpenWork engine v2 runs <code>opencode2</code>. (b) The <code>.well-known</code> document is fetched <strong>unauthenticated</strong> by design; per-user config needs <code>remote_config</code> with a <code>{env:VAR}</code> header, i.e. a static token in <code>auth.json</code>. (c) Any fetch failure aborts startup (<code>Effect.die</code>, 2 retries). (d) It is only activated by <code>opencode auth login &lt;url&gt;</code>, an extra step; <code>opencode auth login -p ackstorm</code> does not trigger it</td>
+</tr>
+<tr>
+<td>D-3</td>
+<td>Keep the OAuth plugin; no static per-member API keys</td>
+<td>Den <code>per_member</code> credentials store a static secret with no refresh; the user rejected more long-lived tokens</td>
+</tr>
+<tr>
+<td>D-4</td>
+<td>Do <strong>not</strong> serve models through Den <code>llmProviders</code></td>
+<td>OpenWork keys Den providers as <code>lpr_…</code>, so the plugin's <code>ackstorm</code> auth would not bind (workaround: fixed <code>lpr_</code> id + plugin constant); OpenWork-only; the plugin hook covers CLI and OpenWork v1 with one mechanism</td>
+</tr>
+<tr>
+<td>D-5</td>
+<td>Drop <code>OPENCODE_MODELS_URL</code></td>
+<td>Needs launcher env on every machine (GUI apps do not inherit shells), overrides OpenWork's own catalog, cannot be set from OpenWork's <code>env.json</code></td>
+</tr>
+<tr>
+<td>D-6</td>
+<td>Merge platform config <strong>under</strong> user config</td>
+<td>Matches remote-config semantics the user asked for; there is no file layer below global (<code>remote &lt; global &lt; OPENCODE_CONFIG &lt; project &lt; .opencode &lt; inline &lt; managed</code>), so the layering is done in memory</td>
+</tr>
+<tr>
+<td>D-7</td>
+<td>Rebuild config at every OpenCode start, not on token refresh</td>
+<td>Providers/MCPs are built once at startup; mutating config later has no effect without an instance reload</td>
+</tr>
+<tr>
+<td>D-8</td>
+<td>Platform and ACH stay separate products; both need a Den</td>
+<td>Stated by owner</td>
+</tr>
+<tr>
+<td>D-9</td>
+<td>Den Connect "direct MCP" exposure (index <code>openwork://connect/mcp-servers/index.json</code>) not built</td>
+<td>Needs same-origin proxying of MCPs behind the Den origin plus an <code>enterpriseActivation</code> stamp; MCPs come via §4</td>
+</tr>
+<tr>
+<td>D-10</td>
+<td>Cloud plugins / marketplaces, usage limits, teams, automations, dashboards: not implemented</td>
+<td>Manual per-workspace install; cannot carry OpenCode plugins; gateway-specific shapes</td>
+</tr>
+<tr>
+<td>D-11</td>
+<td>Den serves <strong>no skills</strong> (Connect catalog stays empty) and no bootstrap skill</td>
+<td>A skill runs only through an authenticated model; before the plugin is signed in there is none (and <code>allowZenModel: false</code> removes the only built-in one). Skills come from §4 as native OpenCode skills</td>
+</tr>
+<tr>
+<td>D-12</td>
+<td>Den is reduced to sign-in, enforced policy, branding, onboarding, and <strong>stays inside alitellm-auth</strong></td>
+<td>Extraction into a standalone service was evaluated (own hostname, or same host via HTTPRoute path/query routing with a separate session cookie) and rejected by the owner: more moving parts than the problem warrants. Accepted cost: ACH needs its own Den implementation; <code>tests/test_openwork.py</code> (41 tests) is the executable contract it must satisfy (§9)</td>
+</tr>
+<tr>
+<td>D-13</td>
+<td><code>ackstorm.opencode-config/1</code> is a shared contract, implemented by each backend; the plugin is product-neutral</td>
+<td>The plugin already works against platform and ACH; only the backend URL differs (§4.3.1)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-design-per-user-client-config">4. Design: per-user client config</h2>
+<h3 id="41-flow">4.1 Flow</h3>
+<div class="highlight"><pre><span></span><code>opencode / OpenWork engine v1 start
+  └─ load config (global, OPENCODE_CONFIG, project, .opencode)          [cfg]
+  └─ load plugins (auth plugin from global config)
+       └─ plugin.config(cfg)                                            [awaited]
+            ├─ bootstrap: platform base URLs (§4.3.1)
+            ├─ access token: stored OAuth for "ackstorm", refresh if needed
+            ├─ GET {platform}/api/opencode/config  (Bearer, 2 s timeout)
+            │     ok  → write cache, use body
+            │     err → use cache if same user and &lt; 30 d, else nothing
+            ├─ fillMissing(cfg, body.config)        user keys always win
+            └─ materialize body.skills → cfg.skills.paths += dir
+  └─ provider / agent / mcp / skill services read cfg
+</code></pre></div>
+<p>Verified: OpenCode awaits every plugin's <code>config</code> hook and logs-and-ignores a
+throw (<code>packages/opencode/src/plugin/index.ts:245-252</code>); providers are read after
+plugins "so config() hook runs before reading cfg.provider"
+(<code>provider/provider.ts:1440-1444</code>); agents depend on the plugin service
+(<code>agent/agent.ts:93</code>). <strong>Not verified</strong>: that <code>mcp</code> and <code>skills</code> state is built
+after the hook for every entry point (<code>mcp/index.ts:496</code>, <code>skill/index.ts:211</code>
+read the same <code>cfg</code> object). Test T-P6 is mandatory before relying on it.</p>
+<h3 id="42-server-get-apiopencodeconfig">4.2 Server: <code>GET /api/opencode/config</code></h3>
+<p><strong>Route</strong>: <code>app/opencode_config.py</code> (new router), registered in <code>create_app()</code>
+before the <code>/public</code> mount. Host: platform (same app as <code>/api/*</code>).</p>
+<p><strong>Auth</strong>: <code>Authorization: Bearer &lt;front-door access token&gt;</code> as issued by this
+app's AS (<code>app/oauth_as</code>). The app does not verify these JWTs today (the Go
+authz does, on <code>api.*</code>). Add <code>Signer.verify(token) -&gt; claims</code> in
+<code>app/oauth_as/tokens.py</code> using the same key pair: check signature, <code>iss ==
+settings.as_issuer</code>, <code>aud == settings.as_audience</code>, <code>exp</code>. Identity = <code>sub</code>
+(the user's email, same as <code>resolve_front_key(sub)</code>). No session cookie, no
+same-origin guard (non-browser GET), <code>Cache-Control: no-store</code>.</p>
+<p><strong>Status codes — hard rule</strong>: this endpoint returns <strong>200 JSON</strong> for any request
+that carries a syntactically valid Bearer, even when the token is expired,
+revoked or the user is unknown. In that case the body is the <em>baseline</em>
+(§4.2.3) plus <code>"auth": "invalid"</code>. Rationale: the plugin must be able to tell
+"sign in again" from "platform down", and nothing in the client path should
+depend on status parsing. Missing/malformed header → 401 (the plugin never
+sends that).</p>
+<h4 id="421-response-schema">4.2.1 Response schema</h4>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"schema"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ackstorm.opencode-config/1"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sha256:&lt;hex of canonical JSON of config+skills&gt;"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"user"</span><span class="p">:</span><span class="w"> </span><span class="s2">"jane@example.com"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"environment"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"auth"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ok"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"stale"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"generatedAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-09-27T10:00:00Z"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"provider"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"ackstorm"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ACKstorm"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"npm"</span><span class="p">:</span><span class="w"> </span><span class="s2">"@ai-sdk/openai-compatible"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"options"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"baseURL"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://api.ackstorm.ai/v1"</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">"models"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">"ackstorm.smart"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ACKstorm Smart"</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">"attachment"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">"tool_call"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">"modalities"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"text"</span><span class="p">,</span><span class="w"> </span><span class="s2">"image"</span><span class="p">],</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"text"</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<span class="w">            </span><span class="nt">"limit"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"context"</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">32000</span><span class="w"> </span><span class="p">},</span>
+<span class="w">            </span><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">15</span><span class="w"> </span><span class="p">}</span>
+<span class="w">          </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">"mcp"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"mcp-aws-eks-ro"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"remote"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://api.ackstorm.ai/mcp/mcp-aws-eks-ro"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"skills"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mcp-setup"</span><span class="p">,</span><span class="w"> </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sha256:&lt;hex&gt;"</span><span class="p">,</span><span class="w"> </span><span class="nt">"files"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"SKILL.md"</span><span class="p">:</span><span class="w"> </span><span class="s2">"---\nname: mcp-setup\n..."</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<ul>
+<li>This schema is shared with ACH (<code>takeover-ach.md</code> §3) and must stay identical. <code>environment</code> is always <code>null</code> on platform (no environments); ACH sets it.</li>
+<li><code>config</code> is OpenCode config (v1 schema). Allowed top-level keys in v1 of this
+  endpoint: <code>provider</code>, <code>mcp</code>, <code>instructions</code>. Anything else is a server bug;
+  the plugin ignores unknown keys (§4.3.3).</li>
+<li><code>config</code> <strong>never</strong> contains: <code>plugin</code>, <code>permission</code>, <code>agent</code>, <code>command</code>,
+  <code>enabled_providers</code>, <code>disabled_providers</code>, keys or tokens, <code>{env:…}</code> or
+  <code>{file:…}</code> templates. Platform must not be able to install code or widen
+  permissions on clients.</li>
+<li><code>skills[].files</code> is inline text; only <code>SKILL.md</code> in v1; max 256 KiB per file,
+  max 50 skills. <code>name</code> is kebab-case ≤ 64.</li>
+</ul>
+<h4 id="422-building-the-config-per-request-cached-per-user">4.2.2 Building the config (per request, cached per user)</h4>
+<ol>
+<li><strong>Models.</strong> Load <code>/app/public/opencode/api.json</code> (operator output; reload on
+   mtime change). Take the provider entry whose id is <code>ackstorm</code> (constant
+   <code>OPENCODE_PROVIDER_ID</code>, must equal the plugin's <code>PROVIDER</code>). Fetch the
+   user's visible model groups with <code>list_litellm_models(settings,
+   await _user_key(email, settings))</code> (same call as <code>GET /api/session/models</code>).
+   Output models = <code>api.json</code> models whose id is in the user's list. Copy per
+   model only these keys: <code>name, family, release_date, attachment, reasoning,
+   temperature, tool_call, interleaved, cost, limit, modalities, status,
+   options, headers, variants</code>. Provider block: <code>name</code>, <code>npm</code>, <code>api</code>, <code>options</code>
+   from <code>api.json</code>; <strong>drop <code>env</code></strong> (auth comes from the plugin; an <code>env</code> entry
+   would re-enable the <code>LITELLM_API_KEY</code> override).</li>
+<li><strong>MCP servers.</strong> For each key in <code>settings.services</code> (<code>AS_SERVICES</code>) the user
+   may use: <code>{type: "remote", url: "{API_PUBLIC_URL}/mcp/{svc}", enabled: false}</code>.
+   "May use" = present in <code>list_litellm_mcp_servers</code> under the user key (the
+   helper behind <code>GET /api/session/mcp</code>). <strong>Caveats</strong>: (a) the mapping from an
+   <code>AS_SERVICES</code> key to a LiteLLM MCP server name is not settled (§8 Q-3);
+   (b) CLAUDE.md "Known gap — MCP": a team's <code>mcp_servers: []</code> does not deny,
+   so LiteLLM's per-user MCP list can be proxy-wide. Until both are settled,
+   include every <code>AS_SERVICES</code> key; a user without access fails at LiteLLM
+   (403 entitlement) after sign-in, which the skill explains.</li>
+<li><strong>Skills.</strong> v1: <code>mcp-setup</code> only, rendered by <code>app.skills.mcp_setup_body(settings)</code>
+   (Appendix B.2, task T1).</li>
+<li><strong>Instructions.</strong> None in the normal case. Baseline with <code>auth: "invalid"</code>
+   adds nothing to <code>config</code>; the plugin surfaces the message (§4.3.4).</li>
+<li><strong>Degradation.</strong> Keep the last good result per user in Redis
+   (<code>opencode_config:{email}</code>, TTL 30 d; reuse the <code>oauth_as</code> store). If
+   LiteLLM fails, return that entry (<code>"stale": true</code>). If there is none, return
+   the baseline: <code>api.json</code> provider with <strong>all</strong> its models, no MCP, skills.
+   Never 5xx for upstream failures.</li>
+<li><strong>Baseline</strong> (unknown/invalid token): <code>{schema, version, user: null,
+   environment: null, auth: "invalid", config: {}, skills: []}</code>. Do not leak the org's model or MCP list
+   to an unauthenticated caller.</li>
+</ol>
+<h4 id="423-server-limits">4.2.3 Server limits</h4>
+<ul>
+<li>p95 &lt; 300 ms warm; hard deadline 1.5 s, after which serve the cached entry.</li>
+<li>Response &lt; 1 MiB.</li>
+<li>Log <code>user</code>, <code>version</code>, <code>stale</code>; never log tokens or skill bodies.</li>
+</ul>
+<h3 id="43-plugin-changes-clientsopencodeindexmjs">4.3 Plugin changes — <code>clients/opencode/index.mjs</code></h3>
+<h4 id="431-platform-bootstrap-remove-the-dependency-on-apijson">4.3.1 Platform bootstrap (remove the dependency on api.json)</h4>
+<p>The hook runs before the <code>ackstorm</code> provider exists (it is what creates it), so
+discovery cannot read the provider from config any more.</p>
+<ul>
+<li><code>GET /public/opencode-auth</code> serves the tarball with an extra file
+  <code>platform.json</code>: <code>{"api": "&lt;API_PUBLIC_URL&gt;", "platform": "&lt;APP_BASE_URL&gt;"}</code>.
+  Generate it at app startup by repacking the baked tgz (deterministic mtime so
+  the tarball bytes are stable per deployment). Each deployment's plugin thus
+  knows its own endpoints.</li>
+<li>Override: plugin options. OpenCode passes the second element of a tuple spec
+  to the plugin (<code>plugin/index.ts:118</code>, <code>server(input, load.options)</code>):
+  <code>"plugin": [["https://…/public/opencode-auth", {"api": "…", "platform": "…"}]]</code>.</li>
+<li><code>discover()</code> uses <code>platform.json.api</code> (or the option) as the API URL, then
+  RFC 9728 → RFC 8414 as today. Remove <code>client.config.providers()</code> from it.</li>
+</ul>
+<h4 id="432-token-in-the-hook">4.3.2 Token in the hook</h4>
+<ul>
+<li>Read the stored credential for <code>ackstorm</code> from
+  <code>$XDG_DATA_HOME/opencode/auth.json</code> (the hook has no <code>getAuth</code>). If absent or
+  not <code>type: "oauth"</code> → skip the fetch, use nothing (not the cache: the user
+  signed out).</li>
+<li>If <code>expires &lt; now + 60 s</code>: refresh with the same code path as <code>loader.fetch</code>
+  (share one function and the <code>refreshing</code> guard). Persist with
+  <code>client.auth.set</code>. If that call fails because the server is not up yet,
+  keep the new tokens in a module variable that <code>loader.fetch</code> reads first.
+  <strong>Must not</strong> write <code>auth.json</code> directly (two writers).</li>
+<li>A failed refresh (<code>invalid_grant</code>) = signed out: no fetch, show the
+  sign-in message (§4.3.4).</li>
+</ul>
+<h4 id="433-merge-rule-fillmissingtarget-source">4.3.3 Merge rule <code>fillMissing(target, source)</code></h4>
+<ul>
+<li>Only keys in the allow-list (<code>provider</code>, <code>mcp</code>, <code>instructions</code>) are read from
+  <code>source</code>; everything else is ignored.</li>
+<li>Objects: recurse. A key absent in <code>target</code> is copied from <code>source</code>.</li>
+<li>Scalars and arrays present in <code>target</code>: keep <code>target</code>.</li>
+<li><code>instructions</code>: append the source entries not already present.</li>
+<li>Consequences: a user's <code>mcp.x.enabled: true</code> sticks; a user-defined model
+  under <code>provider.ackstorm.models</code> keeps its values and gains missing ones;
+  deleting a server/model on the platform removes it at the next start unless
+  the user defined it themselves.</li>
+</ul>
+<h4 id="434-cache-and-failure-handling">4.3.4 Cache and failure handling</h4>
+<ul>
+<li>File <code>$XDG_DATA_HOME/opencode/ackstorm-config.json</code>, mode 0600:
+  <code>{user, version, fetchedAt, body}</code>.</li>
+<li>Fetch with <code>AbortSignal.timeout(2000)</code>. On success with <code>auth: "ok"</code>: write
+  cache, use body. On <code>auth: "invalid"</code>: delete cache, use nothing, set a
+  one-line notice. On network error/timeout/non-200: use cache if
+  <code>cache.user</code> equals the token's <code>sub</code> and <code>fetchedAt</code> &lt; 30 d.</li>
+<li>The hook never throws. Wrap everything; log once.</li>
+<li>Notice: add to <code>cfg.instructions</code> a single inline string such as
+  "ACKstorm sign-in expired: tell the user to run <code>opencode auth login -p
+  ackstorm</code>". <strong>Verify</strong> OpenCode accepts inline text in <code>instructions</code> (it is
+  documented for paths/URLs/globs). If not, drop the notice; do not create files.</li>
+</ul>
+<h4 id="435-skills-materialization">4.3.5 Skills materialization</h4>
+<ul>
+<li>Directory <code>$XDG_DATA_HOME/opencode/ackstorm-skills/&lt;name&gt;/SKILL.md</code>, 0600/0700.</li>
+<li>Write only when <code>version</code> differs from <code>&lt;name&gt;/.version</code>; delete directories
+  of skills no longer listed.</li>
+<li>Append the directory to <code>cfg.skills.paths</code> (create the array if missing).</li>
+</ul>
+<h4 id="436-release">4.3.6 Release</h4>
+<ul>
+<li>Bump plugin version; users re-run <code>opencode plugin &lt;url&gt; -g -f</code> once (the
+  tarball is fetched at install and on first launch only; TODO.md).</li>
+</ul>
+<h3 id="44-openwork-engine-v1">4.4 OpenWork (engine v1)</h3>
+<ul>
+<li>The v1 engine loads the user's global <code>~/.config/opencode/opencode.json</code>
+  alongside OpenWork's runtime config (<code>OPENCODE_CONFIG</code>), so the globally
+  installed plugin and its hook run there too. The owner runs v1 today.</li>
+<li>Den (<code>app/openwork.py</code>) sends no <code>llmProviders</code> and no skills.</li>
+<li><code>allowZenModel: false</code> becomes safe to ship once models come from the plugin
+  (§7.2). Keep <code>allowCustomProviders: true</code>: the <code>ackstorm</code> provider comes from
+  config, not from Den, and <code>false</code> would hide it.</li>
+<li>Onboarding order on a fresh OpenWork: install link or MDM file (Den) →
+  sign in to the org → user runs the two plugin commands in a terminal (they
+  cannot be delegated to the agent: no authenticated model exists yet) →
+  restart. Put the two commands in the Den branding/welcome text or the How-To;
+  no skill.</li>
+</ul>
+<h3 id="45-skill-text-update-after-4-ships">4.5 Skill text update (after §4 ships)</h3>
+<p><code>mcp-setup</code> becomes: "the organization's servers are already in your config,
+disabled. To use one: set <code>enabled: true</code> in your global or project config
+(or ask me to), restart, <code>opencode mcp auth &lt;name&gt;</code>". Keep the add-by-hand path
+as a fallback for users without the plugin.</p>
+<h3 id="46-rollout">4.6 Rollout</h3>
+<ol>
+<li>Server: <code>Signer.verify</code>, <code>/api/opencode/config</code>, cache, tests. Deploy.</li>
+<li>Plugin: bootstrap, hook, cache, skills; tarball with <code>platform.json</code>. Deploy.</li>
+<li>Pilot (DREAM): unset <code>OPENCODE_MODELS_URL</code>, <code>opencode plugin &lt;url&gt; -g -f</code>,
+   restart. Check models (incl. image input on <code>ackstorm.smart</code>), MCP list,
+   skills, offline start (block platform host), revoked session.</li>
+<li>Update How-To (<code>src/ui/src/routes/HowTo.tsx</code>) and README: two commands, no env var.</li>
+<li>Remove <code>env</code> from the served <code>api.json</code> (operator side) and the
+   <code>LITELLM_API_KEY</code> instructions once the pilot is clean.</li>
+<li>Update <code>mcp-setup</code> text (§4.5).</li>
+</ol>
+<h3 id="47-tests">4.7 Tests</h3>
+<p>Server (<code>tests/test_opencode_config.py</code>):
+- T-S1 valid token → 200, models filtered to the user's LiteLLM list, <code>env</code>
+  absent, only allow-listed keys.
+- T-S2 expired / bad-signature / wrong-aud token → 200 baseline, <code>auth: invalid</code>,
+  no model or MCP names in body.
+- T-S3 no/malformed header → 401.
+- T-S4 LiteLLM down with cached entry → cached body, <code>stale: true</code>; without →
+  baseline with all <code>api.json</code> models.
+- T-S5 <code>version</code> stable across calls when inputs are unchanged.
+- T-S6 no forbidden keys (<code>plugin</code>, <code>permission</code>, <code>{env:</code>) ever in output (fuzz
+  over fixtures).</p>
+<p>Plugin (node test runner, <code>clients/opencode/test/</code>):
+- T-P1 <code>fillMissing</code> table tests (user wins, recursion, arrays, instructions append, allow-list).
+- T-P2 hook with mock platform: success writes cache; timeout uses cache;
+  other user's cache ignored; cache &gt; 30 d ignored; <code>auth: invalid</code> clears cache.
+- T-P3 no stored auth → no fetch, no cache use.
+- T-P4 refresh path shared with <code>loader.fetch</code>; single in-flight refresh.
+- T-P5 skills written, updated on version change, removed when dropped.
+- T-P6 <strong>integration against a real <code>opencode</code> v1 binary</strong> (pinned version):
+  hook-injected <code>provider</code>, <code>mcp</code> and <code>skills.paths</code> are visible via
+  <code>opencode models</code>, <code>opencode mcp list</code>, and the skill list. This settles the
+  unverified ordering in §4.1.</p>
+<hr />
+<h2 id="5-openwork-den-contract-facts-gathered-for-future-work">5. OpenWork Den — contract facts gathered (for future work)</h2>
+<p>Source: <code>different-ai/openwork@917f672</code>, plus this repo's
+<code>docs/references/openwork-provisioning.md</code> (2026-09-19) and
+<code>openwork-connect.md</code>.</p>
+<h3 id="51-install-link-v1install-config">5.1 Install link (<code>/v1/install-config</code>)</h3>
+<ul>
+<li>User pastes <code>https://&lt;origin&gt;/install?token=X</code> in Welcome → "Join
+  organization". The desktop GETs <code>/api/den/v1/install-config?token=X</code>
+  (matches our prefix). Other accepted forms: <code>https://&lt;host&gt;/v1/install-config?token=X</code>
+  (root path, not served by us) and <code>"&lt;host&gt; &lt;token&gt;"</code> (maps to the root path).</li>
+<li>Token: <code>^[A-Za-z0-9_-]{8,}$</code>. 404 → shown as "expired".</li>
+<li>Response (<code>packages/install-config/src/index.ts</code>): <code>{appName (≤64, default
+  "OpenWork"), clientName, webUrl (url), apiUrl (url), requireSignin (bool),
+  logoUrl (url|null), iconUrl (url|null)}</code>.</li>
+<li>Effect: writes the desktop bootstrap <code>baseUrl = webUrl</code>, <code>requireSignin</code>,
+  brand fields. Keeps <code>requireActivation</code> as it was; does <strong>not</strong> stamp
+  <code>enterpriseActivation</code>.</li>
+<li>The installer filename tag parser (<code>OpenWork--&lt;host&gt;--&lt;token&gt;.exe</code>) exists
+  in the package but has no consumer in the desktop at this commit.</li>
+</ul>
+<h3 id="52-bootstrap-file-mdm">5.2 Bootstrap file (MDM)</h3>
+<p><code>~/.config/openwork/desktop-bootstrap.json</code> (override
+<code>OPENWORK_DESKTOP_BOOTSTRAP_PATH</code>): <code>baseUrl</code> (required), <code>apiBaseUrl</code>,
+<code>requireSignin</code>, <code>requireActivation</code>, <code>brandAppName/LogoUrl/IconUrl</code>,
+<code>writtenAt</code> (newest wins), optional <code>enterpriseActivation {activatedAt,
+denBaseUrl}</code>. In the public build the handoff stamps <code>enterpriseActivation</code>
+only for the enterprise flavour (<code>forced-signin-page.tsx:113-121</code>), so a file
+drop is the only way to get the stamp there.</p>
+<h3 id="53-connect-skills-reference-only-not-used-d-11">5.3 Connect skills (reference only — not used, D-11)</h3>
+<ul>
+<li>v1 engine: <code>skill://index.json</code> strict schema → <code>&lt;available_remote_skills&gt;</code>
+  prompt block; the model calls <code>openwork-cloud_execute_capability {name:
+  "skill:&lt;name&gt;"}</code> and reads the returned SKILL.md. Remote skills are framed as
+  untrusted content subordinate to the user's request: they run when the user
+  asks, with normal permission prompts. No <code>enterpriseActivation</code> needed.</li>
+<li>v2 preview: <code>resources/read</code> of each <code>url</code>, materialized natively.</li>
+</ul>
+<h3 id="54-connect-direct-mcp-exposure-deferred-d-9">5.4 Connect direct MCP exposure (deferred, D-9)</h3>
+<p>Resource <code>openwork://connect/mcp-servers/index.json</code>, schema
+<code>openwork.connect/mcp-servers/1</code>, <code>servers[{connectionId, name, description,
+url, exposeDirectly}]</code> (≤100). <code>exposeDirectly: true</code> → desktop writes remote
+MCP <code>openwork-direct-&lt;slug&gt;-&lt;hash&gt;</code> with the Connect bearer as header and
+<code>oauth: false</code>. Constraints: <code>url</code> same origin as the Connect MCP URL, no
+query/hash; that origin must equal <code>enterpriseActivation.denBaseUrl</code> or the
+catalog is <code>untrusted_origin</code> and nothing is projected
+(<code>connect-mcp-server-catalog.ts</code>). If ever built: route
+<code>/mcp/connections/&lt;svc&gt;</code> on the Den origin, teach authz the opaque Connect
+token (Redis lookup → user → LiteLLM key), forward to the LiteLLM MCP gateway.
+Do not mint 7-day JWTs for it.</p>
+<h3 id="55-things-den-cannot-do-checked">5.5 Things Den cannot do (checked)</h3>
+<p>Push OpenCode plugins (<code>plugin: [...]</code>); auto-install cloud plugins (manual per
+workspace, gated by <code>allowManageExtensions</code>); set a models catalog URL; set
+<code>OPENCODE_*</code> env vars (<code>env.json</code> rejects them). OAuth for Den LLM providers is
+not merged upstream (credential-kind PRs #1920/#1934 closed).</p>
+<hr />
+<h2 id="6-constraints-and-risks">6. Constraints and risks</h2>
+<ul>
+<li>6.1 <strong>Unverified hook ordering for <code>mcp</code>/<code>skills</code></strong> (§4.1). Mitigation: T-P6
+  before rollout.</li>
+<li>6.2 <strong>Startup latency</strong>: up to 2 s added when platform is slow. Cache makes
+  the common case a local read after the first fetch is abandoned. Consider
+  "use cache immediately, refresh in background for next start" if pilots
+  complain. Not in v1 (YAGNI).</li>
+<li>6.3 <strong>OpenWork engine v2</strong> runs <code>opencode2</code> with its own
+  <code>OPENCODE_CONFIG_DIR</code> and a different config loader. It is unknown whether it
+  loads the user's global plugins. If it does not, neither the OAuth model
+  path nor this hook works there, and OpenWork v2 would need models via Den
+  (<code>llmProviders</code> with a fixed <code>lpr_</code> id) and auth via Den. Re-evaluate when
+  OpenWork makes v2 the default.</li>
+<li>6.4 <strong>Config is a defaults layer, not policy.</strong> Users can override or remove
+  anything locally.</li>
+<li>6.5 <strong>Plugin trust</strong>: the plugin runs with user privileges; the server must
+  never be able to change what code runs (hence no <code>plugin</code> key, §4.2.1).</li>
+<li>6.6 <strong>Operator coupling</strong>: model capabilities come only from <code>api.json</code>
+  (alitellm-operator). A model visible in LiteLLM but absent from <code>api.json</code>
+  is not delivered. Intended: the operator is the source of truth for
+  capabilities.</li>
+</ul>
+<hr />
+<h2 id="7-den-roadmap">7. Den roadmap</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Item</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>7.1</td>
+<td>Policy from configuration</td>
+<td>Next</td>
+<td>Today most <code>desktop-config</code> booleans are hard-coded in <code>den_desktop_config</code>. Add one <code>OPENWORK_POLICY_*</code> setting per field (§9.2), defaults = today's values, chart values under <code>openwork.policy</code></td>
+</tr>
+<tr>
+<td>7.2</td>
+<td><code>allowZenModel: false</code></td>
+<td>After §4 is live</td>
+<td>Via 7.1. Verify OpenCode Zen disappears and <code>ackstorm</code> stays</td>
+</tr>
+<tr>
+<td>7.3</td>
+<td>Install link <code>/api/den/v1/install-config</code></td>
+<td>Next</td>
+<td>§5.1 and §9.3. Static tokens from configuration; no expiry machinery</td>
+</tr>
+<tr>
+<td>7.4</td>
+<td>MDM bootstrap file</td>
+<td>Later</td>
+<td>Managed fleets (Izertis); §5.2</td>
+</tr>
+<tr>
+<td>7.5</td>
+<td>Connect catalog</td>
+<td>Stays empty</td>
+<td>D-11. Keep <code>search_capabilities</code> + <code>execute_capability</code> only for the health check</td>
+</tr>
+<tr>
+<td>7.6</td>
+<td>Connect direct MCP exposure</td>
+<td>Not built</td>
+<td>D-9</td>
+</tr>
+<tr>
+<td>7.7</td>
+<td>Den <code>llmProviders</code></td>
+<td>Rejected</td>
+<td>D-4; revisit only for OpenWork v2 (§6.3)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-open-questions">8. Open questions</h2>
+<ul>
+<li>Q-1 <em>(closed, D-12)</em> Den stays inside alitellm-auth.</li>
+<li>Q-2 <em>(closed, D-11)</em> Den serves no skills.</li>
+<li>Q-7 <em>(closed, T14: <code>docs/plans/</code> is gitignored on purpose; CLAUDE.md, <code>openwork.py</code> and <code>test_openwork.py</code> now point at <code>tests/test_openwork.py</code> + <code>docs/references/openwork-*.md</code>)</em> <code>docs/plans/2026-09-18-openwork-den.md</code> is referenced by CLAUDE.md and
+  <code>openwork.py</code> ("MUST read §3 protocol traps") but is <strong>not tracked in git</strong>
+  at <code>7605a9c</code>. Recover it and commit it, or change both references to point
+  at <code>tests/test_openwork.py</code> + <code>docs/references/openwork-*.md</code>.</li>
+<li>Q-3 Mapping <code>AS_SERVICES</code> key → LiteLLM MCP server name, and the team-level
+  MCP deny gap, to filter MCPs per user (§4.2.2 step 2).</li>
+<li>Q-4 Does OpenCode accept inline text in <code>instructions</code>? (§4.3.4.)</li>
+<li>Q-5 Does <code>client.auth.set</code> work from inside the <code>config</code> hook at startup, or
+  is the local server not listening yet? (§4.3.2.) Decide the module-variable
+  fallback accordingly.</li>
+<li>Q-6 ACH's implementation of <code>ackstorm.opencode-config/1</code>: which identity the
+  plugin's token carries there and how ACH maps it to environments. Out of scope
+  for this repo; the schema must not assume platform internals (it does not:
+  §4.2.1 is plain OpenCode config plus skills).</li>
+</ul>
+<hr />
+<h2 id="9-den-inside-alitellm-auth-what-stays-what-changes">9. Den inside alitellm-auth — what stays, what changes</h2>
+<h3 id="91-stays-as-is">9.1 Stays as is</h3>
+<p>Everything in §2.3: routes, the double mount (<code>/api/den</code> and
+<code>/openwork/api/den</code>, because OpenWork keeps only the origin of the org server
+URL), the <code>/?desktopAuth=1</code> rescue middleware (<code>/</code>, <code>/ui</code>, <code>/ui/</code> → <code>/openwork</code>),
+CORS reflection scoped to the Den prefixes, the platform-session-based handoff
+(<code>auth.py::_auth_callback_ui</code> returns to <code>/openwork</code> when <code>openwork_handoff</code>
+is set), the Connect MCP with an <strong>empty</strong> catalog. <code>tests/test_openwork.py</code>
+(41 tests) and the Node reference <code>test/openwork-den/</code> (<code>den.mjs</code>, <code>smoke.sh</code>)
+remain the contract.</p>
+<h3 id="92-configurable-policy-task-71">9.2 Configurable policy (task 7.1)</h3>
+<p>Add to <code>app/config.py</code> (defaults = today's hard-coded values) and wire into
+<code>den_desktop_config</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Field</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>openwork_policy_allow_zen_model</code></td>
+<td><code>allowZenModel</code></td>
+<td><code>true</code> (→ <code>false</code> after §4, task 7.2)</td>
+</tr>
+<tr>
+<td><code>openwork_policy_allow_custom_providers</code></td>
+<td><code>allowCustomProviders</code></td>
+<td><code>true</code> (must stay true: the <code>ackstorm</code> provider comes from config)</td>
+</tr>
+<tr>
+<td><code>openwork_policy_allow_manage_extensions</code></td>
+<td><code>allowManageExtensions</code></td>
+<td><code>true</code> (users install the plugin)</td>
+</tr>
+<tr>
+<td><code>openwork_policy_allow_control_settings</code></td>
+<td><code>allowControlSettings</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>openwork_policy_allow_built_in_extensions</code></td>
+<td><code>allowBuiltInExtensions</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>openwork_policy_allow_multiple_workspaces</code></td>
+<td><code>allowMultipleWorkspaces</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>openwork_policy_allow_alpha_updates</code></td>
+<td><code>allowAlphaUpdates</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>openwork_policy_show_welcome_page</code></td>
+<td><code>showWelcomePage</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>openwork_blocked_commands</code> (exists)</td>
+<td><code>execution.blockedCommands</code></td>
+<td><code>[]</code> — non-empty disables interactive terminals</td>
+</tr>
+<tr>
+<td><code>openwork_block_browser_uploads</code> (exists)</td>
+<td><code>execution.blockBrowserUploads</code></td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<p>Keep <code>automationsEnabled: false</code>, <code>dashboardEnabled: false</code>,
+<code>connectEnabled: true</code> fixed. Test: every setting is reflected in the payload.</p>
+<h3 id="93-install-link-task-73">9.3 Install link (task 7.3)</h3>
+<ul>
+<li>Setting <code>openwork_install_tokens: dict[str, dict]</code>, token →
+  <code>{clientName, requireSignin}</code> (optionally <code>appName</code>); token must match
+  <code>^[A-Za-z0-9_-]{8,}$</code>.</li>
+<li>Route on <code>den_router</code> (so it exists under both prefixes):
+  <code>GET /api/den/v1/install-config?token=</code> → 200
+  <code>{appName: openwork_brand_app_name, clientName, webUrl: APP_BASE_URL,
+  apiUrl: APP_BASE_URL, requireSignin, logoUrl|null, iconUrl|null}</code>;
+  unknown token → 404 (the desktop shows "expired"). Public, no Den token.
+  CORS as the other Den routes.</li>
+<li>Link handed to users: <code>https://&lt;platform&gt;/install?token=&lt;token&gt;</code>. The desktop
+  maps <code>/install</code> to <code>/api/den/v1/install-config</code>, so platform does <strong>not</strong> need
+  an <code>/install</code> route; add a tiny HTML page there only if people open the link
+  in a browser.</li>
+<li><code>webUrl</code> must be the origin (<code>APP_BASE_URL</code>), not <code>/openwork</code>: the desktop
+  writes it as the org server base URL.</li>
+<li>Tests: known token → exact payload shape; unknown → 404; bad token format → 404;
+  <code>logoUrl</code>/<code>iconUrl</code> null when unset.</li>
+</ul>
+<hr />
+<h2 id="10-work-plan-execution-order">10. Work plan (execution order)</h2>
+<p>Each task is independently mergeable. "Done" = tests listed pass, CHANGELOG
+entry under <code>[unreleased]</code>, <code>ruff@0.8.4</code> clean, chart renders.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Task</th>
+<th>Depends</th>
+<th>Done when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>T1</td>
+<td>Add Appendix B files (skill template, renderer, tests, CHANGELOG) and this document under <code>docs/superpowers/specs/</code></td>
+<td>—</td>
+<td><code>tests/test_skills.py</code> green</td>
+</tr>
+<tr>
+<td>T2</td>
+<td><code>Signer.verify(token) -&gt; claims</code> in <code>app/oauth_as/tokens.py</code> (signature, <code>iss</code>, <code>aud</code>, <code>exp</code>)</td>
+<td>—</td>
+<td>unit tests: valid, expired, wrong aud, wrong key, garbage</td>
+</tr>
+<tr>
+<td>T3</td>
+<td><code>GET /api/opencode/config</code> (<code>app/opencode_config.py</code>): §4.2 — models from <code>api.json</code> ∩ user's LiteLLM list, <code>env</code> dropped, MCP entries from <code>AS_SERVICES</code> (<code>enabled: false</code>), <code>skills: [mcp-setup]</code>, Redis last-good cache per user, baseline on invalid token, never 5xx</td>
+<td>T1, T2</td>
+<td>T-S1..T-S6</td>
+</tr>
+<tr>
+<td>T4</td>
+<td>Tarball with <code>platform.json</code> (<code>{"api": API_PUBLIC_URL, "platform": APP_BASE_URL}</code>) repacked at startup, deterministic bytes</td>
+<td>—</td>
+<td>test: served tgz contains <code>package/platform.json</code> with deployment values; two startups produce identical bytes</td>
+</tr>
+<tr>
+<td>T5</td>
+<td>Plugin: discovery from <code>platform.json</code> / plugin options (no <code>client.config.providers()</code>), shared refresh function, <code>config</code> hook (§4.3.2–4.3.5), cache file, skills dir</td>
+<td>T3, T4</td>
+<td>T-P1..T-P5</td>
+</tr>
+<tr>
+<td>T6</td>
+<td>Integration test against a pinned <code>opencode</code> v1 binary</td>
+<td>T5</td>
+<td>T-P6 green: provider, mcp and skills from the hook visible</td>
+</tr>
+<tr>
+<td>T7</td>
+<td>Pilot (DREAM) per §4.6 step 3</td>
+<td>T6</td>
+<td>checklist in §4.6 passes on macOS and Linux, CLI and OpenWork v1</td>
+</tr>
+<tr>
+<td>T8</td>
+<td>Docs: How-To (<code>src/ui/src/routes/HowTo.tsx</code>), README, CLAUDE.md (remove <code>OPENCODE_MODELS_URL</code> guidance, add "config comes from the plugin")</td>
+<td>T7</td>
+<td>reviewed</td>
+</tr>
+<tr>
+<td>T9</td>
+<td>Operator: drop <code>env</code> from rendered <code>api.json</code> (alitellm-operator repo)</td>
+<td>T7</td>
+<td>released operator; served <code>api.json</code> has no <code>env</code></td>
+</tr>
+<tr>
+<td>T10</td>
+<td>Skill text → "enable and sign in" (§4.5)</td>
+<td>T7</td>
+<td>test updated</td>
+</tr>
+<tr>
+<td>T11</td>
+<td>Configurable Den policy (§9.2) — parallel with T2–T10</td>
+<td>—</td>
+<td>policy tests green; chart exposes <code>openwork.policy</code></td>
+</tr>
+<tr>
+<td>T12</td>
+<td>Install link (§9.3) — parallel</td>
+<td>—</td>
+<td>§9.3 tests green; a real desktop joins via <code>https://&lt;platform&gt;/install?token=…</code></td>
+</tr>
+<tr>
+<td>T13</td>
+<td><code>allowZenModel: false</code> in production values</td>
+<td>T7, T11</td>
+<td>Zen hidden in OpenWork v1, <code>ackstorm</code> models present</td>
+</tr>
+<tr>
+<td>T14</td>
+<td>Resolve Q-7 (missing Den plan doc)</td>
+<td>—</td>
+<td>CLAUDE.md references resolve</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="appendix-a-evidence-index">Appendix A — evidence index</h2>
+<p>OpenCode <code>b471c2b</code>:
+- Remote config via <code>.well-known</code>: <code>packages/opencode/src/config/config.ts:371-410</code>; login writes <code>{type: "wellknown", key, token}</code>: <code>cli/cmd/providers.ts:326-349</code>; fetch dies on error, HTML → <code>RemoteAuthError</code>: <code>config.ts:201-225</code>; retries: <code>util/effect-http-client.ts:4-11</code> (2 retries).
+- v2 config loader without remote/env substitution: <code>packages/core/src/config.ts</code>.
+- Plugin <code>config</code> hook awaited, errors ignored: <code>packages/opencode/src/plugin/index.ts:245-252</code>; plugin options: <code>index.ts:118</code>, <code>loader.ts:79</code>; hook type: <code>packages/plugin/src/index.ts:225</code>.
+- Providers read after plugins: <code>provider/provider.ts:1440-1444</code>.
+- Skills config <code>paths</code>/<code>urls</code>: <code>packages/core/src/v1/config/skills.ts</code>; URL discovery: <code>skill/discovery.ts</code>.
+- MCP remote config, OAuth on 401, <code>opencode mcp auth|list|logout|debug</code>, tokens in <code>~/.local/share/opencode/mcp-auth.json</code>: opencode docs "MCP servers".</p>
+<p>OpenWork <code>917f672</code>:
+- Models catalog default <code>https://models.openworklabs.com/</code>: <code>apps/server/src/opencode-models-url.ts</code>.
+- Den provider → engine config (per-model passthrough keys): <code>apps/app/src/react-app/domains/connections/provider-auth/cloud-provider-config.ts:285-362</code>.
+- Den LLM provider schema (<code>credential_mode shared|per_member</code>, member credentials with <code>state</code>): <code>ee/packages/den-db/src/schema/sharables/llm-providers.ts</code>; routes <code>ee/apps/den-api/src/routes/org/llm-providers.ts</code>.
+- Install config: <code>packages/install-config/src/index.ts</code>, <code>apps/app/src/react-app/domains/cloud/join-organization-dialog.tsx:117-167</code>.
+- Connect skills: <code>apps/server/src/connect-skill-catalog.ts</code>; direct MCP: <code>apps/server/src/connect-mcp-server-catalog.ts</code>; enterprise trust: <code>apps/server/src/enterprise-den-origin.ts</code>, <code>apps/app/src/react-app/domains/cloud/forced-signin-page.tsx:99-121</code>.
+- Engine v2 spawn (<code>opencode2</code>, own <code>OPENCODE_CONFIG_DIR</code>, inherited XDG): <code>apps/server/src/managed-opencode-v2.ts:195-245</code>, <code>engine-v2-preview.ts:170-184</code>.
+- Engine dir isolation only in dev mode: <code>apps/desktop/electron/runtime.mjs:1570-1620</code>.</p>
+<hr />
+<h2 id="appendix-b-code-produced-in-the-design-session-verbatim">Appendix B — code produced in the design session (verbatim)</h2>
+<p>Fenced with <code>~~~~</code> because the files contain triple-backtick fences. Copy the content between the fences exactly.</p>
+<h3 id="b1-srcapiappskillsmcp-setupmd">B.1 <code>src/api/app/skills/mcp-setup.md</code></h3>
+<div class="highlight"><pre><span></span><code>---
+name: mcp-setup
+<span class="gu">description: Add this organization's MCP servers to OpenCode (globally or for one project) and sign in to them with OAuth. Use when the user wants to connect, add, enable, authenticate, re-authenticate, troubleshoot or remove an MCP server.</span>
+<span class="gu">---</span>
+
+<span class="gh"># MCP setup</span>
+
+Every MCP server below is reached through the organization's gateway and signs in with
+OAuth. No API key, <span class="sb">`sk-`</span> key or bearer token ever goes into a config file: OpenCode runs
+the sign-in itself the first time the server answers 401, and keeps the tokens in its
+own store.
+
+<span class="gu">## Available servers</span>
+
+{{servers}}
+
+If the server the user wants is not listed, it is not available through this gateway.
+Say so and stop; do not invent a URL.
+
+<span class="gu">## 1. Choose the scope</span>
+
+Ask the user which one they want, unless they already said:
+
+<span class="k">-</span><span class="w"> </span><span class="gs">**Global**</span> (every project): <span class="sb">`~/.config/opencode/opencode.json`</span>, or <span class="sb">`opencode.jsonc`</span>
+  if that is the file that exists.
+<span class="k">-</span><span class="w"> </span><span class="gs">**This project only**</span>: <span class="sb">`opencode.json`</span> (or <span class="sb">`opencode.jsonc`</span>) at the project root.
+  It is usually committed, and that is fine: the entry holds only a URL.
+
+<span class="gu">## 2. Add the entry</span>
+
+Read the file first. Merge into the existing <span class="sb">`mcp`</span> object; never rewrite the file or
+drop keys you did not add. Keep comments in a <span class="sb">`.jsonc`</span> file. If the file does not exist,
+create it with <span class="sb">`"$schema": "https://opencode.ai/config.json"`</span>.
+
+<span class="sb">```json</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="nt">"mcp"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"&lt;name&gt;"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"remote"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;url from the list above&gt;"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+<span class="sb">```</span>
+
+Use the server name from the list as <span class="sb">`&lt;name&gt;`</span>. Do not add <span class="sb">`headers`</span> or an <span class="sb">`oauth`</span> block:
+the defaults are what make the OAuth sign-in work, and <span class="sb">`"oauth": false`</span> disables it.
+
+<span class="gu">## 3. Sign in</span>
+
+OpenCode and OpenWork only read the config at startup, so tell the user to restart
+OpenCode (or OpenWork) after editing it. Then either:
+
+<span class="k">-</span><span class="w"> </span><span class="gs">**In a terminal:**</span> <span class="sb">`opencode mcp auth &lt;name&gt;`</span> opens the browser. Run it for the user
+  if you have a shell and they are at this machine.
+<span class="k">-</span><span class="w"> </span><span class="gs">**In the chat:**</span> the first time a tool of that server is used, OpenCode shows a sign-in
+  link. Tell the user to open it.
+
+The sign-in can show two screens: the organization's single sign-on, then, for servers
+that act on an external account, that provider's consent screen. Both are expected.
+
+<span class="gu">## 4. Check</span>
+
+<span class="sb">`opencode mcp list`</span> shows every server and whether it is signed in. For one server
+that does not connect, <span class="sb">`opencode mcp debug &lt;name&gt;`</span> explains why.
+
+<span class="gu">## Troubleshooting</span>
+
+<span class="k">-</span><span class="w"> </span><span class="gs">**401 after signing in:**</span> the session expired or was revoked. Run
+  <span class="sb">`opencode mcp logout &lt;name&gt;`</span>, then <span class="sb">`opencode mcp auth &lt;name&gt;`</span>.
+<span class="k">-</span><span class="w"> </span><span class="gs">**403 `insufficient_scope`:**</span> the sign-in did not grant this server. Sign in again as
+  above; if it persists, the user's account lacks access to that server and an
+  administrator must grant it.
+<span class="k">-</span><span class="w"> </span><span class="gs">**Server missing from `opencode mcp list`:**</span> wrong file, invalid JSON, or OpenCode was
+  not restarted.
+
+<span class="gu">## Removing a server</span>
+
+Delete its entry from the config file and run <span class="sb">`opencode mcp logout &lt;name&gt;`</span>.
+
+<span class="gu">## Rules</span>
+
+<span class="k">-</span><span class="w"> </span>Never read, print or copy <span class="sb">`~/.local/share/opencode/mcp-auth.json`</span>; it holds tokens.
+<span class="k">-</span><span class="w"> </span>Never put a key or token in a config file, an environment variable or the chat.
+<span class="k">-</span><span class="w"> </span>Change only the <span class="sb">`mcp`</span> entries the user asked for.
+</code></pre></div>
+<h3 id="b2-srcapiappskills__init__py">B.2 <code>src/api/app/skills/__init__.py</code></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># SPDX-License-Identifier: Apache-2.0</span>
+<span class="sd">"""Skills served to OpenCode clients.</span>
+
+<span class="sd">Each skill is a SKILL.md template next to this module. Templates are rendered</span>
+<span class="sd">per request from Settings; nothing here reads user data. Delivered by</span>
+<span class="sd">`GET /api/opencode/config` (docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md</span>
+<span class="sd">§4.2.2), not by the OpenWork Den.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">app.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">Settings</span>
+
+<span class="n">MCP_SETUP</span> <span class="o">=</span> <span class="s2">"mcp-setup"</span>
+<span class="n">_TEMPLATE</span> <span class="o">=</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MCP_SETUP</span><span class="si">}</span><span class="s2">.md"</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">mcp_setup_body</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="n">Settings</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""SKILL.md for mcp-setup with the gateway's OAuth MCP servers filled in.</span>
+
+<span class="sd">    The list is AS_SERVICES: exactly the services a front-door token can carry as</span>
+<span class="sd">    a scope, so every entry is one OpenCode can sign in to. No per-user filtering</span>
+<span class="sd">    here; a server the user may not use answers 403 insufficient_scope, which the</span>
+<span class="sd">    skill explains.</span>
+<span class="sd">    """</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">api_public_url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">services</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">names</span> <span class="ow">and</span> <span class="n">base</span><span class="p">:</span>
+        <span class="n">servers</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- `</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">`: `</span><span class="si">{</span><span class="n">base</span><span class="si">}</span><span class="s2">/mcp/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">`"</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">servers</span> <span class="o">=</span> <span class="s2">"None are configured on this gateway yet."</span>
+    <span class="k">return</span> <span class="n">_TEMPLATE</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"{{servers}}"</span><span class="p">,</span> <span class="n">servers</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="b3-srcapiteststest_skillspy">B.3 <code>src/api/tests/test_skills.py</code></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># SPDX-License-Identifier: Apache-2.0</span>
+<span class="sd">"""Tests for the SKILL.md templates served to OpenCode clients."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">app.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">mcp_setup_body</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tests.as_defaults</span><span class="w"> </span><span class="kn">import</span> <span class="n">AS_TEST_DEFAULTS</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_settings</span><span class="p">(</span><span class="o">**</span><span class="n">overrides</span><span class="p">):</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">app.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">Settings</span>
+
+    <span class="n">base</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">app_base_url</span><span class="o">=</span><span class="s2">"http://localhost:8080"</span><span class="p">,</span>
+        <span class="n">session_secret_key</span><span class="o">=</span><span class="s2">"test-secret-32-chars-padding-xxxx"</span><span class="p">,</span>
+        <span class="n">oauth_issuer_url</span><span class="o">=</span><span class="s2">"http://dex.test/dex"</span><span class="p">,</span>
+        <span class="n">oauth_client_id</span><span class="o">=</span><span class="s2">"test-client"</span><span class="p">,</span>
+        <span class="n">oauth_client_secret</span><span class="o">=</span><span class="s2">"test-secret"</span><span class="p">,</span>
+        <span class="n">litellm_url</span><span class="o">=</span><span class="s2">"http://litellm.test"</span><span class="p">,</span>
+        <span class="n">litellm_master_key</span><span class="o">=</span><span class="s2">"sk-test"</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">AS_TEST_DEFAULTS</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">base</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Settings</span><span class="p">(</span><span class="o">**</span><span class="n">base</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_mcp_setup_lists_the_oauth_services_sorted</span><span class="p">():</span>
+    <span class="n">services</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">'{"mcp-google-drive": {"store": "google-drive", "broker": "https://b.test/g"},'</span>
+        <span class="s1">' "mcp-aws-eks-ro": {"store": "aws-eks-ro", "broker": "https://b.test/a"}}'</span>
+    <span class="p">)</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">mcp_setup_body</span><span class="p">(</span>
+        <span class="n">_settings</span><span class="p">(</span><span class="n">as_services</span><span class="o">=</span><span class="n">services</span><span class="p">,</span> <span class="n">api_public_url</span><span class="o">=</span><span class="s2">"https://api.example.com/"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">text</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"---</span><span class="se">\n</span><span class="s2">name: mcp-setup</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="s2">"{{servers}}"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">text</span>
+    <span class="k">assert</span> <span class="p">(</span>
+        <span class="s2">"- `mcp-aws-eks-ro`: `https://api.example.com/mcp/mcp-aws-eks-ro`</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"- `mcp-google-drive`: `https://api.example.com/mcp/mcp-google-drive`"</span>
+    <span class="p">)</span> <span class="ow">in</span> <span class="n">text</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_mcp_setup_without_services</span><span class="p">():</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">mcp_setup_body</span><span class="p">(</span><span class="n">_settings</span><span class="p">(</span><span class="n">as_services</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="n">api_public_url</span><span class="o">=</span><span class="s2">"https://api.example.com"</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="s2">"None are configured on this gateway yet."</span> <span class="ow">in</span> <span class="n">text</span>
+</code></pre></div>
+<h3 id="b4-changelog-add-under-unreleased">B.4 CHANGELOG — add under <code>## [unreleased]</code></h3>
+<div class="highlight"><pre><span></span><code><span class="gu">### Added</span>
+
+<span class="k">-</span><span class="w"> </span><span class="gs">**`mcp-setup` skill template for OpenCode clients.**</span> <span class="sb">`app/skills/mcp-setup.md`</span>
+  plus <span class="sb">`app.skills.mcp_setup_body(settings)`</span>, which fills in the gateway's OAuth
+  MCP servers from <span class="sb">`AS_SERVICES`</span> and <span class="sb">`API_PUBLIC_URL`</span>. Not served yet: it is
+  delivered by <span class="sb">`GET /api/opencode/config`</span> (spec
+  <span class="sb">`docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md`</span>).
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": [], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
