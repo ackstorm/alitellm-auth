@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.20.0] - 2026-09-28
+
 ### Changed
 
 - **Brand-neutral product.** Nothing user-facing names a specific company:
