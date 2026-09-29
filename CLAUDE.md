@@ -489,6 +489,7 @@ Never rely on env vars in tests. All test files have a local `make_test_settings
 ## External References
 
 - **OpenCode client config + OpenWork Den (design, in progress)**: spec `docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md` (decisions D-1..D-13, task list T1..T14); operator view `docs/references/openwork-opencode-config.md` (what comes from where, policy defaults, troubleshooting)
+- **Engine per machine (decision 2026-09-29)**: machines with OpenWork run OpenCode v1 only (OpenWork's v2 engine off); machines without OpenWork run v2. Never both (shared `opencode.db`). OpenWork engine v2 support is parked. See `OPENCODE.md` "Which engine on which machine"
 - **OpenCode one-URL install (v1 + v2)**: user/operator guide `OPENCODE.md` (linked from README); `docs/references/opencode-install.md` (engine matrix, manifest shape, gotchas); plan `docs/superpowers/plans/2026-09-29-opencode-wellknown-install.md`
 - **Authlib (OIDC client)**: use Context7 or WebSearch — API changes frequently between minor versions
 - **LiteLLM Admin API** (`/team/new`, `/key/generate`): use WebSearch for latest endpoint signatures

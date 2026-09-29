@@ -8,6 +8,21 @@ OpenCode engines are supported with the same plugin and the same platform URL:
 | v1 | 1.18.x |
 | v2 | 2.0.x |
 
+## Which engine on which machine
+
+**One engine per machine** (decided 2026-09-29):
+
+| Machine | Install | Why |
+|---|---|---|
+| **With OpenWork** | OpenCode **v1 only**. Keep OpenWork's "Experimental engine" (v2) **off**. | OpenWork's v1 engine loads the user's plugins, so our plugin works there. Its v2 engine runs a private config dir, loads only OpenWork's own plugins, and its connect dialog cannot start a v2 OAuth login: no platform models. |
+| **Without OpenWork** | OpenCode **v2** | The current engine; plugin, models, MCP and skills all work. |
+
+Never both engines on one machine: they share `~/.local/share/opencode/opencode.db`, and
+once v2 has migrated it, v1 fails with `Database is not empty and has no session table`.
+To run both anyway (testing only), give one of them its own `XDG_DATA_HOME`,
+`XDG_CONFIG_HOME`, `XDG_CACHE_HOME` and `XDG_STATE_HOME`. Don't unpack the binary as
+`/tmp/opencode`: it collides with OpenCode's temp dir (`EEXIST: mkdir '/tmp/opencode'`).
+
 Throughout this page, `https://platform.example.com` is the platform (console) URL and
 `ai-platform` is the provider id (the deployment's `PROVIDER_NAME`). Use your own values.
 
