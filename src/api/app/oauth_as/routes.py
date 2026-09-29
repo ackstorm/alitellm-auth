@@ -317,7 +317,7 @@ async def as_callback(request: Request):
     try:
         token = await oauth.oidc.authorize_access_token(request)
     except Exception as exc:  # Authlib raises several OAuthError subclasses.
-        logger.warning("Dex callback failed: %s", exc)
+        logger.warning("Dex callback failed: %r", exc)
         if pending.get("device_code"):
             await _device_settle(pending["device_code"], "denied")
         return _html_error(400, "the identity provider did not complete the login")
@@ -716,7 +716,7 @@ async def token(request: Request) -> JSONResponse:
         try:
             honoured = await _revalidate_at_dex(rec["sub"])
         except httpx.HTTPError as exc:
-            logger.warning("Refresh deferred, identity provider unreachable: %s", exc)
+            logger.warning("Refresh deferred, identity provider unreachable: %r", exc)
             return _error(503, "temporarily_unavailable", "identity provider unreachable")
         # Why the front key is NOT revoked on refusal (ach revokes its oauth pk_):
         # here the authz resolves sub → front key through /api/internal/front-key,

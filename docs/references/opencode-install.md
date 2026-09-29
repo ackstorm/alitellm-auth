@@ -37,3 +37,11 @@ This service serves no tarball: the only install is `/.well-known/opencode` → 
 - v2 managed-service port collision shows as `UnexpectedStatus: 500`.
 - opencode needs a TTY: never run login/run with stdout redirected (hangs).
 - Users type the PLATFORM URL (ingress.host). Serving it on the API host needs a gitops HTTPRoute rule for `/.well-known/opencode`.
+
+## Only the platform's provider
+
+The manifest's `config` also carries `"enabled_providers": ["<provider>"]`. v1 reads it as is;
+v2 turns it into `provider.use` policies (deny `*`, allow the provider; `normalize.ts:384-402`).
+Verified 2026-09-29: v1 `opencode models` and the v2 TUI `/models` list only the platform's
+provider. A default, not a lock: the user's own `opencode.json` overrides it. Note: on v2,
+`opencode models` (CLI) prints nothing (it does not load plugins); check the TUI picker.

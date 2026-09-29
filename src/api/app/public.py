@@ -91,6 +91,12 @@ async def opencode_wellknown(request: Request) -> Response:
     return JSONResponse(
         {
             "auth": {"command": ["opencode", "--version"], "env": ""},
-            "config": {"plugin": [[settings.opencode_plugin_spec, options]]},
+            # enabled_providers: only the platform's provider in the model picker. v1
+            # reads it as is; v2 turns it into provider.use policies (deny *, allow
+            # ours). A default, not a lock: the user's own opencode.json overrides it.
+            "config": {
+                "plugin": [[settings.opencode_plugin_spec, options]],
+                "enabled_providers": [settings.provider_name],
+            },
         }
     )

@@ -155,7 +155,8 @@ def test_wellknown_opencode_manifest_points_at_the_plugin_with_options():
                         "provider": "ai-platform",
                     },
                 ]
-            ]
+            ],
+            "enabled_providers": ["ai-platform"],
         },
     }
 
@@ -169,6 +170,7 @@ def test_wellknown_opencode_uses_configured_spec_and_provider():
     spec, opts = client.get("/.well-known/opencode").json()["config"]["plugin"][0]
     assert spec == "git+https://example.com/p.git#v9.9.9"
     assert opts["provider"] == "acme"
+    assert client.get("/.well-known/opencode").json()["config"]["enabled_providers"] == ["acme"]
 
 
 def test_wellknown_opencode_is_404_without_api_public_url():

@@ -255,7 +255,7 @@ async def auth_callback(request: Request) -> HTMLResponse | RedirectResponse:
     except Exception as exc:
         # Never render the raw exception (may carry issuer URLs / error_description)
         # into the page (#4). Log server-side, show a generic message.
-        logger.error("callback: OIDC token exchange failed: %s", exc)
+        logger.error("callback: OIDC token exchange failed: %r", exc)
         return templates.TemplateResponse(
             request,
             "error.html",
