@@ -540,7 +540,15 @@ async function applyV2Config(ctx) {
           id: pid,
           name: p?.name ?? pid,
           activation: "enabled",
-          package: p?.npm ?? "@ai-sdk/openai-compatible",
+          // v1's wire schema carries `npm` for the v1 loader (raw @ai-sdk/openai-compatible,
+          // which that loader consumes directly). v2's DynamicProviderPlugin expects a
+          // `.model(modelID, settings)` factory that the vanilla published package does not
+          // have at any version (opencode's own monorepo patches it in); their own built-in
+          // openai-compatible-style providers (e.g. LM Studio) use this wrapper instead
+          // (packages/core/src/plugin/provider/lmstudio.ts, verified against opencode 2.0.18).
+          // This is v2-runtime plumbing, not server config, so it's hardcoded here rather than
+          // trusting `p.npm` — verified end-to-end against a real device-grant login.
+          package: "@opencode/ai/providers/openai-compatible",
           integrationID: PROVIDER,
           settings: p?.options?.baseURL ? { baseURL: p.options.baseURL } : undefined,
         },
