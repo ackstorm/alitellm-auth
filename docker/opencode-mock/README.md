@@ -68,6 +68,22 @@ picker and open the printed `verification_uri_complete` yourself if you
 want, or just let the poll succeed (this mock auto-approves after one
 `authorization_pending`).
 
+## Troubleshooting
+
+- **`UnexpectedStatus: 500` on `opencode auth login`, docker logs show nothing
+  reached the container**: check `opencode`'s own log
+  (`<log_dir from 'opencode debug paths'>/*.log`), not docker's — the plugin's
+  fetch is failing before it ever reaches the network, so docker never sees a
+  request. Two known causes, both look identical from the CLI:
+  - `api`/`platform` in `opencode.json` don't match where the container
+    actually listens (wrong port, stray path suffix like `/v1`, or a leftover
+    value from an earlier provider name). They should both be exactly
+    `http://127.0.0.1:8000`, no path.
+  - A stale `opencode serve --service` background daemon still holds the
+    managed-service port from an earlier run — `pkill -f 'opencode serve
+    --service'` and retry, or pass `--standalone` to skip that daemon
+    entirely (`opencode auth login <provider> --method <id> --standalone`).
+
 ## Testing OpenWork
 
 OpenWork's engine v1 loads the same global `opencode.json`, so once the CLI
