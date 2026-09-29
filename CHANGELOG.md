@@ -2,9 +2,13 @@
 
 ## [unreleased]
 
+## [0.21.0] - 2026-09-29
+
 ### Added
 
 - `GET /.well-known/opencode`: `opencode auth login https://<platform>` installs the OpenCode SSO plugin on engines v1 and v2 (plugin moved to github.com/ackstorm/opencode-oidc-provider).
+- `OPENCODE_PLUGIN_SPEC` (Helm `config.opencodePluginSpec`, default `git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0`): the plugin the manifest installs.
+- `docker-compose.opencode-mock.yml`: standalone mock backend (OAuth AS, `/clients/opencode/config`, echo chat, `/.well-known/opencode`) for testing the plugin.
 
 ### Removed
 
