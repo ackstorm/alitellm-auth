@@ -4,7 +4,7 @@
 /clients/opencode/config and an OpenAI-compatible /v1/chat/completions.
 
 Zero dependencies (stdlib only) so it runs anywhere Python 3 does. Used to
-validate the clients/opencode plugin (v1 and v2) end to end, including
+validate the opencode-oidc-provider plugin (v1 and v2) end to end, including
 OpenWork, without needing a real ackstorm deployment. Not a security
 reference: PKCE/state are accepted without verification, tokens are opaque
 strings, nothing is persisted across restarts.
@@ -27,6 +27,7 @@ import urllib.parse
 PORT = int(os.environ.get("PORT", "8000"))
 ORIGIN = os.environ.get("ORIGIN", f"http://127.0.0.1:{PORT}")
 PROVIDER = os.environ.get("PROVIDER", "acktest")
+PLUGIN_SPEC = os.environ.get("PLUGIN_SPEC", "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0")
 MODEL_ID = os.environ.get("MODEL_ID", "echo-model")
 SHORT_TOKEN_SECONDS = int(os.environ.get("SHORT_TOKEN_SECONDS", "90"))
 LONG_TOKEN_SECONDS = int(os.environ.get("LONG_TOKEN_SECONDS", "3600"))
@@ -82,7 +83,7 @@ def config_body() -> dict:
                 PROVIDER: {
                     "name": "ACKstorm Mock",
                     # v1 field, kept for the v1 loader; the v2 plugin hardcodes its own
-                    # package (see clients/opencode/index.mjs) since the real
+                    # package (see opencode-oidc-provider index.mjs) since the real
                     # @ai-sdk/openai-compatible has no compatible .model() factory.
                     "npm": "@ai-sdk/openai-compatible",
                     "options": {"baseURL": f"{ORIGIN}/v1"},
@@ -149,6 +150,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlsplit(self.path)
         path, query = parsed.path, urllib.parse.parse_qs(parsed.query)
+
+        if path == "/.well-known/opencode":
+            return send(
+                self,
+                200,
+                {
+                    "auth": {"command": ["opencode", "--version"], "env": ""},
+                    "config": {
+                        "plugin": [[PLUGIN_SPEC, {"api": ORIGIN, "platform": ORIGIN, "provider": PROVIDER}]]
+                    },
+                },
+            )
 
         if path == "/.well-known/oauth-protected-resource":
             return send(self, 200, {"authorization_servers": [ORIGIN]})

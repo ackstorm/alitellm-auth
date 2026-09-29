@@ -4,7 +4,7 @@ Standalone, dependency-free mock of an `ackstorm.opencode-config/1` backend:
 fake OAuth AS (RFC 9728/8414 discovery, DCR, PKCE browser flow, RFC 8628
 device flow), `/clients/opencode/config`, and an OpenAI-compatible
 `/v1/chat/completions` that echoes back whatever you send it. Built to
-validate `clients/opencode/index.mjs` (both the v1 and v2 exports) and
+validate the `opencode-oidc-provider` plugin (both the v1 and v2 exports) and
 OpenWork end to end without a real ackstorm deployment.
 
 Not a security reference — PKCE/state aren't verified, tokens are opaque
@@ -30,26 +30,13 @@ default 3600s). Watch `POST /stats` before/after a model call to confirm
 
 ## Wire the plugin at it
 
-Global `opencode.json` (`~/.config/opencode/opencode.json`), plugin as a
-**directory** path (not the `.mjs` file — opencode v2 requires a directory
-for config-declared local plugins; only legacy `.opencode/plugins/*.js`
-auto-discovery accepts a bare file):
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    ["/absolute/path/to/alitellm-auth/clients/opencode",
-     {"api": "http://127.0.0.1:8000", "platform": "http://127.0.0.1:8000", "provider": "acktest"}]
-  ]
-}
-```
-
-Then, from a directory with no competing project-level `opencode.json`:
+Same as a real deployment: the mock serves `/.well-known/opencode`, so one URL
+installs the plugin (opencode v1 and v2; v2 commands take `--standalone`):
 
 ```bash
-opencode auth login          # bare, no target -- pick "acktest" from the list
-opencode models               # should list acktest/echo-model
+opencode auth login http://127.0.0.1:8000
+opencode auth login -p acktest      # v2: opencode auth login acktest --method sso-device
+opencode models                      # should list acktest/echo-model
 opencode run --model acktest/echo-model "hello"   # should echo it back
 ```
 

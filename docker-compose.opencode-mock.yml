@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Standalone mock of an ackstorm.opencode-config/1 backend (fake OAuth AS +
 # /clients/opencode/config + OpenAI-compatible chat) for testing the
-# clients/opencode plugin (v1 and v2) and OpenWork end to end, without a real
+# opencode-oidc-provider plugin (v1 and v2) and OpenWork end to end, without a real
 # deployment. See docker/opencode-mock/README.md.
 #
 #   docker compose -f docker-compose.opencode-mock.yml up --build
@@ -18,6 +18,7 @@ services:
       # Override if this is reached at a different host/port than the container
       # publishes (e.g. a reverse proxy, or testing from another machine over LAN):
       # ORIGIN: "http://<this-host>:8000"
+      # PLUGIN_SPEC: "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0"
       PROVIDER: acktest
       MODEL_ID: echo-model
       SHORT_TOKEN_SECONDS: "90"
