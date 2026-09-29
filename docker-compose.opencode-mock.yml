@@ -14,6 +14,7 @@ services:
       - "8000:8000"
     environment:
       PORT: "8000"
+      PYTHONUNBUFFERED: "1"
       # Override if this is reached at a different host/port than the container
       # publishes (e.g. a reverse proxy, or testing from another machine over LAN):
       # ORIGIN: "http://<this-host>:8000"

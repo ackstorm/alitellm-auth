@@ -576,8 +576,11 @@ async function applyV2Config(ctx) {
   }
 }
 
+// One file, both engines: opencode v1 reads `server` (it rejects a default export
+// with an id but no server()); v2 reads `setup`.
 export default {
   id: "ackstorm",
+  server: SsoAuth,
   async setup(ctx) {
     const { provider } = await backend(ctx.options)
     if (PROVIDER_ID.test(provider ?? "")) PROVIDER = provider
