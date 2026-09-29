@@ -181,6 +181,10 @@ def test_wellknown_opencode_carries_no_secrets():
         "session_secret_key": "SESSION-SECRET",
         "oauth_client_secret": "OAUTH-SECRET",
     }
-    raw = _client(api_public_url="https://api.example.com", **secrets).get("/.well-known/opencode").text
+    raw = (
+        _client(api_public_url="https://api.example.com", **secrets)
+        .get("/.well-known/opencode")
+        .text
+    )
     for value in secrets.values():
         assert value not in raw
