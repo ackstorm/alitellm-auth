@@ -61,6 +61,15 @@ caller's LiteLLM key. Coding agents get that JWT three ways.
 
 ### OpenCode
 
+Which engine to install:
+
+| Machine | OpenCode | Why |
+|---|---|---|
+| **Personal machines** (laptops, desktops; where OpenWork runs) | **v1** | OpenWork loads our plugin only on its v1 engine. Keep OpenWork's "Experimental engine" off. |
+| **Remote / external machines** (servers, VMs, dev containers, headless hosts) | **v2** | No OpenWork there; v2 is the current engine. |
+
+Never both engines on the same machine: they share `~/.local/share/opencode/opencode.db`.
+
 ```bash
 opencode auth login https://platform.example.com   # installs the plugin (engines v1 and v2)
 opencode auth login -p ai-platform                  # SSO; on opencode v2: opencode auth login ai-platform

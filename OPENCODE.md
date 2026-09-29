@@ -14,8 +14,8 @@ OpenCode engines are supported with the same plugin and the same platform URL:
 
 | Machine | Install | Why |
 |---|---|---|
-| **With OpenWork** | OpenCode **v1 only**. Keep OpenWork's "Experimental engine" (v2) **off**. | OpenWork's v1 engine loads the user's plugins, so our plugin works there. Its v2 engine runs a private config dir, loads only OpenWork's own plugins, and its connect dialog cannot start a v2 OAuth login: no platform models. |
-| **Without OpenWork** | OpenCode **v2** | The current engine; plugin, models, MCP and skills all work. |
+| **Personal machines** (with OpenWork) | OpenCode **v1 only**. Keep OpenWork's "Experimental engine" (v2) **off**. | OpenWork's v1 engine loads the user's plugins, so our plugin works there. Its v2 engine runs a private config dir, loads only OpenWork's own plugins, and its connect dialog cannot start a v2 OAuth login: no platform models. |
+| **Remote / external machines** (servers, VMs, dev containers; no OpenWork) | OpenCode **v2** | The current engine; plugin, models, MCP and skills all work. |
 
 Never both engines on one machine: they share `~/.local/share/opencode/opencode.db`, and
 once v2 has migrated it, v1 fails with `Database is not empty and has no session table`.
