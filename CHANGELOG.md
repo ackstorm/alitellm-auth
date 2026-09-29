@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.21.2] - 2026-09-29
+
 ### Changed
 
 - `/clients/opencode/config` registers every MCP server the user's own LiteLLM key lists (plus `AS_SERVICES`), disabled, at `<api>/mcp/<name>`. An MCP list failure keeps the models and `AS_SERVICES`.
