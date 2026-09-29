@@ -88,11 +88,12 @@ describe('HowTo — model picker', () => {
 });
 
 describe('HowTo — OpenCode SSO plugin', () => {
-  it('shows the plugin install as the default OpenCode variant, using provider_name', () => {
+  it('shows the one-URL install for both engines, using provider_name', () => {
     setModels([]);
     render(<HowTo />);
     expect(
-      screen.getByText(/opencode auth login -p acme/),
+      screen.getByText(new RegExp(`opencode auth login ${window.location.origin}`)),
     ).toBeInTheDocument();
+    expect(screen.getByText(/opencode auth login -p acme/)).toBeInTheDocument();
   });
 });

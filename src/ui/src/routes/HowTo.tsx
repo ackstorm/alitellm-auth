@@ -303,11 +303,12 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
           subLabel: 'SSO plugin',
           ready: true,
           caption: 'terminal (once)',
-          // The platform's OpenCode plugin: SSO sign-in, and at every start the
-          // user's models, MCP servers (disabled) and skills. No key, no env var.
-          code: `opencode plugin ${apiBase}/clients/opencode/plugin -g
-opencode auth login -p ${config.provider_name}`,
-          note: 'Restart OpenCode afterwards. Models appear under the provider shown above; MCP servers appear disabled (enable one in opencode.json, then `opencode mcp auth <name>`). Unset OPENCODE_MODELS_URL and any exported key for this provider.',
+          // The platform's OpenCode plugin (engines v1 and v2): the first command
+          // installs it from <origin>/.well-known/opencode with this deployment's
+          // options; the second signs in. No key, no env var.
+          code: `opencode auth login ${window.location.origin}
+opencode auth login -p ${config.provider_name}   # opencode v2: opencode auth login ${config.provider_name}`,
+          note: 'Restart OpenCode afterwards. Models appear under the provider shown above; MCP servers appear disabled (enable one in opencode.json, then `opencode mcp auth <name>`). Unset OPENCODE_MODELS_URL and any exported key for this provider. Installed with the old `opencode plugin …/clients/opencode/plugin -g`? It keeps working on opencode v1; run the first command before moving to v2.',
         },
         {
           id: 'opencode-gemini',

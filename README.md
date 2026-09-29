@@ -61,22 +61,23 @@ caller's LiteLLM key. Coding agents get that JWT three ways.
 
 ### OpenCode
 
-The plugin is served by this API as an npm tarball, so install it from the platform:
-
 ```bash
-opencode plugin https://platform.example.com/public/opencode-auth -g
-opencode auth login -p ai-platform   # browser SSO; tokens land in opencode's auth store
+opencode auth login https://platform.example.com   # installs the plugin (engines v1 and v2)
+opencode auth login -p ai-platform                  # SSO; on opencode v2: opencode auth login ai-platform
 ```
 
-Nothing to configure: the plugin takes the provider's API URL from opencode, finds the
+The first command reads `/.well-known/opencode`, which points OpenCode at
+`github.com/ackstorm/opencode-oidc-provider` (tag from `OPENCODE_PLUGIN_SPEC`)
+with this deployment's options. The old v1-only install
+(`opencode plugin https://<origin>/clients/opencode/plugin -g`) keeps working.
+
+Nothing else to configure: the plugin takes the provider's API URL from opencode, finds the
 authorization server through `/.well-known/oauth-protected-resource` (RFC 9728) and its
-endpoints through RFC 8414. The tarball is fetched once; a new release is picked up by
-re-running the install command with `-f`. Source: [clients/opencode](clients/opencode).
+endpoints through RFC 8414. Source: [opencode-oidc-provider](https://github.com/ackstorm/opencode-oidc-provider).
 
 On a remote or headless host pick the second method, **SSO (device code)**: opencode
 prints a `XXXX-XXXX` code and a URL; open the URL in any browser, confirm the code and
-sign in — the session completes on its own. A new plugin release is picked up with
-`opencode plugin <url> -g -f`.
+sign in — the session completes on its own.
 
 ### Claude Code and Codex
 
