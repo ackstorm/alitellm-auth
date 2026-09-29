@@ -1,0 +1,6 @@
+# False positives, pinned by fingerprint (commit:file:rule:line) so they can never
+# hide a new leak. session_secret_key="test..." is the make_test_settings() fixture
+# quoted in design docs (commit 7bd174f, already in v0.20.1).
+7bd174fa63792cd680a285e8cede2c964d391146:docs/superpowers/plans/2026-09-28-provider-name-and-genai-api-skill.md:generic-api-key:86
+7bd174fa63792cd680a285e8cede2c964d391146:docs/superpowers/plans/2026-09-28-opencode-config-endpoint.md:generic-api-key:369
+7bd174fa63792cd680a285e8cede2c964d391146:docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md:generic-api-key:827
