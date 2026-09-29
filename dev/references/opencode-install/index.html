@@ -357,6 +357,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#only-the-platforms-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Only the platform's provider
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -429,6 +440,12 @@
 <li>opencode needs a TTY: never run login/run with stdout redirected (hangs).</li>
 <li>Users type the PLATFORM URL (ingress.host). Serving it on the API host needs a gitops HTTPRoute rule for <code>/.well-known/opencode</code>.</li>
 </ul>
+<h2 id="only-the-platforms-provider">Only the platform's provider</h2>
+<p>The manifest's <code>config</code> also carries <code>"enabled_providers": ["&lt;provider&gt;"]</code>. v1 reads it as is;
+v2 turns it into <code>provider.use</code> policies (deny <code>*</code>, allow the provider; <code>normalize.ts:384-402</code>).
+Verified 2026-09-29: v1 <code>opencode models</code> and the v2 TUI <code>/models</code> list only the platform's
+provider. A default, not a lock: the user's own <code>opencode.json</code> overrides it. Note: on v2,
+<code>opencode models</code> (CLI) prints nothing (it does not load plugins); check the TUI picker.</p>
 
 
 
