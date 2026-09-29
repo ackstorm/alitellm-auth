@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.21.1] - 2026-09-29
+
 ### Added
 
 - `/.well-known/opencode` sets `enabled_providers: [PROVIDER_NAME]`: OpenCode (v1 and v2) shows only the platform's provider by default; a user's own `opencode.json` can override it.
