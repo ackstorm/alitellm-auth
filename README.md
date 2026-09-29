@@ -78,6 +78,9 @@ On a remote or headless host pick the second method, **SSO (device code)**: open
 prints a `XXXX-XXXX` code and a URL; open the URL in any browser, confirm the code and
 sign in — the session completes on its own.
 
+Full guide for engines v1 and v2 (differences, logout order, troubleshooting, operator
+settings): [OPENCODE.md](OPENCODE.md).
+
 ### Claude Code and Codex
 
 Both take "a command that prints a credential". [clients/genai-token](clients/genai-token)

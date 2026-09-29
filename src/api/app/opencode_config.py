@@ -38,6 +38,7 @@ from app.internal import resolve_front_key
 from app.litellm_client import (
     get_model_group_aliases,
     list_deployment_capabilities,
+    list_litellm_mcp_servers,
     list_litellm_models,
 )
 from app.oauth_as import routes as as_routes
@@ -158,17 +159,31 @@ def _provider(settings: Settings, models: dict) -> dict:
     }
 
 
-def _mcp(settings: Settings) -> dict:
-    # ponytail: every AS_SERVICES key until spec Q-3 maps them to LiteLLM MCP
-    # names; a user without access gets LiteLLM's 403 after sign-in, which the
-    # genai-api skill explains.
+def _mcp(settings: Settings, servers: list[str]) -> dict:
+    """Every MCP server the user can reach, registered but DISABLED: the user turns
+    one on in OpenCode, which then signs in through the front door's OAuth.
+
+    `servers` = the LiteLLM MCP servers the user's own key lists (LiteLLM resolves
+    /mcp/<name> by alias, then server_name). AS_SERVICES keys are added as is.
+    """
     base = settings.api_public_url.rstrip("/")
     if not base:
         return {}
     return {
-        svc: {"type": "remote", "url": f"{base}/mcp/{svc}", "enabled": False}
-        for svc in sorted(settings.services)
+        name: {"type": "remote", "url": f"{base}/mcp/{name}", "enabled": False}
+        for name in sorted(set(servers) | set(settings.services))
     }
+
+
+async def _visible_mcp(key: str, settings: Settings) -> list[str]:
+    # MCP is optional: a LiteLLM without the MCP gateway (404), a timeout or any
+    # failure means "no LiteLLM servers", never a fallback for the whole body.
+    try:
+        rows = await asyncio.wait_for(list_litellm_mcp_servers(settings, key), UPSTREAM_DEADLINE)
+    except Exception:  # noqa: BLE001
+        logger.warning("opencode config: MCP list failed", exc_info=True)
+        return []
+    return [r["name"] for r in rows if r.get("name")]
 
 
 def _sha(value: Any) -> str:
@@ -208,9 +223,13 @@ def _body(
     }
 
 
-async def _visible_groups(email: str, settings: Settings) -> list[dict]:
-    # Under the user's own key: LiteLLM scopes the list by their team/groups.
-    return await list_litellm_models(settings, await resolve_front_key(email, settings))
+async def _visible(email: str, settings: Settings) -> tuple[list[dict], list[str]]:
+    # Under the user's own key: LiteLLM scopes both lists by their team/groups.
+    key = await resolve_front_key(email, settings)
+    groups, servers = await asyncio.gather(
+        list_litellm_models(settings, key), _visible_mcp(key, settings)
+    )
+    return groups, servers
 
 
 @router.get("/clients/opencode/config", response_model=None)
@@ -233,8 +252,8 @@ async def opencode_config(request: Request) -> JSONResponse:
 
     skills = _skills(settings)
     try:
-        groups, (deployments, aliases) = await asyncio.gather(
-            asyncio.wait_for(_visible_groups(email, settings), UPSTREAM_DEADLINE),
+        (groups, servers), (deployments, aliases) = await asyncio.gather(
+            asyncio.wait_for(_visible(email, settings), UPSTREAM_DEADLINE),
             _capabilities(settings, UPSTREAM_DEADLINE),
         )
     except Exception:  # noqa: BLE001 — LiteLLM, Redis, key mint, deadline: degrade, never 5xx
@@ -248,7 +267,7 @@ async def opencode_config(request: Request) -> JSONResponse:
         body = {**cached, "stale": True} if cached else _body(email, {}, {}, skills, stale=True)
     else:
         models = _models(groups, deployments, aliases)
-        body = _body(email, _provider(settings, models), _mcp(settings), skills)
+        body = _body(email, _provider(settings, models), _mcp(settings, servers), skills)
         try:
             await store.put(CACHE_KIND, email, body, ttl=CACHE_TTL)
         except Exception:  # noqa: BLE001 — a cache write must not fail the answer

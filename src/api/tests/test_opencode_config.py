@@ -121,6 +121,13 @@ def groups():
         yield m
 
 
+@pytest.fixture(autouse=True)
+def mcp_servers():
+    with patch("app.opencode_config.list_litellm_mcp_servers", new_callable=AsyncMock) as m:
+        m.return_value = []
+        yield m
+
+
 @pytest.fixture()
 def admin():
     with (
@@ -190,6 +197,31 @@ def test_valid_token_gets_the_users_chat_models(client, settings, groups, admin)
     }
     assert [s["name"] for s in body["skills"]] == ["genai-api"]
     assert body["skills"][0]["files"]["SKILL.md"].startswith("---\nname: genai-api\n")
+
+
+def test_every_reachable_mcp_server_is_registered_disabled(
+    client, settings, groups, admin, mcp_servers
+):
+    mcp_servers.return_value = [{"name": "github"}, {"name": None}, {"name": "mcp-aws-eks-ro"}]
+    mcp = _get(client, _token(settings)).json()["config"]["mcp"]
+    # Under the user's own key, like the models; AS_SERVICES added; no duplicates.
+    assert mcp_servers.await_args.args[1] == "sk-front-alice@example.com"
+    assert mcp == {
+        name: {"type": "remote", "url": f"https://api.example.com/mcp/{name}", "enabled": False}
+        for name in ("github", "mcp-aws-eks-ro")
+    }
+
+
+def test_mcp_list_failure_keeps_models_and_as_services(
+    client, settings, groups, admin, mcp_servers
+):
+    mcp_servers.side_effect = httpx.HTTPStatusError(
+        "no MCP gateway", request=httpx.Request("GET", "http://x"), response=httpx.Response(404)
+    )
+    body = _get(client, _token(settings)).json()
+    assert body["stale"] is False
+    assert sorted(_models(body)) == ["acme.router", "acme.smart", "openai.gpt"]
+    assert list(body["config"]["mcp"]) == ["mcp-aws-eks-ro"]
 
 
 def test_alias_takes_the_target_deployments_capabilities(client, settings, groups, admin):
