@@ -54,6 +54,8 @@ spec:
               value: {{ .Values.config.litellmDefaultTeam | quote }}
             - name: PROVIDER_NAME
               value: {{ .Values.config.providerName | quote }}
+            - name: OPENCODE_PLUGIN_SPEC
+              value: {{ .Values.config.opencodePluginSpec | quote }}
             # Always rendered, never conditional: which team a key lands in
             # decides what every client can reach, so an explicit "false" in
             # `kubectl describe` beats an absent var you have to know the

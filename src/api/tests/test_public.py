@@ -6,15 +6,9 @@ providers/public_host) sourced from pydantic Settings at request time. It NEVER
 returns a key, user data, or any secret-bearing field (threat T-09-18).
 """
 
-import io
-import json
-import tarfile
-
 import pytest
 from fastapi.testclient import TestClient
 from tests.as_defaults import AS_TEST_DEFAULTS
-
-from app import public
 
 
 def make_test_settings(**overrides):
@@ -133,97 +127,60 @@ def test_config_provider_name_passthrough_when_set():
     assert body["provider_name"] == "acme"
 
 
-def test_public_has_no_static_mount(tmp_path, monkeypatch):
-    """/public/* is 404 except the opencode-auth alias route. 0.20.0 still had a
-    check_dir=False StaticFiles mount over an absent directory: every path 500."""
+@pytest.mark.parametrize(
+    "path", ["/public/opencode/api.json", "/public/opencode-auth", "/clients/opencode/plugin"]
+)
+def test_no_static_mount_and_no_plugin_tarball(tmp_path, monkeypatch, path):
+    """/public/* is 404 (0.20.0 had a check_dir=False StaticFiles mount over an
+    absent directory: every path 500). The plugin installs from
+    /.well-known/opencode now; the tarball routes are gone."""
     monkeypatch.chdir(tmp_path)
-    assert _client().get("/public/opencode/api.json").status_code == 404
+    assert _client().get(path).status_code == 404
 
 
-def test_opencode_plugin_is_served_from_the_image_not_the_mount(tmp_path, monkeypatch):
-    """/public/opencode-auth is a permanent alias route for the baked tarball.
-
-    api_public_url="" here: this test is about route precedence, not the
-    platform.json repack (covered separately), so raw non-tarball bytes must
-    pass through unmodified.
-    """
-    monkeypatch.chdir(tmp_path)
-    client = _client(api_public_url="")
-    assert client.get("/public/opencode-auth").status_code == 404
-
-    (tmp_path / "clients").mkdir()
-    (tmp_path / "clients" / "opencode-auth.tgz").write_bytes(b"\x1f\x8b")
-    r = client.get("/public/opencode-auth")
-    assert r.status_code == 200
-    assert r.headers["content-type"] == "application/gzip"
-    assert r.content == b"\x1f\x8b"
+SPEC = "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0"
 
 
-def _bake(tmp_path):
-    src = io.BytesIO()
-    with tarfile.open(fileobj=src, mode="w:gz") as tar:
-        data = b"export const x = 1\n"
-        info = tarfile.TarInfo("package/index.mjs")
-        info.size = len(data)
-        tar.addfile(info, io.BytesIO(data))
-    (tmp_path / "clients").mkdir()
-    (tmp_path / "clients" / "opencode-auth.tgz").write_bytes(src.getvalue())
-    public._plugin_tgz.cache_clear()
-
-
-def _members(raw):
-    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar:
-        return {m.name: tar.extractfile(m).read() for m in tar.getmembers() if m.isfile()}
-
-
-@pytest.mark.parametrize("path", ["/clients/opencode/plugin", "/public/opencode-auth"])
-def test_plugin_tgz_carries_platform_json(tmp_path, monkeypatch, path):
-    from app.main import create_app
-
-    monkeypatch.chdir(tmp_path)
-    _bake(tmp_path)
-    client = TestClient(
-        create_app(settings=make_test_settings(api_public_url="https://api.example.com/"))
-    )
-    resp = client.get(path)
-    assert resp.status_code == 200
-    files = _members(resp.content)
-    assert files["package/index.mjs"] == b"export const x = 1\n"
-    assert json.loads(files["package/platform.json"]) == {
-        "api": "https://api.example.com/v1",
-        "platform": "https://api.example.com",
-        "provider": "ai-platform",
+def test_wellknown_opencode_manifest_points_at_the_plugin_with_options():
+    body = _client(api_public_url="https://api.example.com/").get("/.well-known/opencode").json()
+    assert body == {
+        "auth": {"command": ["opencode", "--version"], "env": ""},
+        "config": {
+            "plugin": [
+                [
+                    SPEC,
+                    {
+                        "api": "https://api.example.com/v1",
+                        "platform": "https://api.example.com",
+                        "provider": "ai-platform",
+                    },
+                ]
+            ]
+        },
     }
 
 
-def test_plugin_tgz_carries_the_configured_provider_name(tmp_path, monkeypatch):
-    from app.main import create_app
-
-    monkeypatch.chdir(tmp_path)
-    _bake(tmp_path)
-    client = TestClient(
-        create_app(
-            settings=make_test_settings(
-                api_public_url="https://api.example.com/", provider_name="acme"
-            )
-        )
+def test_wellknown_opencode_uses_configured_spec_and_provider():
+    client = _client(
+        api_public_url="https://api.example.com",
+        provider_name="acme",
+        opencode_plugin_spec="git+https://example.com/p.git#v9.9.9",
     )
-    resp = client.get("/clients/opencode/plugin")
-    assert json.loads(_members(resp.content)["package/platform.json"])["provider"] == "acme"
+    spec, opts = client.get("/.well-known/opencode").json()["config"]["plugin"][0]
+    assert spec == "git+https://example.com/p.git#v9.9.9"
+    assert opts["provider"] == "acme"
 
 
-def test_plugin_tgz_bytes_are_deterministic(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    _bake(tmp_path)
-    first = public._plugin_tgz("https://api.example.com", "ai-platform")
-    public._plugin_tgz.cache_clear()
-    assert public._plugin_tgz("https://api.example.com", "ai-platform") == first
+def test_wellknown_opencode_is_404_without_api_public_url():
+    assert _client(api_public_url="").get("/.well-known/opencode").status_code == 404
 
 
-def test_plugin_tgz_without_api_public_url_is_the_baked_file(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    _bake(tmp_path)
-    assert (
-        public._plugin_tgz("", "ai-platform")
-        == (tmp_path / "clients" / "opencode-auth.tgz").read_bytes()
-    )
+def test_wellknown_opencode_carries_no_secrets():
+    secrets = {
+        "litellm_master_key": "sk-master-SECRET",
+        "session_secret_key": "SESSION-SECRET",
+        "oauth_client_secret": "OAUTH-SECRET",
+    }
+    raw = _client(api_public_url="https://api.example.com", **secrets).get("/.well-known/opencode").text
+    for value in secrets.values():
+        assert value not in raw

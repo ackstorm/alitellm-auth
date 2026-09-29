@@ -30,12 +30,6 @@ COPY src/api/app ./app
 
 RUN uv pip install --system --no-cache-dir --target=/app/deps .
 
-# The OpenCode auth plugin as an npm tarball (`package/` prefix is what npm
-# expects), served by the API at /public/opencode-auth. No build, no deps: it
-# is two files, so GNU tar is the whole packaging step.
-COPY clients/opencode ./clients/opencode
-RUN tar -czf /app/opencode-auth.tgz -C clients --transform 's,^opencode,package,' opencode
-
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM python:3.14-slim
 WORKDIR /app
@@ -51,8 +45,6 @@ COPY src/api/app ./app
 # alone produces a serving image — no host `make build-ui` precondition. Placed
 # before the USER switch so root owns the copy; FastAPI serves it at /ui.
 COPY --from=ui-builder /src/ui/dist /app/ui/dist
-# Served by an explicit route (/clients/opencode/plugin).
-COPY --from=builder /app/opencode-auth.tgz /app/clients/opencode-auth.tgz
 # OpenWork brand marks, served at /openwork/brand/{logo,icon}.svg (same reason).
 COPY src/api/brand ./brand
 

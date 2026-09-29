@@ -141,8 +141,13 @@ Authorization uses `hmac.compare_digest` (constant-time, defends against timing 
 
 ### Public routes
 
-`/public/*` has no static mount (removed in 0.20.1 with the operator catalog);
-only the `/public/opencode-auth` alias route remains, everything else is 404.
+`/public/*` has no static mount (removed in 0.20.1 with the operator catalog): all 404.
+The plugin tarball routes (`/clients/opencode/plugin`, `/public/opencode-auth`) are gone too.
+
+`GET /.well-known/opencode` (platform host) is OpenCode's well-known manifest: public data
+only, it installs the plugin from `OPENCODE_PLUGIN_SPEC` with `api`/`platform`/`provider`
+options. `auth` is mandatory for OpenCode;
+its `env` must be a string. See `docs/references/opencode-install.md`.
 
 `/clients/*` on the API host is exempt from ext_authz; every route there authenticates itself.
 
@@ -484,6 +489,7 @@ Never rely on env vars in tests. All test files have a local `make_test_settings
 ## External References
 
 - **OpenCode client config + OpenWork Den (design, in progress)**: spec `docs/superpowers/specs/2026-09-27-opencode-client-config-and-den.md` (decisions D-1..D-13, task list T1..T14); operator view `docs/references/openwork-opencode-config.md` (what comes from where, policy defaults, troubleshooting)
+- **OpenCode one-URL install (v1 + v2)**: `docs/references/opencode-install.md` (engine matrix, manifest shape, gotchas); plan `docs/superpowers/plans/2026-09-29-opencode-wellknown-install.md`
 - **Authlib (OIDC client)**: use Context7 or WebSearch — API changes frequently between minor versions
 - **LiteLLM Admin API** (`/team/new`, `/key/generate`): use WebSearch for latest endpoint signatures
 - **FastAPI / Starlette**: `TemplateResponse` signature changed in Starlette 0.36 — verify with Context7

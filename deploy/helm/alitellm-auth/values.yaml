@@ -47,6 +47,9 @@ config:
   # default; the deployment sets it from its platform config (e.g. Terraform →
   # Flux). Changing it on a live deployment signs every OpenCode user out.
   providerName: "ai-platform"
+  # OpenCode plugin installed by /.well-known/opencode (`opencode auth login
+  # https://<ingress.host>`). Git spec at the plugin repo root, pinned to a tag.
+  opencodePluginSpec: "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0"
   # ── Personal teams ────────────────────────────────────────────────────────
   # One LiteLLM team per user (id "<personalTeamPrefix><email>") instead of the
   # single shared team. A personal team has exactly one member, so the team
@@ -275,7 +278,7 @@ istio:
   exemptPaths:
     - "/health"
     - "/.well-known/*"
-    # OpenCode client endpoints: the tarball is anonymous and the config route
+    # OpenCode client endpoints: the config route
     # verifies the front-door JWT itself (ext_authz would strip it). Anything
     # under /clients/ MUST authenticate its own requests.
     - "/clients/*"

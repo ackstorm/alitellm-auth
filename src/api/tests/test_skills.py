@@ -38,7 +38,7 @@ def test_genai_api_is_filled_from_settings():
     assert "https://console.example.com/ui/" in text
     assert "https://api.example.com/v1" in text
     assert "opencode auth login -p acme" in text
-    assert "opencode plugin https://api.example.com/clients/opencode/plugin -g" in text
+    assert "opencode auth login https://console.example.com\n" in text
     assert (
         "- `mcp-aws-eks-ro`: `https://api.example.com/mcp/mcp-aws-eks-ro`\n"
         "- `mcp-google-drive`: `https://api.example.com/mcp/mcp-google-drive`"

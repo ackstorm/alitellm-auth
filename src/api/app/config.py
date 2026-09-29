@@ -250,6 +250,10 @@ class Settings(BaseSettings):
             raise ValueError("PROVIDER_NAME must be lowercase letters, digits and '-' (max 64)")
         return v
 
+    # The OpenCode plugin that /.well-known/opencode installs (opencode v1 and v2).
+    # A git spec at the repo root, pinned to a tag: v1 ignores `::path:` subdirs.
+    opencode_plugin_spec: str = "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0"
+
     # Real-links-only targets (D-02/D-03) — None/empty means the link is OMITTED from
     # the SPA (no dead anchor). NEVER add a secret-bearing field to this set.
     link_docs: str | None = None
