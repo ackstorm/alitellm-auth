@@ -30,11 +30,14 @@ COPY src/api/app ./app
 
 RUN uv pip install --system --no-cache-dir --target=/app/deps .
 
-# The OpenCode auth plugin as an npm tarball (`package/` prefix is what npm
-# expects), served by the API at /public/opencode-auth. No build, no deps: it
-# is two files, so GNU tar is the whole packaging step.
-COPY clients/opencode ./clients/opencode
-RUN tar -czf /app/opencode-auth.tgz -C clients --transform 's,^opencode,package,' opencode
+# The OpenCode plugin tarball for opencode v1's `opencode plugin <url> -g`
+# (served at /clients/opencode/plugin and the permanent /public/opencode-auth).
+# Same tag as OPENCODE_PLUGIN_SPEC (guarded by test_public.py).
+ARG OPENCODE_PLUGIN_REF=v0.4.0
+ADD https://github.com/ackstorm/opencode-oidc-provider/archive/refs/tags/${OPENCODE_PLUGIN_REF}.tar.gz /tmp/plugin.tar.gz
+RUN mkdir -p /tmp/package \
+ && tar -xzf /tmp/plugin.tar.gz -C /tmp/package --strip-components=1 \
+ && tar -czf /app/opencode-auth.tgz -C /tmp package
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM python:3.14-slim

@@ -275,3 +275,14 @@ def test_wellknown_opencode_carries_no_secrets():
     raw = _client(api_public_url="https://api.example.com", **secrets).get("/.well-known/opencode").text
     for value in secrets.values():
         assert value not in raw
+
+
+def test_dockerfile_plugin_ref_matches_the_manifest_spec():
+    """The v1 tarball and /.well-known/opencode must ship the same plugin tag."""
+    from pathlib import Path
+
+    from app.config import Settings
+
+    dockerfile = (Path(__file__).resolve().parents[3] / "Dockerfile").read_text()
+    tag = Settings.model_fields["opencode_plugin_spec"].default.rsplit("#", 1)[1]
+    assert f"ARG OPENCODE_PLUGIN_REF={tag}" in dockerfile

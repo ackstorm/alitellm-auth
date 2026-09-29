@@ -70,7 +70,7 @@ async def public_config(request: Request) -> JSONResponse:
     return JSONResponse(payload)
 
 
-# Baked by the Dockerfile from clients/opencode.
+# Baked by the Dockerfile from the pinned opencode-oidc-provider tag.
 _OPENCODE_PLUGIN = Path("clients/opencode-auth.tgz")
 
 
