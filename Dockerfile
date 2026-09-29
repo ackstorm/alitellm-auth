@@ -30,15 +30,6 @@ COPY src/api/app ./app
 
 RUN uv pip install --system --no-cache-dir --target=/app/deps .
 
-# The OpenCode plugin tarball for opencode v1's `opencode plugin <url> -g`
-# (served at /clients/opencode/plugin and the permanent /public/opencode-auth).
-# Same tag as OPENCODE_PLUGIN_SPEC (guarded by test_public.py).
-ARG OPENCODE_PLUGIN_REF=v0.4.0
-ADD https://github.com/ackstorm/opencode-oidc-provider/archive/refs/tags/${OPENCODE_PLUGIN_REF}.tar.gz /tmp/plugin.tar.gz
-RUN mkdir -p /tmp/package \
- && tar -xzf /tmp/plugin.tar.gz -C /tmp/package --strip-components=1 \
- && tar -czf /app/opencode-auth.tgz -C /tmp package
-
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM python:3.14-slim
 WORKDIR /app
@@ -54,8 +45,6 @@ COPY src/api/app ./app
 # alone produces a serving image — no host `make build-ui` precondition. Placed
 # before the USER switch so root owns the copy; FastAPI serves it at /ui.
 COPY --from=ui-builder /src/ui/dist /app/ui/dist
-# Served by an explicit route (/clients/opencode/plugin).
-COPY --from=builder /app/opencode-auth.tgz /app/clients/opencode-auth.tgz
 # OpenWork brand marks, served at /openwork/brand/{logo,icon}.svg (same reason).
 COPY src/api/brand ./brand
 

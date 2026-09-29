@@ -57,9 +57,11 @@ One-time setup, in a terminal. The agent cannot do this for the user: until Open
 is signed in there is no model to run it.
 
 ```
-opencode plugin {{api_url}}/clients/opencode/plugin -g
-opencode auth login -p {{provider}}
+opencode auth login {{platform_url}}
+opencode auth login -p {{provider}}   # opencode v2: opencode auth login {{provider}}
 ```
+
+The first command installs the platform's plugin (OpenCode v1 and v2); the second signs in.
 
 Then restart OpenCode. The platform's models appear under the provider `{{provider}}`,
 its MCP servers appear **disabled**, and this skill is available. Every start picks up

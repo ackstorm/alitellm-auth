@@ -34,6 +34,7 @@ def genai_api_body(settings: Settings) -> str:
     values = {
         "provider": settings.provider_name,
         "console_url": f"{settings.app_base_url.rstrip('/')}/ui/",
+        "platform_url": settings.app_base_url.rstrip("/"),
         "api_url": api,
         "mcp_servers": servers,
     }

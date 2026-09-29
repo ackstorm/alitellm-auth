@@ -24,11 +24,9 @@ Live since 2026-09-17 (v0.8.1). Items still open, by owner.
 
 - [x] **OpenCode model-path OAuth** — `clients/opencode` (DCR + PKCE + loopback, refresh
   in a custom `fetch`), zero config: provider API URL from opencode → RFC 9728 → RFC 8414.
-  Served by the API as an npm tarball, `GET /public/opencode-auth`:
-  `opencode plugin https://platform.example.com/public/opencode-auth -g`, then
-  `opencode auth login -p ai-platform`. Verified incl. refresh (2026-09-17).
-  Measured: opencode fetches the tarball at install and once on the first launch, then
-  never — a new release needs `opencode plugin <url> -g -f`.
+  Now github.com/ackstorm/opencode-oidc-provider (engines v1 and v2), installed via
+  `opencode auth login https://platform.example.com` (`/.well-known/opencode`), then
+  `opencode auth login -p ai-platform`. Verified incl. refresh (2026-09-17, v2 2026-09-29).
 - [ ] **Upstream the opencode method**: no client does OAuth (8414 + DCR + PKCE) for a
   *model* provider; opencode's OpenAI/Anthropic/Copilot logins are vendor-specific
   plugins. Propose a generic `oauth` auth method keyed on `provider.<id>.options.oauth.issuer`

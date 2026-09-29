@@ -6,6 +6,10 @@
 
 - `GET /.well-known/opencode`: `opencode auth login https://<platform>` installs the OpenCode SSO plugin on engines v1 and v2 (plugin moved to github.com/ackstorm/opencode-oidc-provider).
 
+### Removed
+
+- OpenCode plugin tarball routes `/clients/opencode/plugin` and `/public/opencode-auth`, and the tarball in the image. Install with `opencode auth login https://<platform>`.
+
 ## [0.20.1] - 2026-09-28
 
 ### Removed

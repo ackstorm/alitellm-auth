@@ -68,8 +68,7 @@ opencode auth login -p ai-platform                  # SSO; on opencode v2: openc
 
 The first command reads `/.well-known/opencode`, which points OpenCode at
 `github.com/ackstorm/opencode-oidc-provider` (tag from `OPENCODE_PLUGIN_SPEC`)
-with this deployment's options. The old v1-only install
-(`opencode plugin https://<origin>/clients/opencode/plugin -g`) keeps working.
+with this deployment's options.
 
 Nothing else to configure: the plugin takes the provider's API URL from opencode, finds the
 authorization server through `/.well-known/oauth-protected-resource` (RFC 9728) and its

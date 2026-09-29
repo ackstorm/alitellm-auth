@@ -15,12 +15,6 @@ session_stats).
 
 from __future__ import annotations
 
-import functools
-import gzip
-import io
-import json
-import tarfile
-from pathlib import Path
 from urllib.parse import urlparse, urlsplit
 
 from fastapi import APIRouter, HTTPException, Request
@@ -70,13 +64,9 @@ async def public_config(request: Request) -> JSONResponse:
     return JSONResponse(payload)
 
 
-# Baked by the Dockerfile from the pinned opencode-oidc-provider tag.
-_OPENCODE_PLUGIN = Path("clients/opencode-auth.tgz")
-
-
 def _backend_options(api_public_url: str, provider_name: str) -> dict[str, str]:
-    """Where the OpenCode plugin's backend is: platform.json (v1 tarball) and
-    the plugin options in /.well-known/opencode are the same three values."""
+    """Where the OpenCode plugin's backend is: `api` for OAuth discovery, `platform`
+    (the origin serving /clients/*) for its config, `provider` = PROVIDER_NAME."""
     base = api_public_url.rstrip("/")
     parts = urlsplit(base)
     return {
@@ -84,54 +74,6 @@ def _backend_options(api_public_url: str, provider_name: str) -> dict[str, str]:
         "platform": f"{parts.scheme}://{parts.netloc}",
         "provider": provider_name,
     }
-
-
-@functools.cache
-def _plugin_tgz(api_public_url: str, provider_name: str) -> bytes:
-    """The baked plugin tarball plus package/platform.json for this deployment.
-
-    platform.json tells the product-neutral plugin where its backend is:
-    `api` for OAuth discovery and the fallback provider, `platform` (the origin
-    serving /clients/*) for its config, `provider`: the OpenCode provider id
-    (PROVIDER_NAME). Deterministic: baked members keep their metadata,
-    platform.json gets mtime 0 and gzip mtime 0, so every replica and restart
-    serves the same bytes. No API_PUBLIC_URL → the baked file as is.
-    """
-    baked = _OPENCODE_PLUGIN.read_bytes()
-    base = api_public_url.rstrip("/")
-    if not base:
-        return baked
-    doc = json.dumps(_backend_options(api_public_url, provider_name), sort_keys=True).encode()
-    out = io.BytesIO()
-    with (
-        tarfile.open(fileobj=io.BytesIO(baked), mode="r:gz") as src,
-        gzip.GzipFile(fileobj=out, mode="wb", mtime=0) as gz,
-        tarfile.open(fileobj=gz, mode="w") as dst,
-    ):
-        for member in src.getmembers():
-            if member.name != "package/platform.json":
-                dst.addfile(member, src.extractfile(member) if member.isfile() else None)
-        info = tarfile.TarInfo("package/platform.json")
-        info.size, info.mode, info.mtime = len(doc), 0o644, 0
-        dst.addfile(info, io.BytesIO(doc))
-    return out.getvalue()
-
-
-# /public/opencode-auth is the original install URL, saved in users' opencode.json
-# by `opencode plugin <url> -g`: a PERMANENT alias, never remove it.
-@router.get("/clients/opencode/plugin", response_model=None)
-@router.get("/public/opencode-auth", response_model=None)
-async def opencode_plugin(request: Request) -> Response:
-    """The OpenCode auth plugin as an npm tarball: `opencode plugin <this URL> -g`."""
-    if not _OPENCODE_PLUGIN.is_file():
-        raise HTTPException(status_code=404)
-    settings: Settings = request.app.state.settings
-    body = _plugin_tgz(settings.api_public_url, settings.provider_name)
-    return Response(
-        body,
-        media_type="application/gzip",
-        headers={"Content-Disposition": 'attachment; filename="opencode-auth.tgz"'},
-    )
 
 
 @router.get("/.well-known/opencode", response_model=None)

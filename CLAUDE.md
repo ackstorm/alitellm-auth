@@ -141,12 +141,12 @@ Authorization uses `hmac.compare_digest` (constant-time, defends against timing 
 
 ### Public routes
 
-`/public/*` has no static mount (removed in 0.20.1 with the operator catalog);
-only the `/public/opencode-auth` alias route remains, everything else is 404.
+`/public/*` has no static mount (removed in 0.20.1 with the operator catalog): all 404.
+The plugin tarball routes (`/clients/opencode/plugin`, `/public/opencode-auth`) are gone too.
 
 `GET /.well-known/opencode` (platform host) is OpenCode's well-known manifest: public data
 only, it installs the plugin from `OPENCODE_PLUGIN_SPEC` with `api`/`platform`/`provider`
-options (same helper as the v1 tarball's `platform.json`). `auth` is mandatory for OpenCode;
+options. `auth` is mandatory for OpenCode;
 its `env` must be a string. See `docs/references/opencode-install.md`.
 
 `/clients/*` on the API host is exempt from ext_authz; every route there authenticates itself.

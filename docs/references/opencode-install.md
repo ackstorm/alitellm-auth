@@ -25,12 +25,11 @@ Verified 2026-09-29 on opencode v1 (1.18.33) and v2 (2.0.18) against `docker-com
 
 | Source | v1 | v2 |
 |---|---|---|
-| tarball URL (`/clients/opencode/plugin`, `/public/opencode-auth`) | works | no |
+| tarball URL (removed from this service) | works | no |
 | `::path:` subdir git spec | ignored | works |
 | repo-root git spec / well-known | works | works |
 
-The tarball routes are permanent (saved in users' `opencode.json`); the Dockerfile builds the tarball
-from the same tag (`ARG OPENCODE_PLUGIN_REF`, guarded by `test_public.py`).
+This service serves no tarball: the only install is `/.well-known/opencode` → git spec.
 
 ## Gotchas
 

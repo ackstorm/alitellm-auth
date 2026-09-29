@@ -308,7 +308,7 @@ curl -s -X POST ${apiBase}/mcp-rest/tools/call \\
           // options; the second signs in. No key, no env var.
           code: `opencode auth login ${window.location.origin}
 opencode auth login -p ${config.provider_name}   # opencode v2: opencode auth login ${config.provider_name}`,
-          note: 'Restart OpenCode afterwards. Models appear under the provider shown above; MCP servers appear disabled (enable one in opencode.json, then `opencode mcp auth <name>`). Unset OPENCODE_MODELS_URL and any exported key for this provider. Installed with the old `opencode plugin …/clients/opencode/plugin -g`? It keeps working on opencode v1; run the first command before moving to v2.',
+          note: 'Restart OpenCode afterwards. Models appear under the provider shown above; MCP servers appear disabled (enable one in opencode.json, then `opencode mcp auth <name>`). Unset OPENCODE_MODELS_URL and any exported key for this provider.',
         },
         {
           id: 'opencode-gemini',
