@@ -175,8 +175,10 @@ version, put the plugin in `~/.config/opencode/opencode.json` yourself, then run
 | `PROVIDER_NAME` | `config.providerName` | Provider id users type in step 2, model prefix, and the only entry in `enabled_providers`. Unique per deployment. Changing it signs out every OpenCode user. |
 | `OPENCODE_PLUGIN_SPEC` | `config.opencodePluginSpec` | Plugin to install. Pin a tag; bump it to roll out a new plugin. |
 
-- Users type the **platform** URL. If the manifest is served from the API host instead,
-  gitops needs an HTTPRoute rule for `/.well-known/opencode`.
+- Users can type the **platform** or the **API** URL: the gitops `httproute-api.yaml` routes
+  `/.well-known/opencode` on the API host to this service too (same body). Without that
+  rule the API host answers 404 and opencode v1 crashes with
+  `undefined is not an object (evaluating 'N.auth.command')`.
 - The manifest is public data only: never a token, key or user data.
 - Per-user config comes from `GET /clients/opencode/config` (schema
   `ackstorm.opencode-config/1`), authenticated with the user's front-door token.

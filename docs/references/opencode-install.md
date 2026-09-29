@@ -36,7 +36,7 @@ This service serves no tarball: the only install is `/.well-known/opencode` → 
 - Origin down at startup → opencode starts without the plugin (no error).
 - v2 managed-service port collision shows as `UnexpectedStatus: 500`.
 - opencode needs a TTY: never run login/run with stdout redirected (hangs).
-- Users type the PLATFORM URL (ingress.host). Serving it on the API host needs a gitops HTTPRoute rule for `/.well-known/opencode`.
+- Platform URL (ingress.host) and API URL both work: gitops `httproute-api.yaml` routes `/.well-known/opencode` on the API host here. Without that rule, v1 crashes on the 404 with `undefined is not an object (evaluating 'N.auth.command')`.
 
 ## Only the platform's provider
 
