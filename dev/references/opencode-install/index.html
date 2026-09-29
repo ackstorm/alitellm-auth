@@ -438,7 +438,7 @@
 <li>Origin down at startup → opencode starts without the plugin (no error).</li>
 <li>v2 managed-service port collision shows as <code>UnexpectedStatus: 500</code>.</li>
 <li>opencode needs a TTY: never run login/run with stdout redirected (hangs).</li>
-<li>Users type the PLATFORM URL (ingress.host). Serving it on the API host needs a gitops HTTPRoute rule for <code>/.well-known/opencode</code>.</li>
+<li>Platform URL (ingress.host) and API URL both work: gitops <code>httproute-api.yaml</code> routes <code>/.well-known/opencode</code> on the API host here. Without that rule, v1 crashes on the 404 with <code>undefined is not an object (evaluating 'N.auth.command')</code>.</li>
 </ul>
 <h2 id="only-the-platforms-provider">Only the platform's provider</h2>
 <p>The manifest's <code>config</code> also carries <code>"enabled_providers": ["&lt;provider&gt;"]</code>. v1 reads it as is;
