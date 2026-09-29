@@ -405,3 +405,195 @@ export async function SsoAuth({ client }, options = {}) {
     },
   }
 }
+
+// ---- opencode v2 (2.0.18+) -------------------------------------------------
+//
+// v2 replaces the v1 `config(cfg)` hook with typed transforms (ctx.provider,
+// ctx.mcp, ctx.skill) and moves auth from `methods: [...]` to
+// `ctx.integration.transform`, registering real oauth-type methods with a
+// `refresh` callback. Unlike v1, opencode itself persists credentials and
+// calls `refresh` automatically (packages/core/src/integration.ts:695-698,
+// verified against v2.0.18 source) whenever a resolved credential is within
+// 5 minutes of `expires` — no client.auth.set() dance, no module-level
+// `fresh()` needed for this path. Provider requests get their Authorization
+// automatically too: a Provider.Info with `integrationID` set makes
+// model-resolver.ts resolve + inject the credential as apiKey/authToken/
+// accessToken depending on the SDK package (packages/core/src/model-
+// resolver.ts:303-313) — this plugin never builds that header itself.
+//
+// All the OAuth mechanics below (discover/clientId/token/pollDevice/listen)
+// are the same functions the v1 methods use above; only the registration
+// shape and the config-delivery path differ.
+
+const modality = (list) => (Array.isArray(list) && list.length ? list : ["text"])
+
+// Wire-schema model (ackstorm.opencode-config/1) -> opencode v2 Model.Info.
+// v2 has no attachment/reasoning/temperature fields (opencode normalizer logs
+// them as "unsupported legacy setting" and drops them); capability now lives
+// in capabilities.input/output, and cost is an array of tiers, not an object.
+function toModelInfo(providerID, id, m) {
+  return {
+    id,
+    modelID: id,
+    providerID,
+    name: m?.name ?? id,
+    capabilities: {
+      tools: !!m?.tool_call,
+      input: modality(m?.modalities?.input),
+      output: modality(m?.modalities?.output),
+    },
+    variants: [],
+    time: { released: 0 },
+    cost: [
+      {
+        input: Number(m?.cost?.input ?? 0),
+        output: Number(m?.cost?.output ?? 0),
+        cache: { read: Number(m?.cost?.cache_read ?? 0), write: 0 },
+      },
+    ],
+    status: "active",
+    enabled: true,
+    limit: { context: Number(m?.limit?.context ?? 128000), output: Number(m?.limit?.output ?? 8192) },
+  }
+}
+
+// Shared by both oauth methods: same refresh-token exchange as v1's fresh(),
+// but returns the shape opencode's own resolver expects and does not persist
+// anything itself (opencode does that after the callback/refresh resolves).
+async function refreshCredential(methodID, credential, options) {
+  const d = await discover(undefined, options)
+  const client_id = await savedClientId(d.issuer)
+  if (!client_id) throw new Error(`SSO client identity lost, run \`opencode auth login -p ${PROVIDER}\``)
+  const t = await token(d, { grant_type: "refresh_token", refresh_token: credential.refresh, client_id }).catch((e) => {
+    throw Object.assign(e, { signedOut: e.status >= 400 && e.status < 500 })
+  })
+  return { type: "oauth", methodID, refresh: t.refresh || credential.refresh, access: t.access, expires: t.expires }
+}
+
+async function authorizeBrowser(options) {
+  const d = await discover(undefined, options)
+  const verifier = b64(randomBytes(32))
+  const state = b64(randomBytes(16))
+  const client_id = await clientId(d)
+  const { port, code } = listen(state)
+  const redirect_uri = `http://127.0.0.1:${await port}/callback`
+  const url = new URL(d.as.authorization_endpoint)
+  url.search = new URLSearchParams({
+    response_type: "code",
+    client_id,
+    redirect_uri,
+    scope: d.scope,
+    state,
+    code_challenge: b64(createHash("sha256").update(verifier).digest()),
+    code_challenge_method: "S256",
+  })
+  return {
+    url: url.toString(),
+    instructions: "Open the URL in your browser and sign in with your organization account.",
+    mode: "auto",
+    callback: (async () => {
+      const t = await token(d, { grant_type: "authorization_code", code: await code, redirect_uri, client_id, code_verifier: verifier })
+      return { type: "oauth", methodID: "sso-browser", refresh: t.refresh, access: t.access, expires: t.expires }
+    })(),
+  }
+}
+
+async function authorizeDevice(options) {
+  const d = await discover(undefined, options)
+  if (!d.as.device_authorization_endpoint) throw new Error("the authorization server does not offer the device grant")
+  const client_id = await clientId(d)
+  const da = await json(d.as.device_authorization_endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id }),
+  })
+  return {
+    url: da.verification_uri_complete ?? da.verification_uri,
+    instructions: `Open the URL in any browser (this or another machine), confirm the code ${da.user_code} and sign in. This session completes on its own.`,
+    mode: "auto",
+    callback: pollDevice(d, { grant_type: "urn:ietf:params:oauth:grant-type:device_code", device_code: da.device_code, client_id }, da.interval, da.expires_in).then(
+      (t) => ({ type: "oauth", methodID: "sso-device", refresh: t.refresh, access: t.access, expires: t.expires }),
+    ),
+  }
+}
+
+// Fetches /clients/opencode/config with the resolved credential and
+// registers provider+models, mcp servers and skills through the typed
+// transforms. Mirrors applyConfig()'s failure handling: any error here must
+// never stop opencode starting.
+async function applyV2Config(ctx) {
+  const active = await ctx.integration.connection.active(PROVIDER).catch(() => undefined)
+  if (!active) return // signed out: nothing to deliver, same as v1
+  const credential = await ctx.integration.connection.resolve(active).catch(() => undefined)
+  if (credential?.type !== "oauth") return
+  const { platform } = await backend(ctx.options)
+  const body = await fetchConfig(platform, credential.access)
+  if (!body || body.auth === "invalid") return
+  const cfg = body.config ?? {}
+
+  await ctx.provider.transform((editor) => {
+    for (const [pid, p] of Object.entries(cfg.provider ?? {})) {
+      const models = Object.entries(p?.models ?? {}).map(([mid, m]) => toModelInfo(pid, mid, m))
+      if (!models.length) continue
+      editor.add({
+        info: {
+          id: pid,
+          name: p?.name ?? pid,
+          activation: "enabled",
+          package: p?.npm ?? "@ai-sdk/openai-compatible",
+          integrationID: PROVIDER,
+          settings: p?.options?.baseURL ? { baseURL: p.options.baseURL } : undefined,
+        },
+        models,
+      })
+    }
+  })
+
+  await ctx.mcp.transform((editor) => {
+    for (const [name, m] of Object.entries(cfg.mcp ?? {})) {
+      if (m?.type !== "remote" || !m.url) continue
+      editor.set(name, { type: "remote", url: m.url, disabled: m.enabled === false })
+    }
+  })
+
+  if (await writeSkills(body.skills)) {
+    const dir = paths().skills
+    await ctx.skill.transform((editor) => {
+      for (const s of Array.isArray(body.skills) ? body.skills : []) {
+        const md = s?.files?.["SKILL.md"]
+        if (typeof md !== "string") continue
+        editor.add({ id: s.name, name: s.name, path: `${dir}/${s.name}/SKILL.md`, content: md })
+      }
+    })
+  }
+}
+
+export default {
+  id: "ackstorm",
+  async setup(ctx) {
+    const { provider } = await backend(ctx.options)
+    if (PROVIDER_ID.test(provider ?? "")) PROVIDER = provider
+
+    await ctx.integration.transform((editor) => {
+      editor.update(PROVIDER, (integration) => {
+        integration.name = PROVIDER
+      })
+      editor.method.update({
+        integrationID: PROVIDER,
+        method: { id: "sso-browser", type: "oauth", label: "SSO (browser)" },
+        authorize: () => authorizeBrowser(ctx.options),
+        refresh: (credential) => refreshCredential("sso-browser", credential, ctx.options),
+      })
+      editor.method.update({
+        integrationID: PROVIDER,
+        method: { id: "sso-device", type: "oauth", label: "SSO (device code — sign in from another browser)" },
+        authorize: () => authorizeDevice(ctx.options),
+        refresh: (credential) => refreshCredential("sso-device", credential, ctx.options),
+      })
+    })
+
+    try {
+      await applyV2Config(ctx)
+    } catch {} // ponytail: silent; a broken backend must never stop opencode starting
+  },
+}
