@@ -227,3 +227,51 @@ def test_plugin_tgz_without_api_public_url_is_the_baked_file(tmp_path, monkeypat
         public._plugin_tgz("", "ai-platform")
         == (tmp_path / "clients" / "opencode-auth.tgz").read_bytes()
     )
+
+
+SPEC = "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0"
+
+
+def test_wellknown_opencode_manifest_points_at_the_plugin_with_options():
+    body = _client(api_public_url="https://api.example.com/").get("/.well-known/opencode").json()
+    assert body == {
+        "auth": {"command": ["opencode", "--version"], "env": ""},
+        "config": {
+            "plugin": [
+                [
+                    SPEC,
+                    {
+                        "api": "https://api.example.com/v1",
+                        "platform": "https://api.example.com",
+                        "provider": "ai-platform",
+                    },
+                ]
+            ]
+        },
+    }
+
+
+def test_wellknown_opencode_uses_configured_spec_and_provider():
+    client = _client(
+        api_public_url="https://api.example.com",
+        provider_name="acme",
+        opencode_plugin_spec="git+https://example.com/p.git#v9.9.9",
+    )
+    spec, opts = client.get("/.well-known/opencode").json()["config"]["plugin"][0]
+    assert spec == "git+https://example.com/p.git#v9.9.9"
+    assert opts["provider"] == "acme"
+
+
+def test_wellknown_opencode_is_404_without_api_public_url():
+    assert _client(api_public_url="").get("/.well-known/opencode").status_code == 404
+
+
+def test_wellknown_opencode_carries_no_secrets():
+    secrets = {
+        "litellm_master_key": "sk-master-SECRET",
+        "session_secret_key": "SESSION-SECRET",
+        "oauth_client_secret": "OAUTH-SECRET",
+    }
+    raw = _client(api_public_url="https://api.example.com", **secrets).get("/.well-known/opencode").text
+    for value in secrets.values():
+        assert value not in raw

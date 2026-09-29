@@ -74,6 +74,18 @@ async def public_config(request: Request) -> JSONResponse:
 _OPENCODE_PLUGIN = Path("clients/opencode-auth.tgz")
 
 
+def _backend_options(api_public_url: str, provider_name: str) -> dict[str, str]:
+    """Where the OpenCode plugin's backend is: platform.json (v1 tarball) and
+    the plugin options in /.well-known/opencode are the same three values."""
+    base = api_public_url.rstrip("/")
+    parts = urlsplit(base)
+    return {
+        "api": f"{base}/v1",
+        "platform": f"{parts.scheme}://{parts.netloc}",
+        "provider": provider_name,
+    }
+
+
 @functools.cache
 def _plugin_tgz(api_public_url: str, provider_name: str) -> bytes:
     """The baked plugin tarball plus package/platform.json for this deployment.
@@ -89,15 +101,7 @@ def _plugin_tgz(api_public_url: str, provider_name: str) -> bytes:
     base = api_public_url.rstrip("/")
     if not base:
         return baked
-    parts = urlsplit(base)
-    doc = json.dumps(
-        {
-            "api": f"{base}/v1",
-            "platform": f"{parts.scheme}://{parts.netloc}",
-            "provider": provider_name,
-        },
-        sort_keys=True,
-    ).encode()
+    doc = json.dumps(_backend_options(api_public_url, provider_name), sort_keys=True).encode()
     out = io.BytesIO()
     with (
         tarfile.open(fileobj=io.BytesIO(baked), mode="r:gz") as src,
@@ -127,4 +131,24 @@ async def opencode_plugin(request: Request) -> Response:
         body,
         media_type="application/gzip",
         headers={"Content-Disposition": 'attachment; filename="opencode-auth.tgz"'},
+    )
+
+
+@router.get("/.well-known/opencode", response_model=None)
+async def opencode_wellknown(request: Request) -> Response:
+    """OpenCode well-known manifest: `opencode auth login <this origin>` installs
+    the SSO plugin with this deployment's options (engines v1 and v2).
+
+    Public data only. `auth` is mandatory for OpenCode; the plugin does not use
+    the credential its command yields, so any portable command will do.
+    """
+    settings: Settings = request.app.state.settings
+    if not settings.api_public_url:
+        raise HTTPException(status_code=404)
+    options = _backend_options(settings.api_public_url, settings.provider_name)
+    return JSONResponse(
+        {
+            "auth": {"command": ["opencode", "--version"], "env": ""},
+            "config": {"plugin": [[settings.opencode_plugin_spec, options]]},
+        }
     )
