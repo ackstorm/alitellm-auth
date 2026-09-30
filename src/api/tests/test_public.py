@@ -144,7 +144,7 @@ SPEC = "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0"
 def test_wellknown_opencode_manifest_points_at_the_plugin_with_options():
     body = _client(api_public_url="https://api.example.com/").get("/.well-known/opencode").json()
     assert body == {
-        "auth": {"command": ["opencode", "--version"], "env": ""},
+        "auth": {"command": ["echo", "ok"], "env": ""},
         "config": {
             "plugin": [
                 [

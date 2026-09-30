@@ -79,7 +79,7 @@ picker in the TUI.
 
 ```json
 {
-  "auth": {"command": ["opencode", "--version"], "env": ""},
+  "auth": {"command": ["echo", "ok"], "env": ""},
   "config": {
     "plugin": [["git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0",
                 {"api": "https://api.example.com/v1",

@@ -82,7 +82,10 @@ async def opencode_wellknown(request: Request) -> Response:
     the SSO plugin with this deployment's options (engines v1 and v2).
 
     Public data only. `auth` is mandatory for OpenCode; the plugin does not use
-    the credential its command yields, so any portable command will do.
+    the credential its command yields. OpenCode spawns it with no shell
+    (cross-spawn): echo is /bin/echo on Linux/macOS, and on Windows cross-spawn
+    runs any non-.exe name through cmd.exe /c. `opencode` itself is often not on
+    PATH.
     """
     settings: Settings = request.app.state.settings
     if not settings.api_public_url:
@@ -90,7 +93,7 @@ async def opencode_wellknown(request: Request) -> Response:
     options = _backend_options(settings.api_public_url, settings.provider_name)
     return JSONResponse(
         {
-            "auth": {"command": ["opencode", "--version"], "env": ""},
+            "auth": {"command": ["echo", "ok"], "env": ""},
             # enabled_providers: only the platform's provider in the model picker. v1
             # reads it as is; v2 turns it into provider.use policies (deny *, allow
             # ours). A default, not a lock: the user's own opencode.json overrides it.

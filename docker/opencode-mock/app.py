@@ -156,7 +156,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self,
                 200,
                 {
-                    "auth": {"command": ["opencode", "--version"], "env": ""},
+                    "auth": {"command": ["echo", "ok"], "env": ""},
                     "config": {
                         "plugin": [[PLUGIN_SPEC, {"api": ORIGIN, "platform": ORIGIN, "provider": PROVIDER}]],
                         "enabled_providers": [PROVIDER],

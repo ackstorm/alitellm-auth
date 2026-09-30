@@ -11,12 +11,12 @@ Verified 2026-09-29 on opencode v1 (1.18.33) and v2 (2.0.18) against `docker-com
 ## Manifest
 
 ```json
-{"auth": {"command": ["opencode", "--version"], "env": ""},
+{"auth": {"command": ["echo", "ok"], "env": ""},
  "config": {"plugin": [["git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0",
                         {"api": "<origin>/v1", "platform": "<origin>", "provider": "ai-platform"}]]}}
 ```
 
-- `auth` is mandatory (v2 `WellKnown.add` fails without it); `env` MUST be a string. The plugin ignores the credential the command yields.
+- `auth` is mandatory (v2 `WellKnown.add` fails without it); `env` MUST be a string. The plugin ignores the credential the command yields. `echo ok` because OpenCode spawns it shell-less via cross-spawn: `/bin/echo` on Linux/macOS, `cmd.exe /c` fallback on Windows; `opencode` is often not on PATH.
 - Public data only: never a token, key or user data.
 - `api`/`platform` in plugin options must be bare origins (`api` ends `/v1`).
 - Plugin spec: `OPENCODE_PLUGIN_SPEC` (Helm `config.opencodePluginSpec`), a git spec at the repo root pinned to a tag.
