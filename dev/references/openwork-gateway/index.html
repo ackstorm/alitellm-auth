@@ -21,7 +21,7 @@
     
     
       
-        <title>OpenCode install: one URL, engines v1 and v2 - alitellm-auth</title>
+        <title>Openwork gateway - alitellm-auth</title>
       
     
     
@@ -72,7 +72,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#opencode-install-one-url-engines-v1-and-v2" class="md-skip">
+        <a href="#openwork-gateway-den-model-delivery-research-report" class="md-skip">
           Skip to content
         </a>
       
@@ -108,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              OpenCode install: one URL, engines v1 and v2
+              Openwork gateway
             
           </span>
         </div>
@@ -314,10 +314,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#flow" class="md-nav__link">
+  <a href="#0-who-calls-what" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Flow
+        0. Who calls what
       
     </span>
   </a>
@@ -325,10 +325,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#manifest" class="md-nav__link">
+  <a href="#1-inference-provider-ipr_-wire-contract-strict" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Manifest
+        1. Inference-provider (ipr_*) wire contract — strict
       
     </span>
   </a>
@@ -336,10 +336,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#engine-matrix-install-source" class="md-nav__link">
+  <a href="#2-each-member-signs-in-end-to-end" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Engine matrix (install source)
+        2. "Each member signs in" — end to end
       
     </span>
   </a>
@@ -347,10 +347,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#gotchas" class="md-nav__link">
+  <a href="#3-engine-v2-in-current-dev-delta-vs-8c18c952a" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Gotchas
+        3. Engine v2 in current dev — delta vs @8c18c952a
       
     </span>
   </a>
@@ -358,10 +358,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#only-the-platforms-provider" class="md-nav__link">
+  <a href="#4-llmproviders-lpr_-unchanged-contract-confirmed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Only the platform's provider
+        4. llmProviders (lpr_*) — unchanged contract, confirmed
       
     </span>
   </a>
@@ -369,10 +369,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#default-small-model" class="md-nav__link">
+  <a href="#5-feasibility-for-alitellm-auth" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Default / small model
+        5. Feasibility for alitellm-auth
       
     </span>
   </a>
@@ -399,70 +399,82 @@
   
 
 
-<h1 id="opencode-install-one-url-engines-v1-and-v2">OpenCode install: one URL, engines v1 and v2</h1>
-<p>Verified 2026-09-29 on opencode v1 (1.18.33) and v2 (2.0.18) against <code>docker-compose.opencode-mock.yml</code>.</p>
-<h2 id="flow">Flow</h2>
-<p><code>opencode auth login https://&lt;platform-host&gt;</code> fetches <code>GET /.well-known/opencode</code>
-(<code>src/api/app/public.py::opencode_wellknown</code>), installs the plugin it names, then
-<code>opencode auth login -p &lt;provider&gt;</code> (v2: <code>opencode auth login &lt;provider&gt;</code>) runs the plugin's SSO.</p>
-<h2 id="manifest">Manifest</h2>
-<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="nt">"auth"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"echo"</span><span class="p">,</span><span class="w"> </span><span class="s2">"ok"</span><span class="p">],</span><span class="w"> </span><span class="nt">"env"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">},</span>
-<span class="w"> </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"plugin"</span><span class="p">:</span><span class="w"> </span><span class="p">[[</span><span class="s2">"git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0"</span><span class="p">,</span>
-<span class="w">                        </span><span class="p">{</span><span class="nt">"api"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;origin&gt;/v1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"platform"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;origin&gt;"</span><span class="p">,</span><span class="w"> </span><span class="nt">"provider"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ai-platform"</span><span class="p">}]]}}</span>
-</code></pre></div>
-<ul>
-<li><code>auth</code> is mandatory (v2 <code>WellKnown.add</code> fails without it); <code>env</code> MUST be a string. The plugin ignores the credential the command yields. <code>echo ok</code> because OpenCode spawns it shell-less via cross-spawn: <code>/bin/echo</code> on Linux/macOS, <code>cmd.exe /c</code> fallback on Windows; <code>opencode</code> is often not on PATH.</li>
-<li>Public data only: never a token, key or user data.</li>
-<li><code>api</code>/<code>platform</code> in plugin options must be bare origins (<code>api</code> ends <code>/v1</code>).</li>
-<li>Plugin spec: <code>OPENCODE_PLUGIN_SPEC</code> (Helm <code>config.opencodePluginSpec</code>), a git spec at the repo root pinned to a tag.</li>
-</ul>
-<h2 id="engine-matrix-install-source">Engine matrix (install source)</h2>
+<!-- Research report, 2026-09-29, from the OpenWork source @a3b7799 (dev). Den "AI Gateway"
+     (inference providers, ipr_*) vs Den llmProviders (lpr_*), and what reaches engine v2.
+     Companion to openwork-provisioning.md and openwork-engine-v2.md (which is @8c18c952a). -->
+
+<h1 id="openwork-gateway-den-model-delivery-research-report">OpenWork Gateway / Den model delivery — research report</h1>
+<p>Repo <code>different-ai/openwork</code> dev @ <code>a3b7799</code>. <code>S</code> = <code>apps/server/src</code>, <code>A</code> = <code>apps/app/src</code>,
+<code>D</code> = <code>ee/apps/den-api/src</code>, <code>W</code> = <code>ee/apps/den-web</code>, <code>G</code> = <code>packages/docs/self-host/gateway.mdx</code>.
+<code>CPS</code> = <code>S/cloud-provider-sync.ts</code>.</p>
+<hr />
+<h2 id="0-who-calls-what">0. Who calls what</h2>
 <table>
 <thead>
 <tr>
-<th>Source</th>
-<th>v1</th>
-<th>v2</th>
+<th>Caller</th>
+<th>Den endpoints</th>
+<th>Cite</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>tarball URL (removed from this service)</td>
-<td>works</td>
-<td>no</td>
+<td>Local OpenWork server (<code>CloudProviderSync</code>)</td>
+<td><code>GET /v1/llm-providers</code> → <code>GET /v1/llm-providers/:id/connect</code> each; <code>GET /v1/inference-providers?scope=usable</code> → <code>GET /v1/inference-providers/:id/connect</code> each (skipped when that row has 0 models); <code>GET /v1/inference-providers/:id/oauth/start[?credentialSetId=]</code></td>
+<td><code>CPS:539-592, 1029-1042</code></td>
 </tr>
 <tr>
-<td><code>::path:</code> subdir git spec</td>
-<td>ignored</td>
-<td>works</td>
+<td>Desktop app → local server</td>
+<td><code>PUT /den-session {baseUrl,token,orgId}</code>, <code>POST /cloud-provider-sync/run</code> ("Sync now"), <code>POST /cloud-provider-sync/providers/:id/oauth/start {orgId,credentialSetId?}</code></td>
+<td><code>S/server.ts:3218-3256</code>; <code>A/app/lib/openwork-server.ts:1682-1686</code>; <code>A/react-app/domains/settings/pages/cloud-providers-view.tsx:172</code></td>
 </tr>
 <tr>
-<td>repo-root git spec / well-known</td>
-<td>works</td>
-<td>works</td>
+<td>Den web (<code>/dashboard/model-connections</code>, <code>/gateway/connect</code>)</td>
+<td><code>GET /v1/inference-providers/member-connections</code>, <code>…/:id/oauth/start</code>, <code>…/oauth/browser-status</code>, <code>…/oauth/browser-start</code>, <code>…/oauth/callback</code></td>
+<td><code>W/app/(den)/dashboard/_components/gateway-member-connections-data.ts:32-61</code>; <code>W/app/gateway/connect/gateway-connect.tsx:50,135</code></td>
 </tr>
 </tbody>
 </table>
-<p>This service serves no tarball: the only install is <code>/.well-known/opencode</code> → git spec.</p>
-<h2 id="gotchas">Gotchas</h2>
+<p>All server→Den calls: <code>Authorization: Bearer &lt;den session token&gt;</code>, <code>x-openwork-org-id</code>, <code>x-openwork-legacy-org-id</code>, 8 s timeout, <code>redirect:"error"</code> (<code>CPS:499-517</code>). <code>baseUrl</code> includes any <code>/api/den</code> prefix (<code>CPS:52-54</code>).
+Desktop never reads <code>/v1/org</code> <code>deploymentCapabilities</code> (grep <code>A</code>,<code>S</code> → none); that gate is admin-management only (<code>G:270</code>).</p>
+<hr />
+<h2 id="1-inference-provider-ipr_-wire-contract-strict">1. Inference-provider (<code>ipr_*</code>) wire contract — strict</h2>
+<p>List <code>GET /v1/inference-providers?scope=usable</code> → <code>{"inferenceProviders":[…]}</code>. 404/405/501 = "no Gateway", sync continues legacy-only (<code>CPS:522, 562-563</code>). Any bad row fails the whole list (<code>CPS:445-455</code>).</p>
+<p>Row (<code>parseInferenceProvider</code> <code>CPS:401-443</code>, on top of <code>parseProvider</code> <code>:317-340</code>):
+- <code>id</code> <code>/^ipr_/i</code> (oauth start requires <code>/^ipr_[a-z0-9]+$/</code>, <code>CPS:1030</code>), <code>providerId</code>, <code>name</code>, <code>models[]</code> required; <code>source</code> forced to <code>"openwork_gateway"</code> (<code>:442</code>, <code>:165</code>).
+- <code>credentialStatus</code> ∈ <code>ready|member_auth_required|org_credential_missing</code> — required (<code>:393-405</code>).
+- each model: <code>id</code> = <code>gwm_&lt;ulid26&gt;_&lt;ulid26&gt;_&lt;ulid26&gt;</code> (Crockford lowercase), <code>config.id === id</code>, <code>upstreamModelId</code>, <code>modelGroupId</code>, <code>modelGroupName</code>, <code>credentialSetId</code>, <code>credentialSetName</code> all required (<code>:406-410</code>).
+- <code>authorizationRequests[]</code> optional: <code>{credentialSetId:/^gcs_&lt;ulid26&gt;$/, name, authUrl, models?}</code>; model id segments must match group/set ids (<code>:411-438</code>).
+- <code>authUrl</code> optional/tolerated (<code>:440-441</code>).</p>
+<p>Connect <code>GET /v1/inference-providers/:id/connect</code> → <code>{"inferenceProvider":{…row…, "apiKey":"ow_gw_…", "apiKeys":{ENV:apiKey}}}</code> (<code>CPS:458-482</code>). Rejected (<code>den_inference_provider_unscoped_credentials_*</code>) unless: <code>providerConfig.env</code> non-empty, every env name starts with <code>&lt;ID uppercased, non-alnum→_&gt;_</code> (e.g. <code>IPR_XXX_</code>), <code>apiKey</code> starts <code>ow_gw_</code>, every env maps to exactly <code>apiKey</code>, no extra <code>apiKeys</code> names (<code>:466-474</code>). Den-side key format: 49 chars <code>^ow_gw_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$</code> (<code>ee/packages/utils/src/gateway-bearer-key.ts:4,20</code>) — client only checks the prefix.
+409 <code>{error:"gateway_selection_required"|"credential_set_required"}</code> → surfaced to UI (<code>CPS:523-528</code>).</p>
+<p><code>providerConfig</code> Den builds: <code>api</code> = <code>&lt;GATEWAY_PUBLIC_BASE_URL&gt;/api/v1/providers/&lt;ipr_id&gt;</code>, <code>env</code> = runtime-scoped names (<code>D/llm/inference-provider-config.ts:202-227</code>). The v2 gateway-quota plugin only attaches when baseURL ends <code>/api/v1/providers/&lt;ipr_id&gt;</code> (<code>S/gateway-quota.ts:14-25</code>).</p>
+<p>OAuth start → <code>{authUrl}</code>; server accepts only <code>https://&lt;any host&gt;/gateway/connect…</code> (or <code>http://loopback</code> when Den is loopback) or <code>https://accounts.google.com/o/oauth2/v2/auth</code>; no userinfo/hash; must not contain the Den token (<code>CPS:30-48</code>).</p>
+<h2 id="2-each-member-signs-in-end-to-end">2. "Each member signs in" — end to end</h2>
 <ul>
-<li>Origin down at startup → opencode starts without the plugin (no error).</li>
-<li>v2 managed-service port collision shows as <code>UnexpectedStatus: 500</code>.</li>
-<li>opencode needs a TTY: never run login/run with stdout redirected (hangs).</li>
-<li>Platform URL (ingress.host) and API URL both work: gitops <code>httproute-api.yaml</code> routes <code>/.well-known/opencode</code> on the API host here. Without that rule, v1 crashes on the 404 with <code>undefined is not an object (evaluating 'N.auth.command')</code>.</li>
+<li>Mode is Google-only today (Vertex / Vertex-Anthropic) (<code>G:179-192</code>; <code>D/routes/org/inference-providers.ts:464</code> "member set with a Google OAuth client").</li>
+<li>Flow: desktop → local server <code>oauth/start</code> → Den <code>/v1/inference-providers/:id/oauth/start</code> mints a 10-min entry handle → Den-web <code>/gateway/connect</code> (needs a signed-in Den <strong>browser cookie</strong> for the same user) → <code>browser-start</code> → Google → Den <code>oauth/callback</code> stores the member's Google access/refresh token <strong>server-side, encrypted</strong> (<code>D/routes/org/inference-providers.ts:595-685</code>; <code>G:208-216</code>).</li>
+<li>What the desktop holds: only the member's <code>ow_gw_</code> Gateway bearer from <code>/connect</code>. <code>ensureMemberGatewayKey</code> returns the existing active key or creates one; <strong>one long-lived key per org member, rotated only when revoked/corrupt</strong> (<code>D/gateway-keys.ts:8-38</code>; also minted on org join <code>D/orgs.ts:558,569</code>). Upstream refresh is the Gateway's job, not the client's.</li>
+<li>Re-fetch cadence: every 5 min (<code>CPS:243</code>, <code>OPENWORK_CLOUD_PROVIDER_SYNC_INTERVAL_MS</code> <code>:840-843</code>), on <code>den_session_updated</code> (<code>:906,932</code>), and on "Sync now" (<code>POST /cloud-provider-sync/run</code>).</li>
+<li>On 401 from the provider baseURL: <strong>no refetch/refresh anywhere</strong> (grep <code>401</code> in CPS / gateway-quota / engine-v2-preview → only the no-session error <code>CPS:1034</code>). The v2 gateway-quota plugin only marks Gateway quota responses <code>x-should-retry:false</code> (<code>S/opencode-plugins/openwork-gateway-quota-v2.ts:21-37</code>).</li>
+<li><code>/dashboard/model-connections</code> is <strong>optional</strong>: it's the Den-web view of the caller's Google member connections (<code>W/…/gateway-member-connections-data.ts:32</code>); desktop can start the same flow from its own Login action (<code>G:210</code>).</li>
 </ul>
-<h2 id="only-the-platforms-provider">Only the platform's provider</h2>
-<p>The manifest's <code>config</code> also carries <code>"enabled_providers": ["&lt;provider&gt;"]</code>. v1 reads it as is;
-v2 turns it into <code>provider.use</code> policies (deny <code>*</code>, allow the provider; <code>normalize.ts:384-402</code>).
-Verified 2026-09-29: v1 <code>opencode models</code> and the v2 TUI <code>/models</code> list only the platform's
-provider. A default, not a lock: the user's own <code>opencode.json</code> overrides it. Note: on v2,
-<code>opencode models</code> (CLI) prints nothing (it does not load plugins); check the TUI picker.</p>
-<h2 id="default-small-model">Default / small model</h2>
-<p><code>OPENCODE_DEFAULT_MODEL</code> / <code>OPENCODE_DEFAULT_SMALL_MODEL</code> (Helm <code>config.opencodeDefaultModel</code> /
-<code>opencodeDefaultSmallModel</code>; bare names, unset = none). Served as <code>model</code> / <code>small_model</code>
-(<code>"&lt;provider&gt;/&lt;name&gt;"</code>) in the per-user <code>/clients/opencode/config</code>, NOT in the public well-known
-manifest: only there is the user's own model list known. Omitted when the user's key does not see
-the model (OpenCode then picks the first one). The user's own <code>opencode.json</code> still wins.</p>
+<h2 id="3-engine-v2-in-current-dev-delta-vs-8c18c952a">3. Engine v2 in current dev — delta vs @8c18c952a</h2>
+<ul>
+<li>Still a preview, <strong>off by default</strong>: <code>OPENWORK_ENGINE_V2_PREVIEW=1|chat|sidecar</code> or persisted <code>engine-v2-preview.json</code> (missing/invalid → <code>{enabled:false}</code>) (<code>S/engine-v2-preview.ts:118-159</code>); Settings → "Experimental engine" (<code>A/react-app/domains/settings/advanced-sections.ts:6</code>). Pin still <code>opencode2 0.0.0-beta-19086</code> (<code>constants.json:3</code>).</li>
+<li><strong>Changed</strong>: generated config now has a <code>plugins</code> key — but only OpenWork's own (context, gateway-quota, provider-filters) as <code>file://</code> dirs under the private root (<code>S/managed-opencode-v2.ts:157-172, 184-186</code>). User plugins still never loaded; <code>OPENCODE_CONFIG_DIR</code> still private (<code>:242</code>). The §5 "no plugin key" line in openwork-engine-v2.md is outdated; its conclusion (our plugin can't run) stands.</li>
+<li>Provider mirror unchanged in substance: reads the ENGINE_GLOBAL runtime row (where both <code>lpr_</code> and <code>ipr_</code> rows land) + env.json credentials (<code>S/engine-v2-preview.ts:567-578</code>); adapters <code>@ai-sdk/openai|anthropic|openai-compatible</code> + <code>@openrouter/ai-sdk-provider</code> mapped to <code>@opencode-ai/ai/providers/*</code> (<code>:215-220</code>); custom endpoints need <code>options.baseURL</code> (a non-native <code>api</code> alone → skipped) (<code>:221-247</code>); key = literal <code>options.apiKey</code> (not <code>{env:</code>) → env.json by declared <code>env[]</code> → local <code>auth.json</code> api key (<code>:249-260</code>). New: local v1 <code>auth.json</code> API keys are also mirrored (<code>S/opencode-v2-local-auth.ts:11-20</code>).</li>
+<li>Side note (out of scope): our plugin hardcodes <code>@opencode/ai/providers/openai-compatible</code>; OpenWork's pinned v2 uses <code>@opencode-ai/ai/...</code>. Different engine builds; unverified whether either name resolves in the other.</li>
+</ul>
+<h2 id="4-llmproviders-lpr_-unchanged-contract-confirmed">4. <code>llmProviders</code> (<code>lpr_*</code>) — unchanged contract, confirmed</h2>
+<p>List/connect shapes as in openwork-provisioning.md §1 (<code>CPS:342-385</code>). <code>memberCredential.state</code> ∈ <code>missing|active|blocked|stale|error</code>; anything else fails; non-<code>active</code> → provider skipped <code>needs_key</code> (<code>:364-375, 720-728</code>). Ownership restore needs <code>^lpr_[a-z0-9]{26}$</code> (<code>:1556</code>). Declared <code>env[]</code> with no resolvable key → skipped <code>missing_credentials</code> (<code>:746-757</code>). v1 engine: reload deferred while sessions are busy (<code>:1142-1180</code>); v2: env.json change → re-mirror, no reload.</p>
+<h2 id="5-feasibility-for-alitellm-auth">5. Feasibility for alitellm-auth</h2>
+<p><strong>Gateway (<code>ipr_</code>) "each member signs in" with our AS: not worth it.</strong> Member OAuth is Google-hardwired on Den's side; the client-visible result is still a static per-member <code>ow_gw_</code> bearer (long-lived by design) plus strict ULID/<code>gcs_</code>/<code>gwm_</code> parity rules — i.e. D-3's "static per-member key" with far more surface. Only upside: the quota plugin. Minimum surface would be list + connect (+ oauth/start if <code>member_auth_required</code>) with ULID-shaped ids.</p>
+<p><strong>Recommended: Den <code>llmProviders</code> + <code>/connect</code> returning a per-member, short-TTL LiteLLM key.</strong> Minimum:
+1. <code>GET /api/den/v1/llm-providers</code> → one row, fixed <code>id</code> <code>lpr_&lt;26 [a-z0-9]&gt;</code>, <code>providerConfig {npm:"@ai-sdk/openai-compatible", env:["&lt;NAME&gt;"], options:{baseURL}}</code>, models with per-model <code>config</code>.
+2. <code>GET /api/den/v1/llm-providers/:id/connect</code> → same row + <code>apiKey</code> (member's current key; reuse until ~half TTL left, then mint) + <code>memberCredential.state:"active"</code> (or <code>"missing"</code> when the member has none yet).
+3. (optional) <code>/v1/resources.llmProviders {id: updatedAt}</code> for change detection.</p>
+<p>Risks: (a) reverses D-3/D-4 — a bearer on disk (env.json / 0600 config), mitigated only by TTL; (b) no 401-driven refresh: TTL must exceed the 5-min poll plus the longest v1 busy-deferred reload, else 401 until next sync; (c) models surface as <code>lpr_…/&lt;model&gt;</code> (not <code>ai-platform/</code>), v2 drops <code>cost/attachment/temperature</code>, and only the openai-compatible+baseURL shape mirrors.</p>
 
 
 
