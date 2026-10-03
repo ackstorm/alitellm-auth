@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Added
+
+- `OPENCODE_DEFAULT_MODEL` / `OPENCODE_DEFAULT_SMALL_MODEL` (Helm `config.opencodeDefaultModel` / `opencodeDefaultSmallModel`). `/clients/opencode/config` sets OpenCode's `model` / `small_model` from them, only when the user's own key sees that model; unset or not visible → omitted.
+
 ## [0.21.2] - 2026-09-29
 
 ### Changed

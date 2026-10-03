@@ -159,6 +159,17 @@ def _provider(settings: Settings, models: dict) -> dict:
     }
 
 
+def _defaults(settings: Settings, models: dict) -> dict:
+    """`model`/`small_model` ("<provider>/<name>"), each only if the user sees it."""
+    pairs = (
+        ("model", settings.opencode_default_model),
+        ("small_model", settings.opencode_default_small_model),
+    )
+    return {
+        k: f"{settings.provider_name}/{name}" for k, name in pairs if name and name in models
+    }
+
+
 def _mcp(settings: Settings, servers: list[str]) -> dict:
     """Every MCP server the user can reach, registered but DISABLED: the user turns
     one on in OpenCode, which then signs in through the front door's OAuth.
@@ -205,11 +216,12 @@ def _body(
     provider: dict,
     mcp: dict,
     skills: list[dict],
+    defaults: dict | None = None,
     *,
     auth: str = "ok",
     stale: bool = False,
 ) -> dict:
-    config = {k: v for k, v in (("provider", provider), ("mcp", mcp)) if v}
+    config = {k: v for k, v in (("provider", provider), ("mcp", mcp), *(defaults or {}).items()) if v}
     return {
         "schema": SCHEMA,
         "version": _sha({"config": config, "skills": skills}),
@@ -267,7 +279,13 @@ async def opencode_config(request: Request) -> JSONResponse:
         body = {**cached, "stale": True} if cached else _body(email, {}, {}, skills, stale=True)
     else:
         models = _models(groups, deployments, aliases)
-        body = _body(email, _provider(settings, models), _mcp(settings, servers), skills)
+        body = _body(
+            email,
+            _provider(settings, models),
+            _mcp(settings, servers),
+            skills,
+            _defaults(settings, models),
+        )
         try:
             await store.put(CACHE_KIND, email, body, ttl=CACHE_TTL)
         except Exception:  # noqa: BLE001 — a cache write must not fail the answer

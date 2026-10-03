@@ -54,6 +54,14 @@ spec:
               value: {{ .Values.config.litellmDefaultTeam | quote }}
             - name: PROVIDER_NAME
               value: {{ .Values.config.providerName | quote }}
+            {{- with .Values.config.opencodeDefaultModel }}
+            - name: OPENCODE_DEFAULT_MODEL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.opencodeDefaultSmallModel }}
+            - name: OPENCODE_DEFAULT_SMALL_MODEL
+              value: {{ . | quote }}
+            {{- end }}
             - name: OPENCODE_PLUGIN_SPEC
               value: {{ .Values.config.opencodePluginSpec | quote }}
             # Always rendered, never conditional: which team a key lands in

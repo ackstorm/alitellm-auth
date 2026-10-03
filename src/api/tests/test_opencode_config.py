@@ -16,7 +16,7 @@ from app.oauth_as.tokens import Signer
 from tests.as_defaults import AS_TEST_DEFAULTS
 
 URL = "/clients/opencode/config"
-ALLOWED_TOP = {"provider", "mcp", "instructions"}
+ALLOWED_TOP = {"provider", "mcp", "instructions", "model", "small_model"}
 
 # What the user's key sees (list_litellm_models projection).
 GROUPS = [
@@ -387,3 +387,18 @@ def test_forbidden_keys_never_reach_the_output(client, settings, groups, admin):
         "{file:",
     ):
         assert bad not in text, bad
+
+
+def test_default_models_only_when_the_user_sees_them(groups, admin):
+    def config(**kw):
+        settings = _settings(**kw)
+        client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+        return _get(client, _token(settings)).json()["config"]
+
+    assert "model" not in config() and "small_model" not in config()
+    both = config(opencode_default_model="acme.smart", opencode_default_small_model="openai.gpt")
+    assert both["model"] == "ai-platform/acme.smart"
+    assert both["small_model"] == "ai-platform/openai.gpt"
+    # Not in the user's list (hidden / embedding / unknown) → omitted, not dangling.
+    hidden = config(opencode_default_model="acme.hidden", opencode_default_small_model="openai.embed")
+    assert "model" not in hidden and "small_model" not in hidden
