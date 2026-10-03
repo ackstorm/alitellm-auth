@@ -458,8 +458,8 @@ Verified 2026-09-29: v1 <code>opencode models</code> and the v2 TUI <code>/model
 provider. A default, not a lock: the user's own <code>opencode.json</code> overrides it. Note: on v2,
 <code>opencode models</code> (CLI) prints nothing (it does not load plugins); check the TUI picker.</p>
 <h2 id="default-small-model">Default / small model</h2>
-<p><code>OPENCODE_DEFAULT_MODEL</code> / <code>OPENCODE_DEFAULT_SMALL_MODEL</code> (Helm <code>config.opencodeDefaultModel</code> /
-<code>opencodeDefaultSmallModel</code>; bare names, unset = none). Served as <code>model</code> / <code>small_model</code>
+<p><code>DEFAULT_MODEL</code> / <code>DEFAULT_SMALL_MODEL</code> (Helm <code>config.defaultModel</code> /
+<code>defaultSmallModel</code>; bare names, unset = none). Served as <code>model</code> / <code>small_model</code>
 (<code>"&lt;provider&gt;/&lt;name&gt;"</code>) in the per-user <code>/clients/opencode/config</code>, NOT in the public well-known
 manifest: only there is the user's own model list known. Omitted when the user's key does not see
 the model (OpenCode then picks the first one). The user's own <code>opencode.json</code> still wins.</p>
