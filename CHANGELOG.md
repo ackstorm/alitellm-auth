@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.23.1] - 2026-10-03
+
 ### Changed
 
 - Default `OPENCODE_PLUGIN_SPEC` is now plugin `v0.4.1`, which applies the `model` / `small_model` defaults (`DEFAULT_MODEL` / `DEFAULT_SMALL_MODEL`) on OpenCode v1. v2 ignores them for now.
