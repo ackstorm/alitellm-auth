@@ -49,8 +49,8 @@ config:
   providerName: "ai-platform"
   # Model / small model OpenCode starts with (bare names, e.g. "acme.fast").
   # Empty = none. Served per user, and only when that user's key sees the model.
-  opencodeDefaultModel: ""
-  opencodeDefaultSmallModel: ""
+  defaultModel: ""
+  defaultSmallModel: ""
   # OpenCode plugin installed by /.well-known/opencode (`opencode auth login
   # https://<ingress.host>`). Git spec at the plugin repo root, pinned to a tag.
   opencodePluginSpec: "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.0"

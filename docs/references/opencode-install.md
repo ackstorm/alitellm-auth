@@ -48,8 +48,8 @@ provider. A default, not a lock: the user's own `opencode.json` overrides it. No
 
 ## Default / small model
 
-`OPENCODE_DEFAULT_MODEL` / `OPENCODE_DEFAULT_SMALL_MODEL` (Helm `config.opencodeDefaultModel` /
-`opencodeDefaultSmallModel`; bare names, unset = none). Served as `model` / `small_model`
+`DEFAULT_MODEL` / `DEFAULT_SMALL_MODEL` (Helm `config.defaultModel` /
+`defaultSmallModel`; bare names, unset = none). Served as `model` / `small_model`
 (`"<provider>/<name>"`) in the per-user `/clients/opencode/config`, NOT in the public well-known
 manifest: only there is the user's own model list known. Omitted when the user's key does not see
 the model (OpenCode then picks the first one). The user's own `opencode.json` still wins.

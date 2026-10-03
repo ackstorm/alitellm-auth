@@ -396,11 +396,9 @@ def test_default_models_only_when_the_user_sees_them(groups, admin):
         return _get(client, _token(settings)).json()["config"]
 
     assert "model" not in config() and "small_model" not in config()
-    both = config(opencode_default_model="acme.smart", opencode_default_small_model="openai.gpt")
+    both = config(default_model="acme.smart", default_small_model="openai.gpt")
     assert both["model"] == "ai-platform/acme.smart"
     assert both["small_model"] == "ai-platform/openai.gpt"
     # Not in the user's list (hidden / embedding / unknown) → omitted, not dangling.
-    hidden = config(
-        opencode_default_model="acme.hidden", opencode_default_small_model="openai.embed"
-    )
+    hidden = config(default_model="acme.hidden", default_small_model="openai.embed")
     assert "model" not in hidden and "small_model" not in hidden

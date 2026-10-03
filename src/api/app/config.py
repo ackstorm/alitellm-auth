@@ -257,8 +257,8 @@ class Settings(BaseSettings):
     # Default / small model OpenCode starts with, as bare model names (no provider
     # prefix). Served in /clients/opencode/config only when the user's own list has
     # it; unset or not visible → omitted (OpenCode then picks the first model).
-    opencode_default_model: str | None = None
-    opencode_default_small_model: str | None = None
+    default_model: str | None = None
+    default_small_model: str | None = None
 
     # Real-links-only targets (D-02/D-03) — None/empty means the link is OMITTED from
     # the SPA (no dead anchor). NEVER add a secret-bearing field to this set.

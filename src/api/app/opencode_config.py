@@ -162,8 +162,8 @@ def _provider(settings: Settings, models: dict) -> dict:
 def _defaults(settings: Settings, models: dict) -> dict:
     """`model`/`small_model` ("<provider>/<name>"), each only if the user sees it."""
     pairs = (
-        ("model", settings.opencode_default_model),
-        ("small_model", settings.opencode_default_small_model),
+        ("model", settings.default_model),
+        ("small_model", settings.default_small_model),
     )
     return {k: f"{settings.provider_name}/{name}" for k, name in pairs if name and name in models}
 

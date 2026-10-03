@@ -54,12 +54,12 @@ spec:
               value: {{ .Values.config.litellmDefaultTeam | quote }}
             - name: PROVIDER_NAME
               value: {{ .Values.config.providerName | quote }}
-            {{- with .Values.config.opencodeDefaultModel }}
-            - name: OPENCODE_DEFAULT_MODEL
+            {{- with .Values.config.defaultModel }}
+            - name: DEFAULT_MODEL
               value: {{ . | quote }}
             {{- end }}
-            {{- with .Values.config.opencodeDefaultSmallModel }}
-            - name: OPENCODE_DEFAULT_SMALL_MODEL
+            {{- with .Values.config.defaultSmallModel }}
+            - name: DEFAULT_SMALL_MODEL
               value: {{ . | quote }}
             {{- end }}
             - name: OPENCODE_PLUGIN_SPEC
