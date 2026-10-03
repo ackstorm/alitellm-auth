@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.23.0] - 2026-10-03
+
 ### Changed
 
 - Renamed the default-model settings from the 0.22.0 `OPENCODE_DEFAULT_MODEL` / `OPENCODE_DEFAULT_SMALL_MODEL` to the generic `DEFAULT_MODEL` / `DEFAULT_SMALL_MODEL` (Helm `config.defaultModel` / `defaultSmallModel`). Behaviour unchanged; no alias for the old names (never deployed).
