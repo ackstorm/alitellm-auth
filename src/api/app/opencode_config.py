@@ -165,9 +165,7 @@ def _defaults(settings: Settings, models: dict) -> dict:
         ("model", settings.opencode_default_model),
         ("small_model", settings.opencode_default_small_model),
     )
-    return {
-        k: f"{settings.provider_name}/{name}" for k, name in pairs if name and name in models
-    }
+    return {k: f"{settings.provider_name}/{name}" for k, name in pairs if name and name in models}
 
 
 def _mcp(settings: Settings, servers: list[str]) -> dict:
@@ -221,7 +219,9 @@ def _body(
     auth: str = "ok",
     stale: bool = False,
 ) -> dict:
-    config = {k: v for k, v in (("provider", provider), ("mcp", mcp), *(defaults or {}).items()) if v}
+    config = {
+        k: v for k, v in (("provider", provider), ("mcp", mcp), *(defaults or {}).items()) if v
+    }
     return {
         "schema": SCHEMA,
         "version": _sha({"config": config, "skills": skills}),
