@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Changed
+
+- Default `OPENCODE_PLUGIN_SPEC` is now plugin `v0.4.2`, which re-discovers the authorization server at every login. v0.4.1 cached discovery for the whole process, so OpenCode v2's long-lived background service kept a moved issuer and every sign-in failed until `opencode service restart`.
+
 ## [0.23.1] - 2026-10-03
 
 ### Changed
