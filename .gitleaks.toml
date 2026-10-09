@@ -34,6 +34,7 @@ paths = [
   '''\.devdeps/''',                  # vendored/installed Python deps (visible in --no-git scans)
   '''\.planning/''',                 # planning artifacts — documentation examples only
   '''docs/plans/''',                 # plan docs — documentation examples only
+  '''docs/superpowers/''',           # specs/plans — copy test fixtures (session_secret_key="test-secret-…")
   '''src/api/tests/''',              # test suite — all synthetic sk- fixtures live here
   '''docker/mock-litellm/''',        # dev mock — synthetic tokens/fixtures only (no real secrets)
   '''deploy/kustomize/base/secret\.example\.yaml''',   # deploy template (sk-admin-change-me placeholder)
