@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Fixed
+
+- With `personalTeamsEnabled`, a user's first login created their LiteLLM user without `user_email`/`user_alias`: `/team/member_add` auto-creates a missing member as a bare row, and the later `/user/new` only answered "already exists". The user is now created before joining the personal team, and an existing row missing `user_email` (or `user_alias`, when the IdP sends a name) is filled in on the next login. Non-empty values are never overwritten. ach resolves users by `user_email`, so affected users saw no environments or models there.
+
 ### Changed
 
 - Default `OPENCODE_PLUGIN_SPEC` is now plugin `v0.4.2`, which re-discovers the authorization server at every login. v0.4.1 cached discovery for the whole process, so OpenCode v2's long-lived background service kept a moved issuer and every sign-in failed until `opencode service restart`.

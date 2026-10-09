@@ -2362,8 +2362,124 @@ async def test_ensure_team_and_user_uses_personal_team_when_flag_on():
     assert new.call_count == 1
     assert _json_body(new)["team_id"] == "user-alice@example.com"
     assert _json_body(update)["access_group_ids"] == ["id-default"]
-    # The user is scoped to the personal team, not the shared one.
-    assert _json_body(user_new)["teams"] == ["user-alice@example.com"]
+    # No `teams` on /user/new: it runs before the team exists; member_add joins it.
+    assert "teams" not in _json_body(user_new)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_personal_team_path_creates_the_user_before_member_add():
+    """/team/member_add auto-creates a missing member WITHOUT user_email/user_alias
+    (LiteLLM v1.99.1 add_new_member); /user/new must win the race to create it."""
+    settings = make_settings(personal_teams_enabled=True)
+    calls: list[str] = []
+
+    def record(name, resp):
+        def side_effect(request):
+            calls.append(name)
+            return resp
+
+        return side_effect
+
+    respx.post("http://litellm.test/user/new").mock(
+        side_effect=record("user/new", httpx.Response(200, json={"user_id": "alice@example.com"}))
+    )
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "user-alice@example.com"})
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        side_effect=record("team/member_add", httpx.Response(200, json={}))
+    )
+    respx.post("http://litellm.test/team/update").mock(return_value=httpx.Response(200, json={}))
+
+    await ensure_team_and_user("alice@example.com", settings, name="Alice")
+
+    assert calls == ["user/new", "team/member_add"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_existing_user_without_email_or_alias_is_healed():
+    """A row auto-created by member_add (prod incident 2026-10-08) gets
+    user_email + user_alias on the next login."""
+    settings = make_settings(personal_teams_enabled=True)
+
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(409, json={"error": "User already exists"})
+    )
+    respx.get("http://litellm.test/user/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={"user_info": {"user_id": "alice@example.com", "user_email": None}},
+        )
+    )
+    update = respx.post("http://litellm.test/user/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(400, json={"error": "Team already exists"})
+    )
+    respx.get("http://litellm.test/team/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "team_id": "user-alice@example.com",
+                "team_info": {"metadata": {"source": "token-factory", "alt_managed": "user-team"}},
+            },
+        )
+    )
+    respx.post("http://litellm.test/team/member_add").mock(
+        return_value=httpx.Response(400, json={"error": "User already in team"})
+    )
+    respx.post("http://litellm.test/team/update").mock(return_value=httpx.Response(200, json={}))
+
+    await ensure_team_and_user("alice@example.com", settings, name="Alice", factory={})
+
+    body = _json_body(update)
+    assert body == {
+        "user_id": "alice@example.com",
+        "user_email": "alice@example.com",
+        "user_alias": "Alice",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_identity_backfill_never_overwrites_and_needs_a_name():
+    """Complete row: no /user/update. No IdP name: alias is not invented."""
+    settings = make_settings()
+    respx.post("http://litellm.test/team/new").mock(
+        return_value=httpx.Response(200, json={"team_id": "team-platform"})
+    )
+    respx.post("http://litellm.test/user/new").mock(
+        return_value=httpx.Response(409, json={"error": "User already exists"})
+    )
+    info = respx.get("http://litellm.test/user/info").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "user_info": {
+                    "user_id": "alice@example.com",
+                    "user_email": "alice@example.com",
+                    "user_alias": "Alice Hand-Set",
+                }
+            },
+        )
+    )
+    update = respx.post("http://litellm.test/user/update").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    await ensure_team_and_user("alice@example.com", settings, name="Alice", factory={})
+    assert not update.called
+
+    info.mock(
+        return_value=httpx.Response(
+            200, json={"user_info": {"user_id": "alice@example.com", "user_email": None}}
+        )
+    )
+    await ensure_team_and_user("alice@example.com", settings, factory={})
+    assert _json_body(update) == {"user_id": "alice@example.com", "user_email": "alice@example.com"}
 
 
 @pytest.mark.asyncio

@@ -333,7 +333,8 @@ async def ensure_team_and_user(
     """Idempotently ensure the user's team and LiteLLM user exist.
 
     Performs Steps A (team), A2 (user), and A3 (member budget)
-    in that order. This is a shared prerequisite for both key minting
+    in that order -- except on the personal-team path, where A2 runs first
+    (its /team/member_add would otherwise auto-create a user without email). This is a shared prerequisite for both key minting
     (generate_litellm_key) and the eager /ui login path (D-13). Returns the team_id.
 
     Step A has two shapes, picked by settings.personal_teams_enabled:
@@ -381,6 +382,13 @@ async def ensure_team_and_user(
         # from the caller wins over the personal team, which is what keeps the
         # console's key-create path working while the flag is being rolled out.
         if settings.personal_teams_enabled and team_id is None:
+            # User BEFORE team: ensure_personal_team's /team/member_add
+            # auto-creates a missing member as a bare row (no user_email, no
+            # user_alias), and /user/new would then only answer "exists".
+            # No `teams` here: the team may not exist yet; member_add joins it.
+            user_result = await ensure_litellm_user(
+                email, settings, name=name, apply_budget=True, factory=factory
+            )
             # Opens its own client (nested, harmless) because the two-phase
             # create-closed-then-attach sequence is its own invariant.
             team_id = await ensure_personal_team(email, settings, factory, sso_groups)
@@ -404,10 +412,10 @@ async def ensure_team_and_user(
             if team_resp.status_code != 200 and not team_exists:
                 _raise_litellm(team_resp, "/team/new")
 
-        # Step A2: Ensure user exists with D-15 factory user budget block.
-        user_result = await ensure_litellm_user(
-            email, settings, name=name, team_id=team_id, apply_budget=True, factory=factory
-        )
+            # Step A2: Ensure user exists with D-15 factory user budget block.
+            user_result = await ensure_litellm_user(
+                email, settings, name=name, team_id=team_id, apply_budget=True, factory=factory
+            )
 
         # D-16 lazy backfill: if user already existed, patch only null/missing budget fields.
         if user_result.get("existed"):
@@ -420,6 +428,13 @@ async def ensure_team_and_user(
                 }
                 # Find fields that are None or missing on the existing user
                 missing = {k: v for k, v in factory_user.items() if existing_user.get(k) is None}
+                # Identity backfill: a row auto-created by /team/member_add has
+                # neither, and ach resolves users by user_email. Fill only
+                # empties; alias only from a real IdP name.
+                if not existing_user.get("email"):
+                    missing["user_email"] = email
+                if name and not existing_user.get("name"):
+                    missing["user_alias"] = name
                 if missing:
                     resp = await client.post(
                         "/user/update",
