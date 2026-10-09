@@ -138,7 +138,7 @@ def test_no_static_mount_and_no_plugin_tarball(tmp_path, monkeypatch, path):
     assert _client().get(path).status_code == 404
 
 
-SPEC = "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.4"
+SPEC = "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.7"
 
 
 def test_wellknown_opencode_manifest_points_at_the_plugin_with_options():

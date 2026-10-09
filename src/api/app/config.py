@@ -252,7 +252,7 @@ class Settings(BaseSettings):
 
     # The OpenCode plugin that /.well-known/opencode installs (opencode v1 and v2).
     # A git spec at the repo root, pinned to a tag: v1 ignores `::path:` subdirs.
-    opencode_plugin_spec: str = "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.4"
+    opencode_plugin_spec: str = "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.7"
 
     # Default / small model OpenCode starts with, as bare model names (no provider
     # prefix). Served in /clients/opencode/config only when the user's own list has

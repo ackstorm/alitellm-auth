@@ -27,7 +27,7 @@ import urllib.parse
 PORT = int(os.environ.get("PORT", "8000"))
 ORIGIN = os.environ.get("ORIGIN", f"http://127.0.0.1:{PORT}")
 PROVIDER = os.environ.get("PROVIDER", "acktest")
-PLUGIN_SPEC = os.environ.get("PLUGIN_SPEC", "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.4")
+PLUGIN_SPEC = os.environ.get("PLUGIN_SPEC", "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.7")
 MODEL_ID = os.environ.get("MODEL_ID", "echo-model")
 SHORT_TOKEN_SECONDS = int(os.environ.get("SHORT_TOKEN_SECONDS", "90"))
 LONG_TOKEN_SECONDS = int(os.environ.get("LONG_TOKEN_SECONDS", "3600"))

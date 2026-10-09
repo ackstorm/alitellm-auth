@@ -2,6 +2,10 @@
 
 ## [unreleased]
 
+### Changed
+
+- Default `OPENCODE_PLUGIN_SPEC` is now plugin `v0.4.7`. On OpenCode v2 the provider no longer vanishes mid-session ("No provider selected") about 5 minutes after start when one of the service's locations fails to load the config (v0.4.7), concurrent token refreshes no longer spend the rotated refresh token twice (v0.4.7), and a rejected refresh keeps the cached provider and asks for a re-login (v0.4.6).
+
 ## [0.23.2] - 2026-10-09
 
 ### Fixed

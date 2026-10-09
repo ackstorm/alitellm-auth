@@ -81,7 +81,7 @@ picker in the TUI.
 {
   "auth": {"command": ["echo", "ok"], "env": ""},
   "config": {
-    "plugin": [["git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.4",
+    "plugin": [["git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.7",
                 {"api": "https://api.example.com/v1",
                  "platform": "https://api.example.com",
                  "provider": "ai-platform"}]],
@@ -147,7 +147,7 @@ version, put the plugin in `~/.config/opencode/opencode.json` yourself, then run
 ```json
 {
   "plugin": [
-    ["git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.4",
+    ["git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.7",
      {"api": "https://api.example.com/v1",
       "platform": "https://api.example.com",
       "provider": "ai-platform"}]
