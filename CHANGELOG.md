@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [0.23.2] - 2026-10-09
+
 ### Fixed
 
 - With `personalTeamsEnabled`, a user's first login created their LiteLLM user without `user_email`/`user_alias`: `/team/member_add` auto-creates a missing member as a bare row, and the later `/user/new` only answered "already exists". The user is now created before joining the personal team, and an existing row missing `user_email` (or `user_alias`, when the IdP sends a name) is filled in on the next login. Non-empty values are never overwritten. ach resolves users by `user_email`, so affected users saw no environments or models there.
