@@ -53,7 +53,7 @@ config:
   defaultSmallModel: ""
   # OpenCode plugin installed by /.well-known/opencode (`opencode auth login
   # https://<ingress.host>`). Git spec at the plugin repo root, pinned to a tag.
-  opencodePluginSpec: "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.7"
+  opencodePluginSpec: "git+https://github.com/ackstorm/opencode-oidc-provider.git#v0.4.8"
   # ── Personal teams ────────────────────────────────────────────────────────
   # One LiteLLM team per user (id "<personalTeamPrefix><email>") instead of the
   # single shared team. A personal team has exactly one member, so the team
